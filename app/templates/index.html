@@ -1,0 +1,40 @@
+{% extends 'base.html' %}
+{% block title %}NTE Board Game{% endblock %}
+{% block body %}
+<main class="main-page">
+    <section class="glass-card panel-header">
+        <div>
+            <p class="eyebrow">NTE Home</p>
+            <h1>主界面</h1>
+            <p class="subtle">先跟机器人“Fairy”发送注册命令，你的 QQ 号就是账户，机器人回传一个验证码作为密码；登录后可以在资料页修改用户名和密码。</p>
+        </div>
+        <div class="header-actions">
+            <a class="secondary-btn" href="{{ url_for('main.profile_page') }}">资料页</a>
+            <a class="secondary-btn" href="{{ url_for('main.build_page') }}">查看构筑</a>
+            <button class="primary-btn" id="logout-btn" type="button">退出登录</button>
+        </div>
+    </section>
+    <section class="glass-card mode-panel">
+        <div class="section-title-row">
+            <div>
+                <h2>模式选择</h2>
+                <p class="subtle">当前开放单人探索模式，支持持久化保存与刷新恢复。</p>
+            </div>
+            <div class="note-box compact-note">
+                <strong id="main-display-name">-</strong>
+                <p id="main-display-id">账户：-</p>
+            </div>
+        </div>
+        <div class="mode-grid" id="mode-grid"></div>
+        <div class="note-box">
+            <strong>当前构筑</strong>
+            <p id="build-summary-copy">尚未读取构筑。</p>
+        </div>
+        <div class="hero-actions">
+            <button class="primary-btn" id="start-mode-btn" type="button">开始对局</button>
+        </div>
+    </section>
+</main>
+<script src="{{ url_for('static', filename='js/common.js') }}"></script>
+<script src="{{ url_for('static', filename='js/home.js') }}"></script>
+{% endblock %}

@@ -1,0 +1,184 @@
+from flask import Blueprint, g, jsonify, render_template, request
+
+from app.auth import login_with_code, token_required
+from app.dao import update_player_nickname, update_player_password
+from app.engine.game_service import get_catalog_payload, get_run_state, move_player, play_item, reset_run, roll_dice, save_build, start_or_resume_run
+from app.errors import AppError
+from app.utils.logger import get_logger
+
+logger = get_logger('nte.routes')
+main_bp = Blueprint('main', __name__)
+
+
+@main_bp.get('/')
+def home():
+    return render_template('index.html')
+
+
+@main_bp.get('/login')
+def login_page():
+    return render_template('login.html')
+
+
+@main_bp.get('/profile')
+def profile_page():
+    return render_template('profile.html')
+
+
+@main_bp.get('/build')
+def build_page():
+    return render_template('build.html')
+
+
+@main_bp.get('/table')
+def table_page():
+    return render_template('table.html')
+
+
+@main_bp.post('/api/auth/login')
+def api_login():
+    payload = request.get_json(silent=True) or {}
+    try:
+        result, error = login_with_code(str(payload.get('player_uid', '')).strip(), str(payload.get('code', '')).strip())
+        if error:
+            return jsonify({'error': error}), 400
+        return jsonify(result)
+    except Exception:
+        logger.exception('api_login failed')
+        return jsonify({'error': '登录过程中发生异常，请稍后重试。'}), 500
+
+
+@main_bp.get('/api/me')
+@token_required
+def api_me():
+    return jsonify({
+        'player_uid': g.current_player.player_uid,
+        'nickname': g.current_player.nickname or g.current_player.player_uid,
+    })
+
+
+@main_bp.post('/api/account/profile')
+@token_required
+def api_update_profile():
+    payload = request.get_json(silent=True) or {}
+    try:
+        player = update_player_nickname(g.current_player, str(payload.get('nickname', '')))
+        return jsonify({
+            'player_uid': player.player_uid,
+            'nickname': player.nickname or player.player_uid,
+        })
+    except AppError as exc:
+        return jsonify({'error': str(exc)}), 400
+    except Exception:
+        logger.exception('api_update_profile failed')
+        return jsonify({'error': '修改用户名时发生异常，请稍后重试。'}), 500
+
+
+@main_bp.post('/api/account/password')
+@token_required
+def api_update_password():
+    payload = request.get_json(silent=True) or {}
+    try:
+        update_player_password(g.current_player, str(payload.get('password', '')))
+        return jsonify({'ok': True})
+    except AppError as exc:
+        return jsonify({'error': str(exc)}), 400
+    except Exception:
+        logger.exception('api_update_password failed')
+        return jsonify({'error': '修改密码时发生异常，请稍后重试。'}), 500
+
+
+@main_bp.get('/api/catalog')
+@token_required
+def api_catalog():
+    return jsonify(get_catalog_payload(g.current_player))
+
+
+@main_bp.post('/api/build/save')
+@token_required
+def api_save_build():
+    payload = request.get_json(silent=True) or {}
+    try:
+        result = save_build(g.current_player, payload.get('character_id', ''), payload.get('item_ids', []))
+        return jsonify(result)
+    except AppError as exc:
+        return jsonify({'error': str(exc)}), 400
+    except Exception:
+        logger.exception('api_save_build failed')
+        return jsonify({'error': '保存构筑时发生异常，请稍后重试。'}), 500
+
+
+@main_bp.post('/api/game/start')
+@token_required
+def api_start_game():
+    try:
+        return jsonify(start_or_resume_run(g.current_player))
+    except AppError as exc:
+        return jsonify({'error': str(exc)}), 400
+    except Exception:
+        logger.exception('api_start_game failed')
+        return jsonify({'error': '开始对局时发生异常，请稍后重试。'}), 500
+
+
+@main_bp.get('/api/game/state')
+@token_required
+def api_game_state():
+    try:
+        state = get_run_state(g.current_player)
+        if state is None:
+            return jsonify({'error': '当前没有对局，请先开始。'}), 404
+        return jsonify(state)
+    except AppError as exc:
+        return jsonify({'error': str(exc)}), 400
+    except Exception:
+        logger.exception('api_game_state failed')
+        return jsonify({'error': '读取对局状态时发生异常，请稍后重试。'}), 500
+
+
+@main_bp.post('/api/game/roll')
+@token_required
+def api_roll():
+    try:
+        return jsonify(roll_dice(g.current_player))
+    except AppError as exc:
+        return jsonify({'error': str(exc)}), 400
+    except Exception:
+        logger.exception('api_roll failed')
+        return jsonify({'error': '掷骰时发生异常，请稍后重试。'}), 500
+
+
+@main_bp.post('/api/game/play-item')
+@token_required
+def api_play_item():
+    payload = request.get_json(silent=True) or {}
+    try:
+        return jsonify(play_item(g.current_player, payload.get('item_instance_id', '')))
+    except AppError as exc:
+        return jsonify({'error': str(exc)}), 400
+    except Exception:
+        logger.exception('api_play_item failed')
+        return jsonify({'error': '使用道具时发生异常，请稍后重试。'}), 500
+
+
+@main_bp.post('/api/game/move')
+@token_required
+def api_move():
+    payload = request.get_json(silent=True) or {}
+    try:
+        return jsonify(move_player(g.current_player, payload.get('direction', '')))
+    except AppError as exc:
+        return jsonify({'error': str(exc)}), 400
+    except Exception:
+        logger.exception('api_move failed')
+        return jsonify({'error': '移动时发生异常，请稍后重试。'}), 500
+
+
+@main_bp.post('/api/game/reset')
+@token_required
+def api_reset():
+    try:
+        reset_run(g.current_player)
+        return jsonify({'ok': True})
+    except Exception:
+        logger.exception('api_reset failed')
+        return jsonify({'error': '重置对局时发生异常，请稍后重试。'}), 500

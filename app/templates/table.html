@@ -1,0 +1,66 @@
+{% extends 'base.html' %}
+{% block title %}牌桌{% endblock %}
+{% block body %}
+<main class="table-page">
+    <section class="glass-card table-topbar">
+        <div>
+            <p class="eyebrow">Battle Table</p>
+            <h1>NTE 地图牌桌</h1>
+        </div>
+        <div class="header-actions">
+            <a class="secondary-btn" href="{{ url_for('main.build_page') }}">返回构筑</a>
+            <button class="secondary-btn" id="reset-run-btn">重置对局</button>
+        </div>
+    </section>
+    <section class="table-layout">
+        <div class="glass-card state-panel">
+            <div class="section-title-row">
+                <h2>战局状态</h2>
+                <span class="phase-chip" id="phase-chip">未开始</span>
+            </div>
+            <div class="stats-grid" id="stats-grid"></div>
+            <div class="cta-stack">
+                <div class="note-box">
+                    <strong>回合提示</strong>
+                    <p>每回合开始时会自动掷骰，当前点数会直接显示在状态面板中。</p>
+                </div>
+                <div class="dir-grid">
+                    <button data-direction="up">上</button>
+                    <button data-direction="left">左</button>
+                    <button data-direction="down">下</button>
+                    <button data-direction="right">右</button>
+                </div>
+            </div>
+            <div class="hint-box">
+                <strong>路线提示</strong>
+                <p id="route-hint">等待加载</p>
+            </div>
+        </div>
+        <div class="glass-card board-panel">
+            <div class="section-title-row">
+                <h2>地图</h2>
+                <p id="map-name">未加载</p>
+            </div>
+            <div class="map-stage" id="map-stage">
+                <div class="map-stage-inner">
+                    <img id="map-background" alt="map background">
+                    <div class="map-overlay" id="map-overlay"></div>
+                </div>
+            </div>
+        </div>
+        <div class="glass-card side-panel">
+            <div class="section-title-row">
+                <h2>手牌</h2>
+                <p>行动阶段可用 1 个</p>
+            </div>
+            <div class="hand-list" id="hand-list"></div>
+            <div class="section-title-row compact">
+                <h2>日志</h2>
+            </div>
+            <div class="log-list" id="log-list"></div>
+        </div>
+    </section>
+</main>
+<script src="{{ url_for('static', filename='js/common.js') }}"></script>
+<script src="{{ url_for('static', filename='js/table.js') }}"></script>
+{% endblock %}
