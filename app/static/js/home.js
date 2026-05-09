@@ -26,7 +26,7 @@ async function bootstrapHome() {
 
   function renderProfile() {
     mainDisplayName.textContent = me.nickname;
-    mainDisplayId.textContent = `账户：${me.player_uid}`;
+    mainDisplayId.textContent = `账号：${me.player_uid}`;
   }
 
   function renderModes() {

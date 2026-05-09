@@ -11,11 +11,20 @@ if TYPE_CHECKING:
     from app.engine.event_context import EventContext, JsonDict
 
 
+def get_item_player_state(context: 'EventContext') -> dict:
+    return context.state['player']
+
+
+def get_item_actor_nickname(context: 'EventContext') -> str:
+    return str(context.payload.get('actor_nickname', '当前玩家'))
+
+
 def add_item_log(context: 'EventContext', message: str) -> None:
     context.state.setdefault('log', [])
-    context.state['log'].insert(0, message)
+    actor_nickname = get_item_actor_nickname(context)
+    context.state['log'].insert(0, f'[{actor_nickname}] {message}')
     del context.state['log'][LOG_LIMIT:]
-    logger.info(message)
+    logger.info('[%s] %s', actor_nickname, message)
 
 
 def manhattan(x1: int, y1: int, x2: int, y2: int) -> int:

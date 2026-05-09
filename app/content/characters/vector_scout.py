@@ -1,5 +1,6 @@
 from typing import TYPE_CHECKING
 
+from app.content.characters.common import add_character_log
 from app.engine.effects import build_runtime_effect, register_runtime_effect
 from app.engine.events import GameEvent
 
@@ -17,7 +18,7 @@ def vector_scout_turn_belt_redirect(context: 'EventContext') -> None:
         source_instance_id=str(context.instance_id or 'vector_scout'),
         data={'stored_next_turn_move': 1, 'consume_on_move': True},
     ))
-    context.state['log'].insert(0, 'Vector Scout 被动生效：下回合移动 +1。')
+    add_character_log(context, 'Vector Scout 被动生效：下回合移动 +1。')
 
 
 CHARACTER = {

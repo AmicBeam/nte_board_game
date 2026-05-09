@@ -13,7 +13,7 @@ from app.content.loader import (
     load_items,
     resolve_map_object_id,
 )
-from app.dao import clear_run, get_build, get_run, upsert_build, upsert_run
+from app.dao import clear_run, get_build, get_current_room, get_run, list_room_members, update_room_status, upsert_build, upsert_run
 from app.db import atomic_transaction
 from app.engine.damage import PLAYER_TARGET_ID, build_damage_package, resolve_damage_package
 from app.engine.effects import (
@@ -34,7 +34,7 @@ from app.engine.runtime import (
     serialize_item_instance,
 )
 from app.errors import RuleValidationError
-from app.models import Player
+from app.models import Player, Room
 from app.utils.logger import get_logger
 
 DEFAULT_ITEM_COUNT = 6
@@ -83,37 +83,62 @@ def save_build(player: Player, character_id: str, item_ids: list[str]) -> JsonDi
 
 
 def start_or_resume_run(player: Player) -> JsonDict:
+    room = _require_room(player)
+    return start_or_resume_run_for_room(room, player)
+
+
+def start_or_resume_run_for_room(room: Room, player: Player) -> JsonDict:
     with atomic_transaction():
-        build = get_build(player)
-        if build is None:
-            raise RuleValidationError('请先完成构筑。')
-        existing_run = get_run(player)
+        room_members = list_room_members(room)
+        _ensure(room_members, '房间内没有成员，无法开始对局。')
+        builds_by_player_uid: dict[str, JsonDict] = {}
+        for member in room_members:
+            build = get_build(member.player)
+            if build is None:
+                raise RuleValidationError(f'玩家 {member.player.player_uid} 尚未完成构筑。')
+            builds_by_player_uid[member.player.player_uid] = build
+        existing_run = get_run(room)
         if existing_run and existing_run['status'] in {'playing', 'victory', 'defeat'}:
             existing_run['snapshot'] = _normalize_loaded_state(existing_run['snapshot'])
             validate_state(existing_run['snapshot'])
-            upsert_run(player, existing_run['snapshot']['map']['id'], existing_run['snapshot']['status'], existing_run['snapshot'])
-            logger.info('resume_run player_uid=%s status=%s', player.player_uid, existing_run['status'])
+            _persist_room_snapshot(room, existing_run['snapshot'])
+            logger.info('resume_run room_code=%s player_uid=%s status=%s', room.room_code, player.player_uid, existing_run['status'])
             return serialize_snapshot(existing_run['snapshot'])
-        state = create_initial_state(build['character_id'], build['item_ids'], DEFAULT_MAP_ID)
+        state = create_initial_state(room, room_members, builds_by_player_uid, DEFAULT_MAP_ID)
         validate_state(state)
-        upsert_run(player, state['map']['id'], state['status'], state)
-    logger.info('start_new_run player_uid=%s', player.player_uid)
+        _persist_room_snapshot(room, state)
+    logger.info('start_new_run room_code=%s player_uid=%s', room.room_code, player.player_uid)
     return serialize_snapshot(state)
 
 
 def get_run_state(player: Player) -> JsonDict | None:
-    run = get_run(player)
+    room = get_current_room(player)
+    if room is None:
+        return None
+    return get_run_state_for_room(room, player)
+
+
+def get_run_state_for_room(room: Room, player: Player | None = None) -> JsonDict | None:
+    run = get_run(room)
     if run is None:
         return None
     run['snapshot'] = _normalize_loaded_state(run['snapshot'])
+    if player is not None and player.player_uid in run['snapshot']['players']:
+        _project_player_scope(run['snapshot'], player.player_uid)
     validate_state(run['snapshot'])
     return serialize_snapshot(run['snapshot'])
 
 
 def reset_run(player: Player) -> None:
+    room = _require_room(player)
+    reset_run_for_room(room)
+
+
+def reset_run_for_room(room: Room) -> None:
     with atomic_transaction():
-        clear_run(player)
-    logger.info('reset_run player_uid=%s', player.player_uid)
+        clear_run(room)
+        update_room_status(room, 'ready' if room.mode == 'solo' else 'waiting')
+    logger.info('reset_run room_code=%s', room.room_code)
 
 
 def roll_dice(player: Player) -> JsonDict:
@@ -201,47 +226,78 @@ def move_player(player: Player, direction: str) -> JsonDict:
         state['phase'] = 'battle'
         resolve_battle(state)
         if state['status'] == 'playing':
-            end_turn(state)
+            _finish_player_turn(state)
         return _save_and_serialize(player, state)
 
 
-def create_initial_state(character_id: str, item_ids: list[str], map_id: str) -> JsonDict:
-    character_definition = deepcopy(get_character(character_id))
+def create_initial_state(
+    room: Room,
+    room_members: list[object],
+    builds_by_player_uid: dict[str, JsonDict],
+    map_id: str,
+) -> JsonDict:
     game_map = deepcopy(get_map(map_id))
-    _ensure(character_definition is not None and game_map is not None, '初始化配置失败。')
-    item_instances = build_item_instances(item_ids, turn=1)
-    character_instance = build_character_instance(character_definition)
+    _ensure(game_map is not None, '初始化配置失败。')
+    member_order = [member.player.player_uid for member in room_members]
+    _ensure(member_order, '初始化配置失败。')
+    players: dict[str, JsonDict] = {}
+    for member in room_members:
+        build = builds_by_player_uid[member.player.player_uid]
+        character_definition = deepcopy(get_character(build['character_id']))
+        _ensure(character_definition is not None, '初始化配置失败。')
+        item_instances = build_item_instances(build['item_ids'], turn=1)
+        character_instance = build_character_instance(character_definition)
+        players[member.player.player_uid] = {
+            'profile': {
+                'player_uid': member.player.player_uid,
+                'nickname': member.player.nickname or member.player.player_uid,
+                'seat': member.seat,
+                'is_host': member.is_host,
+            },
+            'character_instance': character_instance,
+            'player': {
+                'x': game_map['start']['x'],
+                'y': game_map['start']['y'],
+                'max_hp': character_instance['max_hp'],
+                'hp': character_instance['max_hp'],
+                'attack': character_instance['attack'],
+                'defense': character_instance['defense'],
+                'keys': 0,
+            },
+            'discard_pile': [],
+            'hand': item_instances,
+            'active_effects': [],
+            'pending_die': None,
+            'phase': 'dice',
+            'has_played_item': False,
+            'route_hint': DEFAULT_ROUTE_HINT,
+            'acted_this_turn': False,
+            'defeated': False,
+        }
     state = {
         'turn': 1,
-        'phase': 'dice',
         'status': 'playing',
-        'character_instance': character_instance,
-        'player': {
-            'x': game_map['start']['x'],
-            'y': game_map['start']['y'],
-            'max_hp': character_instance['max_hp'],
-            'hp': character_instance['max_hp'],
-            'attack': character_instance['attack'],
-            'defense': character_instance['defense'],
-            'keys': 0,
+        'room': {
+            'room_code': room.room_code,
+            'mode': room.mode,
+            'member_order': member_order,
         },
+        'players': players,
+        'current_actor_uid': member_order[0],
         'map': game_map,
-        'discard_pile': [],
-        'hand': item_instances,
-        'active_effects': [],
-        'pending_die': None,
-        'has_played_item': False,
-        'route_hint': DEFAULT_ROUTE_HINT,
         'log': [],
     }
+    _project_player_scope(state, member_order[0])
     _initialize_item_zones(state, emit_initial_events=True)
-    add_log(state, f"已使用 {character_instance['name']} 开始新对局。")
-    _start_turn(state, reason='start_game')
+    add_log(state, _build_start_log(state))
+    _start_shared_turn(state, reason='start_game')
     return state
 
 
 def serialize_snapshot(state: JsonDict) -> JsonDict:
+    _project_player_scope(state, str(state['current_actor_uid']))
     payload = deepcopy(state)
+    current_profile = payload['players'][payload['current_actor_uid']]['profile']
     payload['computed_stats'] = {
         'attack': current_attack(state),
         'defense': current_defense(state),
@@ -249,42 +305,88 @@ def serialize_snapshot(state: JsonDict) -> JsonDict:
     payload['board'] = build_board_overlay(state)
     payload['available_directions'] = list(DIRECTIONS.keys())
     payload['hand_details'] = [item for item in (serialize_item_instance(item_instance) for item_instance in state['hand']) if item is not None]
+    payload['players_overview'] = [_serialize_player_overview(player_scope) for player_scope in state['players'].values()]
+    payload['current_viewer'] = {
+        'player_uid': current_profile['player_uid'],
+        'nickname': current_profile['nickname'],
+        'seat': current_profile['seat'],
+    }
+    payload['turn_progress'] = {
+        'turn': payload['turn'],
+        'acted_player_uids': [
+            player_scope['profile']['player_uid']
+            for player_scope in payload['players'].values()
+            if player_scope.get('acted_this_turn', False)
+        ],
+        'alive_player_uids': [
+            player_scope['profile']['player_uid']
+            for player_scope in payload['players'].values()
+            if player_scope['player']['hp'] > 0 and not player_scope.get('defeated', False)
+        ],
+    }
     return payload
 
 
 def _load_state(player: Player) -> JsonDict:
-    run = get_run(player)
+    room = _require_room(player)
+    run = get_run(room)
     if run is None or not run['snapshot']:
         raise RuleValidationError('当前没有进行中的对局，请先开始。')
     run['snapshot'] = _normalize_loaded_state(run['snapshot'])
+    _project_player_scope(run['snapshot'], player.player_uid)
     validate_state(run['snapshot'])
     return run['snapshot']
 
 
 def _save_and_serialize(player: Player, state: JsonDict) -> JsonDict:
+    room = _require_room(player)
+    return _save_and_serialize_for_room(room, state)
+
+
+def _save_and_serialize_for_room(room: Room, state: JsonDict) -> JsonDict:
+    _capture_player_scope(state)
     validate_state(state)
-    upsert_run(player, state['map']['id'], state['status'], state)
+    _persist_room_snapshot(room, state)
     return serialize_snapshot(state)
 
 
 def validate_state(state: JsonDict) -> None:
-    required_top_keys = {'turn', 'phase', 'status', 'character_instance', 'player', 'map', 'discard_pile', 'hand', 'log'}
+    required_top_keys = {'turn', 'status', 'room', 'players', 'current_actor_uid', 'phase', 'character_instance', 'player', 'map', 'discard_pile', 'hand', 'active_effects', 'pending_die', 'has_played_item', 'route_hint', 'log'}
     missing = required_top_keys - set(state.keys())
     _ensure(not missing, f'状态缺少关键字段：{sorted(missing)}')
-    _ensure(state['phase'] in {'dice', 'action', 'movement', 'battle', 'victory', 'defeat'}, '状态中的 phase 非法。')
+    _ensure(state['phase'] in {'dice', 'action', 'movement', 'battle', 'victory', 'defeat', 'completed'}, '状态中的 phase 非法。')
+    _ensure(state['current_actor_uid'] in state['players'], '当前行动玩家不存在。')
     _ensure(state['player']['hp'] <= state['player']['max_hp'], '玩家生命值超过上限。')
-    all_instances = state['discard_pile'] + state['hand']
+    all_instances = []
+    for player_scope in state['players'].values():
+        _ensure(get_character(player_scope['character_instance']['definition_id']) is not None, '角色实例定义不存在。')
+        _ensure(player_scope['player']['hp'] <= player_scope['player']['max_hp'], '玩家生命值超过上限。')
+        all_instances.extend(player_scope['discard_pile'] + player_scope['hand'])
     instance_ids = [item['instance_id'] for item in all_instances]
     _ensure(len(instance_ids) == len(set(instance_ids)), '道具实例 ID 发生重复。')
     for instance in all_instances:
         _ensure(get_item(instance['definition_id']) is not None, f"未知的道具实例定义：{instance['definition_id']}")
-    _ensure(get_character(state['character_instance']['definition_id']) is not None, '角色实例定义不存在。')
 
 
 def _normalize_loaded_state(state: JsonDict) -> JsonDict:
     normalized = deepcopy(state)
+    _project_player_scope(normalized, str(normalized['current_actor_uid']))
     _initialize_item_zones(normalized, emit_initial_events=False)
     return normalized
+
+
+def _persist_room_snapshot(room: Room, state: JsonDict) -> None:
+    _capture_player_scope(state)
+    upsert_run(room, state['map']['id'], state['status'], state)
+    if state['status'] in {'playing', 'victory', 'defeat'}:
+        update_room_status(room, state['status'])
+
+
+def _require_room(player: Player) -> Room:
+    room = get_current_room(player)
+    if room is None:
+        raise RuleValidationError('当前没有房间，请先创建或加入房间。')
+    return room
 
 
 def add_log(state: JsonDict, message: str) -> None:
@@ -350,7 +452,7 @@ def resolve_tile_entry(state: JsonDict, active_direction: str, steps_remaining: 
     actor = state['player']
     tile = tile_at(state, actor['x'], actor['y'])
     if tile is None:
-        return active_direction
+        return active_direction, False
     tile_type = tile['type']
     object_id = resolve_map_object_id(tile)
     map_object = get_map_object(object_id) or {}
@@ -434,11 +536,15 @@ def resolve_battle(state: JsonDict) -> None:
             add_log(state, '战斗阶段没有可结算目标。')
     if state['player']['hp'] <= 0:
         state['player']['hp'] = 0
-        state['status'] = 'defeat'
-        state['phase'] = 'defeat'
-        battle_end_payload['status'] = state['status']
-        add_log(state, '角色倒下，对局失败。')
-        dispatch_event(state, GameEvent.RUN_DEFEAT, {'reason': 'battle'})
+        _capture_player_scope(state)
+        if _all_players_defeated(state):
+            state['status'] = 'defeat'
+            state['phase'] = 'defeat'
+            battle_end_payload['status'] = state['status']
+            add_log(state, '所有角色都已倒下，对局失败。')
+            dispatch_event(state, GameEvent.RUN_DEFEAT, {'reason': 'battle'})
+        else:
+            add_log(state, '当前角色已倒下，本回合后将由其他玩家继续行动。')
     # 不论有没有目标，战斗阶段结束时都统一派发收尾事件，便于后续扩展“战后结算”效果。
     dispatch_event(state, GameEvent.BATTLE_PHASE_END, battle_end_payload)
 
@@ -464,9 +570,10 @@ def _build_enemy_attack_payload(enemy: JsonDict) -> JsonDict:
 def _default_direct_attack(context: EventContext, state: JsonDict) -> None:
     enemy = _find_enemy_by_id(state, str(context.payload['enemy_id']))
     _ensure(enemy is not None, f"未找到战斗目标：{context.payload['enemy_id']}")
+    actor_profile = state['players'][str(state['current_actor_uid'])]['profile']
     outgoing = max(1, current_attack(state) - enemy['defense'])
     damage_result = resolve_damage_package(state, build_damage_package(
-        source_name='玩家',
+        source_name=str(actor_profile.get('nickname', '玩家')),
         source_id=PLAYER_TARGET_ID,
         source_type='player',
         target_type='enemy',
@@ -492,6 +599,8 @@ def _default_direct_attack(context: EventContext, state: JsonDict) -> None:
         source_type='enemy',
         target_type='player',
         target_id=PLAYER_TARGET_ID,
+        target_name=str(actor_profile.get('nickname', '玩家')),
+        target_player_uid=str(state['current_actor_uid']),
         amount=max(0, enemy['attack'] - current_defense(state)),
         attack_kind=str(context.payload.get('attack_kind', '反击')),
         allow_block=True,
@@ -507,12 +616,15 @@ def _default_direct_attack(context: EventContext, state: JsonDict) -> None:
 def _default_ranged_attack(context: EventContext, state: JsonDict) -> None:
     enemy = _find_enemy_by_id(state, str(context.payload['enemy_id']))
     _ensure(enemy is not None, f"未找到远程目标：{context.payload['enemy_id']}")
+    actor_profile = state['players'][str(state['current_actor_uid'])]['profile']
     damage_result = resolve_damage_package(state, build_damage_package(
         source_name=str(enemy['name']),
         source_id=str(enemy['id']),
         source_type='enemy',
         target_type='player',
         target_id=PLAYER_TARGET_ID,
+        target_name=str(actor_profile.get('nickname', '玩家')),
+        target_player_uid=str(state['current_actor_uid']),
         amount=max(0, enemy['attack'] - current_defense(state)),
         attack_kind=str(context.payload.get('attack_kind', '远程攻击')),
         allow_block=True,
@@ -536,10 +648,12 @@ def _find_enemy_by_id(state: JsonDict, enemy_id: str) -> JsonDict | None:
 
 
 def current_attack(state: JsonDict) -> int:
+    _project_player_scope(state, str(state['current_actor_uid']))
     return state['player']['attack'] + sum_runtime_effect_bonus(state, 'attack_bonus')
 
 
 def current_defense(state: JsonDict) -> int:
+    _project_player_scope(state, str(state['current_actor_uid']))
     return state['player']['defense'] + sum_runtime_effect_bonus(state, 'defense_bonus')
 
 
@@ -550,30 +664,52 @@ def is_adjacent_to_boss(state: JsonDict, x: int, y: int) -> bool:
 def manhattan(x1: int, y1: int, x2: int, y2: int) -> int:
     return abs(x1 - x2) + abs(y1 - y2)
 
-def end_turn(state: JsonDict) -> None:
-    # 回合结束同样走固定阶段序列，避免“清理临时状态”和“结束触发”散落在多个分支里。
+def _finish_player_turn(state: JsonDict) -> None:
+    state['phase'] = 'completed'
+    state['acted_this_turn'] = True
+    _capture_player_scope(state)
+    if _all_active_players_completed(state):
+        _advance_shared_turn(state)
+
+
+def _advance_shared_turn(state: JsonDict) -> None:
+    # 共享回合只在所有存活玩家都完成行动后统一推进。
+    current_actor_uid = str(state['current_actor_uid'])
+    _project_player_scope(state, current_actor_uid)
     run_phase_sequence(state, TURN_CLOSING_SEQUENCE, lambda event_name: {
         'turn': state['turn'],
         'phase': state['phase'],
         'event': event_name.value,
     })
-    state['pending_die'] = None
+    _capture_player_scope(state)
     state['turn'] += 1
-    state['phase'] = 'dice'
-    state['has_played_item'] = False
-    _start_turn(state, reason='turn_end')
+    _start_shared_turn(state, reason='turn_end')
 
 
-def _start_turn(state: JsonDict, reason: str) -> None:
-    # 回合开始链路统一从这里进入，先跑阶段事件，再自动给出骰子结果。
+def _start_shared_turn(state: JsonDict, reason: str) -> None:
+    # 共享回合开始时，为每个仍存活的玩家分别重置并自动掷骰。
     _ensure(state['status'] == 'playing', '只有进行中的对局可以自动掷骰。')
-    state['phase'] = 'dice'
-    run_phase_sequence(
-        state,
-        TURN_OPENING_SEQUENCE,
-        lambda event_name: _build_turn_opening_payload(state, event_name, reason),
-        lambda event_name: _build_turn_opening_default_handler(state, event_name),
-    )
+    original_actor_uid = str(state['current_actor_uid'])
+    for actor_uid, player_scope in state['players'].items():
+        if player_scope.get('defeated', False) or player_scope['player']['hp'] <= 0:
+            player_scope['acted_this_turn'] = True
+            player_scope['phase'] = 'defeat'
+            player_scope['pending_die'] = None
+            continue
+        _project_player_scope(state, actor_uid)
+        state['pending_die'] = None
+        state['phase'] = 'dice'
+        state['has_played_item'] = False
+        state['route_hint'] = DEFAULT_ROUTE_HINT
+        state['acted_this_turn'] = False
+        run_phase_sequence(
+            state,
+            TURN_OPENING_SEQUENCE,
+            lambda event_name: _build_turn_opening_payload(state, event_name, reason),
+            lambda event_name: _build_turn_opening_default_handler(state, event_name),
+        )
+        _capture_player_scope(state)
+    _project_player_scope(state, original_actor_uid if original_actor_uid in state['players'] else state['room']['member_order'][0])
 
 
 def _build_turn_opening_payload(state: JsonDict, event_name: GameEvent, reason: str) -> JsonDict:
@@ -663,7 +799,18 @@ def build_board_overlay(state: JsonDict) -> JsonDict:
     if boss['hp'] > 0:
         for pos in boss['positions']:
             overlays.append(_overlay(pos['x'], pos['y'], width, height, ICONS['boss'], f"{boss['name']}：HP {boss['hp']}/{boss['max_hp']}，攻击 {boss['attack']}", 'boss'))
-    overlays.append(_overlay(state['player']['x'], state['player']['y'], width, height, ICONS['player'], f"玩家位置：({state['player']['x']}, {state['player']['y']})", 'player'))
+    for player_scope in state['players'].values():
+        profile = player_scope['profile']
+        player_state = player_scope['player']
+        overlays.append(_overlay(
+            player_state['x'],
+            player_state['y'],
+            width,
+            height,
+            ICONS['player'],
+            f"{profile['nickname']}：({player_state['x']}, {player_state['y']})，HP {player_state['hp']}/{player_state['max_hp']}",
+            'player',
+        ))
     return {
         'width': width,
         'height': height,
@@ -714,10 +861,15 @@ def _set_item_zone(state: JsonDict, item_instance: JsonDict, zone_name: str, rea
 
 
 def _initialize_item_zones(state: JsonDict, emit_initial_events: bool) -> None:
-    for item_instance in state.get('hand', []):
-        _set_item_zone(state, item_instance, 'hand', reason='initial_place', emit_event=emit_initial_events)
-    for item_instance in state.get('discard_pile', []):
-        _set_item_zone(state, item_instance, 'discard_pile', reason='restore_zone', emit_event=False)
+    original_actor_uid = str(state['current_actor_uid'])
+    for actor_uid in state['players']:
+        _project_player_scope(state, actor_uid)
+        for item_instance in state.get('hand', []):
+            _set_item_zone(state, item_instance, 'hand', reason='initial_place', emit_event=emit_initial_events)
+        for item_instance in state.get('discard_pile', []):
+            _set_item_zone(state, item_instance, 'discard_pile', reason='restore_zone', emit_event=False)
+        _capture_player_scope(state)
+    _project_player_scope(state, original_actor_uid)
 
 
 def _reconcile_item_zone_effects(state: JsonDict, item_instance: JsonDict) -> None:
@@ -775,7 +927,75 @@ def _refresh_zone_derived_state(state: JsonDict) -> None:
         route_hint = effect.get('data', {}).get('route_hint')
         if route_hint:
             state['route_hint'] = str(route_hint)
+            _capture_player_scope(state)
             return
+    _capture_player_scope(state)
+
+
+def _build_start_log(state: JsonDict) -> str:
+    member_names = [player_scope['character_instance']['name'] for player_scope in state['players'].values()]
+    if len(member_names) == 1:
+        return f'已使用 {member_names[0]} 开始新对局。'
+    return f"房间对局开始，出战角色：{' / '.join(member_names)}。"
+
+
+def _serialize_player_overview(player_scope: JsonDict) -> JsonDict:
+    profile = player_scope['profile']
+    player = player_scope['player']
+    return {
+        'player_uid': profile['player_uid'],
+        'nickname': profile['nickname'],
+        'seat': profile['seat'],
+        'is_host': profile['is_host'],
+        'hp': player['hp'],
+        'max_hp': player['max_hp'],
+        'x': player['x'],
+        'y': player['y'],
+        'phase': player_scope['phase'],
+        'acted_this_turn': player_scope['acted_this_turn'],
+        'defeated': player_scope.get('defeated', False),
+    }
+
+
+def _project_player_scope(state: JsonDict, player_uid: str) -> None:
+    player_scope = state['players'][player_uid]
+    state['current_actor_uid'] = player_uid
+    state['character_instance'] = player_scope['character_instance']
+    state['player'] = player_scope['player']
+    state['discard_pile'] = player_scope['discard_pile']
+    state['hand'] = player_scope['hand']
+    state['active_effects'] = player_scope['active_effects']
+    state['pending_die'] = player_scope['pending_die']
+    state['phase'] = player_scope['phase']
+    state['has_played_item'] = player_scope['has_played_item']
+    state['route_hint'] = player_scope['route_hint']
+    state['acted_this_turn'] = player_scope['acted_this_turn']
+
+
+def _capture_player_scope(state: JsonDict) -> None:
+    player_scope = state['players'][str(state['current_actor_uid'])]
+    player_scope['pending_die'] = state['pending_die']
+    player_scope['phase'] = state['phase']
+    player_scope['has_played_item'] = state['has_played_item']
+    player_scope['route_hint'] = state['route_hint']
+    player_scope['acted_this_turn'] = state.get('acted_this_turn', False)
+    player_scope['defeated'] = state['player']['hp'] <= 0
+
+
+def _all_active_players_completed(state: JsonDict) -> bool:
+    for player_scope in state['players'].values():
+        if player_scope.get('defeated', False) or player_scope['player']['hp'] <= 0:
+            continue
+        if not player_scope.get('acted_this_turn', False):
+            return False
+    return True
+
+
+def _all_players_defeated(state: JsonDict) -> bool:
+    for player_scope in state['players'].values():
+        if player_scope['player']['hp'] > 0 and not player_scope.get('defeated', False):
+            return False
+    return True
 
 
 def _ensure(condition: bool, message: str) -> None:

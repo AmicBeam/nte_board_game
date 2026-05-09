@@ -45,9 +45,35 @@ class DeckBuild(BaseModel):
     updated_at = DateTimeField(default=datetime.utcnow)
 
 
+class Room(BaseModel):
+    id = AutoField()
+    room_code = CharField(unique=True, max_length=12)
+    mode = CharField(default='solo')
+    status = CharField(default='waiting')
+    host = ForeignKeyField(Player, backref='hosted_rooms', on_delete='CASCADE')
+    created_at = DateTimeField(default=datetime.utcnow)
+    updated_at = DateTimeField(default=datetime.utcnow)
+
+
+class RoomMember(BaseModel):
+    id = AutoField()
+    room = ForeignKeyField(Room, backref='members', on_delete='CASCADE')
+    player = ForeignKeyField(Player, backref='room_memberships', on_delete='CASCADE')
+    seat = CharField(default='host')
+    is_host = BooleanField(default=False)
+    is_ready = BooleanField(default=False)
+    joined_at = DateTimeField(default=datetime.utcnow)
+    updated_at = DateTimeField(default=datetime.utcnow)
+
+    class Meta:
+        indexes = (
+            (('room', 'player'), True),
+        )
+
+
 class GameRun(BaseModel):
     id = AutoField()
-    player = ForeignKeyField(Player, backref='runs', on_delete='CASCADE', unique=True)
+    room = ForeignKeyField(Room, backref='run', on_delete='CASCADE', unique=True)
     status = CharField(default='idle')
     map_id = CharField(default='')
     snapshot = TextField(default='{}')

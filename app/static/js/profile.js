@@ -19,7 +19,7 @@ async function bootstrapProfile() {
 
   function renderAccount() {
     accountDisplayName.textContent = account.nickname;
-    accountDisplayId.textContent = `账户：${account.playerUid}`;
+    accountDisplayId.textContent = `账号：${account.playerUid}`;
     nicknameInput.value = account.nickname === account.playerUid ? '' : account.nickname;
   }
 

@@ -2,24 +2,20 @@ from typing import TYPE_CHECKING
 
 LOG_LIMIT = 18
 
-BLOCK_TYPE_BLOCK = '阻挡'
-BLOCK_TYPE_INTERCEPT = '拦截'
-BLOCK_TYPE_PASS = '可通过'
-
 if TYPE_CHECKING:
     from app.engine.event_context import EventContext
 
 
-def get_map_object_player_state(context: 'EventContext') -> dict:
+def get_character_player_state(context: 'EventContext') -> dict:
     return context.state['player']
 
 
-def get_map_object_actor_nickname(context: 'EventContext') -> str:
+def get_character_actor_nickname(context: 'EventContext') -> str:
     return str(context.payload.get('actor_nickname', '当前玩家'))
 
 
-def add_map_log(context: 'EventContext', message: str) -> None:
+def add_character_log(context: 'EventContext', message: str) -> None:
     context.state.setdefault('log', [])
-    actor_nickname = get_map_object_actor_nickname(context)
+    actor_nickname = get_character_actor_nickname(context)
     context.state['log'].insert(0, f'[{actor_nickname}] {message}')
     del context.state['log'][LOG_LIMIT:]

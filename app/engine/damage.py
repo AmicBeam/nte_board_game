@@ -20,6 +20,7 @@ def build_damage_package(
     attack_kind: str,
     source_type: str = 'effect',
     target_name: str | None = None,
+    target_player_uid: str | None = None,
     allow_block: bool = True,
 ) -> JsonDict:
     normalized_amount = max(0, amount)
@@ -30,6 +31,7 @@ def build_damage_package(
         'target_type': target_type,
         'target_id': target_id,
         'target_name': target_name,
+        'target_player_uid': target_player_uid,
         'base_amount': normalized_amount,
         'amount': normalized_amount,
         'bonus_damage': 0,
@@ -87,7 +89,12 @@ def resolve_damage_package(state: JsonDict, damage_package: JsonDict) -> JsonDic
 
 def _default_apply_damage_package(context: EventContext) -> None:
     damage_package = context.payload
-    target = _resolve_target(context.state, str(damage_package['target_type']), str(damage_package['target_id']))
+    target = _resolve_target(
+        context.state,
+        str(damage_package['target_type']),
+        str(damage_package['target_id']),
+        target_player_uid=damage_package.get('target_player_uid'),
+    )
     if target is None:
         logger.warning('Damage package target not found: %s', damage_package)
         damage_package['final_damage'] = 0
@@ -104,8 +111,12 @@ def _default_apply_damage_package(context: EventContext) -> None:
     _add_damage_log(context.state, damage_package)
 
 
-def _resolve_target(state: JsonDict, target_type: str, target_id: str) -> JsonDict | None:
+def _resolve_target(state: JsonDict, target_type: str, target_id: str, target_player_uid: object | None = None) -> JsonDict | None:
     if target_type == 'player':
+        resolved_target_uid = str(target_player_uid or state.get('current_actor_uid', ''))
+        players = state.get('players', {})
+        if resolved_target_uid in players:
+            return players[resolved_target_uid].get('player')
         return state.get('player')
     if target_type != 'enemy':
         return None
@@ -124,9 +135,14 @@ def _add_damage_log(state: JsonDict, damage_package: JsonDict) -> None:
     final_damage = int(damage_package.get('final_damage', 0))
     attack_kind = str(damage_package.get('attack_kind', '攻击'))
     if str(damage_package.get('target_type')) == 'player':
+        if not damage_package.get('target_name'):
+            target_player_uid = str(damage_package.get('target_player_uid', state.get('current_actor_uid', '')))
+            players = state.get('players', {})
+            if target_player_uid in players:
+                target_name = str(players[target_player_uid].get('profile', {}).get('nickname', target_player_uid))
         blocked_damage = int(damage_package.get('blocked_damage', 0))
         blocked_suffix = f'，格挡 {blocked_damage} 点' if blocked_damage > 0 else ''
-        message = f'{source_name} {attack_kind}，造成 {final_damage} 点伤害{blocked_suffix}。'
+        message = f'{source_name} 对 {target_name} 发动{attack_kind}，造成 {final_damage} 点伤害{blocked_suffix}。'
     else:
         message = f'{source_name} 对 {target_name} 造成 {final_damage} 点伤害。'
     state.setdefault('log', [])

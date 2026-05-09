@@ -1,5 +1,6 @@
 from typing import TYPE_CHECKING
 
+from app.content.characters.common import add_character_log, get_character_player_state
 from app.engine.events import GameEvent
 
 if TYPE_CHECKING:
@@ -9,8 +10,9 @@ if TYPE_CHECKING:
 def signal_runner_chest_opened(context: 'EventContext') -> None:
     if context.payload.get('object_id') != 'chest':
         return
-    context.state['player']['defense'] += 1
-    context.state['log'].insert(0, 'Signal Runner 被动生效：永久防御 +1。')
+    player_state = get_character_player_state(context)
+    player_state['defense'] += 1
+    add_character_log(context, 'Signal Runner 被动生效：永久防御 +1。')
     context.emit(GameEvent.PLAYER_STATS_CHANGED, {'source': 'signal_runner', 'stat': 'defense'})
 
 

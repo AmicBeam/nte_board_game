@@ -2,8 +2,18 @@ from flask import Blueprint, g, jsonify, render_template, request
 
 from app.auth import login_with_code, token_required
 from app.dao import update_player_nickname, update_player_password
-from app.engine.game_service import get_catalog_payload, get_run_state, move_player, play_item, reset_run, roll_dice, save_build, start_or_resume_run
+from app.engine.game_service import get_catalog_payload, move_player, play_item, roll_dice, save_build
 from app.errors import AppError
+from app.room_service import (
+    create_or_resume_solo_room,
+    create_room_for_player,
+    get_current_room_run_state,
+    get_current_room_state,
+    join_room_by_code,
+    reset_current_room_run,
+    set_room_ready,
+    start_room_game,
+)
 from app.utils.logger import get_logger
 
 logger = get_logger('nte.routes')
@@ -112,7 +122,7 @@ def api_save_build():
 @token_required
 def api_start_game():
     try:
-        return jsonify(start_or_resume_run(g.current_player))
+        return jsonify(create_or_resume_solo_room(g.current_player))
     except AppError as exc:
         return jsonify({'error': str(exc)}), 400
     except Exception:
@@ -124,7 +134,7 @@ def api_start_game():
 @token_required
 def api_game_state():
     try:
-        state = get_run_state(g.current_player)
+        state = get_current_room_run_state(g.current_player)
         if state is None:
             return jsonify({'error': '当前没有对局，请先开始。'}), 404
         return jsonify(state)
@@ -177,8 +187,74 @@ def api_move():
 @token_required
 def api_reset():
     try:
-        reset_run(g.current_player)
+        reset_current_room_run(g.current_player)
         return jsonify({'ok': True})
     except Exception:
         logger.exception('api_reset failed')
         return jsonify({'error': '重置对局时发生异常，请稍后重试。'}), 500
+
+
+@main_bp.get('/api/room/state')
+@token_required
+def api_room_state():
+    try:
+        room_state = get_current_room_state(g.current_player)
+        if room_state is None:
+            return jsonify({'error': '当前没有房间。'}), 404
+        return jsonify(room_state)
+    except AppError as exc:
+        return jsonify({'error': str(exc)}), 400
+    except Exception:
+        logger.exception('api_room_state failed')
+        return jsonify({'error': '读取房间状态时发生异常，请稍后重试。'}), 500
+
+
+@main_bp.post('/api/room/create')
+@token_required
+def api_create_room():
+    payload = request.get_json(silent=True) or {}
+    try:
+        return jsonify(create_room_for_player(g.current_player, str(payload.get('mode', 'solo'))))
+    except AppError as exc:
+        return jsonify({'error': str(exc)}), 400
+    except Exception:
+        logger.exception('api_create_room failed')
+        return jsonify({'error': '创建房间时发生异常，请稍后重试。'}), 500
+
+
+@main_bp.post('/api/room/join')
+@token_required
+def api_join_room():
+    payload = request.get_json(silent=True) or {}
+    try:
+        return jsonify(join_room_by_code(g.current_player, str(payload.get('room_code', ''))))
+    except AppError as exc:
+        return jsonify({'error': str(exc)}), 400
+    except Exception:
+        logger.exception('api_join_room failed')
+        return jsonify({'error': '加入房间时发生异常，请稍后重试。'}), 500
+
+
+@main_bp.post('/api/room/ready')
+@token_required
+def api_room_ready():
+    payload = request.get_json(silent=True) or {}
+    try:
+        return jsonify(set_room_ready(g.current_player, bool(payload.get('is_ready', True))))
+    except AppError as exc:
+        return jsonify({'error': str(exc)}), 400
+    except Exception:
+        logger.exception('api_room_ready failed')
+        return jsonify({'error': '更新准备状态时发生异常，请稍后重试。'}), 500
+
+
+@main_bp.post('/api/room/start')
+@token_required
+def api_room_start():
+    try:
+        return jsonify(start_room_game(g.current_player))
+    except AppError as exc:
+        return jsonify({'error': str(exc)}), 400
+    except Exception:
+        logger.exception('api_room_start failed')
+        return jsonify({'error': '开始房间游戏时发生异常，请稍后重试。'}), 500

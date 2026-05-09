@@ -16,8 +16,9 @@ def dispatch_event(
 ) -> JsonDict:
     # 事件总线统一按队列顺序执行，避免 handler 递归直接套 handler。
     event_key = getattr(event_name, 'value', event_name)
-    event_queue = [(event_key, payload or {})]
-    last_payload = payload or {}
+    initial_payload = _enrich_payload_with_actor(state, payload or {})
+    event_queue = [(event_key, initial_payload)]
+    last_payload = initial_payload
     is_first_event = True
     while event_queue:
         queued_event_name, queued_payload = event_queue.pop(0)
@@ -51,6 +52,7 @@ def _dispatch_single_event(
 ) -> JsonDict:
     # 单次派发只负责当前事件名对应的一批 listener。
     # 若某个 listener 继续 emit 新事件，新事件会被追加到总队列尾部，等待后续处理。
+    payload = _enrich_payload_with_actor(state, payload)
     listeners = _collect_listeners(state, event_name, payload)
     replace_allowed = event_name in REPLACEABLE_EVENTS
     replace_listeners = [listener for listener in listeners if listener['mode'] == 'replace' and replace_allowed]
@@ -186,3 +188,16 @@ def _resolve_hook(hook_id: object) -> EventHook | None:
     if callable(hook_id):
         return hook_id
     return None
+
+
+def _enrich_payload_with_actor(state: JsonDict, payload: JsonDict) -> JsonDict:
+    actor_uid = state.get('current_actor_uid')
+    players = state.get('players', {})
+    if actor_uid not in players:
+        return payload
+    actor_scope = players[str(actor_uid)]
+    profile = actor_scope.get('profile', {})
+    payload.setdefault('actor_uid', str(actor_uid))
+    payload.setdefault('actor_nickname', str(profile.get('nickname', actor_uid)))
+    payload.setdefault('actor_seat', str(profile.get('seat', 'host')))
+    return payload

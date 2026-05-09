@@ -7,13 +7,15 @@ from peewee import DoesNotExist
 
 from app.config import TOKEN_TTL_HOURS
 from app.errors import RuleValidationError
-from app.models import AccessToken, DeckBuild, GameRun, LoginCode, Player
+from app.models import AccessToken, DeckBuild, GameRun, LoginCode, Player, Room, RoomMember
 from app.utils.logger import get_logger
 
 logger = get_logger('nte.dao')
 PERMANENT_PASSWORD_EXPIRES_AT = datetime(2999, 12, 31, 23, 59, 59)
 MAX_NICKNAME_LENGTH = 8
 MAX_PASSWORD_LENGTH = 16
+ROOM_OPEN_STATUSES = frozenset({'waiting', 'ready', 'playing'})
+ROOM_VISIBLE_STATUSES = ROOM_OPEN_STATUSES | frozenset({'victory', 'defeat'})
 
 
 def normalize_nickname(nickname: str) -> str:
@@ -68,7 +70,7 @@ def create_login_code(player: Player, code: str) -> LoginCode:
 def verify_login_code(player_uid: str, code: str) -> tuple[Player | None, str | None]:
     player = get_player_by_uid(player_uid)
     if player is None:
-        return None, '玩家未注册，请先向机器人发送注册账户指令。'
+        return None, '玩家未注册，请先向机器人发送注册账号指令。'
     login_code = LoginCode.select().where(
         (LoginCode.player == player) &
         (LoginCode.code == code) &
@@ -127,19 +129,146 @@ def get_build(player: Player) -> dict[str, Any] | None:
     }
 
 
-def upsert_run(player: Player, map_id: str, status: str, snapshot: dict[str, Any]) -> GameRun:
-    run, _ = GameRun.get_or_create(player=player)
+def _generate_room_code() -> str:
+    while True:
+        room_code = token_hex(3).upper()
+        if not Room.select().where(Room.room_code == room_code).exists():
+            return room_code
+
+
+def serialize_room_member(member: RoomMember) -> dict[str, Any]:
+    return {
+        'player_uid': member.player.player_uid,
+        'nickname': member.player.nickname or member.player.player_uid,
+        'seat': member.seat,
+        'is_host': member.is_host,
+        'is_ready': member.is_ready,
+        'joined_at': member.joined_at.isoformat(),
+    }
+
+
+def serialize_room(room: Room, members: list[RoomMember] | None = None) -> dict[str, Any]:
+    payload = {
+        'room_code': room.room_code,
+        'mode': room.mode,
+        'status': room.status,
+        'host_player_uid': room.host.player_uid,
+        'created_at': room.created_at.isoformat(),
+        'updated_at': room.updated_at.isoformat(),
+    }
+    if members is not None:
+        payload['members'] = [serialize_room_member(member) for member in members]
+    return payload
+
+
+def create_room(host: Player, mode: str) -> Room:
+    room = Room.create(
+        room_code=_generate_room_code(),
+        mode=mode,
+        status='waiting',
+        host=host,
+    )
+    logger.info('create_room host_uid=%s room_code=%s mode=%s', host.player_uid, room.room_code, mode)
+    return room
+
+
+def get_room_by_code(room_code: str) -> Room | None:
+    try:
+        return Room.get(Room.room_code == room_code.upper())
+    except DoesNotExist:
+        return None
+
+
+def get_room_member(room: Room, player: Player) -> RoomMember | None:
+    return RoomMember.select().where(
+        (RoomMember.room == room) &
+        (RoomMember.player == player)
+    ).first()
+
+
+def list_room_members(room: Room) -> list[RoomMember]:
+    return list(RoomMember.select().where(RoomMember.room == room).order_by(RoomMember.joined_at.asc()))
+
+
+def get_current_room(player: Player, statuses: set[str] | frozenset[str] | None = None) -> Room | None:
+    target_statuses = statuses or ROOM_VISIBLE_STATUSES
+    member = (RoomMember
+        .select(RoomMember, Room)
+        .join(Room)
+        .where(
+            (RoomMember.player == player) &
+            (Room.status.in_(target_statuses))
+        )
+        .order_by(Room.updated_at.desc())
+        .first())
+    if member is None:
+        return None
+    return member.room
+
+
+def add_room_member(
+    room: Room,
+    player: Player,
+    *,
+    seat: str,
+    is_host: bool,
+    is_ready: bool,
+) -> RoomMember:
+    member, _ = RoomMember.get_or_create(room=room, player=player)
+    member.seat = seat
+    member.is_host = is_host
+    member.is_ready = is_ready
+    member.updated_at = datetime.utcnow()
+    member.save()
+    room.updated_at = datetime.utcnow()
+    room.save()
+    logger.info(
+        'add_room_member room_code=%s player_uid=%s seat=%s is_host=%s is_ready=%s',
+        room.room_code,
+        player.player_uid,
+        seat,
+        is_host,
+        is_ready,
+    )
+    return member
+
+
+def set_room_member_ready(room: Room, player: Player, is_ready: bool) -> RoomMember:
+    member = get_room_member(room, player)
+    if member is None:
+        raise RuleValidationError('当前玩家不在该房间中。')
+    member.is_ready = is_ready
+    member.updated_at = datetime.utcnow()
+    member.save()
+    room.updated_at = datetime.utcnow()
+    room.save()
+    logger.info('set_room_member_ready room_code=%s player_uid=%s is_ready=%s', room.room_code, player.player_uid, is_ready)
+    return member
+
+
+def update_room_status(room: Room, status: str) -> Room:
+    room.status = status
+    room.updated_at = datetime.utcnow()
+    room.save()
+    logger.info('update_room_status room_code=%s status=%s', room.room_code, status)
+    return room
+
+
+def upsert_run(room: Room, map_id: str, status: str, snapshot: dict[str, Any]) -> GameRun:
+    run, _ = GameRun.get_or_create(room=room)
     run.map_id = map_id
     run.status = status
     run.snapshot = json.dumps(snapshot, ensure_ascii=False)
     run.updated_at = datetime.utcnow()
     run.save()
-    logger.info('upsert_run player_uid=%s status=%s map_id=%s', player.player_uid, status, map_id)
+    room.updated_at = datetime.utcnow()
+    room.save()
+    logger.info('upsert_run room_code=%s status=%s map_id=%s', room.room_code, status, map_id)
     return run
 
 
-def get_run(player: Player) -> dict[str, Any] | None:
-    run = GameRun.select().where(GameRun.player == player).first()
+def get_run(room: Room) -> dict[str, Any] | None:
+    run = GameRun.select().where(GameRun.room == room).first()
     if run is None:
         return None
     return {
@@ -150,9 +279,9 @@ def get_run(player: Player) -> dict[str, Any] | None:
     }
 
 
-def clear_run(player: Player) -> None:
-    logger.info('clear_run player_uid=%s', player.player_uid)
-    GameRun.delete().where(GameRun.player == player).execute()
+def clear_run(room: Room) -> None:
+    logger.info('clear_run room_code=%s', room.room_code)
+    GameRun.delete().where(GameRun.room == room).execute()
 
 
 def issue_mock_login(player_uid: str, nickname: str, code: str) -> Player:
