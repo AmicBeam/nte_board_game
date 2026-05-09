@@ -48,7 +48,7 @@ def guard_matrix_on_turn_end(context: 'EventContext') -> None:
 
 ITEM = {
     'id': 'guard_matrix',
-    'name': 'Guard Matrix',
+    'name': '守护矩阵',
     'type': 'defense',
     'rarity': 'common',
     'description': '在手牌区时形成防御光环：每次受击额外格挡 1 点；打出后本回合额外防御 +2。',

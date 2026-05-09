@@ -19,7 +19,7 @@ def remote_charge_item_played(context: 'EventContext') -> None:
 
 ITEM = {
     'id': 'remote_charge',
-    'name': 'Remote Charge',
+    'name': '遥控充能',
     'type': 'utility',
     'rarity': 'rare',
     'description': '对 2 格内最近敌人造成 5 点伤害。',

@@ -104,7 +104,7 @@ def phase_shield_on_turn_end(context: 'EventContext') -> None:
 
 ITEM = {
     'id': 'phase_shield',
-    'name': 'Phase Shield',
+    'name': '相位护盾',
     'type': 'defense',
     'rarity': 'epic',
     'description': '在手牌区时每回合获得 1 点预备护盾，受击后反震 1；打出后本回合抵挡最多 4 点伤害。',

@@ -29,7 +29,7 @@ def dash_patch_on_turn_end(context: 'EventContext') -> None:
 
 ITEM = {
     'id': 'dash_patch',
-    'name': 'Dash Patch',
+    'name': '疾行补丁',
     'type': 'mobility',
     'rarity': 'common',
     'description': '本回合移动 +2。',

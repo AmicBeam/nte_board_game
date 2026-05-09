@@ -18,7 +18,7 @@ def vault_mender_event_resolved(context: 'EventContext') -> None:
 
 CHARACTER = {
     'id': 'vault_mender',
-    'name': 'Vault Mender',
+    'name': '秘库修补师',
     'title': 'Sustain and Utility Expert',
     'max_hp': 48,
     'attack': 9,

@@ -18,7 +18,7 @@ def signal_runner_chest_opened(context: 'EventContext') -> None:
 
 CHARACTER = {
     'id': 'signal_runner',
-    'name': 'Signal Runner',
+    'name': '讯号疾行者',
     'title': 'Urban Route Hacker',
     'max_hp': 42,
     'attack': 11,

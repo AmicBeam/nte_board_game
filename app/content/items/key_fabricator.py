@@ -16,7 +16,7 @@ def key_fabricator_item_played(context: 'EventContext') -> None:
 
 ITEM = {
     'id': 'key_fabricator',
-    'name': 'Key Fabricator',
+    'name': '钥匙生成器',
     'type': 'utility',
     'rarity': 'rare',
     'description': '获得 1 把钥匙。',

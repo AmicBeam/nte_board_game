@@ -30,7 +30,7 @@ def blaze_drive_on_turn_end(context: 'EventContext') -> None:
 
 ITEM = {
     'id': 'blaze_drive',
-    'name': 'Blaze Drive',
+    'name': '烈焰驱动',
     'type': 'attack',
     'rarity': 'rare',
     'description': '在手牌区时攻击 +1；打出后本回合额外攻击 +3。',

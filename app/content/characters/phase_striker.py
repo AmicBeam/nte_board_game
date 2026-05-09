@@ -24,7 +24,7 @@ def phase_striker_modify_damage_package(context: 'EventContext') -> None:
 
 CHARACTER = {
     'id': 'phase_striker',
-    'name': 'Phase Striker',
+    'name': '相位突击手',
     'title': 'Close-Range Duel Specialist',
     'max_hp': 36,
     'attack': 14,

@@ -17,7 +17,7 @@ def pulse_repair_item_played(context: 'EventContext') -> None:
 
 ITEM = {
     'id': 'pulse_repair',
-    'name': 'Pulse Repair',
+    'name': '脉冲修复',
     'type': 'recovery',
     'rarity': 'common',
     'description': '立即回复 6 点生命。',

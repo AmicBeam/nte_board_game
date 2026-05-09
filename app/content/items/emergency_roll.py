@@ -21,7 +21,7 @@ def emergency_roll_item_played(context: 'EventContext') -> None:
 
 ITEM = {
     'id': 'emergency_roll',
-    'name': 'Emergency Roll',
+    'name': '紧急重掷',
     'type': 'dice',
     'rarity': 'epic',
     'description': '将当前骰子重掷一次。',

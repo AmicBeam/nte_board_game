@@ -23,7 +23,7 @@ def vector_scout_turn_belt_redirect(context: 'EventContext') -> None:
 
 CHARACTER = {
     'id': 'vector_scout',
-    'name': 'Vector Scout',
+    'name': '向量侦察员',
     'title': 'Route Planning Navigator',
     'max_hp': 38,
     'attack': 10,

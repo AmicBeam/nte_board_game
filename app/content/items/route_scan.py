@@ -28,7 +28,7 @@ def route_scan_on_turn_end(context: 'EventContext') -> None:
 
 ITEM = {
     'id': 'route_scan',
-    'name': 'Route Scan',
+    'name': '路径扫描',
     'type': 'intel',
     'rarity': 'common',
     'description': '在手牌区时显示路线提示；打出后本回合移动 +1。',
