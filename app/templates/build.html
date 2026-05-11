@@ -2,30 +2,36 @@
 {% block title %}构筑{% endblock %}
 {% block body %}
 <main class="build-page">
-    <section class="glass-card panel-header">
+    <section class="glass-card panel-header build-command">
         <div>
-            <p class="eyebrow">Build Setup</p>
-            <h1>选择 1 位角色与 6 个道具</h1>
-            <p class="subtle">角色与道具数据都由后端从内容目录动态收集。</p>
+            <p class="eyebrow">构筑设置</p>
+            <h1>出战构筑</h1>
+            <p class="subtle">选择 1 位角色与 6 个道具，组成进入异象区的初始载荷。</p>
         </div>
         <div class="header-actions">
             <a class="secondary-btn" href="{{ url_for('main.home') }}">取消</a>
             <button class="primary-btn" id="save-build-btn">保存</button>
         </div>
     </section>
-    <section class="glass-card character-panel">
-        <div class="section-title-row">
-            <h2>角色</h2>
-            <p id="selected-character-copy">尚未选择</p>
+    <section class="glass-card build-studio">
+        <div class="character-wheel-panel">
+            <div class="section-title-row compact-title">
+                <h2>角色</h2>
+                <p id="selected-character-copy">尚未选择</p>
+            </div>
+            <div class="character-wheel" id="character-carousel" aria-label="角色选择"></div>
         </div>
-        <div class="character-carousel" id="character-carousel"></div>
-    </section>
-    <section class="glass-card card-panel">
-        <div class="section-title-row">
-            <h2>道具</h2>
-            <p id="deck-count">已选择 0 / 6 个</p>
+        <div class="character-portrait-stage">
+            <img id="selected-character-portrait" alt="">
+            <div class="selected-character-info" id="selected-character-info"></div>
         </div>
-        <div class="card-grid" id="item-grid"></div>
+        <div class="build-item-panel">
+            <div class="section-title-row">
+                <h2>战术道具</h2>
+                <p id="deck-count">已选择 0 / 6 个</p>
+            </div>
+            <div class="card-grid" id="item-grid"></div>
+        </div>
     </section>
 </main>
 <script src="{{ url_for('static', filename='js/common.js') }}"></script>

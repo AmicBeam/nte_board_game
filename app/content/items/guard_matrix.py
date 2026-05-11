@@ -23,7 +23,7 @@ def guard_matrix_hand_aura_on_create_damage_package(context: 'EventContext') -> 
     blocked = apply_damage_reduction(context.payload, int(effect.get('data', {}).get('block_bonus', 0)))
     if blocked <= 0:
         return
-    add_item_log(context, f'Guard Matrix 的手牌区光环额外格挡了 {blocked} 点伤害。')
+    add_item_log(context, f'守护矩阵的道具栏光环额外格挡了 {blocked} 点伤害。')
 
 
 def guard_matrix_item_played(context: 'EventContext') -> None:
@@ -33,7 +33,7 @@ def guard_matrix_item_played(context: 'EventContext') -> None:
         source_instance_id=str(context.payload['item_instance_id']),
         data={'defense_bonus': 2},
     ))
-    add_item_log(context, '使用 Guard Matrix，本回合防御 +2。')
+    add_item_log(context, '使用守护矩阵，本回合防御 +2。')
     context.payload['resolved'] = True
     context.emit(GameEvent.PLAYER_STATS_CHANGED, {'source': 'guard_matrix', 'stat': 'combat_temp'})
 
@@ -42,7 +42,7 @@ def guard_matrix_on_turn_end(context: 'EventContext') -> None:
     effect = remove_runtime_effect(context.state, str(context.instance_id))
     if effect is None:
         return
-    add_item_log(context, 'Guard Matrix 的防御加成在回合结束时消失。')
+    add_item_log(context, '守护矩阵的防御加成在回合结束时消失。')
     context.emit(GameEvent.PLAYER_STATS_CHANGED, {'source': 'guard_matrix', 'stat': 'combat_temp'})
 
 
@@ -51,7 +51,8 @@ ITEM = {
     'name': '守护矩阵',
     'type': 'defense',
     'rarity': 'common',
-    'description': '在手牌区时形成防御光环：每次受击额外格挡 1 点；打出后本回合额外防御 +2。',
+    'icon': 'guard',
+    'description': '在道具栏时形成防御光环：每次受击额外格挡 1 点；使用后本回合额外防御 +2。',
     'effect': {'kind': 'stat_buff', 'defense': 2},
     'event_hooks': {
         GameEvent.ITEM_PLAYED.value: guard_matrix_item_played,

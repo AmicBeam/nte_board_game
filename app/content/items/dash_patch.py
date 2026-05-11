@@ -16,7 +16,7 @@ def dash_patch_item_played(context: 'EventContext') -> None:
         source_instance_id=str(context.payload['item_instance_id']),
         data={'move_bonus': 2},
     ))
-    add_item_log(context, '使用 Dash Patch，本回合移动 +2。')
+    add_item_log(context, '使用疾行补丁，本回合移动 +2。')
     context.payload['resolved'] = True
 
 
@@ -24,7 +24,7 @@ def dash_patch_on_turn_end(context: 'EventContext') -> None:
     effect = remove_runtime_effect(context.state, str(context.instance_id))
     if effect is None:
         return
-    add_item_log(context, 'Dash Patch 的移动加成在回合结束时消失。')
+    add_item_log(context, '疾行补丁的移动加成在回合结束时消失。')
 
 
 ITEM = {
@@ -32,6 +32,7 @@ ITEM = {
     'name': '疾行补丁',
     'type': 'mobility',
     'rarity': 'common',
+    'icon': 'dash',
     'description': '本回合移动 +2。',
     'effect': {'kind': 'move_buff', 'value': 2},
     'event_hooks': {

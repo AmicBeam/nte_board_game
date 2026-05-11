@@ -32,7 +32,7 @@ def phase_shield_hand_aura_on_create_damage_package(context: 'EventContext') -> 
     if blocked <= 0:
         return
     effect['data']['shield_remaining'] = remaining - blocked
-    add_item_log(context, f'Phase Shield 的手牌区光环吸收了 {blocked} 点伤害。')
+    add_item_log(context, f'相位护盾的道具栏光环吸收了 {blocked} 点伤害。')
 
 
 def phase_shield_hand_aura_on_damage_applied(context: 'EventContext') -> None:
@@ -48,9 +48,9 @@ def phase_shield_hand_aura_on_damage_applied(context: 'EventContext') -> None:
     reflected = queue_reflected_damage(context.payload, 1)
     if reflected <= 0:
         return
-    add_item_log(context, f'Phase Shield 的手牌区光环反震 {source_name} {reflected} 点伤害。')
+    add_item_log(context, f'相位护盾的道具栏光环反震 {source_name} {reflected} 点伤害。')
     resolve_damage_package(context.state, build_damage_package(
-        source_name='Phase Shield',
+        source_name='相位护盾',
         source_type='item',
         target_type='enemy',
         target_id=source_id,
@@ -68,7 +68,7 @@ def phase_shield_item_played(context: 'EventContext') -> None:
         source_instance_id=str(context.payload['item_instance_id']),
         data={'shield_remaining': 4},
     ))
-    add_item_log(context, '使用 Phase Shield，注册了本回合最多吸收 4 点伤害的护盾。')
+    add_item_log(context, '使用相位护盾，注册了本回合最多吸收 4 点伤害的护盾。')
     context.payload['resolved'] = True
 
 
@@ -88,7 +88,7 @@ def phase_shield_on_create_damage_package(context: 'EventContext') -> None:
     if blocked <= 0:
         return
     effect['data']['shield_remaining'] = remaining - blocked
-    add_item_log(context, f'Phase Shield 吸收了 {blocked} 点伤害，剩余护盾 {effect["data"]["shield_remaining"]}。')
+    add_item_log(context, f'相位护盾吸收了 {blocked} 点伤害，剩余护盾 {effect["data"]["shield_remaining"]}。')
     if effect['data']['shield_remaining'] <= 0:
         remove_runtime_effect(context.state, str(context.instance_id))
 
@@ -99,7 +99,7 @@ def phase_shield_on_turn_end(context: 'EventContext') -> None:
         return
     remaining = int(effect['data'].get('shield_remaining', 0))
     if remaining > 0:
-        add_item_log(context, f'Phase Shield 在回合结束时消散，剩余护盾 {remaining}。')
+        add_item_log(context, f'相位护盾在回合结束时消散，剩余护盾 {remaining}。')
 
 
 ITEM = {
@@ -107,7 +107,8 @@ ITEM = {
     'name': '相位护盾',
     'type': 'defense',
     'rarity': 'epic',
-    'description': '在手牌区时每回合获得 1 点预备护盾，受击后反震 1；打出后本回合抵挡最多 4 点伤害。',
+    'icon': 'shield',
+    'description': '在道具栏时每回合获得 1 点预备护盾，受击后反震 1；使用后本回合抵挡最多 4 点伤害。',
     'effect': {'kind': 'damage_block', 'value': 4},
     'event_hooks': {
         GameEvent.ITEM_PLAYED.value: phase_shield_item_played,

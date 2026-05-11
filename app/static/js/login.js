@@ -21,7 +21,26 @@ async function login() {
     }
     window.localStorage.setItem('nte_token', payload.token);
     loginFeedback.textContent = `登录成功，欢迎 ${payload.player.nickname}。`;
-    window.location.href = '/build';
+    try {
+      const stateResponse = await fetch('/api/game/state', {
+        headers: { Authorization: `Bearer ${payload.token}` },
+      });
+      const statePayload = await stateResponse.json();
+      if (stateResponse.ok && statePayload.status === 'playing') {
+        window.location.href = '/table';
+        return;
+      }
+    } catch (stateError) {
+      // 登录后的流向判断失败时继续按构筑状态兜底。
+    }
+    const catalogResponse = await fetch('/api/catalog', {
+      headers: { Authorization: `Bearer ${payload.token}` },
+    });
+    const catalog = await catalogResponse.json();
+    if (!catalogResponse.ok || catalog.error) {
+      throw new Error(catalog.error || '读取构筑失败');
+    }
+    window.location.href = catalog.saved_build ? '/' : '/build';
   } catch (error) {
     loginFeedback.textContent = error.message;
   } finally {

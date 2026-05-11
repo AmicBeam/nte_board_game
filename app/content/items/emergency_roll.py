@@ -15,7 +15,7 @@ def emergency_roll_item_played(context: 'EventContext') -> None:
         raise RuleValidationError('当前没有可重掷的骰子。')
     rerolled_die = random.randint(1, 6)
     context.state['pending_die'] = rerolled_die
-    add_item_log(context, f'使用 Emergency Roll，骰子由 {pending_die} 变为 {rerolled_die}。')
+    add_item_log(context, f'使用紧急重掷，骰子由 {pending_die} 变为 {rerolled_die}。')
     context.payload['resolved'] = True
 
 
@@ -24,6 +24,7 @@ ITEM = {
     'name': '紧急重掷',
     'type': 'dice',
     'rarity': 'epic',
+    'icon': 'dice',
     'description': '将当前骰子重掷一次。',
     'effect': {'kind': 'reroll'},
     'event_hooks': {

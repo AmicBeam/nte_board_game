@@ -1,6 +1,6 @@
 from typing import TYPE_CHECKING
 
-from app.content.map_objects.common import BLOCK_TYPE_PASS, add_map_log, get_map_object_player_state
+from app.content.map_objects.common import BLOCK_TYPE_PASS, add_action_step, add_map_log, add_tile_update_step, get_map_object_player_state
 from app.engine.events import GameEvent
 
 if TYPE_CHECKING:
@@ -14,7 +14,15 @@ def forge_tile_enter(context: 'EventContext') -> None:
         return
     tile['resolved'] = True
     player_state['attack'] += 1
-    add_map_log(context, '锻炉事件：永久攻击 +1。')
+    message = '锻炉事件：永久攻击 +1。'
+    add_map_log(context, message)
+    add_action_step(context.state, {
+        'type': 'popup',
+        'icon': 'event',
+        'title': '锻炉',
+        'message': message,
+    })
+    add_tile_update_step(context.state, tile)
     context.emit(GameEvent.PLAYER_STATS_CHANGED, {'source': 'event', 'stat': 'attack'})
     context.emit(GameEvent.MAP_OBJECT_TRIGGERED, {
         'object_id': context.payload['object_id'],

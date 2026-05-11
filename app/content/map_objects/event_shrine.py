@@ -1,6 +1,6 @@
 from typing import TYPE_CHECKING
 
-from app.content.map_objects.common import BLOCK_TYPE_PASS, add_map_log, get_map_object_player_state
+from app.content.map_objects.common import BLOCK_TYPE_PASS, add_action_step, add_map_log, add_tile_update_step, get_map_object_player_state
 from app.engine.events import GameEvent
 
 if TYPE_CHECKING:
@@ -14,7 +14,15 @@ def shrine_tile_enter(context: 'EventContext') -> None:
         return
     tile['resolved'] = True
     player_state['hp'] = min(player_state['max_hp'], player_state['hp'] + 4)
-    add_map_log(context, '神龛事件：回复 4 点生命。')
+    message = '神龛事件：回复 4 点生命。'
+    add_map_log(context, message)
+    add_action_step(context.state, {
+        'type': 'popup',
+        'icon': 'event',
+        'title': '神龛',
+        'message': message,
+    })
+    add_tile_update_step(context.state, tile)
     context.emit(GameEvent.PLAYER_STATS_CHANGED, {'source': 'event', 'stat': 'hp'})
     context.emit(GameEvent.MAP_OBJECT_TRIGGERED, {
         'object_id': context.payload['object_id'],

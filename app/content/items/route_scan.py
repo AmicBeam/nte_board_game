@@ -15,7 +15,7 @@ def route_scan_item_played(context: 'EventContext') -> None:
         source_instance_id=str(context.payload['item_instance_id']),
         data={'move_bonus': 1},
     ))
-    add_item_log(context, '使用 Route Scan，本回合移动 +1。')
+    add_item_log(context, '使用路径扫描，本回合移动 +1。')
     context.payload['resolved'] = True
 
 
@@ -23,7 +23,7 @@ def route_scan_on_turn_end(context: 'EventContext') -> None:
     effect = remove_runtime_effect(context.state, str(context.instance_id))
     if effect is None:
         return
-    add_item_log(context, 'Route Scan 的移动加成在回合结束时消失。')
+    add_item_log(context, '路径扫描的移动加成在回合结束时消失。')
 
 
 ITEM = {
@@ -31,7 +31,8 @@ ITEM = {
     'name': '路径扫描',
     'type': 'intel',
     'rarity': 'common',
-    'description': '在手牌区时显示路线提示；打出后本回合移动 +1。',
+    'icon': 'scan',
+    'description': '在道具栏时显示路线提示；使用后本回合移动 +1。',
     'effect': {'kind': 'route_scan', 'value': 1},
     'event_hooks': {
         GameEvent.ITEM_PLAYED.value: route_scan_item_played,

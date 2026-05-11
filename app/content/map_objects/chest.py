@@ -17,15 +17,27 @@ def chest_tile_enter(context: 'EventContext') -> None:
     reward = random.choice(tile['loot_table'])
     if reward == 'heal':
         player_state['hp'] = min(player_state['max_hp'], player_state['hp'] + 8)
-        add_map_log(context, '宝箱奖励：回复 8 点生命。')
+        message = '宝箱奖励：回复 8 点生命。'
+        add_map_log(context, message)
         context.emit(GameEvent.PLAYER_STATS_CHANGED, {'source': 'chest', 'stat': 'hp'})
     elif reward == 'attack':
         player_state['attack'] += 1
-        add_map_log(context, '宝箱奖励：永久攻击 +1。')
+        message = '宝箱奖励：永久攻击 +1。'
+        add_map_log(context, message)
         context.emit(GameEvent.PLAYER_STATS_CHANGED, {'source': 'chest', 'stat': 'attack'})
     elif reward == 'key':
         player_state['keys'] += 1
-        add_map_log(context, '宝箱奖励：获得 1 把钥匙。')
+        message = '宝箱奖励：获得 1 把钥匙。'
+        add_map_log(context, message)
+    else:
+        message = '宝箱已开启。'
+    add_action_step(context.state, {
+        'type': 'popup',
+        'icon': 'chest',
+        'title': '宝箱',
+        'message': message,
+    })
+    add_tile_update_step(context.state, tile)
     context.emit(GameEvent.MAP_OBJECT_TRIGGERED, {
         'object_id': context.payload['object_id'],
         'object_type': context.payload['tile_type'],

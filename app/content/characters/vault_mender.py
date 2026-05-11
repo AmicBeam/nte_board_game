@@ -12,14 +12,14 @@ def vault_mender_event_resolved(context: 'EventContext') -> None:
         return
     player = get_character_player_state(context)
     player['hp'] = min(player['max_hp'], player['hp'] + 2)
-    add_character_log(context, 'Vault Mender 被动生效：额外回复 2 点生命。')
+    add_character_log(context, '秘库修补师被动生效：额外回复 2 点生命。')
     context.emit(GameEvent.PLAYER_STATS_CHANGED, {'source': 'vault_mender', 'stat': 'hp'})
 
 
 CHARACTER = {
     'id': 'vault_mender',
     'name': '秘库修补师',
-    'title': 'Sustain and Utility Expert',
+    'title': '续航支援专家',
     'max_hp': 48,
     'attack': 9,
     'defense': 5,

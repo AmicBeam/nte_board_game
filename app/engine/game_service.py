@@ -40,11 +40,18 @@ from app.utils.logger import get_logger
 DEFAULT_ITEM_COUNT = 6
 LOG_LIMIT = 18
 DEFAULT_ROUTE_HINT = '前往地图底层，靠近 Boss 区域并多回合作战。'
+ACTION_QUEUE_KEY = '_action_queue'
 DIRECTIONS = {
     'up': (0, -1),
     'down': (0, 1),
     'left': (-1, 0),
     'right': (1, 0),
+}
+DIRECTION_LABELS = {
+    'up': '上',
+    'down': '下',
+    'left': '左',
+    'right': '右',
 }
 ICONS = {
     'player': 'player',
@@ -64,10 +71,24 @@ logger = get_logger('nte.game_service')
 
 def get_catalog_payload(player: Player) -> JsonDict:
     return {
-        'characters': load_characters(),
+        'characters': [serialize_character_definition(character_definition) for character_definition in load_characters()],
         'items': [serialize_item_definition(item_definition) for item_definition in load_items()],
         'build_size': DEFAULT_ITEM_COUNT,
         'saved_build': get_build(player),
+    }
+
+
+def serialize_character_definition(character_definition: JsonDict) -> JsonDict:
+    return {
+        'id': character_definition['id'],
+        'name': character_definition['name'],
+        'title': character_definition['title'],
+        'max_hp': character_definition['max_hp'],
+        'attack': character_definition['attack'],
+        'defense': character_definition['defense'],
+        'passive': character_definition['passive'],
+        'portrait_image': character_definition.get('portrait_image', f"/static/images/characters/{character_definition['id']}_portrait.svg"),
+        'avatar_image': character_definition.get('avatar_image', f"/static/images/characters/{character_definition['id']}_avatar.svg"),
     }
 
 
@@ -151,6 +172,7 @@ def roll_dice(player: Player) -> JsonDict:
 def play_item(player: Player, item_instance_id: str) -> JsonDict:
     with atomic_transaction():
         state = _load_state(player)
+        begin_action_queue(state)
         _ensure(state['phase'] == 'action', '当前不是行动阶段。')
         _ensure(not state['has_played_item'], '每回合只能使用 1 个道具。')
         item_instance = _find_item_instance(state['hand'], item_instance_id)
@@ -177,6 +199,7 @@ def play_item(player: Player, item_instance_id: str) -> JsonDict:
 def move_player(player: Player, direction: str) -> JsonDict:
     with atomic_transaction():
         state = _load_state(player)
+        begin_action_queue(state)
         _ensure(state['phase'] in {'action', 'movement'}, '当前不能移动。')
         _ensure(state['pending_die'] is not None, '请先掷骰。')
         _ensure(direction in DIRECTIONS, '方向非法。')
@@ -195,6 +218,7 @@ def move_player(player: Player, direction: str) -> JsonDict:
         )
         steps_remaining = max(0, int(move_phase_payload.get('steps', steps_remaining)))
         active_direction = str(move_phase_payload.get('direction', direction))
+        active_direction = resolve_start_tile_redirect(state, active_direction, steps_remaining)
         loop_counter = 0
 
         while steps_remaining > 0:
@@ -211,6 +235,13 @@ def move_player(player: Player, direction: str) -> JsonDict:
             actor['x'], actor['y'] = next_x, next_y
             steps_remaining -= 1
             add_log(state, f"移动至 ({actor['x']}, {actor['y']})。")
+            add_action_step(state, {
+                'type': 'move',
+                'x': actor['x'],
+                'y': actor['y'],
+                'layer': current_map_layer(state),
+                'direction': active_direction,
+            })
             # 每前进一步都派发一次事件，供“经过某格”“移动若干步后生效”等效果监听。
             dispatch_event(state, GameEvent.MOVE_STEP, {
                 'x': actor['x'],
@@ -340,7 +371,10 @@ def _load_state(player: Player) -> JsonDict:
 
 def _save_and_serialize(player: Player, state: JsonDict) -> JsonDict:
     room = _require_room(player)
-    return _save_and_serialize_for_room(room, state)
+    action_queue = take_action_queue(state)
+    payload = _save_and_serialize_for_room(room, state)
+    payload['action_queue'] = action_queue
+    return payload
 
 
 def _save_and_serialize_for_room(room: Room, state: JsonDict) -> JsonDict:
@@ -370,6 +404,17 @@ def validate_state(state: JsonDict) -> None:
 
 def _normalize_loaded_state(state: JsonDict) -> JsonDict:
     normalized = deepcopy(state)
+    map_definition = get_map(normalized.get('map', {}).get('id', DEFAULT_MAP_ID))
+    if map_definition is not None:
+        normalized['map']['background_image'] = map_definition.get('background_image', normalized['map'].get('background_image'))
+    for player_scope in normalized.get('players', {}).values():
+        character_instance = player_scope.get('character_instance', {})
+        character_definition = get_character(character_instance.get('definition_id'))
+        if character_definition is None:
+            continue
+        character_instance['name'] = character_definition.get('name', character_instance.get('name'))
+        character_instance['title'] = character_definition.get('title', character_instance.get('title'))
+        character_instance['passive'] = character_definition.get('passive', character_instance.get('passive'))
     _project_player_scope(normalized, str(normalized['current_actor_uid']))
     _initialize_item_zones(normalized, emit_initial_events=False)
     return normalized
@@ -395,6 +440,18 @@ def add_log(state: JsonDict, message: str) -> None:
     logger.info(message)
 
 
+def begin_action_queue(state: JsonDict) -> None:
+    state[ACTION_QUEUE_KEY] = []
+
+
+def add_action_step(state: JsonDict, step: JsonDict) -> None:
+    state.setdefault(ACTION_QUEUE_KEY, []).append(step)
+
+
+def take_action_queue(state: JsonDict) -> list[JsonDict]:
+    return list(state.pop(ACTION_QUEUE_KEY, []))
+
+
 def step_position(x: int, y: int, direction: str) -> tuple[int, int]:
     dx, dy = DIRECTIONS[direction]
     return x + dx, y + dy
@@ -402,21 +459,29 @@ def step_position(x: int, y: int, direction: str) -> tuple[int, int]:
 
 def tile_at(state: JsonDict, x: int, y: int) -> JsonDict | None:
     for tile in state['map']['tiles']:
-        if tile['x'] == x and tile['y'] == y:
+        if _is_on_current_layer(state, tile) and tile['x'] == x and tile['y'] == y:
             return tile
     return None
 
 
 def monster_at(state: JsonDict, x: int, y: int) -> JsonDict | None:
     for monster in state['map']['monsters']:
-        if monster['hp'] > 0 and monster['x'] == x and monster['y'] == y:
+        if _is_on_current_layer(state, monster) and monster['hp'] > 0 and monster['x'] == x and monster['y'] == y:
             return monster
     return None
 
 
 def boss_on_tile(state: JsonDict, x: int, y: int) -> bool:
     boss = state['map']['boss']
-    return boss['hp'] > 0 and any(pos['x'] == x and pos['y'] == y for pos in boss['positions'])
+    return boss['hp'] > 0 and any(_is_on_current_layer(state, pos) and pos['x'] == x and pos['y'] == y for pos in boss['positions'])
+
+
+def current_map_layer(state: JsonDict) -> int:
+    return int(state['map'].get('current_layer', 1))
+
+
+def _is_on_current_layer(state: JsonDict, entity: JsonDict) -> bool:
+    return int(entity.get('layer', 1)) == current_map_layer(state)
 
 
 def get_block_reason(state: JsonDict, x: int, y: int) -> str | None:
@@ -446,6 +511,70 @@ def get_block_reason(state: JsonDict, x: int, y: int) -> str | None:
                 return str(blocked_reason)
             return get_map_object_tooltip(tile)
     return None
+
+
+def _can_enemy_attack_player(state: JsonDict, enemy: JsonDict, target_x: int, target_y: int) -> bool:
+    attack_range = int(enemy.get('range', 1))
+    if manhattan(enemy['x'], enemy['y'], target_x, target_y) > attack_range:
+        return False
+    queue = [(enemy['x'], enemy['y'], 0)]
+    seen = {f"{enemy['x']}:{enemy['y']}"}
+    while queue:
+        x, y, distance = queue.pop(0)
+        if distance >= attack_range:
+            continue
+        for dx, dy in DIRECTIONS.values():
+            next_x = x + dx
+            next_y = y + dy
+            key = f'{next_x}:{next_y}'
+            if (
+                key in seen
+                or next_x < 0
+                or next_y < 0
+                or next_x >= state['map']['width']
+                or next_y >= state['map']['height']
+            ):
+                continue
+            if next_x == target_x and next_y == target_y:
+                return True
+            seen.add(key)
+            if _is_attack_range_blocked(state, next_x, next_y):
+                continue
+            queue.append((next_x, next_y, distance + 1))
+    return False
+
+
+def _is_attack_range_blocked(state: JsonDict, x: int, y: int) -> bool:
+    tile = tile_at(state, x, y)
+    if tile is None:
+        return False
+    if tile['type'] == 'door' and not tile.get('locked', True):
+        return False
+    object_id = resolve_map_object_id(tile)
+    map_object = get_map_object(object_id) or {}
+    return str(map_object.get('block_type', '可通过')) == '阻挡'
+
+
+def resolve_start_tile_redirect(state: JsonDict, active_direction: str, steps_remaining: int) -> str:
+    actor = state['player']
+    tile = tile_at(state, actor['x'], actor['y'])
+    if tile is None or steps_remaining <= 0:
+        return active_direction
+    object_id = resolve_map_object_id(tile)
+    if object_id != 'turn_belt':
+        return active_direction
+    map_object = get_map_object(object_id) or {}
+    through_payload = dispatch_event(state, GameEvent.MOVE_THROUGH, {
+        'tile_type': tile['type'],
+        'tile': tile,
+        'object_id': object_id,
+        'x': actor['x'],
+        'y': actor['y'],
+        'steps_remaining': steps_remaining,
+        'block_type': map_object.get('block_type', '可通过'),
+        'next_direction': active_direction,
+    })
+    return str(through_payload.get('next_direction', active_direction))
 
 
 def resolve_tile_entry(state: JsonDict, active_direction: str, steps_remaining: int) -> tuple[str, bool]:
@@ -509,12 +638,12 @@ def resolve_battle(state: JsonDict) -> None:
         adjacent = []
         ranged = []
         for monster in state['map']['monsters']:
-            if monster['hp'] <= 0:
+            if monster['hp'] <= 0 or not _is_on_current_layer(state, monster):
                 continue
             distance = manhattan(actor['x'], actor['y'], monster['x'], monster['y'])
             if distance == 1:
                 adjacent.append(monster)
-            elif distance <= monster['range']:
+            elif _can_enemy_attack_player(state, monster, actor['x'], actor['y']):
                 ranged.append(monster)
         if adjacent:
             target = sorted(adjacent, key=lambda m: (m['hp'], m['id']))[0]
@@ -592,6 +721,14 @@ def _default_direct_attack(context: EventContext, state: JsonDict) -> None:
     if damage_result['target_defeated']:
         context.payload['status'] = 'enemy_defeated'
         add_log(state, f"{enemy['name']} 已被击败。")
+        add_action_step(state, {
+            'type': 'battle',
+            'enemy_name': enemy['name'],
+            'enemy_hp': enemy['hp'],
+            'enemy_max_hp': enemy['max_hp'],
+            'enemy_lost_hp': damage_result['final_damage'],
+            'player_lost_hp': 0,
+        })
         return
     incoming_result = resolve_damage_package(state, build_damage_package(
         source_name=str(enemy['name']),
@@ -606,6 +743,14 @@ def _default_direct_attack(context: EventContext, state: JsonDict) -> None:
         allow_block=True,
     ))
     context.payload['incoming_damage'] = incoming_result['final_damage']
+    add_action_step(state, {
+        'type': 'battle',
+        'enemy_name': enemy['name'],
+        'enemy_hp': enemy['hp'],
+        'enemy_max_hp': enemy['max_hp'],
+        'enemy_lost_hp': damage_result['final_damage'],
+        'player_lost_hp': incoming_result['final_damage'],
+    })
     dispatch_event(state, GameEvent.DIRECT_ATTACK_RESOLVED, {
         'enemy_id': enemy['id'],
         'enemy_name': enemy['name'],
@@ -630,6 +775,14 @@ def _default_ranged_attack(context: EventContext, state: JsonDict) -> None:
         allow_block=True,
     ))
     context.payload['incoming_damage'] = damage_result['final_damage']
+    add_action_step(state, {
+        'type': 'battle',
+        'enemy_name': enemy['name'],
+        'enemy_hp': enemy['hp'],
+        'enemy_max_hp': enemy['max_hp'],
+        'enemy_lost_hp': 0,
+        'player_lost_hp': damage_result['final_damage'],
+    })
     dispatch_event(state, GameEvent.RANGED_ATTACK_RESOLVED, {
         'enemy_id': enemy['id'],
         'enemy_name': enemy['name'],
@@ -658,7 +811,11 @@ def current_defense(state: JsonDict) -> int:
 
 
 def is_adjacent_to_boss(state: JsonDict, x: int, y: int) -> bool:
-    return any(manhattan(x, y, pos['x'], pos['y']) == 1 for pos in state['map']['boss']['positions'] if state['map']['boss']['hp'] > 0)
+    return any(
+        _is_on_current_layer(state, pos) and manhattan(x, y, pos['x'], pos['y']) == 1
+        for pos in state['map']['boss']['positions']
+        if state['map']['boss']['hp'] > 0
+    )
 
 
 def manhattan(x1: int, y1: int, x2: int, y2: int) -> int:
@@ -765,7 +922,8 @@ def _default_turn_begin(context: EventContext, state: JsonDict) -> None:
 
 def _default_move_phase_begin(context: EventContext, state: JsonDict) -> None:
     state['phase'] = 'movement'
-    add_log(state, f"开始向 {context.payload.get('direction', 'unknown')} 移动，共 {context.payload.get('steps', 0)} 步。")
+    direction = str(context.payload.get('direction', 'unknown'))
+    add_log(state, f"开始向 {DIRECTION_LABELS.get(direction, direction)} 移动，共 {context.payload.get('steps', 0)} 步。")
 
 
 def build_board_overlay(state: JsonDict) -> JsonDict:
@@ -773,6 +931,8 @@ def build_board_overlay(state: JsonDict) -> JsonDict:
     height = state['map']['height']
     overlays = []
     for tile in state['map']['tiles']:
+        if not _is_on_current_layer(state, tile):
+            continue
         display_type = tile['type']
         if tile['type'] == 'chest' and tile.get('opened'):
             display_type = 'floor'
@@ -780,10 +940,12 @@ def build_board_overlay(state: JsonDict) -> JsonDict:
             display_type = 'floor'
         if tile['type'] == 'door' and not tile.get('locked', True):
             display_type = 'floor'
+        if tile['type'] in {'wall', 'boss_tile'}:
+            display_type = 'floor'
         if display_type != 'floor':
             object_id = resolve_map_object_id(tile)
             map_object = get_map_object(object_id) or {}
-            overlays.append(_overlay(
+            overlay = _overlay(
                 tile['x'],
                 tile['y'],
                 width,
@@ -791,14 +953,25 @@ def build_board_overlay(state: JsonDict) -> JsonDict:
                 map_object.get('icon', ICONS.get(tile['type'], 'event')),
                 get_map_object_tooltip(tile),
                 tile['type'],
-            ))
+                current_map_layer(state),
+            )
+            if tile.get('direction'):
+                overlay['direction'] = tile['direction']
+            overlays.append(overlay)
     for monster in state['map']['monsters']:
-        if monster['hp'] > 0:
-            overlays.append(_overlay(monster['x'], monster['y'], width, height, ICONS['monster'], f"{monster['name']}：HP {monster['hp']}/{monster['max_hp']}，攻击 {monster['attack']}，射程 {monster['range']}", 'monster'))
+        if _is_on_current_layer(state, monster) and monster['hp'] > 0:
+            overlays.append(_overlay(monster['x'], monster['y'], width, height, ICONS['monster'], f"{monster['name']}：HP {monster['hp']}/{monster['max_hp']}，攻击 {monster['attack']}，防御 {monster['defense']}，射程 {monster['range']}", 'monster', current_map_layer(state)))
     boss = state['map']['boss']
-    if boss['hp'] > 0:
-        for pos in boss['positions']:
-            overlays.append(_overlay(pos['x'], pos['y'], width, height, ICONS['boss'], f"{boss['name']}：HP {boss['hp']}/{boss['max_hp']}，攻击 {boss['attack']}", 'boss'))
+    boss_positions = [pos for pos in boss['positions'] if _is_on_current_layer(state, pos)]
+    if boss['hp'] > 0 and boss_positions:
+        overlays.append(_area_overlay(
+            boss_positions,
+            width,
+            height,
+            ICONS['boss'],
+            f"{boss['name']}：HP {boss['hp']}/{boss['max_hp']}，攻击 {boss['attack']}，防御 {boss['defense']}",
+            'boss',
+        ))
     for player_scope in state['players'].values():
         profile = player_scope['profile']
         player_state = player_scope['player']
@@ -808,23 +981,46 @@ def build_board_overlay(state: JsonDict) -> JsonDict:
             width,
             height,
             ICONS['player'],
-            f"{profile['nickname']}：({player_state['x']}, {player_state['y']})，HP {player_state['hp']}/{player_state['max_hp']}",
+            f"{profile['nickname']}：第 {current_map_layer(state)} 层 ({player_state['x']}, {player_state['y']})，HP {player_state['hp']}/{player_state['max_hp']}",
             'player',
+            current_map_layer(state),
         ))
     return {
         'width': width,
         'height': height,
+        'current_layer': current_map_layer(state),
+        'total_layers': int(state['map'].get('total_layers', 1)),
         'background_image': state['map']['background_image'],
         'icons': overlays,
     }
 
 
-def _overlay(x: int, y: int, width: int, height: int, icon: str, tooltip: str, entity_type: str) -> JsonDict:
+def _overlay(x: int, y: int, width: int, height: int, icon: str, tooltip: str, entity_type: str, layer: int = 1) -> JsonDict:
     return {
         'x': x,
         'y': y,
+        'layer': layer,
         'left_percent': ((x + 0.5) / width) * 100,
         'top_percent': ((y + 0.5) / height) * 100,
+        'icon': icon,
+        'tooltip': tooltip,
+        'entity_type': entity_type,
+    }
+
+
+def _area_overlay(positions: list[JsonDict], width: int, height: int, icon: str, tooltip: str, entity_type: str) -> JsonDict:
+    min_x = min(pos['x'] for pos in positions)
+    max_x = max(pos['x'] for pos in positions)
+    min_y = min(pos['y'] for pos in positions)
+    max_y = max(pos['y'] for pos in positions)
+    return {
+        'x': min_x,
+        'y': min_y,
+        'layer': int(positions[0].get('layer', 1)),
+        'left_percent': ((min_x + max_x + 1) / 2 / width) * 100,
+        'top_percent': ((min_y + max_y + 1) / 2 / height) * 100,
+        'width_percent': ((max_x - min_x + 1) / width) * 100,
+        'height_percent': ((max_y - min_y + 1) / height) * 100,
         'icon': icon,
         'tooltip': tooltip,
         'entity_type': entity_type,

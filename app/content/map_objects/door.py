@@ -1,6 +1,6 @@
 from typing import TYPE_CHECKING
 
-from app.content.map_objects.common import BLOCK_TYPE_BLOCK, BLOCK_TYPE_PASS, add_map_log, get_map_object_player_state
+from app.content.map_objects.common import BLOCK_TYPE_BLOCK, BLOCK_TYPE_PASS, add_map_log, add_tile_update_step, get_map_object_player_state
 from app.engine.events import GameEvent
 
 if TYPE_CHECKING:
@@ -20,6 +20,7 @@ def door_move_block_check(context: 'EventContext') -> None:
     player_state['keys'] -= 1
     context.payload['block_type'] = BLOCK_TYPE_PASS
     add_map_log(context, '消耗 1 把钥匙打开了门。')
+    add_tile_update_step(context.state, tile)
     context.emit(GameEvent.MAP_OBJECT_TRIGGERED, {
         'object_id': context.payload['object_id'],
         'object_type': context.payload['tile_type'],

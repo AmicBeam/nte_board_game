@@ -19,13 +19,13 @@ def phase_striker_modify_damage_package(context: 'EventContext') -> None:
         return
     if apply_damage_bonus(context.payload, 1) <= 0:
         return
-    logger.info('Phase Striker passive grants outgoing bonus damage through damage package.')
+    logger.info('phase_striker passive grants outgoing bonus damage through damage package.')
 
 
 CHARACTER = {
     'id': 'phase_striker',
     'name': '相位突击手',
-    'title': 'Close-Range Duel Specialist',
+    'title': '近距决斗专家',
     'max_hp': 36,
     'attack': 14,
     'defense': 3,

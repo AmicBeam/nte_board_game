@@ -10,7 +10,7 @@ if TYPE_CHECKING:
 def key_fabricator_item_played(context: 'EventContext') -> None:
     player_state = get_item_player_state(context)
     player_state['keys'] += 1
-    add_item_log(context, '使用 Key Fabricator，获得 1 把钥匙。')
+    add_item_log(context, '使用钥匙生成器，获得 1 把钥匙。')
     context.payload['resolved'] = True
 
 
@@ -19,6 +19,7 @@ ITEM = {
     'name': '钥匙生成器',
     'type': 'utility',
     'rarity': 'rare',
+    'icon': 'key',
     'description': '获得 1 把钥匙。',
     'effect': {'kind': 'key', 'value': 1},
     'event_hooks': {

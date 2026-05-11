@@ -18,13 +18,13 @@ def vector_scout_turn_belt_redirect(context: 'EventContext') -> None:
         source_instance_id=str(context.instance_id or 'vector_scout'),
         data={'stored_next_turn_move': 1, 'consume_on_move': True},
     ))
-    add_character_log(context, 'Vector Scout 被动生效：下回合移动 +1。')
+    add_character_log(context, '向量侦察员被动生效：下回合移动 +1。')
 
 
 CHARACTER = {
     'id': 'vector_scout',
     'name': '向量侦察员',
-    'title': 'Route Planning Navigator',
+    'title': '路径规划导航员',
     'max_hp': 38,
     'attack': 10,
     'defense': 4,

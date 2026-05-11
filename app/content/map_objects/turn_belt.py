@@ -20,7 +20,7 @@ def turn_belt_tile_enter(context: 'EventContext') -> None:
     if context.payload.get('steps_remaining', 0) <= 0:
         return
     direction = tile['direction']
-    add_map_log(context, f'转向带生效，方向改为 {direction}。')
+    add_map_log(context, f"转向带生效，方向改为向{_DIRECTION_NAMES.get(direction, direction)}。")
     context.payload['next_direction'] = direction
     context.emit(GameEvent.MOVE_REDIRECTED, {
         'object_id': context.payload['object_id'],

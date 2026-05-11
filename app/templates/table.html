@@ -2,14 +2,19 @@
 {% block title %}牌桌{% endblock %}
 {% block body %}
 <main class="table-page">
-    <section class="glass-card table-topbar">
+    <section class="glass-card table-topbar combat-topbar">
         <div>
-            <p class="eyebrow">Battle Table</p>
-            <h1>NTE 地图牌桌</h1>
+            <p class="eyebrow">作战桌</p>
+            <h1>异象作战桌</h1>
+            <div class="combat-hud" id="combat-hud">
+                <span>回合 -</span>
+                <span>坐标 -/-</span>
+                <span>层数 -/-</span>
+            </div>
         </div>
         <div class="header-actions">
-            <a class="secondary-btn" href="{{ url_for('main.build_page') }}">返回构筑</a>
-            <button class="secondary-btn" id="reset-run-btn">重置对局</button>
+            <button class="secondary-btn" id="logout-run-btn" type="button">退出登录</button>
+            <button class="primary-btn danger-btn" id="reset-run-btn" type="button">撤退</button>
         </div>
     </section>
     <section class="table-layout">
@@ -24,11 +29,15 @@
                     <strong>回合提示</strong>
                     <p>每回合开始时会自动掷骰，当前点数会直接显示在状态面板中。</p>
                 </div>
-                <div class="dir-grid">
-                    <button data-direction="up">上</button>
-                    <button data-direction="left">左</button>
-                    <button data-direction="down">下</button>
-                    <button data-direction="right">右</button>
+                <div class="dir-grid" aria-label="移动方向">
+                    <button data-direction="up" aria-label="向上移动" title="向上移动">↑</button>
+                    <button data-direction="left" aria-label="向左移动" title="向左移动">←</button>
+                    <button data-direction="down" aria-label="向下移动" title="向下移动">↓</button>
+                    <button data-direction="right" aria-label="向右移动" title="向右移动">→</button>
+                </div>
+                <div class="dice-readout" aria-label="当前骰子">
+                    <img src="{{ url_for('static', filename='images/dice.webp') }}" alt="">
+                    -
                 </div>
             </div>
             <div class="hint-box">
@@ -37,29 +46,81 @@
             </div>
         </div>
         <div class="glass-card board-panel">
-            <div class="section-title-row">
+            <div class="section-title-row board-title-row">
                 <h2>地图</h2>
                 <p id="map-name">未加载</p>
             </div>
+            <div class="boss-hud" id="boss-hud" aria-hidden="true"></div>
             <div class="map-stage" id="map-stage">
                 <div class="map-stage-inner">
                     <img id="map-background" alt="map background">
+                    <div class="map-grid-layer" id="map-grid-layer" aria-hidden="true"></div>
+                    <div class="map-range-layer" id="map-range-layer" aria-hidden="true"></div>
+                    <div class="map-preview-layer" id="map-preview-layer" aria-hidden="true"></div>
+                    <div class="map-fx-layer" id="map-fx-layer" aria-hidden="true"></div>
                     <div class="map-overlay" id="map-overlay"></div>
                 </div>
             </div>
         </div>
         <div class="glass-card side-panel">
-            <div class="section-title-row">
-                <h2>手牌</h2>
-                <p>行动阶段可用 1 个</p>
+            <div class="section-title-row side-title-row">
+                <div>
+                    <h2 id="side-panel-title">道具</h2>
+                    <p id="side-panel-subtitle">行动阶段可用 1 个</p>
+                </div>
+                <div class="side-toggle" aria-label="右侧面板">
+                    <button class="active" data-side-view="items" type="button">道具</button>
+                    <button data-side-view="log" type="button">日志</button>
+                </div>
             </div>
-            <div class="hand-list" id="hand-list"></div>
-            <div class="section-title-row compact">
-                <h2>日志</h2>
+            <div class="side-view active" id="items-side-view">
+                <div class="hand-list" id="hand-list"></div>
             </div>
-            <div class="log-list" id="log-list"></div>
+            <div class="side-view" id="log-side-view">
+                <button class="secondary-btn copy-log-btn" id="copy-log-btn" type="button">复制日志</button>
+                <div class="log-list" id="log-list"></div>
+            </div>
         </div>
     </section>
+    <div class="item-floating-tooltip" id="item-floating-tooltip" aria-hidden="true"></div>
+    <div class="event-modal" id="event-modal" aria-hidden="true">
+        <div class="event-dialog" role="dialog" aria-modal="true" aria-labelledby="event-modal-title">
+            <div class="event-icon" id="event-modal-icon"></div>
+            <div class="event-copy">
+                <p class="eyebrow">事件</p>
+                <h2 id="event-modal-title">事件</h2>
+                <p id="event-modal-message">事件已触发。</p>
+            </div>
+            <button class="primary-btn" id="event-close-btn" type="button">确认</button>
+        </div>
+    </div>
+    <div class="battle-modal" id="battle-modal" aria-hidden="true">
+        <div class="battle-dialog" role="dialog" aria-modal="true" aria-labelledby="battle-modal-title">
+            <div class="battle-scene">
+                <div class="combatant hero-combatant" id="battle-player-combatant">
+                    <span class="combat-label">角色</span>
+                    <strong id="battle-player-name">当前角色</strong>
+                    <div class="battle-hp"><i id="battle-player-hp"></i></div>
+                    <small id="battle-player-detail">HP -</small>
+                    <span class="damage-pop" id="battle-player-damage"></span>
+                </div>
+                <div class="versus-mark">VS</div>
+                <div class="combatant enemy-combatant" id="battle-enemy-combatant">
+                    <span class="combat-label">敌方</span>
+                    <strong id="battle-enemy-name">敌人</strong>
+                    <div class="battle-hp enemy"><i id="battle-enemy-hp"></i></div>
+                    <small id="battle-enemy-detail">HP -</small>
+                    <span class="damage-pop enemy" id="battle-enemy-damage"></span>
+                </div>
+            </div>
+            <div class="battle-summary">
+                <p class="eyebrow">战斗结果</p>
+                <h2 id="battle-modal-title">遭遇战结算</h2>
+                <p id="battle-summary-text">战斗已结算。</p>
+            </div>
+            <button class="primary-btn" id="battle-close-btn">确认</button>
+        </div>
+    </div>
 </main>
 <script src="{{ url_for('static', filename='js/common.js') }}"></script>
 <script src="{{ url_for('static', filename='js/table.js') }}"></script>

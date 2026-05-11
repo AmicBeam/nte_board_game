@@ -11,6 +11,16 @@ if (ensureLogin()) {
 }
 
 async function bootstrapHome() {
+  try {
+    const activeState = await apiRequest('/api/game/state');
+    if (activeState.status === 'playing') {
+      window.location.href = '/table';
+      return;
+    }
+  } catch (error) {
+    // 没有进行中对局时继续显示主界面。
+  }
+
   const [me, catalog] = await Promise.all([
     apiRequest('/api/me'),
     apiRequest('/api/catalog'),
@@ -58,7 +68,7 @@ async function bootstrapHome() {
     }
     const character = catalog.characters.find((item) => item.id === catalog.saved_build.character_id);
     const characterName = character ? character.name : catalog.saved_build.character_id;
-    buildSummaryCopy.textContent = `当前构筑角色：${characterName}，已选择 ${catalog.saved_build.item_ids.length} 张卡片。`;
+    buildSummaryCopy.textContent = `当前构筑角色：${characterName}，已选择 ${catalog.saved_build.item_ids.length} 个道具。`;
     startModeBtn.disabled = false;
   }
 

@@ -33,16 +33,18 @@ def manhattan(x1: int, y1: int, x2: int, y2: int) -> int:
 
 def find_nearest_enemy(state: 'JsonDict', max_distance: int) -> dict | None:
     actor = state['player']
+    current_layer = int(state['map'].get('current_layer', 1))
     candidates = []
     for monster in state['map']['monsters']:
-        if monster['hp'] <= 0:
+        if monster['hp'] <= 0 or int(monster.get('layer', 1)) != current_layer:
             continue
         distance = manhattan(actor['x'], actor['y'], monster['x'], monster['y'])
         if distance <= max_distance:
             candidates.append((distance, monster))
     boss = state['map']['boss']
-    if boss['hp'] > 0:
-        distance = min(manhattan(actor['x'], actor['y'], pos['x'], pos['y']) for pos in boss['positions'])
+    boss_positions = [pos for pos in boss['positions'] if int(pos.get('layer', 1)) == current_layer]
+    if boss['hp'] > 0 and boss_positions:
+        distance = min(manhattan(actor['x'], actor['y'], pos['x'], pos['y']) for pos in boss_positions)
         if distance <= max_distance:
             candidates.append((distance, boss))
     if not candidates:

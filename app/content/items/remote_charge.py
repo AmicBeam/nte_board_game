@@ -12,8 +12,8 @@ def remote_charge_item_played(context: 'EventContext') -> None:
     target = find_nearest_enemy(context.state, max_distance=2)
     if target is None:
         raise RuleValidationError('范围内没有可攻击目标。')
-    add_item_log(context, f"使用 Remote Charge，锁定 {target['name']}。")
-    apply_direct_damage(context, target, damage=5, source='Remote Charge')
+    add_item_log(context, f"使用遥控充能，锁定 {target['name']}。")
+    apply_direct_damage(context, target, damage=5, source='遥控充能')
     context.payload['resolved'] = True
 
 
@@ -22,6 +22,7 @@ ITEM = {
     'name': '遥控充能',
     'type': 'utility',
     'rarity': 'rare',
+    'icon': 'charge',
     'description': '对 2 格内最近敌人造成 5 点伤害。',
     'effect': {'kind': 'direct_damage', 'value': 5, 'range': 2},
     'event_hooks': {
