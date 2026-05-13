@@ -9,13 +9,16 @@ from app.content.loader import (
     get_map,
     get_map_object,
     get_map_object_tooltip,
+    load_map_object_modules,
     load_characters,
     load_items,
     resolve_map_object_id,
 )
+from app.content.map_objects.common import choose_loot_from_table, choose_loot_table_entry
 from app.dao import clear_run, get_build, get_current_room, get_run, list_room_members, update_room_status, upsert_build, upsert_run
 from app.db import atomic_transaction
 from app.engine.damage import PLAYER_TARGET_ID, build_damage_package, resolve_damage_package
+from app.engine.enemy_drop import spawn_enemy_drop
 from app.engine.effects import (
     build_runtime_effect,
     consume_runtime_effect_bonus,
@@ -37,9 +40,14 @@ from app.errors import RuleValidationError
 from app.models import Player, Room
 from app.utils.logger import get_logger
 
-DEFAULT_ITEM_COUNT = 6
+MAX_BUILD_ITEM_COUNT = 6
+MAP_LOCKED_ITEM_IDS: tuple[str, ...] = ()
+XIAOZHI_FONS_ATTACK_STEP = 10000
+XIAOZHI_FONS_ATTACK_CAP = 50
+MIN_IDENTIFICATION_LEVEL = 1
+MAX_IDENTIFICATION_LEVEL = 4
 LOG_LIMIT = 18
-DEFAULT_ROUTE_HINT = '前往地图底层，靠近 Boss 区域并多回合作战。'
+DEFAULT_ROUTE_HINT = '搜刮办公室资源，找到传送门后进入 Boss 房间。'
 ACTION_QUEUE_KEY = '_action_queue'
 DIRECTIONS = {
     'up': (0, -1),
@@ -53,6 +61,33 @@ DIRECTION_LABELS = {
     'left': '左',
     'right': '右',
 }
+TURN_BELT_DIRECTIONS = {
+    'turn_belt_up': 'up',
+    'turn_belt_down': 'down',
+    'turn_belt_left': 'left',
+    'turn_belt_right': 'right',
+}
+IDENTIFICATION_OFFSETS = {
+    1: ((0, -1), (-1, 0), (1, 0), (0, 1)),
+    2: tuple(
+        (dx, dy)
+        for dy in range(-1, 2)
+        for dx in range(-1, 2)
+        if dx != 0 or dy != 0
+    ),
+    3: tuple(
+        (dx, dy)
+        for dy in range(-1, 2)
+        for dx in range(-1, 2)
+        if dx != 0 or dy != 0
+    ) + ((0, -2), (-2, 0), (2, 0), (0, 2)),
+    4: tuple(
+        (dx, dy)
+        for dy in range(-2, 3)
+        for dx in range(-2, 3)
+        if dx != 0 or dy != 0
+    ),
+}
 ICONS = {
     'player': 'player',
     'monster': 'monster',
@@ -65,40 +100,166 @@ ICONS = {
     'event': 'event',
     'boss_tile': 'boss',
 }
+MONSTER_KIND_ICONS = {
+    'camera': '/static/images/monster/compass.svg',
+}
 
 logger = get_logger('nte.game_service')
 
 
+def _monster_icon(monster: JsonDict) -> str:
+    return MONSTER_KIND_ICONS.get(str(monster.get('kind', 'monster')), ICONS['monster'])
+
+
 def get_catalog_payload(player: Player) -> JsonDict:
+    saved_build = get_build(player)
+    catalog_item_ids = _catalog_visible_item_ids()
     return {
         'characters': [serialize_character_definition(character_definition) for character_definition in load_characters()],
-        'items': [serialize_item_definition(item_definition) for item_definition in load_items()],
-        'build_size': DEFAULT_ITEM_COUNT,
-        'saved_build': get_build(player),
+        'items': [
+            serialize_item_definition(item_definition)
+            for item_definition in load_items()
+            if not item_definition.get('hidden_from_build') or item_definition['id'] in catalog_item_ids
+        ],
+        'build_size': MAX_BUILD_ITEM_COUNT,
+        'locked_item_ids': list(MAP_LOCKED_ITEM_IDS),
+        'saved_build': normalize_build_payload(saved_build) if saved_build is not None else None,
     }
+
+
+def get_encyclopedia_payload() -> JsonDict:
+    game_map = deepcopy(get_map(DEFAULT_MAP_ID))
+    _ensure(game_map is not None, '地图配置不存在。')
+    map_object_ids = _collect_map_object_ids(game_map)
+    map_object_modules = load_map_object_modules()
+    map_objects = []
+    for object_id in sorted(map_object_ids):
+        definition = map_object_modules.get(object_id, {}).get('definition')
+        if definition is None:
+            continue
+        sample_tile = next(
+            (tile for tile in game_map.get('tiles', []) if resolve_map_object_id(tile) == object_id),
+            {'type': object_id, 'object_id': object_id},
+        )
+        map_objects.append({
+            'id': object_id,
+            'name': _map_object_display_name(object_id),
+            'icon': definition.get('icon', ICONS.get(object_id, 'event')),
+            'description': get_map_object_tooltip(sample_tile),
+            'block_type': definition.get('block_type', ''),
+            'tags': map_object_tags(definition),
+        })
+    exclusive_item_ids = _exclusive_item_ids()
+    codex_items = []
+    loot_items = []
+    for item in load_items():
+        if item.get('type') in {'loot', 'key'}:
+            loot_items.append(serialize_item_definition(item))
+            continue
+        if not _is_codex_item(item, exclusive_item_ids):
+            continue
+        serialized_item = serialize_item_definition(item)
+        if item['id'] in exclusive_item_ids:
+            _append_tag(serialized_item, '专属')
+        codex_items.append(serialized_item)
+    enemies = [
+        {
+            'id': monster['id'],
+            'name': monster['name'],
+            'kind': monster.get('kind', 'monster'),
+            'icon': _monster_icon(monster),
+            'hp': monster.get('max_hp', monster.get('hp', 0)),
+            'attack': monster.get('attack', 0),
+            'defense': monster.get('defense', 0),
+            'range': monster.get('range', 1),
+            'description': f"HP {monster.get('max_hp', monster.get('hp', 0))} / 攻击 {monster.get('attack', 0)} / 防御 {monster.get('defense', 0)} / 射程 {monster.get('range', 1)}",
+        }
+        for monster in game_map.get('monsters', [])
+    ]
+    boss = game_map.get('boss', {})
+    if boss:
+        enemies.append({
+            'id': boss.get('id', 'boss'),
+            'name': boss.get('name', 'Boss'),
+            'kind': 'boss',
+            'icon': ICONS['boss'],
+            'hp': boss.get('max_hp', boss.get('hp', 0)),
+            'attack': boss.get('attack', 0),
+            'defense': boss.get('defense', 0),
+            'range': boss.get('range', 1),
+            'description': f"HP {boss.get('max_hp', boss.get('hp', 0))} / 攻击 {boss.get('attack', 0)} / 防御 {boss.get('defense', 0)} / 射程 {boss.get('range', 1)}",
+        })
+    return {
+        'map': {
+            'id': game_map['id'],
+            'name': game_map['name'],
+            'total_layers': game_map.get('total_layers', 1),
+        },
+        'map_objects': map_objects,
+        'items': codex_items,
+        'loot_items': loot_items,
+        'enemies': enemies,
+    }
+
+
+def _collect_map_object_ids(game_map: JsonDict) -> set[str]:
+    map_object_ids: set[str] = {'loot_item'}
+    for tile in game_map.get('tiles', []):
+        _append_map_object_id(map_object_ids, tile)
+    for entries in game_map.get('loot_tables', {}).values():
+        if not isinstance(entries, list):
+            continue
+        for entry in entries:
+            if isinstance(entry, dict) and isinstance(entry.get('result'), dict):
+                _append_map_object_id(map_object_ids, entry['result'])
+    return map_object_ids
+
+
+def _append_map_object_id(map_object_ids: set[str], tile: JsonDict) -> None:
+    object_id = resolve_map_object_id(tile)
+    if object_id and object_id not in {'floor', 'random', 'wall', 'boss_tile'}:
+        map_object_ids.add(object_id)
+
+
+def _map_object_display_name(object_id: str) -> str:
+    labels = {
+        'door': '门',
+        'hidden_door': '隐藏门',
+        'keycard_door': '经理办公室暗门',
+        'large_safe': '大型保险箱',
+        'loot_item': '可鉴别物',
+        'portal': '传送门',
+        'safe': '保险箱',
+    }
+    return labels.get(object_id, object_id)
 
 
 def serialize_character_definition(character_definition: JsonDict) -> JsonDict:
     return {
         'id': character_definition['id'],
         'name': character_definition['name'],
-        'title': character_definition['title'],
         'max_hp': character_definition['max_hp'],
         'attack': character_definition['attack'],
         'defense': character_definition['defense'],
+        'identification_level': int(character_definition.get('identification_level', 1)),
         'passive': character_definition['passive'],
-        'portrait_image': character_definition.get('portrait_image', f"/static/images/characters/{character_definition['id']}_portrait.svg"),
-        'avatar_image': character_definition.get('avatar_image', f"/static/images/characters/{character_definition['id']}_avatar.svg"),
+        'exclusive_item_ids': list(character_definition.get('exclusive_item_ids', [])),
+        'portrait_image': character_definition.get('portrait_image', f"/static/images/characters/portrait/{character_definition['name']}.png"),
+        'avatar_image': character_definition.get('avatar_image', f"/static/images/characters/avatar/{character_definition['name']}.png"),
     }
 
 
 def save_build(player: Player, character_id: str, item_ids: list[str]) -> JsonDict | None:
-    _ensure(get_character(character_id) is not None, '角色不存在。')
-    _ensure(len(item_ids) == DEFAULT_ITEM_COUNT, f'必须选择 {DEFAULT_ITEM_COUNT} 个道具。')
-    for item_id in item_ids:
-        _ensure(get_item(item_id) is not None, f'未知道具：{item_id}')
+    character_definition = get_character(character_id)
+    _ensure(character_definition is not None, '角色不存在。')
+    selectable_item_ids = _selectable_item_ids(character_definition, item_ids)
+    _ensure(len(selectable_item_ids) <= MAX_BUILD_ITEM_COUNT, f'最多选择 {MAX_BUILD_ITEM_COUNT} 个道具。')
+    for item_id in selectable_item_ids:
+        item = get_item(item_id)
+        _ensure(item is not None, f'未知道具：{item_id}')
+        _ensure(not item.get('hidden_from_build'), f'该道具不可在构筑中选择：{item_id}')
     with atomic_transaction():
-        upsert_build(player, character_id, item_ids)
+        upsert_build(player, character_id, selectable_item_ids)
     logger.info('save_build player_uid=%s character_id=%s', player.player_uid, character_id)
     return get_build(player)
 
@@ -117,6 +278,7 @@ def start_or_resume_run_for_room(room: Room, player: Player) -> JsonDict:
             build = get_build(member.player)
             if build is None:
                 raise RuleValidationError(f'玩家 {member.player.player_uid} 尚未完成构筑。')
+            build = normalize_build_payload(build)
             builds_by_player_uid[member.player.player_uid] = build
         existing_run = get_run(room)
         if existing_run and existing_run['status'] in {'playing', 'victory', 'defeat'}:
@@ -130,6 +292,58 @@ def start_or_resume_run_for_room(room: Room, player: Player) -> JsonDict:
         _persist_room_snapshot(room, state)
     logger.info('start_new_run room_code=%s player_uid=%s', room.room_code, player.player_uid)
     return serialize_snapshot(state)
+
+
+def normalize_build_payload(build: JsonDict) -> JsonDict:
+    characters = load_characters()
+    default_character_id = characters[0]['id'] if characters else ''
+    character_id = build.get('character_id')
+    if get_character(str(character_id)) is None:
+        character_id = default_character_id
+    character_definition = get_character(str(character_id)) or {}
+    item_ids = _selectable_item_ids(character_definition, build.get('item_ids', []))[:MAX_BUILD_ITEM_COUNT]
+    return {'character_id': character_id, 'item_ids': item_ids}
+
+
+def _locked_item_ids_for_character(character_definition: JsonDict | None) -> list[str]:
+    locked_ids = list(MAP_LOCKED_ITEM_IDS)
+    locked_ids.extend((character_definition or {}).get('exclusive_item_ids', []))
+    return list(dict.fromkeys(locked_ids))
+
+
+def _exclusive_item_ids() -> set[str]:
+    item_ids = set(MAP_LOCKED_ITEM_IDS)
+    for character_definition in load_characters():
+        item_ids.update(str(item_id) for item_id in character_definition.get('exclusive_item_ids', []))
+    return item_ids
+
+
+def _catalog_visible_item_ids() -> set[str]:
+    return _exclusive_item_ids()
+
+
+def _is_codex_item(item_definition: JsonDict, exclusive_item_ids: set[str]) -> bool:
+    if item_definition.get('type') in {'loot', 'key'}:
+        return False
+    return not item_definition.get('hidden_from_build') or item_definition['id'] in exclusive_item_ids
+
+
+def _append_tag(payload: JsonDict, tag: str) -> None:
+    tags = [str(item) for item in payload.get('tags', []) if str(item)]
+    if tag not in tags:
+        tags.append(tag)
+    payload['tags'] = tags
+
+
+def _selectable_item_ids(character_definition: JsonDict | None, item_ids: list[str]) -> list[str]:
+    locked_ids = set(_locked_item_ids_for_character(character_definition))
+    return [
+        str(item_id)
+        for item_id in item_ids
+        if str(item_id) not in locked_ids
+        and (item := get_item(str(item_id))) is not None
+        and not item.get('hidden_from_build')
+    ]
 
 
 def get_run_state(player: Player) -> JsonDict | None:
@@ -169,39 +383,52 @@ def roll_dice(player: Player) -> JsonDict:
         return _save_and_serialize(player, state)
 
 
-def play_item(player: Player, item_instance_id: str) -> JsonDict:
+def play_item(player: Player, item_instance_id: str, declared_value: int | None = None) -> JsonDict:
     with atomic_transaction():
         state = _load_state(player)
         begin_action_queue(state)
+        state['_declared_item_value'] = declared_value
         _ensure(state['phase'] == 'action', '当前不是行动阶段。')
         _ensure(not state['has_played_item'], '每回合只能使用 1 个道具。')
         item_instance = _find_item_instance(state['hand'], item_instance_id)
         _ensure(item_instance is not None, '该道具实例不在手牌中。')
         item = get_item(item_instance['definition_id'])
         _ensure(item is not None, '道具定义不存在。')
+        _ensure(can_play_item_now(state, item), '该道具当前不能主动使用。')
         event_payload = {
             'item_id': item['id'],
             'item_name': item['name'],
             'item_instance_id': item_instance_id,
             'target_instance_id': item_instance_id,
+            'declared_value': state.get('_declared_item_value'),
             'resolved': False,
         }
 
-        _remove_item_instance(state['hand'], item_instance_id)
-        state['discard_pile'].append(item_instance)
-        _set_item_zone(state, item_instance, 'discard_pile', reason='play_item')
+        if item.get('consume_on_play', True):
+            if item.get('stackable') and int(item_instance.get('quantity', 1)) > 1:
+                item_instance['quantity'] = int(item_instance.get('quantity', 1)) - 1
+            else:
+                _remove_item_instance(state['hand'], item_instance_id)
+                state['discard_pile'].append(item_instance)
+                _set_item_zone(state, item_instance, 'discard_pile', reason='play_item')
         state['has_played_item'] = True
         result_payload = dispatch_event(state, GameEvent.ITEM_PLAYED, event_payload)
+        state.pop('_declared_item_value', None)
         _ensure(result_payload.get('resolved') is True, '该道具未声明可执行的事件效果。')
         return _save_and_serialize(player, state)
 
 
-def move_player(player: Player, direction: str) -> JsonDict:
+def move_player(player: Player, direction: str, path: list[str] | None = None) -> JsonDict:
     with atomic_transaction():
         state = _load_state(player)
         begin_action_queue(state)
         _ensure(state['phase'] in {'action', 'movement'}, '当前不能移动。')
         _ensure(state['pending_die'] is not None, '请先掷骰。')
+        path_directions = [str(item) for item in (path or [])]
+        if path_directions:
+            _ensure(all(item in DIRECTIONS for item in path_directions), '路径方向非法。')
+            _ensure(_direction_turn_count(path_directions) <= 1, '移动路径最多只能转弯一次。')
+            direction = path_directions[0]
         _ensure(direction in DIRECTIONS, '方向非法。')
 
         actor = state['player']
@@ -217,9 +444,12 @@ def move_player(player: Player, direction: str) -> JsonDict:
             default_handler=build_scoped_default_handler(state, _default_move_phase_begin),
         )
         steps_remaining = max(0, int(move_phase_payload.get('steps', steps_remaining)))
+        if path_directions:
+            _ensure(len(path_directions) <= steps_remaining, '目标超过当前骰子距离。')
         active_direction = str(move_phase_payload.get('direction', direction))
         active_direction = resolve_start_tile_redirect(state, active_direction, steps_remaining)
         loop_counter = 0
+        path_index = 0
 
         while steps_remaining > 0:
             loop_counter += 1
@@ -227,6 +457,10 @@ def move_player(player: Player, direction: str) -> JsonDict:
                 add_log(state, '移动循环达到安全上限，已强制终止本次移动。')
                 logger.error('move loop exceeded limit player_uid=%s', player.player_uid)
                 break
+            if path_directions:
+                if path_index >= len(path_directions):
+                    break
+                active_direction = path_directions[path_index]
             next_x, next_y = step_position(actor['x'], actor['y'], active_direction)
             block_reason = get_block_reason(state, next_x, next_y)
             if block_reason:
@@ -234,6 +468,7 @@ def move_player(player: Player, direction: str) -> JsonDict:
                 break
             actor['x'], actor['y'] = next_x, next_y
             steps_remaining -= 1
+            path_index += 1
             add_log(state, f"移动至 ({actor['x']}, {actor['y']})。")
             add_action_step(state, {
                 'type': 'move',
@@ -254,6 +489,7 @@ def move_player(player: Player, direction: str) -> JsonDict:
                 add_log(state, '移动被当前格子拦截，剩余步数已结束。')
                 break
 
+        identify_tiles_in_range(state, source='move_stop', show_effect=True)
         state['phase'] = 'battle'
         resolve_battle(state)
         if state['status'] == 'playing':
@@ -269,6 +505,9 @@ def create_initial_state(
 ) -> JsonDict:
     game_map = deepcopy(get_map(map_id))
     _ensure(game_map is not None, '初始化配置失败。')
+    entry = map_entry_point(game_map)
+    game_map['current_layer'] = int(entry.get('layer', game_map.get('current_layer', 1)))
+    _materialize_random_tiles(game_map)
     member_order = [member.player.player_uid for member in room_members]
     _ensure(member_order, '初始化配置失败。')
     players: dict[str, JsonDict] = {}
@@ -276,7 +515,11 @@ def create_initial_state(
         build = builds_by_player_uid[member.player.player_uid]
         character_definition = deepcopy(get_character(build['character_id']))
         _ensure(character_definition is not None, '初始化配置失败。')
-        item_instances = build_item_instances(build['item_ids'], turn=1)
+        initial_item_ids = _locked_item_ids_for_character(character_definition) + build['item_ids']
+        item_instances = build_item_instances(list(dict.fromkeys(initial_item_ids)), turn=1)
+        for item_instance in item_instances:
+            if item_instance['definition_id'] == 'fons':
+                item_instance['amount'] = 0
         character_instance = build_character_instance(character_definition)
         players[member.player.player_uid] = {
             'profile': {
@@ -287,13 +530,16 @@ def create_initial_state(
             },
             'character_instance': character_instance,
             'player': {
-                'x': game_map['start']['x'],
-                'y': game_map['start']['y'],
+                'x': entry['x'],
+                'y': entry['y'],
                 'max_hp': character_instance['max_hp'],
                 'hp': character_instance['max_hp'],
                 'attack': character_instance['attack'],
                 'defense': character_instance['defense'],
+                'identification_level': int(character_instance.get('identification_level', 1)),
                 'keys': 0,
+                'keycards': 0,
+                'fons_amount': 0,
             },
             'discard_pile': [],
             'hand': item_instances,
@@ -328,14 +574,27 @@ def create_initial_state(
 def serialize_snapshot(state: JsonDict) -> JsonDict:
     _project_player_scope(state, str(state['current_actor_uid']))
     payload = deepcopy(state)
+    current_width, current_height = current_map_dimensions(state)
+    payload['map']['width'] = current_width
+    payload['map']['height'] = current_height
     current_profile = payload['players'][payload['current_actor_uid']]['profile']
     payload['computed_stats'] = {
         'attack': current_attack(state),
         'defense': current_defense(state),
+        'identification_level': current_identification_level(state),
     }
+    payload['identification_range'] = identification_range_cells(state)
+    if not payload.get('map', {}).get('hidden_room_revealed'):
+        for tile in payload.get('map', {}).get('tiles', []):
+            if tile.get('hidden_zone') and tile.get('object_id') != 'hidden_door':
+                tile['display_type'] = 'floor'
     payload['board'] = build_board_overlay(state)
     payload['available_directions'] = list(DIRECTIONS.keys())
-    payload['hand_details'] = [item for item in (serialize_item_instance(item_instance) for item_instance in state['hand']) if item is not None]
+    payload['hand_details'] = [
+        item
+        for item in (serialize_hand_item_instance(state, item_instance) for item_instance in state['hand'])
+        if item is not None
+    ]
     payload['players_overview'] = [_serialize_player_overview(player_scope) for player_scope in state['players'].values()]
     payload['current_viewer'] = {
         'player_uid': current_profile['player_uid'],
@@ -356,6 +615,66 @@ def serialize_snapshot(state: JsonDict) -> JsonDict:
         ],
     }
     return payload
+
+
+def _materialize_random_tiles(game_map: JsonDict) -> None:
+    materialized_tiles = []
+    random_index = 0
+    for tile in game_map.get('tiles', []):
+        if tile.get('type') != 'random':
+            materialized_tiles.append(tile)
+            continue
+        random_index += 1
+        if random.random() > float(tile.get('chance', 1)):
+            continue
+        result_tile = _build_random_tile_result(game_map, tile, random_index)
+        if result_tile is not None:
+            materialized_tiles.append(result_tile)
+    game_map['tiles'] = materialized_tiles
+
+
+def _build_random_tile_result(game_map: JsonDict, tile: JsonDict, random_index: int) -> JsonDict | None:
+    entry = choose_loot_table_entry(game_map, tile.get('loot_table_id'))
+    if entry is None:
+        return None
+    if entry.get('result') is not None:
+        result = deepcopy(entry['result'])
+        if result.get('type') == 'floor':
+            return None
+    else:
+        loot = entry.get('loot')
+        if loot is None:
+            return None
+        result = {
+            'type': 'loot_item',
+            'object_id': 'loot_item',
+            'loot': loot,
+        }
+    result['layer'] = int(tile.get('layer', 1))
+    result['x'] = int(tile['x'])
+    result['y'] = int(tile['y'])
+    result.setdefault('object_id', result.get('type'))
+    result.setdefault('spawn_id', f"random_{random_index}")
+    if tile.get('hidden_zone') and not result.get('hidden_zone'):
+        result['hidden_zone'] = tile['hidden_zone']
+    return result
+
+
+def serialize_hand_item_instance(state: JsonDict, item_instance: JsonDict) -> JsonDict | None:
+    item_payload = serialize_item_instance(item_instance)
+    if item_payload is None:
+        return None
+    item_payload['can_play_this_turn'] = can_play_item_now(state, item_payload)
+    return item_payload
+
+
+def can_play_item_now(state: JsonDict, item_definition: JsonDict) -> bool:
+    return (
+        state.get('phase') == 'action'
+        and state.get('has_played_item') is False
+        and bool(item_definition.get('can_play', True))
+        and int(item_definition.get('cooldown_until_turn', 0) or 0) <= int(state.get('turn', 1))
+    )
 
 
 def _load_state(player: Player) -> JsonDict:
@@ -405,19 +724,114 @@ def validate_state(state: JsonDict) -> None:
 def _normalize_loaded_state(state: JsonDict) -> JsonDict:
     normalized = deepcopy(state)
     map_definition = get_map(normalized.get('map', {}).get('id', DEFAULT_MAP_ID))
+    map_replaced = False
     if map_definition is not None:
+        if (
+            normalized.get('map', {}).get('name') != map_definition.get('name')
+            or int(normalized.get('map', {}).get('version', 0)) != int(map_definition.get('version', 0))
+            or int(normalized.get('map', {}).get('total_layers', 1)) != int(map_definition.get('total_layers', 1))
+            or normalized.get('map', {}).get('layers') != map_definition.get('layers')
+            or normalized.get('map', {}).get('entries') != map_definition.get('entries')
+        ):
+            normalized['map'] = deepcopy(map_definition)
+            entry = map_entry_point(normalized['map'])
+            normalized['map']['current_layer'] = int(entry['layer'])
+            _materialize_random_tiles(normalized['map'])
+            map_replaced = True
+        normalized['map']['name'] = map_definition.get('name', normalized['map'].get('name'))
         normalized['map']['background_image'] = map_definition.get('background_image', normalized['map'].get('background_image'))
+        monster_definitions = {monster['id']: monster for monster in map_definition.get('monsters', [])}
+        for monster in normalized['map'].get('monsters', []):
+            monster_definition = monster_definitions.get(monster.get('id'))
+            if monster_definition is None:
+                continue
+            monster['name'] = monster_definition.get('name', monster.get('name'))
+            monster.pop('icon', None)
+        boss_definition = map_definition.get('boss', {})
+        if normalized['map'].get('boss', {}).get('id') == boss_definition.get('id'):
+            normalized['map']['boss']['name'] = boss_definition.get('name', normalized['map']['boss'].get('name'))
+        normalized['map'].get('boss', {}).pop('icon', None)
+    for tile in normalized.get('map', {}).get('tiles', []):
+        tile.pop('icon', None)
+        if resolve_map_object_id(tile) == 'turn_belt' and str(tile.get('direction', '')) in DIRECTIONS:
+            object_id = f"turn_belt_{tile['direction']}"
+            tile['type'] = object_id
+            tile['object_id'] = object_id
+            tile.pop('direction', None)
     for player_scope in normalized.get('players', {}).values():
         character_instance = player_scope.get('character_instance', {})
         character_definition = get_character(character_instance.get('definition_id'))
         if character_definition is None:
-            continue
+            characters = load_characters()
+            if not characters:
+                continue
+            character_definition = characters[0]
+            rebuilt_character = build_character_instance(character_definition)
+            rebuilt_character['instance_id'] = character_instance.get('instance_id', rebuilt_character['instance_id'])
+            player_scope['character_instance'] = rebuilt_character
+            character_instance = player_scope['character_instance']
+            player_scope.setdefault('player', {})['max_hp'] = rebuilt_character['max_hp']
+            player_scope['player']['hp'] = min(int(player_scope['player'].get('hp', rebuilt_character['max_hp'])), rebuilt_character['max_hp'])
+            player_scope['player']['attack'] = rebuilt_character['attack']
+            player_scope['player']['defense'] = rebuilt_character['defense']
         character_instance['name'] = character_definition.get('name', character_instance.get('name'))
-        character_instance['title'] = character_definition.get('title', character_instance.get('title'))
+        character_instance.pop('title', None)
         character_instance['passive'] = character_definition.get('passive', character_instance.get('passive'))
+        character_instance['identification_level'] = int(character_definition.get('identification_level', character_instance.get('identification_level', 1)))
+        serialized_character = serialize_character_definition(character_definition)
+        character_instance['portrait_image'] = serialized_character['portrait_image']
+        character_instance['avatar_image'] = serialized_character['avatar_image']
+        player_scope.setdefault('player', {}).setdefault('keycards', 0)
+        player_scope.setdefault('player', {}).setdefault('fons_amount', 0)
+        player_scope.setdefault('player', {})['identification_level'] = int(character_instance.get('identification_level', 1))
+        existing_fons = next((item for item in player_scope.get('hand', []) if item.get('definition_id') == 'fons'), None)
+        if existing_fons is not None:
+            player_scope['player']['fons_amount'] = max(
+                int(player_scope['player'].get('fons_amount', 0)),
+                int(existing_fons.get('amount', 0)),
+            )
+        _absorb_convertible_hand_items(player_scope)
+        if map_replaced:
+            entry = map_entry_point(normalized['map'])
+            player_scope['player']['x'] = entry['x']
+            player_scope['player']['y'] = entry['y']
+        allowed_locked_ids = set(_locked_item_ids_for_character(character_definition))
+        player_scope['hand'] = [
+            item for item in player_scope.get('hand', [])
+            if get_item(item.get('definition_id')) is not None
+            and (item.get('definition_id') != 'fons' or item.get('definition_id') in allowed_locked_ids)
+        ]
+        player_scope['discard_pile'] = [
+            item for item in player_scope.get('discard_pile', [])
+            if get_item(item.get('definition_id')) is not None
+            and (item.get('definition_id') != 'fons' or item.get('definition_id') in allowed_locked_ids)
+        ]
+        for item in player_scope.get('hand', []):
+            if item.get('definition_id') == 'fons':
+                item['amount'] = int(player_scope['player'].get('fons_amount', 0))
+        existing_item_ids = {item.get('definition_id') for item in player_scope.get('hand', [])}
+        missing_locked_items = [item_id for item_id in _locked_item_ids_for_character(character_definition) if item_id not in existing_item_ids]
+        for item_instance in build_item_instances(missing_locked_items, turn=int(normalized.get('turn', 1))):
+            if item_instance['definition_id'] == 'fons':
+                item_instance['amount'] = int(player_scope['player'].get('fons_amount', 0))
+            player_scope.setdefault('hand', []).insert(0, item_instance)
     _project_player_scope(normalized, str(normalized['current_actor_uid']))
     _initialize_item_zones(normalized, emit_initial_events=False)
     return normalized
+
+
+def _absorb_convertible_hand_items(player_scope: JsonDict) -> None:
+    retained_hand = []
+    fons_total = int(player_scope.setdefault('player', {}).get('fons_amount', 0))
+    for item in player_scope.get('hand', []):
+        item_definition = get_item(item.get('definition_id')) or {}
+        fons_value = int(item_definition.get('fons_value', 0) or 0)
+        if fons_value <= 0:
+            retained_hand.append(item)
+            continue
+        fons_total += fons_value * max(1, int(item.get('quantity', 1) or 1))
+    player_scope['player']['fons_amount'] = fons_total
+    player_scope['hand'] = retained_hand
 
 
 def _persist_room_snapshot(room: Room, state: JsonDict) -> None:
@@ -458,7 +872,7 @@ def step_position(x: int, y: int, direction: str) -> tuple[int, int]:
 
 
 def tile_at(state: JsonDict, x: int, y: int) -> JsonDict | None:
-    for tile in state['map']['tiles']:
+    for tile in reversed(state['map']['tiles']):
         if _is_on_current_layer(state, tile) and tile['x'] == x and tile['y'] == y:
             return tile
     return None
@@ -466,7 +880,7 @@ def tile_at(state: JsonDict, x: int, y: int) -> JsonDict | None:
 
 def monster_at(state: JsonDict, x: int, y: int) -> JsonDict | None:
     for monster in state['map']['monsters']:
-        if _is_on_current_layer(state, monster) and monster['hp'] > 0 and monster['x'] == x and monster['y'] == y:
+        if _is_on_current_layer(state, monster) and monster['hp'] > 0 and not monster.get('captured') and monster['x'] == x and monster['y'] == y:
             return monster
     return None
 
@@ -480,12 +894,102 @@ def current_map_layer(state: JsonDict) -> int:
     return int(state['map'].get('current_layer', 1))
 
 
+def map_entry_point(game_map: JsonDict) -> JsonDict:
+    entries = game_map.get('entries', [])
+    if isinstance(entries, list) and entries:
+        entry = entries[0]
+        return {
+            'layer': int(entry.get('layer', 1)),
+            'x': int(entry.get('x', 0)),
+            'y': int(entry.get('y', 0)),
+        }
+    start = game_map.get('start', {})
+    return {
+        'layer': int(start.get('layer', game_map.get('current_layer', 1))),
+        'x': int(start.get('x', 0)),
+        'y': int(start.get('y', 0)),
+    }
+
+
+def map_layer_dimensions(game_map: JsonDict, layer: int) -> tuple[int, int]:
+    for layer_meta in game_map.get('layers', []):
+        if int(layer_meta.get('layer', 1)) == int(layer):
+            return int(layer_meta.get('width', 0)), int(layer_meta.get('height', 0))
+    return int(game_map.get('width', 0)), int(game_map.get('height', 0))
+
+
+def current_map_dimensions(state: JsonDict) -> tuple[int, int]:
+    return map_layer_dimensions(state['map'], current_map_layer(state))
+
+
+def in_current_layer_bounds(state: JsonDict, x: int, y: int) -> bool:
+    width, height = current_map_dimensions(state)
+    return 0 <= x < width and 0 <= y < height
+
+
 def _is_on_current_layer(state: JsonDict, entity: JsonDict) -> bool:
     return int(entity.get('layer', 1)) == current_map_layer(state)
 
 
+def is_hidden_from_player(state: JsonDict, tile: JsonDict) -> bool:
+    return bool(tile.get('hidden_zone')) and not state['map'].get('hidden_room_revealed') and tile.get('object_id') != 'hidden_door'
+
+
+def should_identify_on_pass_through(map_object: JsonDict, block_type: object) -> bool:
+    return str(block_type) == '可通过' and bool(map_object.get('identify_on_pass'))
+
+
+def identify_tile(state: JsonDict, tile: JsonDict, source: str) -> JsonDict:
+    object_id = resolve_map_object_id(tile)
+    map_object = get_map_object(object_id) or {}
+    return dispatch_event(state, GameEvent.IDENTIFY, {
+        'tile_type': tile['type'],
+        'tile': tile,
+        'object_id': object_id,
+        'x': tile['x'],
+        'y': tile['y'],
+        'source': source,
+        'identification_level': current_identification_level(state),
+        'block_type': map_object.get('block_type', '可通过'),
+    })
+
+
+def identify_tiles_in_range(state: JsonDict, source: str, show_effect: bool = False) -> None:
+    cells = identification_range_cells(state)
+    if show_effect:
+        add_action_step(state, {
+            'type': 'identify_range',
+            'level': current_identification_level(state),
+            'cells': cells,
+            'x': state['player']['x'],
+            'y': state['player']['y'],
+            'layer': current_map_layer(state),
+        })
+    for cell in cells:
+        tile = tile_at(state, int(cell['x']), int(cell['y']))
+        if tile is None or is_hidden_from_player(state, tile):
+            continue
+        identify_tile(state, tile, source=source)
+
+
+def turn_belt_direction_for_tile(tile: JsonDict | None) -> str | None:
+    if tile is None:
+        return None
+    object_id = resolve_map_object_id(tile)
+    if object_id in TURN_BELT_DIRECTIONS:
+        return TURN_BELT_DIRECTIONS[object_id]
+    if object_id == 'turn_belt':
+        direction = str(tile.get('direction', ''))
+        return direction if direction in DIRECTIONS else None
+    return None
+
+
+def is_turn_belt_tile(tile: JsonDict | None) -> bool:
+    return turn_belt_direction_for_tile(tile) is not None
+
+
 def get_block_reason(state: JsonDict, x: int, y: int) -> str | None:
-    if x < 0 or y < 0 or x >= state['map']['width'] or y >= state['map']['height']:
+    if not in_current_layer_bounds(state, x, y):
         return '超出地图边界'
     tile = tile_at(state, x, y)
     if monster_at(state, x, y):
@@ -531,8 +1035,7 @@ def _can_enemy_attack_player(state: JsonDict, enemy: JsonDict, target_x: int, ta
                 key in seen
                 or next_x < 0
                 or next_y < 0
-                or next_x >= state['map']['width']
-                or next_y >= state['map']['height']
+                or not in_current_layer_bounds(state, next_x, next_y)
             ):
                 continue
             if next_x == target_x and next_y == target_y:
@@ -548,9 +1051,9 @@ def _is_attack_range_blocked(state: JsonDict, x: int, y: int) -> bool:
     tile = tile_at(state, x, y)
     if tile is None:
         return False
-    if tile['type'] == 'door' and not tile.get('locked', True):
-        return False
     object_id = resolve_map_object_id(tile)
+    if object_id in {'door', 'keycard_door'} and not tile.get('locked', True):
+        return False
     map_object = get_map_object(object_id) or {}
     return str(map_object.get('block_type', '可通过')) == '阻挡'
 
@@ -561,7 +1064,7 @@ def resolve_start_tile_redirect(state: JsonDict, active_direction: str, steps_re
     if tile is None or steps_remaining <= 0:
         return active_direction
     object_id = resolve_map_object_id(tile)
-    if object_id != 'turn_belt':
+    if not is_turn_belt_tile(tile):
         return active_direction
     map_object = get_map_object(object_id) or {}
     through_payload = dispatch_event(state, GameEvent.MOVE_THROUGH, {
@@ -575,6 +1078,16 @@ def resolve_start_tile_redirect(state: JsonDict, active_direction: str, steps_re
         'next_direction': active_direction,
     })
     return str(through_payload.get('next_direction', active_direction))
+
+
+def _direction_turn_count(path_directions: list[str]) -> int:
+    turns = 0
+    previous = path_directions[0] if path_directions else ''
+    for direction in path_directions[1:]:
+        if direction != previous:
+            turns += 1
+            previous = direction
+    return turns
 
 
 def resolve_tile_entry(state: JsonDict, active_direction: str, steps_remaining: int) -> tuple[str, bool]:
@@ -598,6 +1111,8 @@ def resolve_tile_entry(state: JsonDict, active_direction: str, steps_remaining: 
         'next_direction': active_direction,
     })
     next_direction = through_payload.get('next_direction', active_direction)
+    if should_identify_on_pass_through(map_object, block_type):
+        identify_tile(state, tile, source='pass_through')
     # “移动停留”用于本次移动最终停在该格，或该格本身属于拦截型地块。
     if block_type == '拦截' or steps_remaining == 0:
         dispatch_event(state, GameEvent.MOVE_STOP, {
@@ -621,6 +1136,7 @@ def resolve_battle(state: JsonDict) -> None:
         'y': actor['y'],
     })
     battle_end_payload = {'status': state['status']}
+    fought = False
     if is_adjacent_to_boss(state, actor['x'], actor['y']):
         battle_end_payload = dispatch_event(
             state,
@@ -628,32 +1144,39 @@ def resolve_battle(state: JsonDict) -> None:
             _build_direct_attack_payload(state['map']['boss'], attack_kind='反击'),
             default_handler=build_scoped_default_handler(state, _default_direct_attack),
         )
+        fought = True
         if state['map']['boss']['hp'] <= 0:
             state['status'] = 'victory'
             state['phase'] = 'victory'
             battle_end_payload['status'] = state['status']
-            add_log(state, 'Abyss Core 被击破，获得胜利。')
+            add_log(state, f"{state['map']['boss']['name']} 被击破，获得胜利。")
             dispatch_event(state, GameEvent.RUN_VICTORY, {'target': 'boss'})
-    else:
-        adjacent = []
-        ranged = []
+
+    adjacent = []
+    ranged = []
+    if state['status'] == 'playing' and state['player']['hp'] > 0:
         for monster in state['map']['monsters']:
-            if monster['hp'] <= 0 or not _is_on_current_layer(state, monster):
+            if monster['hp'] <= 0 or monster.get('captured') or not _is_on_current_layer(state, monster):
                 continue
             distance = manhattan(actor['x'], actor['y'], monster['x'], monster['y'])
             if distance == 1:
                 adjacent.append(monster)
             elif _can_enemy_attack_player(state, monster, actor['x'], actor['y']):
                 ranged.append(monster)
-        if adjacent:
-            target = sorted(adjacent, key=lambda m: (m['hp'], m['id']))[0]
-            battle_end_payload = dispatch_event(
-                state,
-                GameEvent.DIRECT_ATTACK,
-                _build_direct_attack_payload(target, attack_kind='反击'),
-                default_handler=build_scoped_default_handler(state, _default_direct_attack),
-            )
-        elif ranged:
+
+    for target in sorted(adjacent, key=lambda m: (m['hp'], m['id'])):
+        if state['status'] != 'playing' or state['player']['hp'] <= 0 or target['hp'] <= 0:
+            break
+        battle_end_payload = dispatch_event(
+            state,
+            GameEvent.DIRECT_ATTACK,
+            _build_direct_attack_payload(target, attack_kind='反击'),
+            default_handler=build_scoped_default_handler(state, _default_direct_attack),
+        )
+        fought = True
+
+    if not fought and state['status'] == 'playing' and state['player']['hp'] > 0:
+        if ranged:
             target = sorted(ranged, key=lambda m: (manhattan(actor['x'], actor['y'], m['x'], m['y']), m['id']))[0]
             battle_end_payload = dispatch_event(
                 state,
@@ -661,6 +1184,7 @@ def resolve_battle(state: JsonDict) -> None:
                 _build_enemy_attack_payload(target),
                 default_handler=build_scoped_default_handler(state, _default_ranged_attack),
             )
+            fought = True
         else:
             add_log(state, '战斗阶段没有可结算目标。')
     if state['player']['hp'] <= 0:
@@ -721,6 +1245,7 @@ def _default_direct_attack(context: EventContext, state: JsonDict) -> None:
     if damage_result['target_defeated']:
         context.payload['status'] = 'enemy_defeated'
         add_log(state, f"{enemy['name']} 已被击败。")
+        spawn_enemy_drop(state, enemy)
         add_action_step(state, {
             'type': 'battle',
             'enemy_name': enemy['name'],
@@ -802,12 +1327,52 @@ def _find_enemy_by_id(state: JsonDict, enemy_id: str) -> JsonDict | None:
 
 def current_attack(state: JsonDict) -> int:
     _project_player_scope(state, str(state['current_actor_uid']))
-    return state['player']['attack'] + sum_runtime_effect_bonus(state, 'attack_bonus')
+    return state['player']['attack'] + sum_runtime_effect_bonus(state, 'attack_bonus') + xiaozhi_fons_attack_bonus(state)
+
+
+def xiaozhi_fons_attack_bonus(state: JsonDict) -> int:
+    character_instance = state.get('character_instance', {})
+    if character_instance.get('definition_id') != 'xiaozhi':
+        return 0
+    return min(XIAOZHI_FONS_ATTACK_CAP, fons_amount(state) // XIAOZHI_FONS_ATTACK_STEP)
+
+
+def fons_amount(state: JsonDict) -> int:
+    for item_instance in state.get('hand', []):
+        if item_instance.get('definition_id') == 'fons':
+            return int(item_instance.get('amount', 0))
+    return int(state.get('player', {}).get('fons_amount', 0))
 
 
 def current_defense(state: JsonDict) -> int:
     _project_player_scope(state, str(state['current_actor_uid']))
     return state['player']['defense'] + sum_runtime_effect_bonus(state, 'defense_bonus')
+
+
+def current_identification_level(state: JsonDict) -> int:
+    _project_player_scope(state, str(state['current_actor_uid']))
+    base_level = int(state['player'].get('identification_level', state['character_instance'].get('identification_level', 1)))
+    bonus_level = sum_runtime_effect_bonus(state, 'identification_level_bonus')
+    return max(MIN_IDENTIFICATION_LEVEL, min(MAX_IDENTIFICATION_LEVEL, base_level + bonus_level))
+
+
+def identification_range_cells(state: JsonDict, x: int | None = None, y: int | None = None) -> list[JsonDict]:
+    actor = state['player']
+    origin_x = int(actor['x'] if x is None else x)
+    origin_y = int(actor['y'] if y is None else y)
+    level = current_identification_level(state)
+    cells = []
+    for dx, dy in IDENTIFICATION_OFFSETS[level]:
+        cell_x = origin_x + dx
+        cell_y = origin_y + dy
+        if not in_current_layer_bounds(state, cell_x, cell_y):
+            continue
+        cells.append({
+            'x': cell_x,
+            'y': cell_y,
+            'layer': current_map_layer(state),
+        })
+    return cells
 
 
 def is_adjacent_to_boss(state: JsonDict, x: int, y: int) -> bool:
@@ -927,40 +1492,49 @@ def _default_move_phase_begin(context: EventContext, state: JsonDict) -> None:
 
 
 def build_board_overlay(state: JsonDict) -> JsonDict:
-    width = state['map']['width']
-    height = state['map']['height']
+    width, height = current_map_dimensions(state)
     overlays = []
     for tile in state['map']['tiles']:
         if not _is_on_current_layer(state, tile):
             continue
+        if tile.get('hidden_zone') and not state['map'].get('hidden_room_revealed') and tile.get('object_id') != 'hidden_door':
+            continue
+        object_id = resolve_map_object_id(tile)
         display_type = tile['type']
         if tile['type'] == 'chest' and tile.get('opened'):
             display_type = 'floor'
         if tile['type'] == 'event' and tile.get('resolved'):
             display_type = 'floor'
-        if tile['type'] == 'door' and not tile.get('locked', True):
+        if object_id in {'door', 'keycard_door'} and not tile.get('locked', True):
+            display_type = tile['type']
+        if tile['type'] == 'loot_item' and tile.get('collected'):
             display_type = 'floor'
         if tile['type'] in {'wall', 'boss_tile'}:
             display_type = 'floor'
         if display_type != 'floor':
-            object_id = resolve_map_object_id(tile)
             map_object = get_map_object(object_id) or {}
+            if map_object.get('hidden_overlay'):
+                continue
+            entity_type = 'turn_belt' if is_turn_belt_tile(tile) else tile['type']
             overlay = _overlay(
                 tile['x'],
                 tile['y'],
                 width,
                 height,
-                map_object.get('icon', ICONS.get(tile['type'], 'event')),
+                _tile_overlay_icon(tile, map_object),
                 get_map_object_tooltip(tile),
-                tile['type'],
+                entity_type,
                 current_map_layer(state),
             )
-            if tile.get('direction'):
-                overlay['direction'] = tile['direction']
+            direction = turn_belt_direction_for_tile(tile) or map_object.get('direction') or tile.get('direction')
+            if direction:
+                overlay['direction'] = direction
+            overlay['object_id'] = object_id
+            overlay['tags'] = map_object_tags(map_object)
             overlays.append(overlay)
     for monster in state['map']['monsters']:
-        if _is_on_current_layer(state, monster) and monster['hp'] > 0:
-            overlays.append(_overlay(monster['x'], monster['y'], width, height, ICONS['monster'], f"{monster['name']}：HP {monster['hp']}/{monster['max_hp']}，攻击 {monster['attack']}，防御 {monster['defense']}，射程 {monster['range']}", 'monster', current_map_layer(state)))
+        if _is_on_current_layer(state, monster) and monster['hp'] > 0 and not monster.get('captured'):
+            overlays.append(_overlay(monster['x'], monster['y'], width, height, _monster_icon(monster), f"{monster['name']}：HP {monster['hp']}/{monster['max_hp']}，攻击 {monster['attack']}，防御 {monster['defense']}，射程 {monster['range']}", 'monster', current_map_layer(state)))
     boss = state['map']['boss']
     boss_positions = [pos for pos in boss['positions'] if _is_on_current_layer(state, pos)]
     if boss['hp'] > 0 and boss_positions:
@@ -975,24 +1549,36 @@ def build_board_overlay(state: JsonDict) -> JsonDict:
     for player_scope in state['players'].values():
         profile = player_scope['profile']
         player_state = player_scope['player']
-        overlays.append(_overlay(
+        character_instance = player_scope.get('character_instance', {})
+        player_overlay = _overlay(
             player_state['x'],
             player_state['y'],
             width,
             height,
-            ICONS['player'],
+            character_instance.get('avatar_image') or ICONS['player'],
             f"{profile['nickname']}：第 {current_map_layer(state)} 层 ({player_state['x']}, {player_state['y']})，HP {player_state['hp']}/{player_state['max_hp']}",
             'player',
             current_map_layer(state),
-        ))
+        )
+        player_overlay['player_uid'] = profile['player_uid']
+        player_overlay['is_current_player'] = profile['player_uid'] == state['current_actor_uid']
+        player_overlay['identification_level'] = int(player_state.get('identification_level', 1))
+        overlays.append(player_overlay)
     return {
         'width': width,
         'height': height,
         'current_layer': current_map_layer(state),
         'total_layers': int(state['map'].get('total_layers', 1)),
+        'layers': state['map'].get('layers', []),
         'background_image': state['map']['background_image'],
         'icons': overlays,
     }
+
+
+def _tile_overlay_icon(tile: JsonDict, map_object: JsonDict) -> str:
+    if tile.get('type') == 'loot_item':
+        return str(tile.get('loot', {}).get('icon', 'event'))
+    return str(map_object.get('icon', ICONS.get(tile.get('type'), 'event')))
 
 
 def _overlay(x: int, y: int, width: int, height: int, icon: str, tooltip: str, entity_type: str, layer: int = 1) -> JsonDict:
@@ -1002,10 +1588,22 @@ def _overlay(x: int, y: int, width: int, height: int, icon: str, tooltip: str, e
         'layer': layer,
         'left_percent': ((x + 0.5) / width) * 100,
         'top_percent': ((y + 0.5) / height) * 100,
+        'width_percent': (1 / width) * 100,
+        'height_percent': (1 / height) * 100,
         'icon': icon,
         'tooltip': tooltip,
         'entity_type': entity_type,
     }
+
+
+def map_object_tags(map_object: JsonDict) -> list[str]:
+    tags = [str(tag) for tag in map_object.get('tags', []) if str(tag)]
+    if (
+        map_object.get('identify_on_pass')
+        or GameEvent.IDENTIFY.value in map_object.get('event_hooks', {})
+    ) and '可鉴别' not in tags:
+        tags.append('可鉴别')
+    return tags
 
 
 def _area_overlay(positions: list[JsonDict], width: int, height: int, icon: str, tooltip: str, entity_type: str) -> JsonDict:
@@ -1145,6 +1743,7 @@ def _serialize_player_overview(player_scope: JsonDict) -> JsonDict:
         'is_host': profile['is_host'],
         'hp': player['hp'],
         'max_hp': player['max_hp'],
+        'identification_level': int(player.get('identification_level', 1)),
         'x': player['x'],
         'y': player['y'],
         'phase': player_scope['phase'],

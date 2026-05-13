@@ -1,11 +1,13 @@
 from typing import TYPE_CHECKING
 
 from app.engine.damage import build_damage_package, resolve_damage_package
+from app.engine.enemy_drop import spawn_enemy_drop
 from app.engine.events import GameEvent
 from app.utils.logger import get_logger
 
 logger = get_logger('nte.items')
 LOG_LIMIT = 18
+ACTION_QUEUE_KEY = '_action_queue'
 
 if TYPE_CHECKING:
     from app.engine.event_context import EventContext, JsonDict
@@ -25,6 +27,29 @@ def add_item_log(context: 'EventContext', message: str) -> None:
     context.state['log'].insert(0, f'[{actor_nickname}] {message}')
     del context.state['log'][LOG_LIMIT:]
     logger.info('[%s] %s', actor_nickname, message)
+
+
+def add_action_step(state: dict, step: dict) -> None:
+    state.setdefault(ACTION_QUEUE_KEY, []).append(step)
+
+
+def add_item_popup(context: 'EventContext', title: str, message: str, icon: str = 'event') -> None:
+    add_action_step(context.state, {
+        'type': 'popup',
+        'title': title,
+        'message': message,
+        'icon': icon,
+    })
+
+
+def add_fons(state: dict, amount: int) -> int:
+    player_state = state.setdefault('player', {})
+    player_state['fons_amount'] = int(player_state.get('fons_amount', 0)) + int(amount)
+    for item in state.get('hand', []):
+        if item.get('definition_id') == 'fons':
+            item['amount'] = int(player_state['fons_amount'])
+            break
+    return int(player_state['fons_amount'])
 
 
 def manhattan(x1: int, y1: int, x2: int, y2: int) -> int:
@@ -73,6 +98,7 @@ def apply_direct_damage(context: 'EventContext', target: dict, damage: int, sour
     })
     if damage_result['target_defeated']:
         add_item_log(context, f"{target['name']} 被 {source} 击毁。")
+        spawn_enemy_drop(context.state, target)
         if target['kind'] == 'boss':
             context.state['status'] = 'victory'
             context.state['phase'] = 'victory'

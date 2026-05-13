@@ -27,7 +27,7 @@ def portal_tile_enter(context: 'EventContext') -> None:
     })
     add_action_step(context.state, {
         'type': 'popup',
-        'icon': 'portal',
+        'icon': '/static/images/map_object/传送门.webp',
         'title': '传送门',
         'message': message,
     })
@@ -40,7 +40,7 @@ def portal_tile_enter(context: 'EventContext') -> None:
 
 MAP_OBJECT = {
     'id': 'portal',
-    'icon': 'portal',
+    'icon': '/static/images/map_object/传送门.webp',
     'block_type': BLOCK_TYPE_INTERCEPT,
     'tooltip': '传送门：进入后会传送到另一层的传送点。',
     'event_hooks': {

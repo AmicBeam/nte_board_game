@@ -1,6 +1,6 @@
 from typing import TYPE_CHECKING
 
-from app.content.map_objects.common import BLOCK_TYPE_BLOCK, BLOCK_TYPE_PASS, add_map_log, add_tile_update_step, get_map_object_player_state
+from app.content.map_objects.common import BLOCK_TYPE_BLOCK, BLOCK_TYPE_PASS, add_action_step, add_map_log, add_tile_update_step
 from app.engine.events import GameEvent
 
 if TYPE_CHECKING:
@@ -9,22 +9,30 @@ if TYPE_CHECKING:
 
 def door_move_block_check(context: 'EventContext') -> None:
     tile = context.payload['tile']
-    player_state = get_map_object_player_state(context)
     if not tile.get('locked', False):
         context.payload['block_type'] = BLOCK_TYPE_PASS
         return
-    if player_state['keys'] <= 0:
-        context.payload['blocked_reason'] = '门被锁住，需要钥匙'
+    context.payload['block_type'] = BLOCK_TYPE_BLOCK
+    context.payload['blocked_reason'] = '门尚未开启，需要先鉴别。'
+
+
+def door_identify(context: 'EventContext') -> None:
+    tile = context.payload['tile']
+    if not tile.get('locked', False):
         return
     tile['locked'] = False
-    player_state['keys'] -= 1
-    context.payload['block_type'] = BLOCK_TYPE_PASS
-    add_map_log(context, '消耗 1 把钥匙打开了门。')
+    add_map_log(context, '鉴别门体结构，门已开启。')
     add_tile_update_step(context.state, tile)
+    add_action_step(context.state, {
+        'type': 'popup',
+        'icon': '/static/images/map_object/door-line.svg',
+        'title': '门',
+        'message': '鉴别完成，门已开启，现在可以直接通过。',
+    })
     context.emit(GameEvent.MAP_OBJECT_TRIGGERED, {
         'object_id': context.payload['object_id'],
         'object_type': context.payload['tile_type'],
-        'action': 'unlock',
+        'action': 'identify_unlock',
         'x': context.payload['x'],
         'y': context.payload['y'],
     })
@@ -32,10 +40,17 @@ def door_move_block_check(context: 'EventContext') -> None:
 
 MAP_OBJECT = {
     'id': 'door',
-    'icon': 'door',
+    'icon': '/static/images/map_object/door-line.svg',
     'block_type': BLOCK_TYPE_BLOCK,
-    'tooltip': '上锁的门：消耗 1 把钥匙打开。',
+    'tooltip': '门：鉴别后开启，开启后不会阻挡移动。',
     'event_hooks': {
         GameEvent.MOVE_BLOCK_CHECK.value: door_move_block_check,
+        GameEvent.IDENTIFY.value: door_identify,
     },
 }
+
+
+def build_tooltip(tile: dict) -> str:
+    if not tile.get('locked', False):
+        return '已开启的门：不会阻挡移动。'
+    return '门：鉴别后开启，开启后不会阻挡移动。'

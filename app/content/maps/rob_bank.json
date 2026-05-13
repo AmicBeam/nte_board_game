@@ -1,0 +1,317 @@
+{
+  "id": "rob_bank",
+  "english_name": "RobBank",
+  "version": 14,
+  "name": "粉爪大劫案",
+  "background_image": "/static/images/maps/rob_bank_abandoned_city.png",
+  "hidden_room_revealed": false,
+  "loot_tables": {
+    "desk": [
+      {
+        "item_id": "small_cash",
+        "weight": 6
+      },
+      {
+        "item_id": "cash",
+        "weight": 4
+      },
+      {
+        "item_id": "phone",
+        "weight": 2
+      },
+      {
+        "item_id": "camera",
+        "weight": 2
+      },
+      {
+        "item_id": "soda",
+        "weight": 2
+      },
+      {
+        "item_id": "chips",
+        "weight": 2
+      },
+      {
+        "item_id": "figure",
+        "weight": 1
+      },
+      {
+        "item_id": "statue",
+        "weight": 1
+      },
+      {
+        "weight": 6,
+        "result": {
+          "type": "floor"
+        }
+      }
+    ],
+    "small_safe_spawn": [
+      {
+        "weight": 2,
+        "result": {
+          "type": "safe",
+          "loot_table_id": "safe",
+          "large": false
+        }
+      },
+      {
+        "weight": 1,
+        "result": {
+          "type": "floor"
+        }
+      }
+    ],
+    "large_safe_spawn": [
+      {
+        "weight": 1,
+        "result": {
+          "type": "large_safe",
+          "loot_table_id": "large_safe"
+        }
+      },
+      {
+        "weight": 1,
+        "result": {
+          "type": "floor"
+        }
+      }
+    ],
+    "access_card_spawn": [
+      {
+        "weight": 1,
+        "result": {
+          "type": "access_card_spot",
+          "chance": 1
+        }
+      },
+      {
+        "weight": 9,
+        "result": {
+          "type": "floor"
+        }
+      }
+    ],
+    "safe": [
+      {
+        "item_id": "small_cash",
+        "weight": 5
+      },
+      {
+        "item_id": "cash",
+        "weight": 4
+      },
+      {
+        "item_id": "gold_bar",
+        "weight": 2
+      },
+      {
+        "item_id": "gold_bundle",
+        "weight": 1
+      }
+    ],
+    "large_safe": [
+      {
+        "item_id": "cash",
+        "weight": 2
+      },
+      {
+        "item_id": "gold_bar",
+        "weight": 4
+      },
+      {
+        "item_id": "gold_bundle",
+        "weight": 3
+      },
+      {
+        "item_id": "special_coin",
+        "weight": 2
+      }
+    ],
+    "enemy_guard": [
+      {
+        "item_id": "small_cash",
+        "weight": 4
+      },
+      {
+        "item_id": "cash",
+        "weight": 3
+      },
+      {
+        "item_id": "soda",
+        "weight": 2
+      },
+      {
+        "item_id": "chips",
+        "weight": 1
+      }
+    ],
+    "enemy_boss": [
+      {
+        "item_id": "gold_bundle",
+        "weight": 3
+      },
+      {
+        "item_id": "special_coin",
+        "weight": 2
+      }
+    ]
+  },
+  "enemy_drop_table_id": "enemy_guard",
+  "boss_drop_table_id": "enemy_boss",
+  "tiles": [
+    [
+      "                           MMMMMMMMMMMMM                                        ",
+      "                           M           M                                        ",
+      "                           M  r  s     M                                        ",
+      "                           M        r  M                                        ",
+      "                           M           M                                        ",
+      "                           MMMMMMvMMMMMM                                        ",
+      "                           M           M                                        ",
+      "                           M        V  M                                        ",
+      "                           M     s     M                                        ",
+      "MMMMMMMMMM                 M           M                                        ",
+      "M        M                 M  r        M                                        ",
+      "M r    a M                 M       rc  M                                        ",
+      "M    V   M                 M   a       M                                        ",
+      "M      r M                 M           M                                        ",
+      "M  s     MMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMM",
+      "M        d       D                                    D           D            M",
+      "M        M  r    MMMMMMMM                       a     MMMMMMMMMMMMM         s  M",
+      "M        M       M      M  r                          M           M     r      M",
+      "M r   c  M       M      M         r       r      r    M c         M            M",
+      "M      r M       MMMMMMMM                             MMMMMMMMMMMMM            M",
+      "M        M       MM                      c                       MM          r M",
+      "MMMMMMMMMM    r  MP                                              PM            M",
+      "         M       MM                                       r      MM            M",
+      "         M       MMMMMMMM                         r   MMMMMMMMMMMMM      c     M",
+      "         M       M      M     r        r            s M           M            M",
+      "         M       M      M                             MMMMMMMMMMMMMMMDMMMMMMMMMM",
+      "         M       M      M                                    D                 M",
+      "         MMMMMMMMM      MMMMMMMMMMDMM   MMDMMMMMMMMMMMMMMMMDMM                 M",
+      "                 M      M           M   M          M         M                 M",
+      "                 M      M   r s     M   M     r    M         M  r          V   M",
+      "                 M      M           M   M         cM         M                 M",
+      "                 M      M       c   M   M          M         M       r         M",
+      "                 M      M       r   M   M     s   rM         M           c     M",
+      "                 M      D           M   M          M         M                 M",
+      "                 MMMMMMMMMMMMMMMMMMMM   MMMMMMMMMMMMMMMMMMMMMMMMMMdMMMMMMMMMMMMM",
+      "                                 M         M                     M             M",
+      "                                 M         M                     M             M",
+      "                                 M         M                     M    a  r     M",
+      "                                 M         M                     M             M",
+      "                                 M    E    M                     M            rM",
+      "                                 MMMMMMMMMMM                     M             M",
+      "                                                                 M  c        s M",
+      "                                                                 M             M",
+      "                                                                 MMMMMMMMMMMMMMM"
+    ],
+    [
+      "MMMMMMMMMMMMMMMMMMMMMMMMMMMMMMM",
+      "M                             M",
+      "M                             M",
+      "M  c      s         s      c  M",
+      "M    V                   V    M",
+      "M                             M",
+      "M          MMMMMMMMM          M",
+      "M                             M",
+      "M      M               M      M",
+      "M      M      BB       M      M",
+      "M      M      BB       M      M",
+      "M      M               M      M",
+      "M      M               M      M",
+      "M      M               M      M",
+      "M                             M",
+      "M   V     s         s     V   M",
+      "M  c           Q           c  M",
+      "M                             M",
+      "MMMMMMMMMMMMMMMMMMMMMMMMMMMMMMM"
+    ]
+  ],
+  "legend": {
+    " ": {
+      "type": "floor"
+    },
+    "E": {
+      "type": "entry"
+    },
+    "M": {
+      "type": "wall"
+    },
+    "D": {
+      "type": "door",
+      "locked": true
+    },
+    "d": {
+      "type": "hidden_door"
+    },
+    "v": {
+      "type": "keycard_door",
+      "locked": true
+    },
+    "P": {
+      "type": "portal",
+      "target": {
+        "layer": 2,
+        "x": 15,
+        "y": 16
+      }
+    },
+    "Q": {
+      "type": "portal",
+      "target": {
+        "layer": 1,
+        "x": 18,
+        "y": 21
+      }
+    },
+    "r": {
+      "type": "random",
+      "loot_table_id": "desk"
+    },
+    "s": {
+      "type": "random",
+      "loot_table_id": "small_safe_spawn"
+    },
+    "V": {
+      "type": "random",
+      "loot_table_id": "large_safe_spawn"
+    },
+    "a": {
+      "type": "random",
+      "loot_table_id": "access_card_spawn"
+    },
+    "c": {
+      "type": "monster",
+      "monster_id": "surveillance_camera",
+      "kind": "camera"
+    },
+    "B": {
+      "type": "monster",
+      "kind": "boss"
+    }
+  },
+  "monsters": [
+    {
+      "id": "surveillance_camera",
+      "name": "监控摄像头",
+      "max_hp": 16,
+      "attack": 6,
+      "defense": 1,
+      "range": 3,
+      "kind": "camera",
+      "drop_table_id": "enemy_guard"
+    }
+  ],
+  "boss": {
+    "id": "mamen",
+    "name": "玛门",
+    "max_hp": 80,
+    "hp": 80,
+    "attack": 14,
+    "defense": 5,
+    "range": 1,
+    "kind": "boss",
+    "drop_table_id": "enemy_boss"
+  }
+}

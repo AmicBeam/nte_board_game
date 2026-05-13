@@ -25,6 +25,7 @@ async function bootstrapHome() {
     apiRequest('/api/me'),
     apiRequest('/api/catalog'),
   ]);
+  preloadHomeCharacterAssets(catalog.characters || []);
   const logoutBtn = document.getElementById('logout-btn');
   const startModeBtn = document.getElementById('start-mode-btn');
   const modeGrid = document.getElementById('mode-grid');
@@ -48,7 +49,6 @@ async function bootstrapHome() {
         card.classList.add('selected');
       }
       card.innerHTML = `
-        <span class="card-tag">模式</span>
         <h2>${mode.name}</h2>
         <p class="card-meta">${mode.description}</p>
       `;
@@ -87,4 +87,19 @@ async function bootstrapHome() {
   renderProfile();
   renderModes();
   renderBuildSummary();
+  await initTutorialManual('home');
+}
+
+function preloadHomeCharacterAssets(characters) {
+  characters.forEach((character) => {
+    [character.avatar_image, character.portrait_image].forEach((assetUrl) => {
+      if (!assetUrl) {
+        return;
+      }
+      const image = new Image();
+      image.decoding = 'async';
+      image.loading = 'eager';
+      image.src = assetUrl;
+    });
+  });
 }

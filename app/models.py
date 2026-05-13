@@ -18,6 +18,20 @@ class Player(BaseModel):
     updated_at = DateTimeField(default=datetime.utcnow)
 
 
+class PlayerTutorial(BaseModel):
+    id = AutoField()
+    player = ForeignKeyField(Player, backref='tutorials', on_delete='CASCADE')
+    scope = CharField(max_length=32)
+    completed = BooleanField(default=False)
+    created_at = DateTimeField(default=datetime.utcnow)
+    updated_at = DateTimeField(default=datetime.utcnow)
+
+    class Meta:
+        indexes = (
+            (('player', 'scope'), True),
+        )
+
+
 class LoginCode(BaseModel):
     id = AutoField()
     player = ForeignKeyField(Player, backref='login_codes', on_delete='CASCADE')

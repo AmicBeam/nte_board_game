@@ -4,15 +4,19 @@
 <main class="table-page">
     <section class="glass-card table-topbar combat-topbar">
         <div>
-            <p class="eyebrow">作战桌</p>
             <h1>异象作战桌</h1>
             <div class="combat-hud" id="combat-hud">
                 <span>回合 -</span>
                 <span>坐标 -/-</span>
                 <span>层数 -/-</span>
+                <span class="hud-die"><img src="{{ url_for('static', filename='images/dice.webp') }}" alt="">-</span>
             </div>
         </div>
         <div class="header-actions">
+            <button class="icon-btn tutorial-help-btn" data-tutorial-open="table" type="button" aria-label="打开对战手册" title="打开手册">
+                <span aria-hidden="true">?</span>
+                <span class="sr-only">打开对战手册</span>
+            </button>
             <button class="secondary-btn" id="logout-run-btn" type="button">退出登录</button>
             <button class="primary-btn danger-btn" id="reset-run-btn" type="button">撤退</button>
         </div>
@@ -29,16 +33,10 @@
                     <strong>回合提示</strong>
                     <p>每回合开始时会自动掷骰，当前点数会直接显示在状态面板中。</p>
                 </div>
-                <div class="dir-grid" aria-label="移动方向">
-                    <button data-direction="up" aria-label="向上移动" title="向上移动">↑</button>
-                    <button data-direction="left" aria-label="向左移动" title="向左移动">←</button>
-                    <button data-direction="down" aria-label="向下移动" title="向下移动">↓</button>
-                    <button data-direction="right" aria-label="向右移动" title="向右移动">→</button>
-                </div>
-                <div class="dice-readout" aria-label="当前骰子">
-                    <img src="{{ url_for('static', filename='images/dice.webp') }}" alt="">
-                    -
-                </div>
+                <label class="map-zoom-control">
+                    <span>地图缩放</span>
+                    <input id="map-zoom-slider" type="range" min="1" max="3.2" step="0.01" value="1">
+                </label>
             </div>
             <div class="hint-box">
                 <strong>路线提示</strong>
@@ -50,8 +48,8 @@
                 <h2>地图</h2>
                 <p id="map-name">未加载</p>
             </div>
-            <div class="boss-hud" id="boss-hud" aria-hidden="true"></div>
             <div class="map-stage" id="map-stage">
+                <div class="boss-hud" id="boss-hud" aria-hidden="true"></div>
                 <div class="map-stage-inner">
                     <img id="map-background" alt="map background">
                     <div class="map-grid-layer" id="map-grid-layer" aria-hidden="true"></div>
@@ -83,6 +81,7 @@
         </div>
     </section>
     <div class="item-floating-tooltip" id="item-floating-tooltip" aria-hidden="true"></div>
+    <div class="map-floating-tooltip" id="map-floating-tooltip" aria-hidden="true"></div>
     <div class="event-modal" id="event-modal" aria-hidden="true">
         <div class="event-dialog" role="dialog" aria-modal="true" aria-labelledby="event-modal-title">
             <div class="event-icon" id="event-modal-icon"></div>

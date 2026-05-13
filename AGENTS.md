@@ -86,7 +86,14 @@
 
 - 新角色：在 `app/content/characters/` 下新增一个 Python 文件，导出 `CHARACTER`。
 - 新道具：在 `app/content/items/` 下新增一个 Python 文件，导出 `ITEM`。
-- 新地图：在 `app/content/maps/` 下新增一个 Python 文件，导出 `GAME_MAP`，并在 `app/static/images/maps/` 下放置对应 PNG 背景。
+- 新地图：在 `app/content/maps/` 下新增一个 `.json` 文件，并在 `app/static/images/maps/` 下放置对应 PNG 背景。
+- 地图 JSON 的 `tiles` 使用按层字符串矩阵，配合 `legend` 解释字符含义；加载器会按每层数组推导尺寸并展开为运行时格子列表。
+- 地图起始点使用 `legend` 中 `type=entry` 的符号表达，不在顶层额外配置 `start`；不同层可以拥有不同宽高。
+- 每一层 `tiles` 都应裁掉外围全空白行列，避免前端按无效空白区域计算显示比例。
+- 地图 JSON 默认只写 `type` 和必要参数；只有当 `type` 与实际地图物件处理模块不一致时才写 `object_id`。不要内嵌道具名称、图标、价值等产物数据，这些信息由道具和地图物件定义注册。
+- 敌人和地图格子的掉落都通过地图级 `loot_tables` 配置，并在对应格子或敌人上引用战利品表 ID。
+- 随机地图产物使用 `type=random` 格子，初始化时按 `loot_table_id` 变身为具体道具或地图物件；不要再用独立坐标列表叠加随机掉落。
+- 怪物位置由地图矩阵中的 `type=monster` 符号决定，怪物配置只写属性与掉落表，不重复写坐标。
 - 加载器会自动扫描并注册上述内容，主链路不应硬编码完整目录内容。
 - 地图物件定义位于 `app/content/map_objects/`；tooltip、阻挡类型和交互规则都应定义在各自文件内，不写回地图布局文件。
 

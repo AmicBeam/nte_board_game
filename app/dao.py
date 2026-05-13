@@ -7,7 +7,7 @@ from peewee import DoesNotExist
 
 from app.config import TOKEN_TTL_HOURS
 from app.errors import RuleValidationError
-from app.models import AccessToken, DeckBuild, GameRun, LoginCode, Player, Room, RoomMember
+from app.models import AccessToken, DeckBuild, GameRun, LoginCode, Player, PlayerTutorial, Room, RoomMember
 from app.utils.logger import get_logger
 
 logger = get_logger('nte.dao')
@@ -16,6 +16,7 @@ MAX_NICKNAME_LENGTH = 8
 MAX_PASSWORD_LENGTH = 16
 ROOM_OPEN_STATUSES = frozenset({'waiting', 'ready', 'playing'})
 ROOM_VISIBLE_STATUSES = ROOM_OPEN_STATUSES | frozenset({'victory', 'defeat'})
+TUTORIAL_SCOPES = frozenset({'home', 'build', 'table'})
 
 
 def normalize_nickname(nickname: str) -> str:
@@ -29,6 +30,13 @@ def validate_password(password: str) -> str:
     if len(password) > MAX_PASSWORD_LENGTH:
         raise RuleValidationError(f'密码长度不能超过 {MAX_PASSWORD_LENGTH} 个字符。')
     return password
+
+
+def normalize_tutorial_scope(scope: str) -> str:
+    scope = (scope or '').strip().lower()
+    if scope not in TUTORIAL_SCOPES:
+        raise RuleValidationError('未知的教学手册。')
+    return scope
 
 
 def get_or_create_player(player_uid: str, nickname: str = '') -> tuple[Player, bool]:
@@ -47,6 +55,25 @@ def get_player_by_uid(player_uid: str) -> Player | None:
         return Player.get(Player.player_uid == player_uid)
     except DoesNotExist:
         return None
+
+
+def is_tutorial_completed(player: Player, scope: str) -> bool:
+    scope = normalize_tutorial_scope(scope)
+    record = PlayerTutorial.select().where(
+        (PlayerTutorial.player == player) &
+        (PlayerTutorial.scope == scope)
+    ).first()
+    return bool(record and record.completed)
+
+
+def mark_tutorial_completed(player: Player, scope: str) -> PlayerTutorial:
+    scope = normalize_tutorial_scope(scope)
+    record, _ = PlayerTutorial.get_or_create(player=player, scope=scope)
+    record.completed = True
+    record.updated_at = datetime.utcnow()
+    record.save()
+    logger.info('mark_tutorial_completed player_uid=%s scope=%s', player.player_uid, scope)
+    return record
 
 
 def create_login_code(player: Player, code: str) -> LoginCode:

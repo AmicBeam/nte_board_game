@@ -9,7 +9,7 @@ async function login() {
   try {
     const response = await fetch('/api/auth/login', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', 'X-Log-Id': nextLogId() },
       body: JSON.stringify({
         player_uid: playerUidInput.value.trim(),
         code: codeInput.value.trim(),
@@ -23,7 +23,7 @@ async function login() {
     loginFeedback.textContent = `登录成功，欢迎 ${payload.player.nickname}。`;
     try {
       const stateResponse = await fetch('/api/game/state', {
-        headers: { Authorization: `Bearer ${payload.token}` },
+        headers: { Authorization: `Bearer ${payload.token}`, 'X-Log-Id': nextLogId() },
       });
       const statePayload = await stateResponse.json();
       if (stateResponse.ok && statePayload.status === 'playing') {
@@ -34,7 +34,7 @@ async function login() {
       // 登录后的流向判断失败时继续按构筑状态兜底。
     }
     const catalogResponse = await fetch('/api/catalog', {
-      headers: { Authorization: `Bearer ${payload.token}` },
+      headers: { Authorization: `Bearer ${payload.token}`, 'X-Log-Id': nextLogId() },
     });
     const catalog = await catalogResponse.json();
     if (!catalogResponse.ok || catalog.error) {

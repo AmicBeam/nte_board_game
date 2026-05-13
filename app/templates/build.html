@@ -3,12 +3,16 @@
 {% block body %}
 <main class="build-page">
     <section class="glass-card panel-header build-command">
-        <div>
+        <div class="build-command-title">
             <p class="eyebrow">构筑设置</p>
             <h1>出战构筑</h1>
-            <p class="subtle">选择 1 位角色与 6 个道具，组成进入异象区的初始载荷。</p>
         </div>
+        <p class="subtle build-command-copy">选择 1 位角色与最多 6 个道具，组成进入异象区的初始载荷。</p>
         <div class="header-actions">
+            <button class="icon-btn tutorial-help-btn" data-tutorial-open="build" type="button" aria-label="打开构筑手册" title="打开手册">
+                <span aria-hidden="true">?</span>
+                <span class="sr-only">打开构筑手册</span>
+            </button>
             <a class="secondary-btn" href="{{ url_for('main.home') }}">取消</a>
             <button class="primary-btn" id="save-build-btn">保存</button>
         </div>

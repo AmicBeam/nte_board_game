@@ -11,11 +11,13 @@ class CharacterInstance:
     instance_id: str
     definition_id: str
     name: str
-    title: str
     passive: str
+    portrait_image: str
+    avatar_image: str
     max_hp: int
     attack: int
     defense: int
+    identification_level: int
 
 
 @dataclass
@@ -31,11 +33,13 @@ def build_character_instance(character_definition: dict[str, Any]) -> dict[str, 
         instance_id=uuid4().hex,
         definition_id=character_definition['id'],
         name=character_definition['name'],
-        title=character_definition['title'],
         passive=character_definition['passive'],
+        portrait_image=character_definition.get('portrait_image', f"/static/images/characters/portrait/{character_definition['name']}.png"),
+        avatar_image=character_definition.get('avatar_image', f"/static/images/characters/avatar/{character_definition['name']}.png"),
         max_hp=character_definition['max_hp'],
         attack=character_definition['attack'],
         defense=character_definition['defense'],
+        identification_level=int(character_definition.get('identification_level', 1)),
     ))
 
 
@@ -55,6 +59,12 @@ def serialize_item_definition(item_definition: dict[str, Any]) -> dict[str, Any]
     payload = deepcopy(item_definition)
     payload.pop('event_hooks', None)
     payload.pop('runtime_effects', None)
+    payload.setdefault('can_play', True)
+    tags = [str(tag) for tag in payload.get('tags', []) if str(tag)]
+    if payload.get('type') in {'loot', 'key'} and payload.get('hidden_from_build') and '可鉴别' not in tags:
+        tags.append('可鉴别')
+    if tags:
+        payload['tags'] = tags
     return payload
 
 
@@ -64,4 +74,7 @@ def serialize_item_instance(item_instance: dict[str, Any]) -> dict[str, Any] | N
         return None
     payload = serialize_item_definition(definition)
     payload['instance_id'] = item_instance['instance_id']
+    for key in ('amount', 'quantity', 'cooldown_until_turn', 'captured_enemy_id'):
+        if key in item_instance:
+            payload[key] = item_instance[key]
     return payload

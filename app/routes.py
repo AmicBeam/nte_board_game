@@ -1,8 +1,8 @@
 from flask import Blueprint, g, jsonify, render_template, request
 
 from app.auth import login_with_code, token_required
-from app.dao import update_player_nickname, update_player_password
-from app.engine.game_service import get_catalog_payload, move_player, play_item, roll_dice, save_build
+from app.dao import is_tutorial_completed, mark_tutorial_completed, update_player_nickname, update_player_password
+from app.engine.game_service import get_catalog_payload, get_encyclopedia_payload, move_player, play_item, roll_dice, save_build
 from app.errors import AppError
 from app.room_service import (
     create_or_resume_solo_room,
@@ -38,6 +38,11 @@ def profile_page():
 @main_bp.get('/build')
 def build_page():
     return render_template('build.html')
+
+
+@main_bp.get('/codex')
+def codex_page():
+    return render_template('codex.html')
 
 
 @main_bp.get('/table')
@@ -98,10 +103,55 @@ def api_update_password():
         return jsonify({'error': '修改密码时发生异常，请稍后重试。'}), 500
 
 
+@main_bp.get('/api/tutorial/status')
+@token_required
+def api_tutorial_status():
+    try:
+        scope = str(request.args.get('scope', ''))
+        return jsonify({
+            'scope': scope,
+            'completed': is_tutorial_completed(g.current_player, scope),
+        })
+    except AppError as exc:
+        return jsonify({'error': str(exc)}), 400
+    except Exception:
+        logger.exception('api_tutorial_status failed')
+        return jsonify({'error': '读取教学状态时发生异常，请稍后重试。'}), 500
+
+
+@main_bp.post('/api/tutorial/complete')
+@token_required
+def api_tutorial_complete():
+    payload = request.get_json(silent=True) or {}
+    try:
+        record = mark_tutorial_completed(g.current_player, str(payload.get('scope', '')))
+        return jsonify({
+            'scope': record.scope,
+            'completed': record.completed,
+        })
+    except AppError as exc:
+        return jsonify({'error': str(exc)}), 400
+    except Exception:
+        logger.exception('api_tutorial_complete failed')
+        return jsonify({'error': '保存教学状态时发生异常，请稍后重试。'}), 500
+
+
 @main_bp.get('/api/catalog')
 @token_required
 def api_catalog():
-    return jsonify(get_catalog_payload(g.current_player))
+    try:
+        return jsonify(get_catalog_payload(g.current_player))
+    except AppError as exc:
+        return jsonify({'error': str(exc)}), 400
+    except Exception:
+        logger.exception('api_catalog failed')
+        return jsonify({'error': '读取图鉴与构筑信息时发生异常，请稍后重试。'}), 500
+
+
+@main_bp.get('/api/encyclopedia')
+@token_required
+def api_encyclopedia():
+    return jsonify(get_encyclopedia_payload())
 
 
 @main_bp.post('/api/build/save')
@@ -162,7 +212,8 @@ def api_roll():
 def api_play_item():
     payload = request.get_json(silent=True) or {}
     try:
-        return jsonify(play_item(g.current_player, payload.get('item_instance_id', '')))
+        declared_value = payload.get('declared_value')
+        return jsonify(play_item(g.current_player, payload.get('item_instance_id', ''), declared_value))
     except AppError as exc:
         return jsonify({'error': str(exc)}), 400
     except Exception:
@@ -175,7 +226,7 @@ def api_play_item():
 def api_move():
     payload = request.get_json(silent=True) or {}
     try:
-        return jsonify(move_player(g.current_player, payload.get('direction', '')))
+        return jsonify(move_player(g.current_player, payload.get('direction', ''), payload.get('path')))
     except AppError as exc:
         return jsonify({'error': str(exc)}), 400
     except Exception:

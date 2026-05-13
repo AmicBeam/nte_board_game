@@ -19,6 +19,7 @@ class GameEvent(str, Enum):
     MOVE_STOP = 'move_stop'
     MOVE_REDIRECTED = 'move_redirected'
     # 地图交互
+    IDENTIFY = 'identify'
     MAP_OBJECT_TRIGGERED = 'map_object_triggered'
     PLAYER_STATS_CHANGED = 'player_stats_changed'
     # 战斗流程
