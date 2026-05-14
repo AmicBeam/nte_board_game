@@ -32,12 +32,25 @@ def keycard_door_identify(context: 'EventContext') -> None:
             'message': '鉴别完成：这道暗门需要经理门禁卡。',
         })
         return
-    tile['locked'] = False
+    layer = tile.get('layer', context.state.get('map', {}).get('current_layer', 1))
+    x = tile['x']
+    y = tile['y']
+    hidden_zone = tile.get('hidden_zone')
+    tile.clear()
+    tile.update({
+        'type': 'open_door',
+        'object_id': 'open_door',
+        'layer': layer,
+        'x': x,
+        'y': y,
+    })
+    if hidden_zone:
+        tile['hidden_zone'] = hidden_zone
     add_map_log(context, '鉴别并刷门禁卡打开了经理办公室暗门。')
     add_tile_update_step(context.state, tile)
     add_action_step(context.state, {
         'type': 'popup',
-        'icon': '/static/images/map_object/door-line.svg',
+        'icon': '/static/images/map_object/push-door.svg',
         'title': '经理办公室暗门',
         'message': '门禁卡验证通过，暗门已打开，现在可以直接通过。',
     })

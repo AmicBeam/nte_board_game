@@ -20,12 +20,25 @@ def door_identify(context: 'EventContext') -> None:
     tile = context.payload['tile']
     if not tile.get('locked', False):
         return
-    tile['locked'] = False
+    layer = tile.get('layer', context.state.get('map', {}).get('current_layer', 1))
+    x = tile['x']
+    y = tile['y']
+    hidden_zone = tile.get('hidden_zone')
+    tile.clear()
+    tile.update({
+        'type': 'open_door',
+        'object_id': 'open_door',
+        'layer': layer,
+        'x': x,
+        'y': y,
+    })
+    if hidden_zone:
+        tile['hidden_zone'] = hidden_zone
     add_map_log(context, '鉴别门体结构，门已开启。')
     add_tile_update_step(context.state, tile)
     add_action_step(context.state, {
         'type': 'popup',
-        'icon': '/static/images/map_object/door-line.svg',
+        'icon': '/static/images/map_object/push-door.svg',
         'title': '门',
         'message': '鉴别完成，门已开启，现在可以直接通过。',
     })

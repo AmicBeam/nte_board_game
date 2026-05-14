@@ -1,7 +1,7 @@
 {
   "id": "rob_bank",
   "english_name": "RobBank",
-  "version": 14,
+  "version": 15,
   "name": "粉爪大劫案",
   "background_image": "/static/images/maps/rob_bank_abandoned_city.png",
   "hidden_room_revealed": false,
@@ -67,7 +67,9 @@
         "weight": 1,
         "result": {
           "type": "large_safe",
-          "loot_table_id": "large_safe"
+          "loot_table_id": "large_safe",
+          "width": 2,
+          "height": 2
         }
       },
       {

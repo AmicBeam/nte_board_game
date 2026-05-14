@@ -102,13 +102,28 @@ ICONS = {
 }
 MONSTER_KIND_ICONS = {
     'camera': '/static/images/monster/compass.svg',
+    'boss': '/static/images/monster/mamen.webp',
 }
 
 logger = get_logger('nte.game_service')
 
 
 def _monster_icon(monster: JsonDict) -> str:
-    return MONSTER_KIND_ICONS.get(str(monster.get('kind', 'monster')), ICONS['monster'])
+    return str(
+        monster.get('avatar_image')
+        or monster.get('image')
+        or MONSTER_KIND_ICONS.get(str(monster.get('id', '')))
+        or MONSTER_KIND_ICONS.get(str(monster.get('kind', 'monster')), ICONS['monster'])
+    )
+
+
+def _boss_icon(boss: JsonDict) -> str:
+    return str(
+        boss.get('avatar_image')
+        or boss.get('image')
+        or MONSTER_KIND_ICONS.get(str(boss.get('id', '')))
+        or MONSTER_KIND_ICONS.get(str(boss.get('kind', 'boss')), ICONS['boss'])
+    )
 
 
 def get_catalog_payload(player: Player) -> JsonDict:
@@ -182,7 +197,7 @@ def get_encyclopedia_payload() -> JsonDict:
             'id': boss.get('id', 'boss'),
             'name': boss.get('name', 'Boss'),
             'kind': 'boss',
-            'icon': ICONS['boss'],
+            'icon': _boss_icon(boss),
             'hp': boss.get('max_hp', boss.get('hp', 0)),
             'attack': boss.get('attack', 0),
             'defense': boss.get('defense', 0),
@@ -228,6 +243,7 @@ def _map_object_display_name(object_id: str) -> str:
         'keycard_door': '经理办公室暗门',
         'large_safe': '大型保险箱',
         'loot_item': '可鉴别物',
+        'open_door': '已开启的门',
         'portal': '传送门',
         'safe': '保险箱',
     }
@@ -423,7 +439,8 @@ def move_player(player: Player, direction: str, path: list[str] | None = None) -
         state = _load_state(player)
         begin_action_queue(state)
         _ensure(state['phase'] in {'action', 'movement'}, '当前不能移动。')
-        _ensure(state['pending_die'] is not None, '请先掷骰。')
+        dice_values = pending_dice_values(state)
+        _ensure(dice_values is not None, '请先掷骰。')
         path_directions = [str(item) for item in (path or [])]
         if path_directions:
             _ensure(all(item in DIRECTIONS for item in path_directions), '路径方向非法。')
@@ -432,20 +449,32 @@ def move_player(player: Player, direction: str, path: list[str] | None = None) -
         _ensure(direction in DIRECTIONS, '方向非法。')
 
         actor = state['player']
-        steps_remaining = int(state['pending_die']) + sum_runtime_effect_bonus(state, 'move_bonus')
-        steps_remaining += consume_runtime_effect_bonus(state, 'stored_next_turn_move', 'consume_on_move')
+        move_bonus = sum_runtime_effect_bonus(state, 'move_bonus')
+        move_bonus += consume_runtime_effect_bonus(state, 'stored_next_turn_move', 'consume_on_move')
+        limit_a = max(0, int(dice_values[0]) + move_bonus)
+        limit_b = max(0, int(dice_values[1]) + move_bonus)
+        path_steps = len(path_directions) if path_directions else max(limit_a, limit_b)
+        if path_directions:
+            horizontal_steps, vertical_steps = _path_axis_steps(path_directions)
+            _ensure(
+                _axis_steps_within_dice_limits(horizontal_steps, vertical_steps, limit_a, limit_b),
+                '目标超过当前骰子范围。',
+            )
         move_phase_payload = dispatch_event(
             state,
             GameEvent.MOVE_PHASE_BEGIN,
             {
                 'direction': direction,
-                'steps': steps_remaining,
+                'steps': path_steps,
+                'dice': {'a': int(dice_values[0]), 'b': int(dice_values[1])},
+                'axis_limits': {'a': limit_a, 'b': limit_b},
             },
             default_handler=build_scoped_default_handler(state, _default_move_phase_begin),
         )
-        steps_remaining = max(0, int(move_phase_payload.get('steps', steps_remaining)))
+        steps_remaining = max(0, int(move_phase_payload.get('steps', path_steps)))
         if path_directions:
-            _ensure(len(path_directions) <= steps_remaining, '目标超过当前骰子距离。')
+            _ensure(len(path_directions) <= steps_remaining, '目标超过当前骰子范围。')
+            steps_remaining = len(path_directions)
         active_direction = str(move_phase_payload.get('direction', direction))
         active_direction = resolve_start_tile_redirect(state, active_direction, steps_remaining)
         loop_counter = 0
@@ -545,6 +574,7 @@ def create_initial_state(
             'hand': item_instances,
             'active_effects': [],
             'pending_die': None,
+            'pending_dice': None,
             'phase': 'dice',
             'has_played_item': False,
             'route_hint': DEFAULT_ROUTE_HINT,
@@ -629,8 +659,18 @@ def _materialize_random_tiles(game_map: JsonDict) -> None:
             continue
         result_tile = _build_random_tile_result(game_map, tile, random_index)
         if result_tile is not None:
+            normalize_tile_footprint(result_tile)
             materialized_tiles.append(result_tile)
     game_map['tiles'] = materialized_tiles
+
+
+def normalize_tile_footprint(tile: JsonDict) -> None:
+    object_id = resolve_map_object_id(tile)
+    if object_id == 'large_safe':
+        tile.setdefault('width', 2)
+        tile.setdefault('height', 2)
+    tile['width'] = max(1, int(tile.get('width', 1) or 1))
+    tile['height'] = max(1, int(tile.get('height', 1) or 1))
 
 
 def _build_random_tile_result(game_map: JsonDict, tile: JsonDict, random_index: int) -> JsonDict | None:
@@ -704,7 +744,7 @@ def _save_and_serialize_for_room(room: Room, state: JsonDict) -> JsonDict:
 
 
 def validate_state(state: JsonDict) -> None:
-    required_top_keys = {'turn', 'status', 'room', 'players', 'current_actor_uid', 'phase', 'character_instance', 'player', 'map', 'discard_pile', 'hand', 'active_effects', 'pending_die', 'has_played_item', 'route_hint', 'log'}
+    required_top_keys = {'turn', 'status', 'room', 'players', 'current_actor_uid', 'phase', 'character_instance', 'player', 'map', 'discard_pile', 'hand', 'active_effects', 'pending_die', 'pending_dice', 'has_played_item', 'route_hint', 'log'}
     missing = required_top_keys - set(state.keys())
     _ensure(not missing, f'状态缺少关键字段：{sorted(missing)}')
     _ensure(state['phase'] in {'dice', 'action', 'movement', 'battle', 'victory', 'defeat', 'completed'}, '状态中的 phase 非法。')
@@ -758,6 +798,7 @@ def _normalize_loaded_state(state: JsonDict) -> JsonDict:
             tile['type'] = object_id
             tile['object_id'] = object_id
             tile.pop('direction', None)
+        normalize_tile_footprint(tile)
     for player_scope in normalized.get('players', {}).values():
         character_instance = player_scope.get('character_instance', {})
         character_definition = get_character(character_instance.get('definition_id'))
@@ -795,6 +836,18 @@ def _normalize_loaded_state(state: JsonDict) -> JsonDict:
             entry = map_entry_point(normalized['map'])
             player_scope['player']['x'] = entry['x']
             player_scope['player']['y'] = entry['y']
+        if 'pending_dice' not in player_scope:
+            player_scope['pending_dice'] = _dice_pair_from_legacy_die(player_scope.get('pending_die'))
+        dice_values = pending_dice_values({
+            'pending_dice': player_scope.get('pending_dice'),
+            'pending_die': player_scope.get('pending_die'),
+        })
+        if dice_values is None:
+            player_scope['pending_dice'] = None
+            player_scope['pending_die'] = None
+        else:
+            player_scope['pending_dice'] = {'a': int(dice_values[0]), 'b': int(dice_values[1])}
+            player_scope['pending_die'] = max(dice_values)
         allowed_locked_ids = set(_locked_item_ids_for_character(character_definition))
         player_scope['hand'] = [
             item for item in player_scope.get('hand', [])
@@ -873,9 +926,17 @@ def step_position(x: int, y: int, direction: str) -> tuple[int, int]:
 
 def tile_at(state: JsonDict, x: int, y: int) -> JsonDict | None:
     for tile in reversed(state['map']['tiles']):
-        if _is_on_current_layer(state, tile) and tile['x'] == x and tile['y'] == y:
+        if _is_on_current_layer(state, tile) and tile_contains_cell(tile, x, y):
             return tile
     return None
+
+
+def tile_contains_cell(tile: JsonDict, x: int, y: int) -> bool:
+    tile_x = int(tile.get('x', 0))
+    tile_y = int(tile.get('y', 0))
+    width = max(1, int(tile.get('width', 1) or 1))
+    height = max(1, int(tile.get('height', 1) or 1))
+    return tile_x <= int(x) < tile_x + width and tile_y <= int(y) < tile_y + height
 
 
 def monster_at(state: JsonDict, x: int, y: int) -> JsonDict | None:
@@ -1054,6 +1115,8 @@ def _is_attack_range_blocked(state: JsonDict, x: int, y: int) -> bool:
     object_id = resolve_map_object_id(tile)
     if object_id in {'door', 'keycard_door'} and not tile.get('locked', True):
         return False
+    if object_id in {'safe', 'large_safe'} and tile.get('opened'):
+        return False
     map_object = get_map_object(object_id) or {}
     return str(map_object.get('block_type', '可通过')) == '阻挡'
 
@@ -1088,6 +1151,25 @@ def _direction_turn_count(path_directions: list[str]) -> int:
             turns += 1
             previous = direction
     return turns
+
+
+def _path_axis_steps(path_directions: list[str]) -> tuple[int, int]:
+    horizontal_steps = 0
+    vertical_steps = 0
+    for direction in path_directions:
+        dx, dy = DIRECTIONS[direction]
+        if dx:
+            horizontal_steps += 1
+        if dy:
+            vertical_steps += 1
+    return horizontal_steps, vertical_steps
+
+
+def _axis_steps_within_dice_limits(horizontal_steps: int, vertical_steps: int, die_a: int, die_b: int) -> bool:
+    return (
+        (vertical_steps <= die_a and horizontal_steps <= die_b)
+        or (vertical_steps <= die_b and horizontal_steps <= die_a)
+    )
 
 
 def resolve_tile_entry(state: JsonDict, active_direction: str, steps_remaining: int) -> tuple[str, bool]:
@@ -1386,6 +1468,55 @@ def is_adjacent_to_boss(state: JsonDict, x: int, y: int) -> bool:
 def manhattan(x1: int, y1: int, x2: int, y2: int) -> int:
     return abs(x1 - x2) + abs(y1 - y2)
 
+
+def roll_blue_dice() -> JsonDict:
+    return {
+        'a': random.randint(1, 6),
+        'b': random.randint(1, 6),
+    }
+
+
+def pending_dice_values(state: JsonDict) -> tuple[int, int] | None:
+    pending_dice = state.get('pending_dice')
+    if isinstance(pending_dice, dict):
+        try:
+            return (
+                max(0, int(pending_dice.get('a', pending_dice.get('vertical', 0)))),
+                max(0, int(pending_dice.get('b', pending_dice.get('horizontal', 0)))),
+            )
+        except (TypeError, ValueError):
+            return None
+    if isinstance(pending_dice, (list, tuple)) and len(pending_dice) >= 2:
+        try:
+            return max(0, int(pending_dice[0])), max(0, int(pending_dice[1]))
+        except (TypeError, ValueError):
+            return None
+    return _dice_pair_from_legacy_die(state.get('pending_die'))
+
+
+def set_pending_dice(state: JsonDict, die_a: int | None, die_b: int | None) -> None:
+    if die_a is None or die_b is None:
+        state['pending_dice'] = None
+        state['pending_die'] = None
+        return
+    dice = {
+        'a': max(0, int(die_a)),
+        'b': max(0, int(die_b)),
+    }
+    state['pending_dice'] = dice
+    state['pending_die'] = max(dice['a'], dice['b'])
+
+
+def _dice_pair_from_legacy_die(value: object) -> tuple[int, int] | None:
+    if value is None:
+        return None
+    try:
+        die = max(0, int(value))
+    except (TypeError, ValueError):
+        return None
+    return die, die
+
+
 def _finish_player_turn(state: JsonDict) -> None:
     state['phase'] = 'completed'
     state['acted_this_turn'] = True
@@ -1417,9 +1548,10 @@ def _start_shared_turn(state: JsonDict, reason: str) -> None:
             player_scope['acted_this_turn'] = True
             player_scope['phase'] = 'defeat'
             player_scope['pending_die'] = None
+            player_scope['pending_dice'] = None
             continue
         _project_player_scope(state, actor_uid)
-        state['pending_die'] = None
+        set_pending_dice(state, None, None)
         state['phase'] = 'dice'
         state['has_played_item'] = False
         state['route_hint'] = DEFAULT_ROUTE_HINT
@@ -1440,9 +1572,11 @@ def _build_turn_opening_payload(state: JsonDict, event_name: GameEvent, reason: 
         'turn': state['turn'],
         'reason': reason,
         'die': state['pending_die'],
+        'dice': state.get('pending_dice'),
     }
     if event_name == GameEvent.TURN_BEGIN:
         payload.pop('die')
+        payload.pop('dice')
     return payload
 
 
@@ -1468,9 +1602,11 @@ def build_scoped_default_handler(
 
 def _default_dice_rolled(context: EventContext, state: JsonDict) -> None:
     # 掷骰是引擎默认行为；若未来存在 replace hook，可由内容层显式改写。
-    state['pending_die'] = random.randint(1, 6)
-    add_log(state, f"第 {state['turn']} 回合自动掷出 {state['pending_die']} 点。")
+    dice = roll_blue_dice()
+    set_pending_dice(state, dice['a'], dice['b'])
+    add_log(state, f"第 {state['turn']} 回合自动掷出蓝骰 {dice['a']} / {dice['b']}。")
     context.payload['die'] = state['pending_die']
+    context.payload['dice'] = state['pending_dice']
 
 
 def _default_action_phase_begin(context: EventContext, state: JsonDict) -> None:
@@ -1478,6 +1614,7 @@ def _default_action_phase_begin(context: EventContext, state: JsonDict) -> None:
     state['phase'] = 'action'
     state['has_played_item'] = False
     context.payload['die'] = state['pending_die']
+    context.payload['dice'] = state.get('pending_dice')
 
 
 def _default_turn_begin(context: EventContext, state: JsonDict) -> None:
@@ -1505,8 +1642,8 @@ def build_board_overlay(state: JsonDict) -> JsonDict:
             display_type = 'floor'
         if tile['type'] == 'event' and tile.get('resolved'):
             display_type = 'floor'
-        if object_id in {'door', 'keycard_door'} and not tile.get('locked', True):
-            display_type = tile['type']
+        if object_id in {'safe', 'large_safe'} and tile.get('opened'):
+            display_type = 'floor'
         if tile['type'] == 'loot_item' and tile.get('collected'):
             display_type = 'floor'
         if tile['type'] in {'wall', 'boss_tile'}:
@@ -1516,16 +1653,7 @@ def build_board_overlay(state: JsonDict) -> JsonDict:
             if map_object.get('hidden_overlay'):
                 continue
             entity_type = 'turn_belt' if is_turn_belt_tile(tile) else tile['type']
-            overlay = _overlay(
-                tile['x'],
-                tile['y'],
-                width,
-                height,
-                _tile_overlay_icon(tile, map_object),
-                get_map_object_tooltip(tile),
-                entity_type,
-                current_map_layer(state),
-            )
+            overlay = _tile_overlay(tile, width, height, _tile_overlay_icon(tile, map_object), get_map_object_tooltip(tile), entity_type, current_map_layer(state))
             direction = turn_belt_direction_for_tile(tile) or map_object.get('direction') or tile.get('direction')
             if direction:
                 overlay['direction'] = direction
@@ -1542,7 +1670,7 @@ def build_board_overlay(state: JsonDict) -> JsonDict:
             boss_positions,
             width,
             height,
-            ICONS['boss'],
+            _boss_icon(boss),
             f"{boss['name']}：HP {boss['hp']}/{boss['max_hp']}，攻击 {boss['attack']}，防御 {boss['defense']}",
             'boss',
         ))
@@ -1590,6 +1718,23 @@ def _overlay(x: int, y: int, width: int, height: int, icon: str, tooltip: str, e
         'top_percent': ((y + 0.5) / height) * 100,
         'width_percent': (1 / width) * 100,
         'height_percent': (1 / height) * 100,
+        'icon': icon,
+        'tooltip': tooltip,
+        'entity_type': entity_type,
+    }
+
+
+def _tile_overlay(tile: JsonDict, width: int, height: int, icon: str, tooltip: str, entity_type: str, layer: int = 1) -> JsonDict:
+    tile_width = max(1, int(tile.get('width', 1) or 1))
+    tile_height = max(1, int(tile.get('height', 1) or 1))
+    return {
+        'x': tile['x'],
+        'y': tile['y'],
+        'layer': layer,
+        'left_percent': ((tile['x'] + (tile_width / 2)) / width) * 100,
+        'top_percent': ((tile['y'] + (tile_height / 2)) / height) * 100,
+        'width_percent': (tile_width / width) * 100,
+        'height_percent': (tile_height / height) * 100,
         'icon': icon,
         'tooltip': tooltip,
         'entity_type': entity_type,
@@ -1761,6 +1906,7 @@ def _project_player_scope(state: JsonDict, player_uid: str) -> None:
     state['hand'] = player_scope['hand']
     state['active_effects'] = player_scope['active_effects']
     state['pending_die'] = player_scope['pending_die']
+    state['pending_dice'] = player_scope.get('pending_dice')
     state['phase'] = player_scope['phase']
     state['has_played_item'] = player_scope['has_played_item']
     state['route_hint'] = player_scope['route_hint']
@@ -1770,6 +1916,7 @@ def _project_player_scope(state: JsonDict, player_uid: str) -> None:
 def _capture_player_scope(state: JsonDict) -> None:
     player_scope = state['players'][str(state['current_actor_uid'])]
     player_scope['pending_die'] = state['pending_die']
+    player_scope['pending_dice'] = state.get('pending_dice')
     player_scope['phase'] = state['phase']
     player_scope['has_played_item'] = state['has_played_item']
     player_scope['route_hint'] = state['route_hint']

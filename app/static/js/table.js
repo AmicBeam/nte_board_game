@@ -27,7 +27,8 @@ const logoutRunBtn = document.getElementById('logout-run-btn');
 const directionButtons = Array.from(document.querySelectorAll('[data-direction]'));
 const mapZoomSlider = document.getElementById('map-zoom-slider');
 const MAP_MIN_ZOOM = 1;
-const MAP_MAX_ZOOM = 3.2;
+const MAP_HARD_MAX_ZOOM = 8;
+const MAP_TARGET_CELL_PIXELS = 52;
 const eventModal = document.getElementById('event-modal');
 const eventModalIcon = document.getElementById('event-modal-icon');
 const eventModalTitle = document.getElementById('event-modal-title');
@@ -87,11 +88,13 @@ let initialCameraCentered = false;
 let primedControl = null;
 let tableTutorialInitialized = false;
 let hoveredMapCellKey = null;
+let mapCameraFrame = 0;
+let pendingMapCameraOptions = {};
 
 const mapCamera = {
   x: 0,
   y: 0,
-  zoom: Number(mapZoomSlider?.value || MAP_MIN_ZOOM),
+  zoom: MAP_MIN_ZOOM,
   dragging: false,
   dragMoved: false,
   startX: 0,
@@ -135,6 +138,14 @@ function buildTableTutorialPages(state = currentState) {
       icon: icon.icon,
       fallback: icon.entity_type,
     })));
+  const identifySamples = uniqueTutorialSamples(boardIcons
+    .filter((icon) => (icon.tags || []).includes('可鉴别'))
+    .map((icon) => ({
+      name: tutorialNameFromTooltip(icon.tooltip, '可鉴别物'),
+      description: '进入鉴别范围后会自动结算',
+      icon: icon.icon,
+      fallback: icon.entity_type,
+    })), 4);
   const itemSamples = uniqueTutorialSamples((state?.hand_details || []).map((item) => ({
     name: item.name,
     description: `${itemTypeLabel(item.type)}，行动阶段可按条件使用`,
@@ -160,12 +171,26 @@ function buildTableTutorialPages(state = currentState) {
       image: { src: state?.board?.background_image || state?.map?.background_image || '/static/images/maps/rob_bank_abandoned_city.png', alt: '当前地图背景' },
     },
     {
-      title: '如何操作',
+      title: '双蓝骰移动',
       body: [
-        '每回合会自动获得骰子点数，点选地图格会按当前点数移动。',
-        '移动路径最多支持一次转弯，路径上不能经过阻挡或拦截格。',
+        '每回合会自动掷出两个蓝色骰子，点选地图格即可预览并执行移动。',
+        '一枚骰子限制纵向距离，另一枚限制横向距离，两枚骰子可以互换分配。',
+        '移动路径最多支持一次转弯，不能经过阻挡或拦截格；超出范围时会显示可移动外轮廓。',
       ],
       image: { src: '/static/images/dice.webp', alt: '骰子' },
+    },
+    {
+      title: '鉴别',
+      body: [
+        '鉴别范围不是攻击范围，它只负责触发地图物件结算。',
+        '经过可鉴别物，或停留后覆盖到门、保险箱、宝箱、战利品时，会自动执行鉴别。',
+        '鉴别可以开门、开启保险箱和宝箱，并把可转化物品折算为方斯。',
+      ],
+      samples: identifySamples.length ? identifySamples : [
+        { name: '门', description: '鉴别后开启', fallback: 'door' },
+        { name: '保险箱', description: '鉴别后开启并获得战利品', fallback: 'chest' },
+        { name: '可鉴别物', description: '鉴别后转化为方斯', fallback: 'event' },
+      ],
     },
     {
       title: '地图上的道具',
@@ -191,7 +216,8 @@ function buildTableTutorialPages(state = currentState) {
     {
       title: '对战目标',
       body: [
-        '怪物和 Boss 是主要对战目标，靠近后会触发战斗或反击结算。',
+        '怪物和 Boss 是主要对战目标，贴身相邻时会触发我方直接攻击和敌方反击。',
+        '敌人的远程攻击使用怪物自己的射程，和我方鉴别范围无关。',
         '当前目标是探索地图、收集产物、保持存活，并击败最终目标。',
       ],
       samples: targetSamples.length ? targetSamples : [
@@ -270,6 +296,10 @@ function renderState(state) {
   mapName.textContent = state.map.name;
   mapBackground.src = state.board.background_image;
   updateMapContentSize(state);
+  syncMapZoomLimit(state);
+  if (!initialCameraCentered) {
+    setMapZoom(currentMapMaxZoom(state), { immediate: true });
+  }
   renderCombatHud(state);
 
   statsGrid.innerHTML = `
@@ -299,11 +329,15 @@ function renderState(state) {
 function renderCombatHud(state) {
   const currentLayer = state.map.current_layer || 1;
   const totalLayers = state.map.total_layers || 1;
+  const dice = pendingDice(state);
   combatHud.innerHTML = `
     <span>回合 ${state.turn}</span>
     <span>坐标 ${state.player.x}/${state.player.y}</span>
     <span>层数 ${currentLayer}/${totalLayers}</span>
-    <span class="hud-die"><img src="/static/images/dice.webp" alt="">${state.pending_die ?? '-'}</span>
+    <span class="hud-dice">
+      <img src="/static/images/dice.webp" alt="蓝骰A"><b>${dice ? dice.a : '-'}</b>
+      <img src="/static/images/dice.webp" alt="蓝骰B"><b>${dice ? dice.b : '-'}</b>
+    </span>
   `;
 }
 
@@ -311,26 +345,39 @@ function renderMapGrid(state) {
   const layer = activeLayer(state);
   const width = mapWidth(state, layer);
   const height = mapHeight(state, layer);
-  const tileByKey = new Map((state.map.tiles || []).filter((tile) => onLayer(tile, layer)).map((tile) => [cellKey(tile.x, tile.y), tile]));
+  const tileByKey = new Map();
+  (state.map.tiles || []).filter((tile) => onLayer(tile, layer)).forEach((tile) => {
+    forEachTileCell(tile, (x, y) => {
+      tileByKey.set(cellKey(x, y), tile);
+    });
+  });
   const monsterByKey = new Map((state.map.monsters || []).filter((monster) => onLayer(monster, layer) && monster.hp > 0 && !monster.captured).map((monster) => [cellKey(monster.x, monster.y), monster]));
   const bossKeys = new Set((state.map.boss?.positions || []).filter((pos) => onLayer(pos, layer)).map((pos) => cellKey(pos.x, pos.y)));
 
-  mapGridLayer.style.gridTemplateColumns = `repeat(${width}, minmax(0, 1fr))`;
-  mapGridLayer.style.gridTemplateRows = `repeat(${height}, minmax(0, 1fr))`;
+  mapGridLayer.style.setProperty('--grid-cell-width', `${100 / width}%`);
+  mapGridLayer.style.setProperty('--grid-cell-height', `${100 / height}%`);
   mapGridLayer.innerHTML = '';
 
   for (let y = 0; y < height; y += 1) {
     for (let x = 0; x < width; x += 1) {
       const tile = tileByKey.get(cellKey(x, y));
-      const cell = document.createElement('span');
       const tileType = tileDisplayType(tile);
+      const hasMonster = monsterByKey.has(cellKey(x, y));
+      const hasBoss = bossKeys.has(cellKey(x, y));
+      if (tileType === 'floor' && !hasMonster && !hasBoss) {
+        continue;
+      }
+      const cell = document.createElement('span');
+      const bounds = cellBounds(x, y, state);
       cell.className = `map-cell cell-${classToken(tileType)}`;
-      cell.style.gridColumn = String(x + 1);
-      cell.style.gridRow = String(y + 1);
-      if (monsterByKey.has(cellKey(x, y))) {
+      cell.style.left = `${bounds.left}%`;
+      cell.style.top = `${bounds.top}%`;
+      cell.style.width = `${bounds.width}%`;
+      cell.style.height = `${bounds.height}%`;
+      if (hasMonster) {
         cell.classList.add('cell-monster');
       }
-      if (bossKeys.has(cellKey(x, y))) {
+      if (hasBoss) {
         cell.classList.add('cell-boss');
       }
       mapGridLayer.appendChild(cell);
@@ -739,7 +786,7 @@ function isRangeBlocked(state, x, y) {
   if (displayType === 'door' && tile?.locked !== false) {
     return true;
   }
-  if (['safe', 'large_safe'].includes(tile?.type) || ['safe', 'large_safe'].includes(tile?.object_id)) {
+  if (!tile?.opened && (['safe', 'large_safe'].includes(tile?.type) || ['safe', 'large_safe'].includes(tile?.object_id))) {
     return true;
   }
   return false;
@@ -767,6 +814,9 @@ function tileDisplayType(tile) {
   if (tile.type === 'hidden_door') {
     return 'door';
   }
+  if (tile.opened && ['safe', 'large_safe'].includes(tile.object_id || tile.type)) {
+    return 'floor';
+  }
   if (['safe', 'large_safe'].includes(tile.type)) {
     return 'chest';
   }
@@ -789,6 +839,9 @@ function applyTileUpdate(step) {
     && onLayer(item, activeLayer(currentState))
   ));
   if (tile && step.tile) {
+    Object.keys(tile).forEach((key) => {
+      delete tile[key];
+    });
     Object.assign(tile, step.tile);
     if (step.display_type) {
       tile.display_type = step.display_type;
@@ -865,7 +918,7 @@ function setSideView(view) {
 
 function syncButtons(state) {
   directionButtons.forEach((button) => {
-    button.disabled = moveLocked || !['action', 'movement'].includes(state.phase) || state.pending_die === null;
+    button.disabled = moveLocked || !canPreview(state);
   });
   if (mapStage) {
     mapStage.classList.toggle('can-select-target', canPreview(state) && !moveLocked);
@@ -902,7 +955,53 @@ function primeTouchControl(event, key, element, previewCallback) {
 }
 
 function canPreview(state) {
-  return state && ['action', 'movement'].includes(state.phase) && state.pending_die !== null;
+  return state && ['action', 'movement'].includes(state.phase) && pendingDice(state) !== null;
+}
+
+function pendingDice(state = currentState) {
+  const dice = state?.pending_dice;
+  if (dice && typeof dice === 'object' && !Array.isArray(dice)) {
+    const a = Number(dice.a ?? dice.vertical);
+    const b = Number(dice.b ?? dice.horizontal);
+    if (Number.isFinite(a) && Number.isFinite(b)) {
+      return { a: Math.max(0, a), b: Math.max(0, b) };
+    }
+  }
+  if (Array.isArray(dice) && dice.length >= 2) {
+    const a = Number(dice[0]);
+    const b = Number(dice[1]);
+    if (Number.isFinite(a) && Number.isFinite(b)) {
+      return { a: Math.max(0, a), b: Math.max(0, b) };
+    }
+  }
+  if (state?.pending_die !== null && state?.pending_die !== undefined) {
+    const legacy = Math.max(0, Number(state.pending_die) || 0);
+    return { a: legacy, b: legacy };
+  }
+  return null;
+}
+
+function axisWithinDiceRange(horizontal, vertical, dice = pendingDice()) {
+  if (!dice) {
+    return false;
+  }
+  return (
+    (vertical <= dice.a && horizontal <= dice.b)
+    || (vertical <= dice.b && horizontal <= dice.a)
+  );
+}
+
+function axisStepsForDirections(directions) {
+  return directions.reduce((result, direction) => {
+    const vector = DIRECTION_VECTORS[direction];
+    if (vector?.x) {
+      result.horizontal += 1;
+    }
+    if (vector?.y) {
+      result.vertical += 1;
+    }
+    return result;
+  }, { horizontal: 0, vertical: 0 });
 }
 
 function cellKey(x, y) {
@@ -943,7 +1042,31 @@ function cellPercent(point, state = currentState) {
 
 function tileAt(state, x, y) {
   const layer = activeLayer(state);
-  return (state.map.tiles || []).slice().reverse().find((tile) => onLayer(tile, layer) && tile.x === x && tile.y === y) || null;
+  return (state.map.tiles || []).slice().reverse().find((tile) => onLayer(tile, layer) && tileContainsCell(tile, x, y)) || null;
+}
+
+function tileFootprintWidth(tile) {
+  return Math.max(1, Number(tile?.width || 1));
+}
+
+function tileFootprintHeight(tile) {
+  return Math.max(1, Number(tile?.height || 1));
+}
+
+function tileContainsCell(tile, x, y) {
+  const tileX = Number(tile?.x || 0);
+  const tileY = Number(tile?.y || 0);
+  return x >= tileX && y >= tileY && x < tileX + tileFootprintWidth(tile) && y < tileY + tileFootprintHeight(tile);
+}
+
+function forEachTileCell(tile, callback) {
+  const startX = Number(tile?.x || 0);
+  const startY = Number(tile?.y || 0);
+  for (let dy = 0; dy < tileFootprintHeight(tile); dy += 1) {
+    for (let dx = 0; dx < tileFootprintWidth(tile); dx += 1) {
+      callback(startX + dx, startY + dy);
+    }
+  }
 }
 
 function isMonsterCell(state, x, y) {
@@ -975,7 +1098,7 @@ function getBasicBlockReason(state, x, y) {
   if (displayType === 'door' && tile?.locked !== false) {
     return '门阻挡';
   }
-  if (['safe', 'large_safe'].includes(tile?.type) || ['safe', 'large_safe'].includes(tile?.object_id)) {
+  if (!tile?.opened && (['safe', 'large_safe'].includes(tile?.type) || ['safe', 'large_safe'].includes(tile?.object_id))) {
     return '保险箱阻挡';
   }
   return null;
@@ -1007,7 +1130,10 @@ function buildMovePreview(state, direction) {
   let x = Number(state.player.x);
   let y = Number(state.player.y);
   let activeDirection = direction;
-  let stepsRemaining = Number(state.pending_die) || 0;
+  const dice = pendingDice(state);
+  let stepsRemaining = direction === 'left' || direction === 'right'
+    ? Math.max(dice?.a || 0, dice?.b || 0)
+    : Math.max(dice?.a || 0, dice?.b || 0);
   const path = [{ x, y, kind: 'start' }];
   const redirects = [];
   let blocked = null;
@@ -1016,7 +1142,6 @@ function buildMovePreview(state, direction) {
   const startTurn = basicTurnDirection(tileAt(state, x, y), stepsRemaining);
   if (startTurn) {
     activeDirection = startTurn;
-    path[0].turnDirection = startTurn;
     redirects.push({ x, y, direction: startTurn });
   }
 
@@ -1052,7 +1177,6 @@ function buildMovePreview(state, direction) {
     const turned = basicTurnDirection(tile, stepsRemaining);
     if (turned) {
       activeDirection = turned;
-      point.turnDirection = turned;
       redirects.push({ x, y, direction: turned });
     }
   }
@@ -1108,18 +1232,14 @@ function targetTooltipText(baseText, preview) {
     return base;
   }
   if (preview.blocked) {
-    return `${base}。路径受阻：${preview.blocked.reason || '无法到达'}。`;
+    return base;
   }
   const steps = Math.max(0, preview.path.length - 1);
   return `${base}。本次将移动 ${steps} 步${preview.turns ? '，路径会转弯一次' : ''}。`;
 }
 
 function targetTooltipTags(tags, preview) {
-  const result = [...tags];
-  if (preview?.blocked && !result.includes('路径受阻')) {
-    result.push('路径受阻');
-  }
-  return result;
+  return [...tags];
 }
 
 function buildTargetPreview(state, targetX, targetY, targetLabel = '目标') {
@@ -1138,21 +1258,28 @@ function buildTargetPreview(state, targetX, targetY, targetLabel = '目标') {
   if (!Number.isInteger(target.x) || !Number.isInteger(target.y)) {
     return { ...base, blocked: { ...start, reason: '目标无效' } };
   }
-  const totalSteps = Math.abs(target.x - start.x) + Math.abs(target.y - start.y);
-  const maxSteps = Math.max(0, Number(state.pending_die) || 0);
+  const horizontalSteps = Math.abs(target.x - start.x);
+  const verticalSteps = Math.abs(target.y - start.y);
+  const totalSteps = horizontalSteps + verticalSteps;
+  const dice = pendingDice(state);
   if (totalSteps === 0) {
     return base;
   }
-  if (totalSteps > maxSteps) {
+  if (!axisWithinDiceRange(horizontalSteps, verticalSteps, dice)) {
     return {
       ...base,
-      blocked: { ...target, reason: `超过当前骰子距离（${maxSteps}）` },
+      blocked: { ...target, reason: '超过当前骰子范围' },
+      rangeOutline: buildMoveRangeCells(state, dice),
       totalSteps,
     };
   }
   const candidates = oneTurnDirectionCandidates(start, target);
   const blocked = [];
   for (const directions of candidates) {
+    const axisSteps = axisStepsForDirections(directions);
+    if (!axisWithinDiceRange(axisSteps.horizontal, axisSteps.vertical, dice)) {
+      continue;
+    }
     const result = previewFromDirections(state, directions, target);
     if (!result.blocked) {
       return { ...result, targetLabel, target };
@@ -1164,6 +1291,31 @@ function buildTargetPreview(state, targetX, targetY, targetLabel = '目标') {
     blocked: blocked[0] || { ...target, reason: '路径受阻' },
     totalSteps,
   };
+}
+
+function buildMoveRangeCells(state, dice = pendingDice(state)) {
+  if (!dice) {
+    return [];
+  }
+  const origin = { x: Number(state.player.x), y: Number(state.player.y) };
+  const width = mapWidth(state);
+  const height = mapHeight(state);
+  const maxX = Math.max(dice.a, dice.b);
+  const maxY = Math.max(dice.a, dice.b);
+  const cells = [];
+  for (let dy = -maxY; dy <= maxY; dy += 1) {
+    for (let dx = -maxX; dx <= maxX; dx += 1) {
+      const x = origin.x + dx;
+      const y = origin.y + dy;
+      if (x < 0 || y < 0 || x >= width || y >= height) {
+        continue;
+      }
+      if (axisWithinDiceRange(Math.abs(dx), Math.abs(dy), dice)) {
+        cells.push({ x, y });
+      }
+    }
+  }
+  return cells;
 }
 
 function oneTurnDirectionCandidates(start, target) {
@@ -1211,7 +1363,6 @@ function previewFromDirections(state, directions, target) {
     }
     if (previousDirection && direction !== previousDirection) {
       turns += 1;
-      path[path.length - 1].turnDirection = direction;
     }
     previousDirection = direction;
     path.push({ x, y, kind: isFinal ? 'landing' : 'step', direction });
@@ -1279,6 +1430,10 @@ function renderPreview(preview) {
     return;
   }
 
+  if (preview.rangeOutline?.length) {
+    addMoveRangeOutline(preview.rangeOutline);
+  }
+
   preview.path.forEach((point, index) => {
     if (index > 0) {
       addPreviewSegment(preview.path[index - 1], point);
@@ -1287,23 +1442,27 @@ function renderPreview(preview) {
 
   preview.path.forEach((point, index) => {
     const pos = cellPercent(point);
+    const bounds = cellBounds(point.x, point.y);
+    const sizeScale = index === 0 ? 0.42 : 0.78;
     const marker = document.createElement('span');
     marker.className = `preview-dot preview-${point.kind}`;
     marker.style.left = `${pos.left}%`;
     marker.style.top = `${pos.top}%`;
-    marker.textContent = index === 0 ? '' : String(index);
-    if (point.turnDirection) {
-      marker.dataset.turn = directionLabel(point.turnDirection);
-    }
+    marker.style.width = `${bounds.width * sizeScale}%`;
+    marker.style.height = `${bounds.height * sizeScale}%`;
+    marker.textContent = index === 0 || mapCamera.zoom < 1.6 ? '' : String(index);
     mapPreviewLayer.appendChild(marker);
   });
 
-  if (preview.blocked) {
+  if (preview.blocked && !preview.rangeOutline?.length) {
     const pos = cellPercent(preview.blocked);
+    const bounds = cellBounds(preview.blocked.x, preview.blocked.y);
     const block = document.createElement('span');
     block.className = 'preview-block';
     block.style.left = `${pos.left}%`;
     block.style.top = `${pos.top}%`;
+    block.style.width = `${bounds.width * 0.86}%`;
+    block.style.height = `${bounds.height * 0.86}%`;
     block.textContent = '×';
     mapPreviewLayer.appendChild(block);
   }
@@ -1319,6 +1478,31 @@ function renderPreview(preview) {
   routeHint.textContent = reason
     ? `预览：${preview.path.length - 1} 步后在 (${preview.landing.x}, ${preview.landing.y}) 停止，${reason} 于 (${target.x}, ${target.y})。`
     : `预览：落点 (${preview.landing.x}, ${preview.landing.y})。${preview.redirects.length ? '途中会发生转向。' : ''}`;
+}
+
+function addMoveRangeOutline(cells) {
+  const keys = new Set(cells.map((cell) => cellKey(cell.x, cell.y)));
+  const edges = [
+    { name: 'top', dx: 0, dy: -1 },
+    { name: 'right', dx: 1, dy: 0 },
+    { name: 'bottom', dx: 0, dy: 1 },
+    { name: 'left', dx: -1, dy: 0 },
+  ];
+  cells.forEach((cell) => {
+    const bounds = cellBounds(cell.x, cell.y);
+    edges.forEach((edge) => {
+      if (keys.has(cellKey(cell.x + edge.dx, cell.y + edge.dy))) {
+        return;
+      }
+      const segment = document.createElement('span');
+      segment.className = `move-range-outline-segment outline-${edge.name}`;
+      segment.style.left = `${bounds.left}%`;
+      segment.style.top = `${bounds.top}%`;
+      segment.style.width = `${bounds.width}%`;
+      segment.style.height = `${bounds.height}%`;
+      mapPreviewLayer.appendChild(segment);
+    });
+  });
 }
 
 function addPreviewSegment(from, to) {
@@ -1399,6 +1583,30 @@ function updateMapContentSize(state = currentState) {
   mapStageInner.style.height = `${mapCamera.baseHeight}px`;
 }
 
+function currentMapMaxZoom(state = currentState) {
+  if (!state?.map || !mapCamera.baseWidth || !mapCamera.baseHeight) {
+    return MAP_MIN_ZOOM;
+  }
+  const cellWidth = mapCamera.baseWidth / mapWidth(state);
+  const cellHeight = mapCamera.baseHeight / mapHeight(state);
+  const baseCellPixels = Math.max(1, Math.min(cellWidth, cellHeight));
+  return Math.max(MAP_MIN_ZOOM, Math.min(MAP_HARD_MAX_ZOOM, MAP_TARGET_CELL_PIXELS / baseCellPixels));
+}
+
+function syncMapZoomLimit(state = currentState) {
+  const maxZoom = currentMapMaxZoom(state);
+  if (mapZoomSlider) {
+    mapZoomSlider.max = maxZoom.toFixed(2);
+    mapZoomSlider.min = String(MAP_MIN_ZOOM);
+  }
+  if (mapCamera.zoom > maxZoom) {
+    mapCamera.zoom = maxZoom;
+  }
+  if (mapZoomSlider) {
+    mapZoomSlider.value = mapCamera.zoom.toFixed(2);
+  }
+}
+
 function clampMapCameraPosition(x, y, zoom = mapCamera.zoom) {
   const rect = stageRect();
   if (!rect.width || !rect.height) {
@@ -1430,13 +1638,29 @@ function applyMapCamera(options = {}) {
   if (!mapStageInner) {
     return;
   }
+  pendingMapCameraOptions = options;
+  if (options.immediate) {
+    applyMapCameraNow(options);
+    return;
+  }
+  if (mapCameraFrame) {
+    return;
+  }
+  mapCameraFrame = window.requestAnimationFrame(() => {
+    mapCameraFrame = 0;
+    applyMapCameraNow(pendingMapCameraOptions);
+  });
+}
+
+function applyMapCameraNow(options = {}) {
+  mapStageInner.style.setProperty('--map-zoom', mapCamera.zoom.toFixed(3));
   mapStageInner.classList.toggle('camera-smooth', Boolean(options.smooth));
   mapStageInner.style.transform = `translate3d(${mapCamera.x}px, ${mapCamera.y}px, 0) scale(${mapCamera.zoom})`;
 }
 
 function setMapZoom(value, options = {}) {
   const rect = stageRect();
-  const nextZoom = Math.max(MAP_MIN_ZOOM, Math.min(MAP_MAX_ZOOM, Number(value) || MAP_MIN_ZOOM));
+  const nextZoom = Math.max(MAP_MIN_ZOOM, Math.min(currentMapMaxZoom(currentState), Number(value) || MAP_MIN_ZOOM));
   if (!rect.width || !rect.height) {
     mapCamera.zoom = nextZoom;
     applyMapCamera(options);
@@ -1479,6 +1703,35 @@ function centerCameraOnPlayer(state = currentState, options = {}) {
     return;
   }
   centerCameraOnCell(state.player.x, state.player.y, options);
+}
+
+function isCellVisible(x, y, state = currentState, marginCells = 0.3) {
+  if (!state?.map) {
+    return true;
+  }
+  const rect = stageRect();
+  if (!rect.width || !rect.height) {
+    return true;
+  }
+  const baseWidth = mapCamera.baseWidth || rect.width;
+  const baseHeight = mapCamera.baseHeight || rect.height;
+  const cellWidth = (baseWidth / mapWidth(state)) * mapCamera.zoom;
+  const cellHeight = (baseHeight / mapHeight(state)) * mapCamera.zoom;
+  const screenX = mapCamera.x + (((Number(x) + 0.5) / mapWidth(state)) * baseWidth * mapCamera.zoom);
+  const screenY = mapCamera.y + (((Number(y) + 0.5) / mapHeight(state)) * baseHeight * mapCamera.zoom);
+  const marginX = cellWidth * marginCells;
+  const marginY = cellHeight * marginCells;
+  return screenX >= marginX
+    && screenY >= marginY
+    && screenX <= rect.width - marginX
+    && screenY <= rect.height - marginY;
+}
+
+function ensureCameraShowsPlayer(state = currentState, options = {}) {
+  if (!state?.player || isCellVisible(state.player.x, state.player.y, state)) {
+    return;
+  }
+  centerCameraOnPlayer(state, options);
 }
 
 function mapPointFromClient(event) {
@@ -1555,8 +1808,11 @@ async function animatePreview(preview) {
   const avatar = currentState?.character_instance?.avatar_image;
   ghost.innerHTML = avatar ? `<img src="${avatar}" alt="">` : iconMarkup('player');
   const start = cellPercent(preview.path[0]);
+  const bounds = cellBounds(preview.path[0].x, preview.path[0].y);
   ghost.style.left = `${start.left}%`;
   ghost.style.top = `${start.top}%`;
+  ghost.style.width = `${bounds.width * 0.92}%`;
+  ghost.style.height = `${bounds.height * 0.92}%`;
   mapFxLayer.appendChild(ghost);
 
   await sleep(20);
@@ -1581,7 +1837,7 @@ async function animateBackendMove(step) {
   ];
   currentState.player.x = Number(step.x);
   currentState.player.y = Number(step.y);
-  centerCameraOnPlayer(currentState, { smooth: true });
+  ensureCameraShowsPlayer(currentState, { smooth: true });
   await animatePreview({ path });
 }
 
@@ -1755,7 +2011,7 @@ function closeBattleModal() {
   battleModal.setAttribute('aria-hidden', 'true');
   battlePlayerCombatant.classList.remove('hit');
   battleEnemyCombatant.classList.remove('hit');
-  centerCameraOnPlayer(currentState, { smooth: true });
+  ensureCameraShowsPlayer(currentState, { smooth: true });
 }
 
 async function loadState() {
@@ -1787,7 +2043,8 @@ async function playItem(itemInstanceId) {
     const item = (currentState?.hand_details || []).find((entry) => entry.instance_id === itemInstanceId);
     let declaredValue = null;
     if (item?.requires_die_choice) {
-      const answer = window.prompt('宣言骰子点数（1-6）', String(currentState?.pending_die || 1));
+      const dice = pendingDice(currentState);
+      const answer = window.prompt('宣言蓝骰点数（1-6）', String(dice?.a || 1));
       if (answer === null) {
         return;
       }
@@ -1819,7 +2076,6 @@ async function move(direction, path = null) {
     syncButtons(currentState);
     clearPreview();
     clearPrimedControl();
-    centerCameraOnPlayer(currentState, { smooth: true });
     const nextState = await apiRequest('/api/game/move', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -1828,7 +2084,7 @@ async function move(direction, path = null) {
     const showedBattle = await playActionQueue(nextState.action_queue || [], beforeState, nextState);
     renderState(nextState);
     clearPreview();
-    centerCameraOnPlayer(nextState, { smooth: true });
+    ensureCameraShowsPlayer(nextState, { smooth: true });
     if (!showedBattle) {
       showBattleModal(beforeState, nextState);
     }
@@ -1967,6 +2223,7 @@ if (mapStage) {
 }
 window.addEventListener('resize', () => {
   updateMapContentSize();
+  syncMapZoomLimit();
   clampMapCamera();
   applyMapCamera();
 });

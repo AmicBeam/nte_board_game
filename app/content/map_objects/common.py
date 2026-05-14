@@ -232,6 +232,8 @@ def add_tile_update_step(state: dict, tile: dict) -> None:
         display_type = 'floor'
     if tile['type'] == 'event' and tile.get('resolved'):
         display_type = 'floor'
+    if tile.get('object_id') in {'safe', 'large_safe'} and tile.get('opened'):
+        display_type = 'floor'
     if tile['type'] == 'door' and not tile.get('locked', True):
         display_type = 'floor'
     if tile['type'] == 'keycard_door' and not tile.get('locked', True):

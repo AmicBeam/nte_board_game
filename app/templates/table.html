@@ -9,7 +9,10 @@
                 <span>回合 -</span>
                 <span>坐标 -/-</span>
                 <span>层数 -/-</span>
-                <span class="hud-die"><img src="{{ url_for('static', filename='images/dice.webp') }}" alt="">-</span>
+                <span class="hud-dice">
+                    <img src="{{ url_for('static', filename='images/dice.webp') }}" alt="蓝骰A"><b>-</b>
+                    <img src="{{ url_for('static', filename='images/dice.webp') }}" alt="蓝骰B"><b>-</b>
+                </span>
             </div>
         </div>
         <div class="header-actions">
@@ -35,7 +38,7 @@
                 </div>
                 <label class="map-zoom-control">
                     <span>地图缩放</span>
-                    <input id="map-zoom-slider" type="range" min="1" max="3.2" step="0.01" value="1">
+                    <input id="map-zoom-slider" type="range" min="1" max="8" step="0.01" value="1">
                 </label>
             </div>
             <div class="hint-box">

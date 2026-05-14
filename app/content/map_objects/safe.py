@@ -2,6 +2,7 @@ from typing import TYPE_CHECKING
 
 from app.content.map_objects.common import (
     BLOCK_TYPE_BLOCK,
+    BLOCK_TYPE_PASS,
     add_action_step,
     add_tile_update_step,
     choose_loot_from_table,
@@ -20,6 +21,9 @@ LARGE_SAFE_ICON = '/static/images/map_object/safe-large.svg'
 
 
 def safe_block_check(context: 'EventContext') -> None:
+    if context.payload['tile'].get('opened'):
+        context.payload['block_type'] = BLOCK_TYPE_PASS
+        return
     context.payload['block_type'] = BLOCK_TYPE_BLOCK
     context.payload['blocked_reason'] = '保险箱挡住了道路。'
 
@@ -78,5 +82,5 @@ MAP_OBJECT = {
 
 def build_tooltip(tile: dict) -> str:
     if tile.get('object_id') == LARGE_SAFE_OBJECT_ID or tile.get('type') == LARGE_SAFE_OBJECT_ID:
-        return '大型保险箱：阻挡移动；鉴别后开启，更容易获得高价值战利品。'
+        return '大型保险箱：占地 2x2，阻挡移动；鉴别后开启，更容易获得高价值战利品。'
     return MAP_OBJECT['tooltip']

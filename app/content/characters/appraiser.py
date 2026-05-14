@@ -5,8 +5,8 @@ CHARACTER = {
     'attack': 11,
     'defense': 4,
     'identification_level': 4,
-    'portrait_image': '/static/images/characters/portrait/薄荷.png',
-    'avatar_image': '/static/images/characters/avatar/薄荷.png',
+    'portrait_image': '/static/images/characters/portrait/鉴定师.png',
+    'avatar_image': '/static/images/characters/avatar/鉴定师.png',
     'passive': '初始拥有 4 级鉴别等级。',
     'passive_events': {},
 }
