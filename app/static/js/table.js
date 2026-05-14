@@ -29,6 +29,7 @@ const mapFloatingTooltip = document.getElementById('map-floating-tooltip');
 const copyLogBtn = document.getElementById('copy-log-btn');
 const resetRunBtn = document.getElementById('reset-run-btn');
 const logoutRunBtn = document.getElementById('logout-run-btn');
+const immersiveBtn = document.getElementById('immersive-btn');
 const directionButtons = Array.from(document.querySelectorAll('[data-direction]'));
 const mapZoomSlider = document.getElementById('map-zoom-slider');
 const MAP_MIN_ZOOM = 1;
@@ -96,10 +97,12 @@ let moveLocked = false;
 let initialCameraCentered = false;
 let lastRenderedLayer = null;
 let primedControl = null;
+let primedMapTargetKey = null;
 let tableTutorialInitialized = false;
 let hoveredMapCellKey = null;
 let mapCameraFrame = 0;
 let pendingMapCameraOptions = {};
+let immersiveModeRequested = false;
 
 const mapCamera = {
   x: 0,
@@ -517,7 +520,7 @@ function renderOverlay(state) {
       node.addEventListener('click', (event) => {
         event.preventDefault();
         event.stopPropagation();
-        handleMapTargetSelection(Number(icon.x), Number(icon.y), node, icon);
+        handleMapTargetSelection(Number(icon.x), Number(icon.y), node, icon, event);
       });
     }
     mapOverlay.appendChild(node);
@@ -993,6 +996,7 @@ function setSideView(view) {
   });
   hideItemTooltip();
   clearPrimedControl();
+  clearPrimedMapTarget();
 }
 
 function syncButtons(state) {
@@ -1008,11 +1012,62 @@ function usesTouchPriming() {
   return window.matchMedia('(hover: none), (pointer: coarse)').matches;
 }
 
+function canRequestImmersiveMode() {
+  return Boolean(document.documentElement.requestFullscreen || screen.orientation?.lock);
+}
+
+function syncImmersiveButton() {
+  if (!immersiveBtn) {
+    return;
+  }
+  immersiveBtn.hidden = !usesTouchPriming() || !canRequestImmersiveMode() || Boolean(document.fullscreenElement);
+}
+
+async function requestImmersiveMode(force = false) {
+  if (!force && immersiveModeRequested) {
+    return;
+  }
+  immersiveModeRequested = true;
+  const root = document.documentElement;
+  try {
+    if (!document.fullscreenElement && root.requestFullscreen) {
+      await root.requestFullscreen({ navigationUI: 'hide' });
+    }
+  } catch (error) {
+    // Browser support varies; orientation lock below may still work.
+  }
+  try {
+    if (screen.orientation?.lock) {
+      await screen.orientation.lock('landscape');
+    }
+  } catch (error) {
+    // iOS Safari and some embedded browsers do not expose orientation lock.
+  }
+  syncImmersiveButton();
+}
+
+function requestImmersiveModeFromGesture() {
+  if (!usesTouchPriming()) {
+    return;
+  }
+  requestImmersiveMode(false);
+  document.removeEventListener('pointerdown', requestImmersiveModeFromGesture, true);
+}
+
 function clearPrimedControl() {
   if (primedControl?.element) {
     primedControl.element.classList.remove('touch-primed');
   }
   primedControl = null;
+}
+
+function clearPrimedMapTarget() {
+  primedMapTargetKey = null;
+  mapStage?.classList.remove('touch-target-primed');
+}
+
+function mapTargetKey(x, y) {
+  return `${activeLayer(currentState)}:${Number(x)}:${Number(y)}`;
 }
 
 function primeTouchControl(event, key, element, previewCallback) {
@@ -1923,6 +1978,8 @@ function finishMapDrag(event = null) {
   mapStage?.classList.remove('drag-ready', 'dragging');
   if (shouldSelect) {
     handleMapPointerSelection(event);
+  } else {
+    clearPrimedMapTarget();
   }
 }
 
@@ -1949,10 +2006,10 @@ function handleMapPointerSelection(event) {
   if (!point) {
     return;
   }
-  handleMapTargetSelection(point.x, point.y);
+  handleMapTargetSelection(point.x, point.y, null, null, event);
 }
 
-function handleMapTargetSelection(x, y, node = null, icon = null) {
+function handleMapTargetSelection(x, y, node = null, icon = null, sourceEvent = null) {
   if (moveLocked || !canPreview(currentState)) {
     if (node && icon) {
       showMapTooltip(node, icon.tooltip, icon.tags || []);
@@ -1960,18 +2017,32 @@ function handleMapTargetSelection(x, y, node = null, icon = null) {
     return;
   }
   clearPrimedControl();
-  const preview = buildTargetPreview(currentState, Number(x), Number(y), icon?.tooltip || '地图格');
+  const numericX = Number(x);
+  const numericY = Number(y);
+  const preview = buildTargetPreview(currentState, numericX, numericY, icon?.tooltip || '地图格');
   if (node) {
     node._targetPreview = preview;
     node.classList.toggle('is-route-blocked', Boolean(preview?.blocked));
   }
   renderPreview(preview);
+  const targetKey = mapTargetKey(numericX, numericY);
+  if (usesTouchPriming() && primedMapTargetKey !== targetKey) {
+    primedMapTargetKey = targetKey;
+    mapStage?.classList.add('touch-target-primed');
+    if (node && icon) {
+      showMapTooltip(node, targetTooltipText(icon.tooltip, preview), targetTooltipTags(icon.tags || [], preview));
+    }
+    sourceEvent?.preventDefault?.();
+    sourceEvent?.stopPropagation?.();
+    return;
+  }
   if (preview?.blocked || !preview?.moveDirections?.length) {
     if (node && icon) {
       showMapTooltip(node, targetTooltipText(icon.tooltip, preview), targetTooltipTags(icon.tags || [], preview));
     }
     return;
   }
+  clearPrimedMapTarget();
   move(preview.moveDirections[0], preview.moveDirections);
 }
 
@@ -2251,6 +2322,7 @@ async function move(direction, path = null) {
     syncButtons(currentState);
     clearPreview();
     clearPrimedControl();
+    clearPrimedMapTarget();
     const nextState = await apiRequest('/api/game/move', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -2324,6 +2396,7 @@ battleModal.addEventListener('click', (event) => {
 if (mapZoomSlider) {
   mapZoomSlider.addEventListener('input', () => {
     clearPrimedControl();
+    clearPrimedMapTarget();
     setMapZoom(mapZoomSlider.value);
   });
 }
@@ -2331,6 +2404,7 @@ if (mapStage) {
   mapStage.addEventListener('wheel', (event) => {
     event.preventDefault();
     clearPrimedControl();
+    clearPrimedMapTarget();
     const nextZoom = mapCamera.zoom - (event.deltaY * 0.00065);
     setMapZoom(nextZoom, {
       focalClientX: event.clientX,
@@ -2391,7 +2465,10 @@ if (mapStage) {
   mapStage.addEventListener('pointerleave', () => {
     if (!mapCamera.dragging) {
       hoveredMapCellKey = null;
-      clearPreview();
+      if (!usesTouchPriming()) {
+        clearPreview();
+        clearPrimedMapTarget();
+      }
     }
   });
   window.addEventListener('pointerup', (event) => {
@@ -2413,9 +2490,23 @@ window.addEventListener('resize', () => {
   syncMapZoomLimit();
   clampMapCamera();
   applyMapCamera();
+  syncImmersiveButton();
 });
 document.addEventListener('pointerdown', (event) => {
   if (!event.target.closest('.hand-list')) {
     clearPrimedControl();
   }
+  if (!event.target.closest('#map-stage')) {
+    clearPrimedMapTarget();
+  }
 });
+if (immersiveBtn) {
+  immersiveBtn.addEventListener('click', (event) => {
+    event.preventDefault();
+    requestImmersiveMode(true);
+  });
+  document.addEventListener('fullscreenchange', syncImmersiveButton);
+  window.addEventListener('orientationchange', syncImmersiveButton);
+  syncImmersiveButton();
+}
+document.addEventListener('pointerdown', requestImmersiveModeFromGesture, true);

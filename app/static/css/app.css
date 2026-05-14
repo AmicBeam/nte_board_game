@@ -161,6 +161,18 @@ h1, h2, h3, p { margin: 0; }
 
 .hero-actions, .header-actions { display: flex; flex-wrap: wrap; gap: 10px; }
 
+.immersive-btn {
+    display: none;
+}
+
+@media (hover: none), (pointer: coarse) {
+    .immersive-btn:not([hidden]) {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+    }
+}
+
 .combat-hud {
     position: absolute;
     left: 50%;
@@ -975,6 +987,10 @@ h1, h2, h3, p { margin: 0; }
 .map-stage.drag-ready,
 .map-stage.dragging {
     cursor: grabbing;
+}
+
+.map-stage.touch-target-primed {
+    box-shadow: inset 0 0 0 1px rgba(255,191,87,0.18), 0 0 22px rgba(255,191,87,0.14), 0 28px 60px rgba(0,0,0,0.42);
 }
 
 .map-stage-inner {
@@ -2821,5 +2837,263 @@ button[disabled] { opacity: 0.45; cursor: not-allowed; transform: none; }
     .hand-card .item-art.small {
         width: 52px;
         height: 52px;
+    }
+}
+
+@media (orientation: landscape) and (pointer: coarse), (orientation: landscape) and (max-height: 760px) {
+    body:has(.table-page) {
+        overflow: hidden;
+        overscroll-behavior: none;
+    }
+
+    body:has(.table-page) .shell {
+        width: 100vw;
+        height: 100dvh;
+        padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+    }
+
+    body:has(.table-page) .table-page {
+        height: 100dvh;
+        gap: 4px;
+    }
+
+    body:has(.table-page) .combat-topbar {
+        min-height: 40px;
+        padding: 4px 8px;
+        border-radius: 10px;
+    }
+
+    body:has(.table-page) .combat-topbar::after {
+        height: 44px;
+        bottom: -18px;
+        opacity: 0.62;
+    }
+
+    body:has(.table-page) .combat-topbar > div:first-child {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        min-width: 0;
+    }
+
+    body:has(.table-page) .table-topbar h1 {
+        display: none;
+    }
+
+    body:has(.table-page) .combat-hud {
+        position: static;
+        width: auto;
+        transform: none;
+        gap: 4px;
+        justify-content: flex-start;
+    }
+
+    body:has(.table-page) .combat-hud span {
+        min-height: 24px;
+        padding: 3px 6px;
+        border-radius: 8px;
+        font-size: 11px;
+        gap: 4px;
+    }
+
+    body:has(.table-page) .hud-dice img {
+        width: 15px;
+        height: 15px;
+    }
+
+    body:has(.table-page) .header-actions {
+        gap: 4px;
+        flex-wrap: nowrap;
+        align-items: center;
+    }
+
+    body:has(.table-page) .header-actions .primary-btn,
+    body:has(.table-page) .header-actions .secondary-btn,
+    body:has(.table-page) .header-actions .icon-btn {
+        min-height: 30px;
+        padding: 5px 8px;
+        border-radius: 8px;
+        font-size: 12px;
+        white-space: nowrap;
+    }
+
+    body:has(.table-page) .header-actions .icon-btn {
+        width: 30px;
+        min-width: 30px;
+        padding: 0;
+    }
+
+    body:has(.table-page) .table-layout {
+        grid-template-columns: minmax(132px, 0.56fr) minmax(0, 2.7fr) minmax(132px, 0.62fr);
+        gap: 4px;
+    }
+
+    body:has(.table-page) .state-panel,
+    body:has(.table-page) .board-panel,
+    body:has(.table-page) .side-panel {
+        padding: 6px;
+        border-radius: 10px;
+    }
+
+    body:has(.table-page) .section-title-row {
+        gap: 6px;
+    }
+
+    body:has(.table-page) .section-title-row h2 {
+        font-size: 15px;
+        line-height: 1.08;
+    }
+
+    body:has(.table-page) .phase-chip {
+        padding: 4px 6px;
+        border-radius: 7px;
+        font-size: 10px;
+    }
+
+    body:has(.table-page) .stats-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 4px;
+        margin-top: 5px;
+    }
+
+    body:has(.table-page) .stat-card {
+        min-height: 38px;
+        padding: 5px;
+        border-radius: 8px;
+    }
+
+    body:has(.table-page) .stat-card span,
+    body:has(.table-page) .stat-card small {
+        font-size: 9px;
+    }
+
+    body:has(.table-page) .stat-card strong,
+    body:has(.table-page) .stat-role strong {
+        margin-top: 2px;
+        font-size: 13px;
+    }
+
+    body:has(.table-page) .stat-card small {
+        display: none;
+    }
+
+    body:has(.table-page) .stat-meter {
+        left: 5px;
+        right: 5px;
+        bottom: 4px;
+        height: 3px;
+    }
+
+    body:has(.table-page) .cta-stack {
+        gap: 5px;
+        margin-top: 6px;
+    }
+
+    body:has(.table-page) .identification-panel,
+    body:has(.table-page) .map-zoom-control,
+    body:has(.table-page) .buff-panel {
+        padding: 5px 6px;
+        gap: 4px;
+        border-radius: 8px;
+    }
+
+    body:has(.table-page) .combo-readout {
+        min-height: 22px;
+        padding: 3px 7px;
+        border-radius: 7px;
+        font-size: 11px;
+    }
+
+    body:has(.table-page) .identification-exp {
+        gap: 4px;
+    }
+
+    body:has(.table-page) .identification-exp-head,
+    body:has(.table-page) .map-zoom-control span,
+    body:has(.table-page) .buff-panel span {
+        font-size: 9px;
+        gap: 4px;
+    }
+
+    body:has(.table-page) .identification-exp-bar {
+        height: 5px;
+    }
+
+    body:has(.table-page) .buff-panel strong {
+        font-size: 10px;
+        line-height: 1.18;
+    }
+
+    body:has(.table-page) .board-panel {
+        grid-template-rows: auto minmax(0, 1fr);
+    }
+
+    body:has(.table-page) .board-title-row {
+        align-items: center;
+    }
+
+    body:has(.table-page) .board-title-row p {
+        font-size: 12px;
+    }
+
+    body:has(.table-page) .map-stage {
+        width: min(100%, calc((100dvh - 54px) * var(--map-aspect-number, 1.333)));
+        margin-top: 3px;
+        border-radius: 9px;
+        justify-self: center;
+    }
+
+    body:has(.table-page) .side-panel {
+        gap: 5px;
+    }
+
+    body:has(.table-page) .side-title-row {
+        align-items: start;
+    }
+
+    body:has(.table-page) .side-title-row p {
+        font-size: 11px;
+        line-height: 1.2;
+    }
+
+    body:has(.table-page) .side-toggle {
+        grid-template-columns: repeat(2, minmax(34px, 1fr));
+        padding: 3px;
+        border-radius: 8px;
+    }
+
+    body:has(.table-page) .side-toggle button {
+        min-height: 24px;
+        padding: 0 5px;
+        border-radius: 7px;
+        font-size: 10px;
+    }
+
+    body:has(.table-page) .hand-list {
+        grid-auto-rows: 64px;
+        gap: 5px;
+    }
+
+    body:has(.table-page) .hand-card {
+        height: 64px;
+        padding: 5px;
+        border-radius: 8px;
+    }
+
+    body:has(.table-page) .item-tool-button {
+        min-height: 52px;
+        padding: 5px;
+        border-radius: 8px;
+    }
+
+    body:has(.table-page) .hand-card .item-art.small {
+        width: 42px;
+        height: 42px;
+    }
+
+    body:has(.table-page) .item-stack {
+        min-width: 18px;
+        height: 18px;
+        font-size: 10px;
     }
 }
