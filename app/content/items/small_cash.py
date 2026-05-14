@@ -8,5 +8,5 @@ ITEM = {
     'hidden_from_build': True,
     'stackable': True,
     'can_play': False,
-    'fons_value': 100,
+    'fons_value': 1000,
 }

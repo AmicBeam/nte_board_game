@@ -47,10 +47,12 @@ def _normalize_map_payload(payload: dict[str, Any]) -> dict[str, Any]:
     normalized = deepcopy(payload)
     if _is_compact_tile_layers(normalized.get('tiles')):
         expansion = _expand_compact_tile_layers(normalized)
+        _apply_hidden_room_zones(expansion)
         normalized['tiles'] = expansion['tiles']
         normalized['layers'] = expansion['layers']
         normalized['entries'] = expansion['entries']
         normalized['total_layers'] = len(expansion['layers'])
+        normalized['hidden_cells'] = expansion['hidden_cells']
         if expansion['layers']:
             first_layer = expansion['layers'][0]
             normalized['width'] = first_layer['width']
@@ -144,7 +146,202 @@ def _expand_compact_tile_layers(payload: dict[str, Any]) -> dict[str, list[dict[
         'boss_positions': boss_positions,
         'entries': entries,
         'layers': layers,
+        'hidden_cells': [],
     }
+
+
+def _apply_hidden_room_zones(expansion: dict[str, list[dict[str, Any]]]) -> None:
+    hidden_cells = _infer_hidden_room_cells(
+        expansion.get('layers', []),
+        expansion.get('tiles', []),
+        expansion.get('entries', []),
+    )
+    if not hidden_cells:
+        expansion['hidden_cells'] = []
+        return
+
+    expansion['hidden_cells'] = hidden_cells
+    hidden_zone_by_cell = {
+        (int(cell['layer']), int(cell['x']), int(cell['y'])): str(cell['hidden_zone'])
+        for cell in hidden_cells
+    }
+
+    for tile in expansion.get('tiles', []):
+        hidden_zone = _resolve_hidden_zone_for_footprint(tile, hidden_zone_by_cell)
+        if hidden_zone:
+            tile['hidden_zone'] = hidden_zone
+
+    for monster in expansion.get('monster_spawns', []):
+        hidden_zone = hidden_zone_by_cell.get((
+            int(monster.get('layer', 1)),
+            int(monster.get('x', 0)),
+            int(monster.get('y', 0)),
+        ))
+        if hidden_zone:
+            monster['hidden_zone'] = hidden_zone
+
+    for position in expansion.get('boss_positions', []):
+        hidden_zone = hidden_zone_by_cell.get((
+            int(position.get('layer', 1)),
+            int(position.get('x', 0)),
+            int(position.get('y', 0)),
+        ))
+        if hidden_zone:
+            position['hidden_zone'] = hidden_zone
+
+
+def _infer_hidden_room_cells(
+    layers: list[dict[str, Any]],
+    tiles: list[dict[str, Any]],
+    entries: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    hidden_cells: list[dict[str, Any]] = []
+
+    for layer in layers:
+        layer_id = int(layer.get('layer', 1))
+        width = max(0, int(layer.get('width', 0) or 0))
+        height = max(0, int(layer.get('height', 0) or 0))
+        if width <= 0 or height <= 0:
+            continue
+
+        blockers = _hidden_room_blockers_for_layer(layer_id, tiles)
+        hidden_doors = [
+            tile
+            for tile in tiles
+            if int(tile.get('layer', 1)) == layer_id and str(tile.get('object_id') or tile.get('type') or '') == 'hidden_door'
+        ]
+        if not hidden_doors:
+            continue
+        layer_entries = [
+            (int(entry.get('x', 0)), int(entry.get('y', 0)))
+            for entry in entries
+            if int(entry.get('layer', 1)) == layer_id
+        ]
+        queue = [
+            (entry_x, entry_y)
+            for entry_x, entry_y in layer_entries
+            if 0 <= entry_x < width and 0 <= entry_y < height and (entry_x, entry_y) not in blockers
+        ]
+        if not queue:
+            continue
+
+        seen = {(x, y) for x, y in queue}
+        visible_cells: set[tuple[int, int]] = set()
+        while queue:
+            x, y = queue.pop(0)
+            visible_cells.add((x, y))
+            for next_x, next_y in ((x + 1, y), (x - 1, y), (x, y + 1), (x, y - 1)):
+                if (
+                    next_x < 0
+                    or next_y < 0
+                    or next_x >= width
+                    or next_y >= height
+                    or (next_x, next_y) in blockers
+                    or (next_x, next_y) in seen
+                ):
+                    continue
+                seen.add((next_x, next_y))
+                queue.append((next_x, next_y))
+
+        component_cache: dict[tuple[int, int], list[tuple[int, int]]] = {}
+        hidden_components: list[list[tuple[int, int]]] = []
+        for door in hidden_doors:
+            door_x = int(door.get('x', 0))
+            door_y = int(door.get('y', 0))
+            for next_x, next_y in ((door_x + 1, door_y), (door_x - 1, door_y), (door_x, door_y + 1), (door_x, door_y - 1)):
+                if (
+                    next_x < 0
+                    or next_y < 0
+                    or next_x >= width
+                    or next_y >= height
+                    or (next_x, next_y) in blockers
+                ):
+                    continue
+                component = component_cache.get((next_x, next_y))
+                if component is None:
+                    component = _collect_hidden_component(next_x, next_y, width, height, blockers)
+                    for cell in component:
+                        component_cache[cell] = component
+                if any(cell in visible_cells for cell in component):
+                    continue
+                if component not in hidden_components:
+                    hidden_components.append(component)
+
+        for index, component in enumerate(hidden_components, start=1):
+            hidden_zone = f'layer_{layer_id}_hidden_{index}'
+            for x, y in component:
+                hidden_cells.append({
+                    'layer': layer_id,
+                    'x': x,
+                    'y': y,
+                    'hidden_zone': hidden_zone,
+                })
+
+    return hidden_cells
+
+
+def _hidden_room_blockers_for_layer(layer_id: int, tiles: list[dict[str, Any]]) -> set[tuple[int, int]]:
+    blockers: set[tuple[int, int]] = set()
+    for tile in tiles:
+        if int(tile.get('layer', 1)) != layer_id:
+            continue
+        if str(tile.get('object_id') or tile.get('type') or '') not in {'wall', 'hidden_door'}:
+            continue
+        width = max(1, int(tile.get('width', 1) or 1))
+        height = max(1, int(tile.get('height', 1) or 1))
+        start_x = int(tile.get('x', 0))
+        start_y = int(tile.get('y', 0))
+        for offset_y in range(height):
+            for offset_x in range(width):
+                blockers.add((start_x + offset_x, start_y + offset_y))
+    return blockers
+
+
+def _collect_hidden_component(
+    start_x: int,
+    start_y: int,
+    width: int,
+    height: int,
+    blockers: set[tuple[int, int]],
+) -> list[tuple[int, int]]:
+    component: list[tuple[int, int]] = []
+    queue = [(start_x, start_y)]
+    seen = {(start_x, start_y)}
+    while queue:
+        x, y = queue.pop(0)
+        if (x, y) in blockers:
+            continue
+        component.append((x, y))
+        for next_x, next_y in ((x + 1, y), (x - 1, y), (x, y + 1), (x, y - 1)):
+            if (
+                next_x < 0
+                or next_y < 0
+                or next_x >= width
+                or next_y >= height
+                or (next_x, next_y) in blockers
+                or (next_x, next_y) in seen
+            ):
+                continue
+            seen.add((next_x, next_y))
+            queue.append((next_x, next_y))
+    return component
+
+
+def _resolve_hidden_zone_for_footprint(
+    tile: dict[str, Any],
+    hidden_zone_by_cell: dict[tuple[int, int, int], str],
+) -> str | None:
+    layer = int(tile.get('layer', 1))
+    width = max(1, int(tile.get('width', 1) or 1))
+    height = max(1, int(tile.get('height', 1) or 1))
+    start_x = int(tile.get('x', 0))
+    start_y = int(tile.get('y', 0))
+    for offset_y in range(height):
+        for offset_x in range(width):
+            hidden_zone = hidden_zone_by_cell.get((layer, start_x + offset_x, start_y + offset_y))
+            if hidden_zone:
+                return hidden_zone
+    return None
 
 
 def _expand_monster_spawns(definitions: Any, spawns: list[dict[str, Any]]) -> list[dict[str, Any]]:

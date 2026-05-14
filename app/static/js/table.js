@@ -85,6 +85,7 @@ let currentState = null;
 let activePreview = null;
 let moveLocked = false;
 let initialCameraCentered = false;
+let lastRenderedLayer = null;
 let primedControl = null;
 let tableTutorialInitialized = false;
 let hoveredMapCellKey = null;
@@ -97,6 +98,7 @@ const mapCamera = {
   zoom: MAP_MIN_ZOOM,
   dragging: false,
   dragMoved: false,
+  pointerId: null,
   startX: 0,
   startY: 0,
   originX: 0,
@@ -288,6 +290,8 @@ function statCard(label, value, options = {}) {
 
 function renderState(state) {
   currentState = state;
+  const currentLayer = activeLayer(state);
+  const shouldResetMapZoom = !initialCameraCentered || lastRenderedLayer !== currentLayer;
   const character = state.selected_character || state.character_instance || {};
   phaseChip.textContent = prettyPhase(state.phase);
   phaseChip.className = `phase-chip phase-${classToken(state.phase)}`;
@@ -297,8 +301,8 @@ function renderState(state) {
   mapBackground.src = state.board.background_image;
   updateMapContentSize(state);
   syncMapZoomLimit(state);
-  if (!initialCameraCentered) {
-    setMapZoom(currentMapMaxZoom(state), { immediate: true });
+  if (shouldResetMapZoom) {
+    setMapZoom(middleMapZoom(state), { immediate: true });
   }
   renderCombatHud(state);
 
@@ -320,10 +324,13 @@ function renderState(state) {
   refreshActivePreview();
   clampMapCamera();
   applyMapCamera();
-  if (!initialCameraCentered) {
-    initialCameraCentered = true;
+  if (shouldResetMapZoom) {
     centerCameraOnPlayer(state, { smooth: false });
   }
+  if (!initialCameraCentered) {
+    initialCameraCentered = true;
+  }
+  lastRenderedLayer = currentLayer;
 }
 
 function renderCombatHud(state) {
@@ -360,6 +367,9 @@ function renderMapGrid(state) {
 
   for (let y = 0; y < height; y += 1) {
     for (let x = 0; x < width; x += 1) {
+      if (isHiddenCell(state, x, y, layer)) {
+        continue;
+      }
       const tile = tileByKey.get(cellKey(x, y));
       const tileType = tileDisplayType(tile);
       const hasMonster = monsterByKey.has(cellKey(x, y));
@@ -379,6 +389,20 @@ function renderMapGrid(state) {
       }
       if (hasBoss) {
         cell.classList.add('cell-boss');
+      }
+      if (tileType === 'wall') {
+        if (visibleTileDisplayType(state, tileByKey.get(cellKey(x, y - 1)), x, y - 1, layer) !== 'wall') {
+          cell.classList.add('wall-edge-top');
+        }
+        if (visibleTileDisplayType(state, tileByKey.get(cellKey(x + 1, y)), x + 1, y, layer) !== 'wall') {
+          cell.classList.add('wall-edge-right');
+        }
+        if (visibleTileDisplayType(state, tileByKey.get(cellKey(x, y + 1)), x, y + 1, layer) !== 'wall') {
+          cell.classList.add('wall-edge-bottom');
+        }
+        if (visibleTileDisplayType(state, tileByKey.get(cellKey(x - 1, y)), x - 1, y, layer) !== 'wall') {
+          cell.classList.add('wall-edge-left');
+        }
       }
       mapGridLayer.appendChild(cell);
     }
@@ -1008,8 +1032,30 @@ function cellKey(x, y) {
   return `${x}:${y}`;
 }
 
+function hiddenCellEntries(state = currentState) {
+  return Array.isArray(state?.map?.hidden_cells) ? state.map.hidden_cells : [];
+}
+
 function activeLayer(state = currentState) {
   return Number(state?.map?.current_layer || state?.board?.current_layer || 1);
+}
+
+function isHiddenCell(state, x, y, layer = activeLayer(state)) {
+  if (!state?.map || state.map.hidden_room_revealed) {
+    return false;
+  }
+  return hiddenCellEntries(state).some((cell) => (
+    Number(cell.layer || 1) === Number(layer)
+    && Number(cell.x) === Number(x)
+    && Number(cell.y) === Number(y)
+  ));
+}
+
+function visibleTileDisplayType(state, tile, x, y, layer = activeLayer(state)) {
+  if (isHiddenCell(state, x, y, layer)) {
+    return 'floor';
+  }
+  return tileDisplayType(tile);
 }
 
 function mapLayerInfo(state = currentState, layer = activeLayer(state)) {
@@ -1080,9 +1126,16 @@ function isBossCell(state, x, y) {
   return boss.hp > 0 && (boss.positions || []).some((pos) => onLayer(pos, layer) && pos.x === x && pos.y === y);
 }
 
+function isPassableHiddenDoor(tile) {
+  return tile?.type === 'hidden_door' || tile?.object_id === 'hidden_door';
+}
+
 function getBasicBlockReason(state, x, y) {
   if (x < 0 || y < 0 || x >= mapWidth(state) || y >= mapHeight(state)) {
     return '边界';
+  }
+  if (isHiddenCell(state, x, y)) {
+    return '隐藏区域尚未发现';
   }
   if (isMonsterCell(state, x, y)) {
     return '怪物阻挡';
@@ -1091,6 +1144,9 @@ function getBasicBlockReason(state, x, y) {
     return 'Boss 占位';
   }
   const tile = tileAt(state, x, y);
+  if (isPassableHiddenDoor(tile)) {
+    return null;
+  }
   const displayType = tileDisplayType(tile);
   if (displayType === 'wall') {
     return '墙体阻挡';
@@ -1238,7 +1294,7 @@ function targetTooltipText(baseText, preview) {
   return `${base}。本次将移动 ${steps} 步${preview.turns ? '，路径会转弯一次' : ''}。`;
 }
 
-function targetTooltipTags(tags, preview) {
+function targetTooltipTags(tags) {
   return [...tags];
 }
 
@@ -1308,6 +1364,9 @@ function buildMoveRangeCells(state, dice = pendingDice(state)) {
       const x = origin.x + dx;
       const y = origin.y + dy;
       if (x < 0 || y < 0 || x >= width || y >= height) {
+        continue;
+      }
+      if (isHiddenCell(state, x, y)) {
         continue;
       }
       if (axisWithinDiceRange(Math.abs(dx), Math.abs(dy), dice)) {
@@ -1450,7 +1509,7 @@ function renderPreview(preview) {
     marker.style.top = `${pos.top}%`;
     marker.style.width = `${bounds.width * sizeScale}%`;
     marker.style.height = `${bounds.height * sizeScale}%`;
-    marker.textContent = index === 0 || mapCamera.zoom < 1.6 ? '' : String(index);
+    marker.textContent = shouldShowPreviewIndex(index) ? String(index) : '';
     mapPreviewLayer.appendChild(marker);
   });
 
@@ -1480,6 +1539,19 @@ function renderPreview(preview) {
     : `预览：落点 (${preview.landing.x}, ${preview.landing.y})。${preview.redirects.length ? '途中会发生转向。' : ''}`;
 }
 
+function currentCellPixelSize(state = currentState, layer = activeLayer(state)) {
+  if (!state?.map) {
+    return 0;
+  }
+  const cellWidth = (mapCamera.baseWidth / mapWidth(state, layer)) * mapCamera.zoom;
+  const cellHeight = (mapCamera.baseHeight / mapHeight(state, layer)) * mapCamera.zoom;
+  return Math.max(0, Math.min(cellWidth, cellHeight));
+}
+
+function shouldShowPreviewIndex(index, state = currentState) {
+  return index > 0 && currentCellPixelSize(state) >= 22;
+}
+
 function addMoveRangeOutline(cells) {
   const keys = new Set(cells.map((cell) => cellKey(cell.x, cell.y)));
   const edges = [
@@ -1506,18 +1578,25 @@ function addMoveRangeOutline(cells) {
 }
 
 function addPreviewSegment(from, to) {
-  const start = cellPercent(from);
-  const end = cellPercent(to);
   const line = document.createElement('span');
-  const dx = end.left - start.left;
-  const dy = end.top - start.top;
-  const length = Math.sqrt((dx * dx) + (dy * dy));
-  const angle = Math.atan2(dy, dx) * (180 / Math.PI);
   line.className = 'preview-line';
-  line.style.left = `${start.left}%`;
-  line.style.top = `${start.top}%`;
-  line.style.width = `${length}%`;
-  line.style.transform = `rotate(${angle}deg)`;
+  if (Number(from.y) === Number(to.y)) {
+    const y = Number(from.y);
+    const leftX = Math.min(Number(from.x), Number(to.x));
+    line.classList.add('preview-line-horizontal');
+    line.style.left = `${((leftX + 0.5) / mapWidth(currentState)) * 100}%`;
+    line.style.top = `${((y + 0.5) / mapHeight(currentState)) * 100}%`;
+    line.style.width = `${(Math.abs(Number(to.x) - Number(from.x)) / mapWidth(currentState)) * 100}%`;
+  } else if (Number(from.x) === Number(to.x)) {
+    const x = Number(from.x);
+    const topY = Math.min(Number(from.y), Number(to.y));
+    line.classList.add('preview-line-vertical');
+    line.style.left = `${((x + 0.5) / mapWidth(currentState)) * 100}%`;
+    line.style.top = `${((topY + 0.5) / mapHeight(currentState)) * 100}%`;
+    line.style.height = `${(Math.abs(Number(to.y) - Number(from.y)) / mapHeight(currentState)) * 100}%`;
+  } else {
+    return;
+  }
   mapPreviewLayer.appendChild(line);
 }
 
@@ -1591,6 +1670,11 @@ function currentMapMaxZoom(state = currentState) {
   const cellHeight = mapCamera.baseHeight / mapHeight(state);
   const baseCellPixels = Math.max(1, Math.min(cellWidth, cellHeight));
   return Math.max(MAP_MIN_ZOOM, Math.min(MAP_HARD_MAX_ZOOM, MAP_TARGET_CELL_PIXELS / baseCellPixels));
+}
+
+function middleMapZoom(state = currentState) {
+  const maxZoom = currentMapMaxZoom(state);
+  return MAP_MIN_ZOOM + ((maxZoom - MAP_MIN_ZOOM) / 2);
 }
 
 function syncMapZoomLimit(state = currentState) {
@@ -1747,7 +1831,37 @@ function mapPointFromClient(event) {
   if (x < 0 || y < 0 || x >= mapWidth(currentState) || y >= mapHeight(currentState)) {
     return null;
   }
+  if (isHiddenCell(currentState, x, y)) {
+    return null;
+  }
   return { x, y };
+}
+
+function isOverlayTarget(event) {
+  return Boolean(event?.target?.closest?.('.overlay-token'));
+}
+
+function finishMapDrag(event = null) {
+  if (!mapCamera.dragging) {
+    return;
+  }
+  const pointerId = mapCamera.pointerId;
+  const shouldSelect = Boolean(
+    event
+      && pointerId === event.pointerId
+      && !mapCamera.dragMoved
+      && !isOverlayTarget(event),
+  );
+  if (pointerId !== null && mapStage?.hasPointerCapture(pointerId)) {
+    mapStage.releasePointerCapture(pointerId);
+  }
+  mapCamera.dragging = false;
+  mapCamera.dragMoved = false;
+  mapCamera.pointerId = null;
+  mapStage?.classList.remove('drag-ready', 'dragging');
+  if (shouldSelect) {
+    handleMapPointerSelection(event);
+  }
 }
 
 function showMapPointerPreview(event) {
@@ -1860,7 +1974,7 @@ async function flashIdentifyRange(step) {
   mapFxLayer.querySelectorAll('.identify-flash-cell').forEach((node) => node.remove());
 }
 
-async function playActionQueue(queue, beforeState, nextState) {
+async function playActionQueue(queue, nextState) {
   let showedBattle = false;
   for (const step of queue || []) {
     if (step.type === 'move') {
@@ -2039,7 +2153,6 @@ async function loadState() {
 
 async function playItem(itemInstanceId) {
   try {
-    const beforeState = currentState;
     const item = (currentState?.hand_details || []).find((entry) => entry.instance_id === itemInstanceId);
     let declaredValue = null;
     if (item?.requires_die_choice) {
@@ -2059,7 +2172,7 @@ async function playItem(itemInstanceId) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ item_instance_id: itemInstanceId, declared_value: declaredValue }),
     });
-    await playActionQueue(nextState.action_queue || [], beforeState, nextState);
+    await playActionQueue(nextState.action_queue || [], nextState);
     renderState(nextState);
   } catch (error) {
     window.alert(error.message);
@@ -2081,7 +2194,7 @@ async function move(direction, path = null) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ direction, path }),
     });
-    const showedBattle = await playActionQueue(nextState.action_queue || [], beforeState, nextState);
+    const showedBattle = await playActionQueue(nextState.action_queue || [], nextState);
     renderState(nextState);
     clearPreview();
     ensureCameraShowsPlayer(nextState, { smooth: true });
@@ -2124,7 +2237,7 @@ function logoutRun() {
   if (!confirmed) {
     return;
   }
-  clearToken();
+  window.localStorage.removeItem('nte_token');
   window.location.href = '/login';
 }
 
@@ -2166,12 +2279,13 @@ if (mapStage) {
     if (event.button !== 0) {
       return;
     }
-    if (event.target.closest('.overlay-token')) {
+    if (isOverlayTarget(event)) {
       return;
     }
     clearPrimedControl();
     mapCamera.dragging = true;
     mapCamera.dragMoved = false;
+    mapCamera.pointerId = event.pointerId;
     mapCamera.startX = event.clientX;
     mapCamera.startY = event.clientY;
     mapCamera.originX = mapCamera.x;
@@ -2181,6 +2295,9 @@ if (mapStage) {
     mapStageInner?.classList.remove('camera-smooth');
   });
   mapStage.addEventListener('pointermove', (event) => {
+    if (mapCamera.dragging && event.pointerId !== mapCamera.pointerId) {
+      return;
+    }
     if (!mapCamera.dragging) {
       showMapPointerPreview(event);
       return;
@@ -2197,28 +2314,36 @@ if (mapStage) {
     applyMapCamera();
   });
   mapStage.addEventListener('pointerup', (event) => {
-    const shouldSelect = mapCamera.dragging && !mapCamera.dragMoved && !event.target.closest('.overlay-token');
-    if (mapStage.hasPointerCapture(event.pointerId)) {
-      mapStage.releasePointerCapture(event.pointerId);
-    }
-    mapCamera.dragging = false;
-    mapStage.classList.remove('drag-ready', 'dragging');
-    if (shouldSelect) {
-      handleMapPointerSelection(event);
+    if (event.pointerId === mapCamera.pointerId) {
+      finishMapDrag(event);
     }
   });
   mapStage.addEventListener('pointercancel', (event) => {
-    if (mapStage.hasPointerCapture(event.pointerId)) {
-      mapStage.releasePointerCapture(event.pointerId);
+    if (event.pointerId === mapCamera.pointerId) {
+      finishMapDrag();
     }
-    mapCamera.dragging = false;
-    mapStage.classList.remove('drag-ready', 'dragging');
+  });
+  mapStage.addEventListener('lostpointercapture', () => {
+    finishMapDrag();
   });
   mapStage.addEventListener('pointerleave', () => {
     if (!mapCamera.dragging) {
       hoveredMapCellKey = null;
       clearPreview();
     }
+  });
+  window.addEventListener('pointerup', (event) => {
+    if (event.pointerId === mapCamera.pointerId) {
+      finishMapDrag(event);
+    }
+  });
+  window.addEventListener('pointercancel', (event) => {
+    if (event.pointerId === mapCamera.pointerId) {
+      finishMapDrag();
+    }
+  });
+  window.addEventListener('blur', () => {
+    finishMapDrag();
   });
 }
 window.addEventListener('resize', () => {

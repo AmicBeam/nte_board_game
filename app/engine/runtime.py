@@ -60,6 +60,7 @@ def serialize_item_definition(item_definition: dict[str, Any]) -> dict[str, Any]
     payload.pop('event_hooks', None)
     payload.pop('runtime_effects', None)
     payload.setdefault('can_play', True)
+    payload['description'] = resolve_item_description(payload)
     tags = [str(tag) for tag in payload.get('tags', []) if str(tag)]
     if payload.get('type') in {'loot', 'key'} and payload.get('hidden_from_build') and '可鉴别' not in tags:
         tags.append('可鉴别')
@@ -78,3 +79,13 @@ def serialize_item_instance(item_instance: dict[str, Any]) -> dict[str, Any] | N
         if key in item_instance:
             payload[key] = item_instance[key]
     return payload
+
+
+def resolve_item_description(item_definition: dict[str, Any]) -> str:
+    base_description = str(item_definition.get('description', '') or '').strip()
+    fons_value = int(item_definition.get('fons_value', 0) or 0)
+    if fons_value <= 0:
+        return base_description
+    if '方斯' in base_description and str(fons_value) in base_description:
+        return base_description
+    return f'鉴别后转化为 {fons_value:,} 方斯。'

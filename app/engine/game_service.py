@@ -618,6 +618,18 @@ def serialize_snapshot(state: JsonDict) -> JsonDict:
         for tile in payload.get('map', {}).get('tiles', []):
             if tile.get('hidden_zone') and tile.get('object_id') != 'hidden_door':
                 tile['display_type'] = 'floor'
+        payload['map']['monsters'] = [
+            monster
+            for monster in payload.get('map', {}).get('monsters', [])
+            if not monster.get('hidden_zone')
+        ]
+        boss_payload = payload.get('map', {}).get('boss')
+        if isinstance(boss_payload, dict):
+            boss_payload['positions'] = [
+                position
+                for position in boss_payload.get('positions', [])
+                if not position.get('hidden_zone')
+            ]
     payload['board'] = build_board_overlay(state)
     payload['available_directions'] = list(DIRECTIONS.keys())
     payload['hand_details'] = [
@@ -994,6 +1006,10 @@ def _is_on_current_layer(state: JsonDict, entity: JsonDict) -> bool:
 
 def is_hidden_from_player(state: JsonDict, tile: JsonDict) -> bool:
     return bool(tile.get('hidden_zone')) and not state['map'].get('hidden_room_revealed') and tile.get('object_id') != 'hidden_door'
+
+
+def is_hidden_entity(state: JsonDict, entity: JsonDict) -> bool:
+    return bool(entity.get('hidden_zone')) and not state['map'].get('hidden_room_revealed')
 
 
 def should_identify_on_pass_through(map_object: JsonDict, block_type: object) -> bool:
@@ -1661,10 +1677,14 @@ def build_board_overlay(state: JsonDict) -> JsonDict:
             overlay['tags'] = map_object_tags(map_object)
             overlays.append(overlay)
     for monster in state['map']['monsters']:
-        if _is_on_current_layer(state, monster) and monster['hp'] > 0 and not monster.get('captured'):
+        if _is_on_current_layer(state, monster) and monster['hp'] > 0 and not monster.get('captured') and not is_hidden_entity(state, monster):
             overlays.append(_overlay(monster['x'], monster['y'], width, height, _monster_icon(monster), f"{monster['name']}：HP {monster['hp']}/{monster['max_hp']}，攻击 {monster['attack']}，防御 {monster['defense']}，射程 {monster['range']}", 'monster', current_map_layer(state)))
     boss = state['map']['boss']
-    boss_positions = [pos for pos in boss['positions'] if _is_on_current_layer(state, pos)]
+    boss_positions = [
+        pos
+        for pos in boss['positions']
+        if _is_on_current_layer(state, pos) and not is_hidden_entity(state, pos)
+    ]
     if boss['hp'] > 0 and boss_positions:
         overlays.append(_area_overlay(
             boss_positions,

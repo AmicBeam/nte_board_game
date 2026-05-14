@@ -16,6 +16,7 @@ if TYPE_CHECKING:
 
 def build_loot_payload(definition_id: str, overrides: dict | None = None) -> dict | None:
     from app.content.loader import get_item
+    from app.engine.runtime import resolve_item_description
 
     item_definition = get_item(definition_id)
     if item_definition is None:
@@ -24,7 +25,7 @@ def build_loot_payload(definition_id: str, overrides: dict | None = None) -> dic
         'definition_id': definition_id,
         'name': item_definition.get('name', definition_id),
         'icon': item_definition.get('icon', 'event'),
-        'description': item_definition.get('description', '鉴别后自动转化为方斯。'),
+        'description': resolve_item_description(item_definition),
         'value': int(item_definition.get('fons_value', 0) or 0),
     }
     if overrides:
