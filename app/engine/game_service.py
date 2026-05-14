@@ -177,9 +177,15 @@ def get_encyclopedia_payload() -> JsonDict:
         if item['id'] in exclusive_item_ids:
             _append_tag(serialized_item, '专属')
         codex_items.append(serialized_item)
-    enemies = [
-        {
-            'id': monster['id'],
+    enemies = []
+    seen_enemy_ids: set[str] = set()
+    for monster in game_map.get('monsters', []):
+        enemy_id = str(monster.get('definition_id') or monster.get('id') or monster.get('kind') or '')
+        if enemy_id in seen_enemy_ids:
+            continue
+        seen_enemy_ids.add(enemy_id)
+        enemies.append({
+            'id': enemy_id,
             'name': monster['name'],
             'kind': monster.get('kind', 'monster'),
             'icon': _monster_icon(monster),
@@ -188,9 +194,7 @@ def get_encyclopedia_payload() -> JsonDict:
             'defense': monster.get('defense', 0),
             'range': monster.get('range', 1),
             'description': f"HP {monster.get('max_hp', monster.get('hp', 0))} / 攻击 {monster.get('attack', 0)} / 防御 {monster.get('defense', 0)} / 射程 {monster.get('range', 1)}",
-        }
-        for monster in game_map.get('monsters', [])
-    ]
+        })
     boss = game_map.get('boss', {})
     if boss:
         enemies.append({
@@ -218,7 +222,7 @@ def get_encyclopedia_payload() -> JsonDict:
 
 
 def _collect_map_object_ids(game_map: JsonDict) -> set[str]:
-    map_object_ids: set[str] = {'loot_item'}
+    map_object_ids: set[str] = set()
     for tile in game_map.get('tiles', []):
         _append_map_object_id(map_object_ids, tile)
     for entries in game_map.get('loot_tables', {}).values():
@@ -232,7 +236,7 @@ def _collect_map_object_ids(game_map: JsonDict) -> set[str]:
 
 def _append_map_object_id(map_object_ids: set[str], tile: JsonDict) -> None:
     object_id = resolve_map_object_id(tile)
-    if object_id and object_id not in {'floor', 'random', 'wall', 'boss_tile'}:
+    if object_id and object_id not in {'floor', 'random', 'wall', 'boss_tile', 'access_card_spot'}:
         map_object_ids.add(object_id)
 
 
@@ -242,7 +246,6 @@ def _map_object_display_name(object_id: str) -> str:
         'hidden_door': '隐藏门',
         'keycard_door': '经理办公室暗门',
         'large_safe': '大型保险箱',
-        'loot_item': '可鉴别物',
         'open_door': '已开启的门',
         'portal': '传送门',
         'safe': '保险箱',

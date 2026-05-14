@@ -15,7 +15,7 @@ def hidden_door_enter(context: 'EventContext') -> None:
     add_map_log(context, message)
     add_action_step(context.state, {
         'type': 'popup',
-        'icon': '/static/images/map_object/push-door.svg',
+        'icon': '/static/images/map_object/hidden-door-panel.svg',
         'title': '隐藏门',
         'message': message,
     })
@@ -24,7 +24,7 @@ def hidden_door_enter(context: 'EventContext') -> None:
 
 MAP_OBJECT = {
     'id': 'hidden_door',
-    'icon': '/static/images/map_object/push-door.svg',
+    'icon': '/static/images/map_object/hidden-door-panel.svg',
     'block_type': BLOCK_TYPE_PASS,
     'tooltip': '隐藏门：进入后才显示内部空间，不拦截移动。',
     'event_hooks': {
