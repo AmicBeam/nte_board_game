@@ -2,6 +2,7 @@ from typing import TYPE_CHECKING
 
 from app.content.map_objects.common import BLOCK_TYPE_BLOCK, BLOCK_TYPE_PASS, add_action_step, add_map_log, add_tile_update_step
 from app.engine.events import GameEvent
+from app.engine.identification import grant_identification_success
 
 if TYPE_CHECKING:
     from app.engine.event_context import EventContext
@@ -42,6 +43,7 @@ def door_identify(context: 'EventContext') -> None:
         'title': '门',
         'message': '鉴别完成，门已开启，现在可以直接通过。',
     })
+    grant_identification_success(context, rarity='n', source_name='鉴别开门')
     context.emit(GameEvent.MAP_OBJECT_TRIGGERED, {
         'object_id': context.payload['object_id'],
         'object_type': context.payload['tile_type'],

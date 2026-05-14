@@ -6,6 +6,7 @@ CHARACTER = {
     'defense': 3,
     'portrait_image': '/static/images/characters/portrait/阿德勒.png',
     'avatar_image': '/static/images/characters/avatar/阿德勒.png',
+    'hidden_from_build': True,
     'passive': '暂无特殊效果。',
     'passive_events': {},
 }

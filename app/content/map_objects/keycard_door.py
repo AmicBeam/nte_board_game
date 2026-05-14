@@ -2,6 +2,7 @@ from typing import TYPE_CHECKING
 
 from app.content.map_objects.common import BLOCK_TYPE_BLOCK, BLOCK_TYPE_PASS, add_action_step, add_map_log, add_tile_update_step, consume_item_from_hand
 from app.engine.events import GameEvent
+from app.engine.identification import grant_identification_success
 
 if TYPE_CHECKING:
     from app.engine.event_context import EventContext
@@ -31,6 +32,7 @@ def keycard_door_identify(context: 'EventContext') -> None:
             'title': '经理办公室暗门',
             'message': '鉴别完成：这道暗门需要经理门禁卡。',
         })
+        grant_identification_success(context, rarity='n', source_name='鉴别暗门')
         return
     layer = tile.get('layer', context.state.get('map', {}).get('current_layer', 1))
     x = tile['x']
@@ -54,6 +56,7 @@ def keycard_door_identify(context: 'EventContext') -> None:
         'title': '经理办公室暗门',
         'message': '门禁卡验证通过，暗门已打开，现在可以直接通过。',
     })
+    grant_identification_success(context, rarity='n', source_name='鉴别开启暗门')
 
 
 MAP_OBJECT = {

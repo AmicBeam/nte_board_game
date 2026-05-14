@@ -2,7 +2,7 @@ ITEM = {
     'id': 'chips',
     'name': '原味薯片',
     'type': 'loot',
-    'rarity': 'common',
+    'rarity': 'n',
     'icon': '/static/images/map_object/RobBankItem_035.webp',
     'description': '鉴别后自动转化为方斯。',
     'hidden_from_build': True,

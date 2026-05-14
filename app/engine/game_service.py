@@ -30,6 +30,13 @@ from app.engine.effects import (
 from app.engine.event_bus import dispatch_event, run_phase_sequence
 from app.engine.event_context import EventContext, EventHook, JsonDict
 from app.engine.events import GameEvent, TURN_CLOSING_SEQUENCE, TURN_OPENING_SEQUENCE
+from app.engine.identification import (
+    identification_progress,
+    initialize_identification_state,
+    mark_battle_step,
+    reset_turn_flags,
+    settle_combo_for_turn,
+)
 from app.engine.runtime import (
     build_character_instance,
     build_item_instances,
@@ -42,8 +49,10 @@ from app.utils.logger import get_logger
 
 MAX_BUILD_ITEM_COUNT = 6
 MAP_LOCKED_ITEM_IDS: tuple[str, ...] = ()
-XIAOZHI_FONS_ATTACK_STEP = 10000
-XIAOZHI_FONS_ATTACK_CAP = 50
+XIAOZHI_FONS_ATTACK_STEP = 1000
+XIAOZHI_FONS_ATTACK_CAP = 5
+MAMEN_FONS_DEFENSE_STEP = 10000
+MAMEN_FONS_DAMAGE_TAX_PERCENT = 10
 MIN_IDENTIFICATION_LEVEL = 1
 MAX_IDENTIFICATION_LEVEL = 4
 LOG_LIMIT = 18
@@ -130,7 +139,10 @@ def get_catalog_payload(player: Player) -> JsonDict:
     saved_build = get_build(player)
     catalog_item_ids = _catalog_visible_item_ids()
     return {
-        'characters': [serialize_character_definition(character_definition) for character_definition in load_characters()],
+        'characters': [
+            serialize_character_definition(character_definition)
+            for character_definition in _selectable_characters()
+        ],
         'items': [
             serialize_item_definition(item_definition)
             for item_definition in load_items()
@@ -197,6 +209,9 @@ def get_encyclopedia_payload() -> JsonDict:
         })
     boss = game_map.get('boss', {})
     if boss:
+        boss_description = f"HP {boss.get('max_hp', boss.get('hp', 0))} / 攻击 {boss.get('attack', 0)} / 防御 {boss.get('defense', 0)} / 射程 {boss.get('range', 1)}"
+        if boss.get('id') == 'mamen':
+            boss_description += '。玛门会被方斯刺激：玩家每持有 10000 方斯，玛门防御 -1，最低为 0；玛门造成伤害时会吞噬玩家当前 10% 方斯。'
         enemies.append({
             'id': boss.get('id', 'boss'),
             'name': boss.get('name', 'Boss'),
@@ -206,7 +221,7 @@ def get_encyclopedia_payload() -> JsonDict:
             'attack': boss.get('attack', 0),
             'defense': boss.get('defense', 0),
             'range': boss.get('range', 1),
-            'description': f"HP {boss.get('max_hp', boss.get('hp', 0))} / 攻击 {boss.get('attack', 0)} / 防御 {boss.get('defense', 0)} / 射程 {boss.get('range', 1)}",
+            'description': boss_description,
         })
     return {
         'map': {
@@ -271,6 +286,7 @@ def serialize_character_definition(character_definition: JsonDict) -> JsonDict:
 def save_build(player: Player, character_id: str, item_ids: list[str]) -> JsonDict | None:
     character_definition = get_character(character_id)
     _ensure(character_definition is not None, '角色不存在。')
+    _ensure(_is_character_selectable(character_definition), '该角色暂不可在构筑中选择。')
     selectable_item_ids = _selectable_item_ids(character_definition, item_ids)
     _ensure(len(selectable_item_ids) <= MAX_BUILD_ITEM_COUNT, f'最多选择 {MAX_BUILD_ITEM_COUNT} 个道具。')
     for item_id in selectable_item_ids:
@@ -314,14 +330,27 @@ def start_or_resume_run_for_room(room: Room, player: Player) -> JsonDict:
 
 
 def normalize_build_payload(build: JsonDict) -> JsonDict:
-    characters = load_characters()
+    characters = _selectable_characters()
     default_character_id = characters[0]['id'] if characters else ''
     character_id = build.get('character_id')
-    if get_character(str(character_id)) is None:
+    character_definition = get_character(str(character_id))
+    if character_definition is None or not _is_character_selectable(character_definition):
         character_id = default_character_id
-    character_definition = get_character(str(character_id)) or {}
+        character_definition = get_character(str(character_id))
     item_ids = _selectable_item_ids(character_definition, build.get('item_ids', []))[:MAX_BUILD_ITEM_COUNT]
     return {'character_id': character_id, 'item_ids': item_ids}
+
+
+def _selectable_characters() -> list[JsonDict]:
+    return [
+        character_definition
+        for character_definition in load_characters()
+        if _is_character_selectable(character_definition)
+    ]
+
+
+def _is_character_selectable(character_definition: JsonDict | None) -> bool:
+    return bool(character_definition) and not character_definition.get('hidden_from_build')
 
 
 def _locked_item_ids_for_character(character_definition: JsonDict | None) -> list[str]:
@@ -569,6 +598,11 @@ def create_initial_state(
                 'attack': character_instance['attack'],
                 'defense': character_instance['defense'],
                 'identification_level': int(character_instance.get('identification_level', 1)),
+                'identification_exp_units': 0,
+                'identification_combo': 0,
+                'identification_identified_this_turn': False,
+                'identification_battled_this_turn': False,
+                'safe_bonus_rolls': 0,
                 'keys': 0,
                 'keycards': 0,
                 'fons_amount': 0,
@@ -616,6 +650,7 @@ def serialize_snapshot(state: JsonDict) -> JsonDict:
         'defense': current_defense(state),
         'identification_level': current_identification_level(state),
     }
+    payload['identification_progress'] = identification_progress(state['player'])
     payload['identification_range'] = identification_range_cells(state)
     if not payload.get('map', {}).get('hidden_room_revealed'):
         for tile in payload.get('map', {}).get('tiles', []):
@@ -837,13 +872,19 @@ def _normalize_loaded_state(state: JsonDict) -> JsonDict:
         serialized_character = serialize_character_definition(character_definition)
         character_instance['portrait_image'] = serialized_character['portrait_image']
         character_instance['avatar_image'] = serialized_character['avatar_image']
-        player_scope.setdefault('player', {}).setdefault('keycards', 0)
-        player_scope.setdefault('player', {}).setdefault('fons_amount', 0)
-        player_scope.setdefault('player', {})['identification_level'] = int(character_instance.get('identification_level', 1))
+        player_state = player_scope.setdefault('player', {})
+        player_state.setdefault('keycards', 0)
+        player_state.setdefault('fons_amount', 0)
+        base_identification_level = int(character_instance.get('identification_level', 1))
+        player_state['identification_level'] = max(
+            base_identification_level,
+            int(player_state.get('identification_level', base_identification_level) or base_identification_level),
+        )
+        initialize_identification_state(player_state, base_identification_level)
         existing_fons = next((item for item in player_scope.get('hand', []) if item.get('definition_id') == 'fons'), None)
         if existing_fons is not None:
-            player_scope['player']['fons_amount'] = max(
-                int(player_scope['player'].get('fons_amount', 0)),
+            player_state['fons_amount'] = max(
+                int(player_state.get('fons_amount', 0)),
                 int(existing_fons.get('amount', 0)),
             )
         _absorb_convertible_hand_items(player_scope)
@@ -992,6 +1033,14 @@ def map_layer_dimensions(game_map: JsonDict, layer: int) -> tuple[int, int]:
         if int(layer_meta.get('layer', 1)) == int(layer):
             return int(layer_meta.get('width', 0)), int(layer_meta.get('height', 0))
     return int(game_map.get('width', 0)), int(game_map.get('height', 0))
+
+
+def map_layer_background_image(game_map: JsonDict, layer: int) -> str:
+    fallback = str(game_map.get('background_image', ''))
+    for layer_meta in game_map.get('layers', []):
+        if int(layer_meta.get('layer', 1)) == int(layer):
+            return str(layer_meta.get('background_image') or fallback)
+    return fallback
 
 
 def current_map_dimensions(state: JsonDict) -> tuple[int, int]:
@@ -1325,7 +1374,8 @@ def _default_direct_attack(context: EventContext, state: JsonDict) -> None:
     enemy = _find_enemy_by_id(state, str(context.payload['enemy_id']))
     _ensure(enemy is not None, f"未找到战斗目标：{context.payload['enemy_id']}")
     actor_profile = state['players'][str(state['current_actor_uid'])]['profile']
-    outgoing = max(1, current_attack(state) - enemy['defense'])
+    mark_battle_step(state)
+    outgoing = max(1, current_attack(state) - effective_enemy_defense(state, enemy))
     damage_result = resolve_damage_package(state, build_damage_package(
         source_name=str(actor_profile.get('nickname', '玩家')),
         source_id=PLAYER_TARGET_ID,
@@ -1368,6 +1418,7 @@ def _default_direct_attack(context: EventContext, state: JsonDict) -> None:
         attack_kind=str(context.payload.get('attack_kind', '反击')),
         allow_block=True,
     ))
+    _apply_mamen_fons_tax(state, enemy, incoming_result)
     context.payload['incoming_damage'] = incoming_result['final_damage']
     add_action_step(state, {
         'type': 'battle',
@@ -1388,6 +1439,7 @@ def _default_ranged_attack(context: EventContext, state: JsonDict) -> None:
     enemy = _find_enemy_by_id(state, str(context.payload['enemy_id']))
     _ensure(enemy is not None, f"未找到远程目标：{context.payload['enemy_id']}")
     actor_profile = state['players'][str(state['current_actor_uid'])]['profile']
+    mark_battle_step(state)
     damage_result = resolve_damage_package(state, build_damage_package(
         source_name=str(enemy['name']),
         source_id=str(enemy['id']),
@@ -1400,6 +1452,7 @@ def _default_ranged_attack(context: EventContext, state: JsonDict) -> None:
         attack_kind=str(context.payload.get('attack_kind', '远程攻击')),
         allow_block=True,
     ))
+    _apply_mamen_fons_tax(state, enemy, damage_result)
     context.payload['incoming_damage'] = damage_result['final_damage']
     add_action_step(state, {
         'type': 'battle',
@@ -1426,6 +1479,30 @@ def _find_enemy_by_id(state: JsonDict, enemy_id: str) -> JsonDict | None:
     return None
 
 
+def effective_enemy_defense(state: JsonDict, enemy: JsonDict) -> int:
+    defense = int(enemy.get('defense', 0) or 0)
+    if enemy.get('id') != 'mamen':
+        return defense
+    return max(0, defense - (fons_amount(state) // MAMEN_FONS_DEFENSE_STEP))
+
+
+def _apply_mamen_fons_tax(state: JsonDict, enemy: JsonDict, damage_result: JsonDict) -> None:
+    if enemy.get('id') != 'mamen' or int(damage_result.get('final_damage', 0) or 0) <= 0:
+        return
+    current_fons = fons_amount(state)
+    if current_fons <= 0:
+        return
+    consumed = max(1, current_fons * MAMEN_FONS_DAMAGE_TAX_PERCENT // 100)
+    set_fons_amount(state, max(0, current_fons - consumed))
+    add_log(state, f"玛门吞噬了 {consumed} 方斯。")
+    add_action_step(state, {
+        'type': 'popup',
+        'icon': _boss_icon(enemy),
+        'title': '玛门',
+        'message': f'玛门对富有者更加疯狂，造成伤害后吞噬了 {consumed} 方斯。',
+    })
+
+
 def current_attack(state: JsonDict) -> int:
     _project_player_scope(state, str(state['current_actor_uid']))
     return state['player']['attack'] + sum_runtime_effect_bonus(state, 'attack_bonus') + xiaozhi_fons_attack_bonus(state)
@@ -1443,6 +1520,14 @@ def fons_amount(state: JsonDict) -> int:
         if item_instance.get('definition_id') == 'fons':
             return int(item_instance.get('amount', 0))
     return int(state.get('player', {}).get('fons_amount', 0))
+
+
+def set_fons_amount(state: JsonDict, amount: int) -> None:
+    state.setdefault('player', {})['fons_amount'] = max(0, int(amount))
+    for item_instance in state.get('hand', []):
+        if item_instance.get('definition_id') == 'fons':
+            item_instance['amount'] = int(state['player']['fons_amount'])
+            break
 
 
 def current_defense(state: JsonDict) -> int:
@@ -1554,6 +1639,7 @@ def _advance_shared_turn(state: JsonDict) -> None:
         'event': event_name.value,
     })
     _capture_player_scope(state)
+    _settle_identification_combos(state)
     state['turn'] += 1
     _start_shared_turn(state, reason='turn_end')
 
@@ -1575,6 +1661,7 @@ def _start_shared_turn(state: JsonDict, reason: str) -> None:
         state['has_played_item'] = False
         state['route_hint'] = DEFAULT_ROUTE_HINT
         state['acted_this_turn'] = False
+        reset_turn_flags(state['player'])
         run_phase_sequence(
             state,
             TURN_OPENING_SEQUENCE,
@@ -1597,6 +1684,11 @@ def _build_turn_opening_payload(state: JsonDict, event_name: GameEvent, reason: 
         payload.pop('die')
         payload.pop('dice')
     return payload
+
+
+def _settle_identification_combos(state: JsonDict) -> None:
+    for player_scope in state.get('players', {}).values():
+        settle_combo_for_turn(player_scope.setdefault('player', {}))
 
 
 def _build_turn_opening_default_handler(state: JsonDict, event_name: GameEvent) -> EventHook | None:
@@ -1721,7 +1813,7 @@ def build_board_overlay(state: JsonDict) -> JsonDict:
         'current_layer': current_map_layer(state),
         'total_layers': int(state['map'].get('total_layers', 1)),
         'layers': state['map'].get('layers', []),
-        'background_image': state['map']['background_image'],
+        'background_image': map_layer_background_image(state['map'], current_map_layer(state)),
         'icons': overlays,
     }
 

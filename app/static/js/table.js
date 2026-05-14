@@ -19,6 +19,10 @@ const sidePanelSubtitle = document.getElementById('side-panel-subtitle');
 const itemsSideView = document.getElementById('items-side-view');
 const logSideView = document.getElementById('log-side-view');
 const sideViewButtons = Array.from(document.querySelectorAll('[data-side-view]'));
+const identificationCombo = document.getElementById('identification-combo');
+const identificationLevelLabel = document.getElementById('identification-level-label');
+const identificationBonusLabel = document.getElementById('identification-bonus-label');
+const identificationExpFill = document.getElementById('identification-exp-fill');
 const itemFloatingTooltip = document.getElementById('item-floating-tooltip');
 const mapFloatingTooltip = document.getElementById('map-floating-tooltip');
 const copyLogBtn = document.getElementById('copy-log-btn');
@@ -76,6 +80,10 @@ const ITEM_TYPE_LABELS = {
 };
 
 const RARITY_LABELS = {
+  n: 'N',
+  r: 'R',
+  sr: 'SR',
+  ur: 'UR',
   common: '普通',
   rare: '稀有',
   epic: '史诗',
@@ -170,7 +178,7 @@ function buildTableTutorialPages(state = currentState) {
         '左侧是角色状态和地图缩放，中间是地图，右侧可以切换道具栏和日志。',
         '顶部会显示回合、坐标和楼层，撤退会结束当前对局。',
       ],
-      image: { src: state?.board?.background_image || state?.map?.background_image || '/static/images/maps/rob_bank_abandoned_city.png', alt: '当前地图背景' },
+      image: { src: currentLayerBackground(state), alt: '当前地图背景' },
     },
     {
       title: '双蓝骰移动',
@@ -192,6 +200,18 @@ function buildTableTutorialPages(state = currentState) {
         { name: '门', description: '鉴别后开启', fallback: 'door' },
         { name: '保险箱', description: '鉴别后开启并获得战利品', fallback: 'chest' },
         { name: '可鉴别物', description: '鉴别后转化为方斯', fallback: 'event' },
+      ],
+    },
+    {
+      title: '鉴别经验与 Combo',
+      body: [
+        '成功鉴别会积累鉴别经验，经验条在左侧地图缩放上方，升级后鉴别范围会提升。',
+        '连续成功鉴别会提升 Combo，Combo 会提高经验获取效率，最高提升 100%。',
+        '4 级后经验条满时会改为随机奖励：保险箱追加判定、攻防提升或获得金棋子。',
+      ],
+      samples: [
+        { name: '经验条', description: '绿色进度条，只显示进度不显示具体数值', fallback: 'intel' },
+        { name: 'Combo', description: '达到 10 后出现火焰动效', fallback: 'event' },
       ],
     },
     {
@@ -298,7 +318,7 @@ function renderState(state) {
   document.body.dataset.phase = classToken(state.phase);
   routeHint.textContent = state.route_hint;
   mapName.textContent = state.map.name;
-  mapBackground.src = state.board.background_image;
+  mapBackground.src = currentLayerBackground(state);
   updateMapContentSize(state);
   syncMapZoomLimit(state);
   if (shouldResetMapZoom) {
@@ -314,6 +334,7 @@ function renderState(state) {
     ${statCard('鉴别等级', state.computed_stats.identification_level || 1, { tone: 'intel' })}
     ${statCard('阶段', prettyPhase(state.phase), { tone: 'turn', detail: '当前行动' })}
   `;
+  renderIdentificationProgress(state);
 
   renderMapGrid(state);
   renderOverlay(state);
@@ -331,6 +352,19 @@ function renderState(state) {
     initialCameraCentered = true;
   }
   lastRenderedLayer = currentLayer;
+}
+
+function renderIdentificationProgress(state) {
+  const progress = state.identification_progress || {};
+  const combo = Number(progress.combo || 0);
+  const bonusPercent = Number(progress.bonus_percent || 0);
+  identificationCombo.textContent = `Combo ${combo}`;
+  identificationCombo.classList.toggle('combo-fire', Boolean(progress.fire_combo));
+  identificationLevelLabel.textContent = progress.is_max_level
+    ? `鉴别 Lv.${progress.level || 4} · Buff`
+    : `鉴别 Lv.${progress.level || state.computed_stats?.identification_level || 1}`;
+  identificationBonusLabel.textContent = `经验效率 +${bonusPercent}%`;
+  identificationExpFill.style.width = `${Math.max(0, Math.min(100, Number(progress.progress_percent || 0)))}%`;
 }
 
 function renderCombatHud(state) {
@@ -1065,6 +1099,13 @@ function mapLayerInfo(state = currentState, layer = activeLayer(state)) {
     width: state?.board?.width || state?.map?.width || 1,
     height: state?.board?.height || state?.map?.height || 1,
   };
+}
+
+function currentLayerBackground(state = currentState, layer = activeLayer(state)) {
+  return mapLayerInfo(state, layer).background_image
+    || state?.board?.background_image
+    || state?.map?.background_image
+    || '/static/images/maps/rob_bank_abandoned_city.png';
 }
 
 function mapWidth(state = currentState, layer = activeLayer(state)) {

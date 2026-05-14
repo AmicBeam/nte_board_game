@@ -99,11 +99,15 @@ def _expand_compact_tile_layers(payload: dict[str, Any]) -> dict[str, list[dict[
         if not isinstance(rows, list):
             continue
         row_widths = [len(row) for row in rows if isinstance(row, str)]
-        layers.append({
+        layer_meta = {
             'layer': layer_index,
             'width': max(row_widths, default=0),
             'height': len(rows),
-        })
+        }
+        layer_background_image = _layer_background_image(payload, layer_index)
+        if layer_background_image:
+            layer_meta['background_image'] = layer_background_image
+        layers.append(layer_meta)
         for y, row in enumerate(rows):
             if not isinstance(row, str):
                 continue
@@ -148,6 +152,19 @@ def _expand_compact_tile_layers(payload: dict[str, Any]) -> dict[str, list[dict[
         'layers': layers,
         'hidden_cells': [],
     }
+
+
+def _layer_background_image(payload: dict[str, Any], layer_index: int) -> str | None:
+    layer_backgrounds = payload.get('layer_background_images')
+    if isinstance(layer_backgrounds, dict):
+        value = layer_backgrounds.get(str(layer_index), layer_backgrounds.get(layer_index))
+    elif isinstance(layer_backgrounds, list):
+        value = layer_backgrounds[layer_index - 1] if layer_index <= len(layer_backgrounds) else None
+    else:
+        value = None
+    if isinstance(value, str) and value.strip():
+        return value
+    return None
 
 
 def _apply_hidden_room_zones(expansion: dict[str, list[dict[str, Any]]]) -> None:

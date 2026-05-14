@@ -3,6 +3,8 @@ from copy import deepcopy
 from typing import TYPE_CHECKING
 from uuid import uuid4
 
+from app.engine.identification import grant_identification_success
+
 LOG_LIMIT = 18
 ACTION_QUEUE_KEY = '_action_queue'
 
@@ -147,6 +149,12 @@ def convert_identified_loot_to_fons(
     context.payload['resolved'] = True
     context.payload['fons_gained'] = gained
     context.payload['fons_total'] = total
+    grant_identification_success(
+        context,
+        definition_id=definition_id,
+        source_name=log_prefix,
+        quantity=count,
+    )
     return gained
 
 

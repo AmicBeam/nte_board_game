@@ -59,7 +59,7 @@ class RoomFlowTestCase(unittest.TestCase):
 
     def _save_default_build(self, token: str) -> None:
         self._post('/api/build/save', {
-            'character_id': 'phase_striker',
+            'character_id': 'appraiser',
             'item_ids': DEFAULT_ITEMS,
         }, token=token)
 
@@ -122,8 +122,8 @@ class RoomFlowTestCase(unittest.TestCase):
                 'positions': [
                     {'x': 1, 'y': 1},
                 ],
-                'max_hp': 10,
-                'hp': 10,
+                'max_hp': 7,
+                'hp': 7,
                 'attack': 12,
                 'defense': 4,
                 'range': 1,

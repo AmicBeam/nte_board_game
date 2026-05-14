@@ -2,7 +2,7 @@ ITEM = {
     'id': 'soda',
     'name': '葡萄气泡水',
     'type': 'loot',
-    'rarity': 'common',
+    'rarity': 'n',
     'icon': '/static/images/map_object/RobBankItem_033.webp',
     'description': '鉴别后自动转化为方斯。',
     'hidden_from_build': True,

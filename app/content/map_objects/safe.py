@@ -9,6 +9,7 @@ from app.content.map_objects.common import (
     convert_identified_loot_to_fons,
 )
 from app.engine.events import GameEvent
+from app.engine.identification import consume_safe_bonus_roll
 
 if TYPE_CHECKING:
     from app.engine.event_context import EventContext
@@ -44,27 +45,37 @@ def safe_identify(context: 'EventContext') -> None:
     tile = context.payload['tile']
     if tile.get('opened'):
         return
+    loot_table_id = tile.get('loot_table_id')
     loot = choose_loot_from_table(
         context.state,
-        tile.get('loot_table_id'),
+        loot_table_id,
         DEFAULT_LOOT_TABLE_ID,
     )
     if loot is None:
         return
     tile['opened'] = True
+    has_bonus_roll = consume_safe_bonus_roll(context.state)
     gained = convert_identified_loot_to_fons(context, loot, log_prefix='鉴别打开保险箱，发现')
+    total_gained = gained
+    extra_loot_name = ''
+    if has_bonus_roll:
+        extra_loot = choose_loot_from_table(context.state, loot_table_id, DEFAULT_LOOT_TABLE_ID)
+        if extra_loot is not None:
+            extra_gained = convert_identified_loot_to_fons(context, extra_loot, log_prefix='保险箱追加判定发现')
+            total_gained += extra_gained
+            extra_loot_name = f"追加判定发现 {extra_loot['name']}，"
     add_tile_update_step(context.state, tile)
     add_action_step(context.state, {
         'type': 'popup',
         'icon': _safe_icon(context.payload.get('object_id')),
         'title': _safe_title(context.payload.get('object_id')),
-        'message': f"鉴别打开保险箱，{loot['name']}转化为 {gained} 方斯。",
+        'message': f"鉴别打开保险箱，{loot['name']}转化为 {gained} 方斯。{extra_loot_name}本次共获得 {total_gained} 方斯。",
     })
     context.emit(GameEvent.MAP_OBJECT_TRIGGERED, {
         'object_id': context.payload['object_id'],
         'object_type': context.payload['tile_type'],
         'loot': loot,
-        'fons_gained': gained,
+        'fons_gained': total_gained,
     })
 
 

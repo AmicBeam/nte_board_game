@@ -2,7 +2,7 @@ ITEM = {
     'id': 'special_coin',
     'name': '特质金币',
     'type': 'loot',
-    'rarity': 'common',
+    'rarity': 'r',
     'icon': '/static/images/map_object/RobBankItem_024.webp',
     'description': '鉴别后自动转化为方斯。',
     'hidden_from_build': True,

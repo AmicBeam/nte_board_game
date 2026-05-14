@@ -46,7 +46,7 @@ function renderCodex() {
     return;
   }
   codexGrid.innerHTML = entries.map((entry) => `
-    <article class="codex-card">
+    <article class="codex-card ${entry.rarity ? `rarity-${classToken(entry.rarity)}` : ''}">
       ${badgesMarkup(entry.badges)}
       <div class="codex-icon" aria-hidden="true">${iconMarkup(entry.icon)}</div>
       <div class="codex-copy">
@@ -74,6 +74,7 @@ function resolveCodexEntries() {
       icon: entry.icon,
       tag: CODEX_TYPE_LABELS[entry.type] || '道具',
       badges: entry.tags || [],
+      rarity: entry.rarity,
       description: entry.description,
     }));
   }
@@ -83,6 +84,7 @@ function resolveCodexEntries() {
       icon: entry.icon,
       tag: CODEX_TYPE_LABELS[entry.type] || '道具',
       badges: entry.tags || [],
+      rarity: entry.rarity,
       description: entry.description,
     }));
   }

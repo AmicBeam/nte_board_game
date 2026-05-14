@@ -16,7 +16,7 @@ def xiaozhi_damage_applied(context: 'EventContext') -> None:
     final_damage = int(context.payload.get('final_damage', 0))
     if final_damage <= 0:
         return
-    gained = final_damage * 1000
+    gained = final_damage * 100
     total = add_fons(context.state, gained)
     add_character_log(context, f'小吱造成 {final_damage} 点伤害，获得 {gained} 方斯。当前方斯：{total}。')
 
@@ -29,7 +29,7 @@ CHARACTER = {
     'defense': 4,
     'portrait_image': '/static/images/characters/portrait/小吱.png',
     'avatar_image': '/static/images/characters/avatar/小吱.png',
-    'passive': '每次造成伤害都会获得方斯，每点伤害获得 1000 方斯；每 10000 方斯获得 1 点攻击力，最多 +50。',
+    'passive': '每次造成伤害都会获得方斯，每点伤害获得 100 方斯；每 1000 方斯获得 1 点攻击力，最多 +5。',
     'exclusive_item_ids': ['fons'],
     'passive_events': {
         GameEvent.DAMAGE_APPLIED.value: xiaozhi_damage_applied,

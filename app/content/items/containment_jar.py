@@ -117,7 +117,7 @@ ITEM = {
     'id': 'containment_jar',
     'name': '临时收容罐',
     'type': 'utility',
-    'rarity': 'rare',
+    'rarity': 'ur',
     'icon': '/static/images/item/containment_jar.webp',
     'description': '主动使用：将附近最近的一个非 Boss 敌人收入道具栏，10 回合后在附近释放。',
     'consume_on_play': False,

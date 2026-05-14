@@ -32,7 +32,7 @@ ITEM = {
     'id': 'silver_chequer',
     'name': '银棋子',
     'type': 'dice',
-    'rarity': 'common',
+    'rarity': 'n',
     'icon': '/static/images/item/silver_chequer.webp',
     'description': '重掷当前两个蓝色骰子一次，使用后 5 回合充能。',
     'consume_on_play': False,

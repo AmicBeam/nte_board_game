@@ -3,6 +3,7 @@ from typing import TYPE_CHECKING
 
 from app.content.map_objects.common import BLOCK_TYPE_PASS, add_action_step, add_item_to_hand, add_map_log
 from app.engine.events import GameEvent
+from app.engine.identification import grant_identification_success
 
 if TYPE_CHECKING:
     from app.engine.event_context import EventContext
@@ -25,6 +26,7 @@ def access_card_spot_identify(context: 'EventContext') -> None:
         'title': '经理门禁卡',
         'message': message,
     })
+    grant_identification_success(context, definition_id='keycard', source_name='鉴别门禁卡')
     context.emit(GameEvent.MAP_OBJECT_TRIGGERED, {'object_id': context.payload['object_id'], 'object_type': context.payload['tile_type']})
 
 
