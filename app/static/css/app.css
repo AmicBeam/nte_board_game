@@ -101,6 +101,7 @@ h1, h2, h3, p { margin: 0; }
 
 .hero, .auth-card, .panel-header, .character-panel, .card-panel, .table-topbar, .state-panel, .board-panel, .side-panel { padding: 22px; }
 .hero, .auth-card { max-width: 760px; margin: 0 auto; display: grid; gap: 18px; }
+.auth-form { display: grid; gap: 18px; }
 .account-panel, .mode-panel { padding: 22px; display: grid; gap: 18px; }
 .hero h1, .auth-card h1 { font-size: clamp(34px, 5vw, 56px); line-height: 1.05; }
 .panel-header h1, .table-topbar h1 { font-size: clamp(28px, 3vw, 44px); line-height: 1.05; }

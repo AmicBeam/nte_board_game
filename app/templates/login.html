@@ -6,17 +6,19 @@
         <p class="eyebrow">Web Login</p>
         <h1>输入玩家号与密码</h1>
         <p class="subtle">先跟机器人“Fairy”发送“注册账号”命令。你的 QQ 号就是账号，机器人会回传一个验证码作为密码；登录后可以在网页中修改密码。</p>
-        <label class="field-label">
-            <span>玩家号</span>
-            <input id="player-uid-input">
-        </label>
-        <label class="field-label">
-            <span>密码</span>
-            <input id="code-input">
-        </label>
-        <div class="hero-actions">
-            <button class="primary-btn" id="login-btn">登录</button>
-        </div>
+        <form class="auth-form" id="login-form" autocomplete="on">
+            <label class="field-label">
+                <span>玩家号</span>
+                <input id="player-uid-input" name="username" type="text" autocomplete="username" required>
+            </label>
+            <label class="field-label">
+                <span>密码</span>
+                <input id="code-input" name="password" type="password" autocomplete="current-password" required>
+            </label>
+            <div class="hero-actions">
+                <button class="primary-btn" id="login-btn" type="submit">登录</button>
+            </div>
+        </form>
         <div id="login-feedback" class="note-box"></div>
     </section>
 </main>

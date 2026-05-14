@@ -2,8 +2,10 @@ const playerUidInput = document.getElementById('player-uid-input');
 const codeInput = document.getElementById('code-input');
 const loginBtn = document.getElementById('login-btn');
 const loginFeedback = document.getElementById('login-feedback');
+const loginForm = document.getElementById('login-form');
 
-async function login() {
+async function login(event) {
+  event?.preventDefault();
   loginBtn.disabled = true;
   loginFeedback.textContent = '登录中...';
   try {
@@ -48,7 +50,7 @@ async function login() {
   }
 }
 
-loginBtn.addEventListener('click', login);
+loginForm.addEventListener('submit', login);
 
 if (window.NTE_IS_DEV_ENV === true) {
   playerUidInput.value = '10001';
