@@ -8,8 +8,8 @@ from app.content.map_objects.common import (
     choose_loot_from_table,
     convert_identified_loot_to_fons,
 )
+from app.engine.buffs import SAFE_BONUS_ROLL_BUFF_ID, SAFE_OPEN_TRIGGER, trigger_player_buffs
 from app.engine.events import GameEvent
-from app.engine.identification import consume_safe_bonus_roll
 
 if TYPE_CHECKING:
     from app.engine.event_context import EventContext
@@ -54,7 +54,13 @@ def safe_identify(context: 'EventContext') -> None:
     if loot is None:
         return
     tile['opened'] = True
-    has_bonus_roll = consume_safe_bonus_roll(context.state)
+    triggered_buffs = trigger_player_buffs(
+        context.state,
+        SAFE_OPEN_TRIGGER,
+        effect_id=SAFE_BONUS_ROLL_BUFF_ID,
+        consume_one=True,
+    )
+    has_bonus_roll = bool(triggered_buffs)
     gained = convert_identified_loot_to_fons(context, loot, log_prefix='鉴别打开保险箱，发现')
     total_gained = gained
     extra_loot_name = ''

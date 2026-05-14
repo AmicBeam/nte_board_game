@@ -164,10 +164,36 @@ def identified_loot_to_fons(context: 'EventContext') -> None:
     tile = context.payload['tile']
     if tile.get('collected'):
         return
+    loot = tile.get('loot', {})
+    definition_id = str(loot.get('definition_id', ''))
+    if _is_collectible_loot(definition_id):
+        count = max(1, int(loot.get('quantity', 1) or 1))
+        item = add_item_to_hand(context.state, definition_id, count)
+        if item is None:
+            return
+        loot_name = str(loot.get('name') or definition_id)
+        add_map_log(context, f'鉴别发现{loot_name}，已收入道具栏。')
+        grant_identification_success(context, definition_id=definition_id, source_name='鉴别发现', quantity=count)
+        tile['collected'] = True
+        tile['display_type'] = 'floor'
+        add_tile_update_step(context.state, tile)
+        add_action_step(context.state, {
+            'type': 'popup',
+            'icon': loot.get('icon', 'event'),
+            'title': loot_name,
+            'message': f'鉴别获得 {loot_name}。',
+        })
+        context.emit(GameEvent.MAP_OBJECT_TRIGGERED, {
+            'object_id': context.payload['object_id'],
+            'object_type': context.payload['tile_type'],
+            'loot': loot,
+            'item_instance_id': item.get('instance_id'),
+            'quantity': count,
+        })
+        return
     gained = convert_identified_loot_to_fons(context)
     if gained <= 0:
         return
-    loot = tile.get('loot', {})
     tile['collected'] = True
     tile['display_type'] = 'floor'
     add_tile_update_step(context.state, tile)
@@ -183,6 +209,13 @@ def identified_loot_to_fons(context: 'EventContext') -> None:
         'loot': loot,
         'fons_gained': gained,
     })
+
+
+def _is_collectible_loot(definition_id: str) -> bool:
+    from app.content.loader import get_item
+
+    item_definition = get_item(definition_id) or {}
+    return str(item_definition.get('type', '')) in {'key'}
 
 
 def add_item_to_hand(state: dict, definition_id: str, quantity: int = 1) -> dict | None:

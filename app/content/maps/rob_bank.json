@@ -1,7 +1,7 @@
 {
   "id": "rob_bank",
   "english_name": "RobBank",
-  "version": 18,
+  "version": 19,
   "name": "粉爪大劫案",
   "background_image": "/static/images/maps/rob_bank_abandoned_city.png",
   "layer_background_images": {
@@ -86,10 +86,7 @@
     "access_card_spawn": [
       {
         "weight": 1,
-        "result": {
-          "type": "access_card_spot",
-          "chance": 1
-        }
+        "item_id": "keycard"
       },
       {
         "weight": 9,

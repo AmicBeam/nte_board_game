@@ -1187,6 +1187,11 @@ h1, h2, h3, p { margin: 0; }
     border: 1px solid transparent;
 }
 
+.cell-hidden-zone {
+    background: rgba(196, 205, 218, 0.26);
+    box-shadow: inset 0 0 0 calc(1px / var(--map-zoom, 1)) rgba(255, 255, 255, 0.12);
+}
+
 .cell-wall::after,
 .cell-door::after,
 .cell-portal::after,
@@ -1907,6 +1912,27 @@ h1, h2, h3, p { margin: 0; }
 .map-zoom-control input {
     width: 100%;
     accent-color: var(--primary);
+}
+
+.buff-panel {
+    display: grid;
+    gap: 6px;
+    padding: 10px 12px;
+    border-radius: var(--radius-sm);
+    background: rgba(255,255,255,0.045);
+    border: 1px solid rgba(255,255,255,0.1);
+}
+
+.buff-panel span {
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 900;
+}
+
+.buff-panel strong {
+    color: var(--text);
+    font-size: 13px;
+    line-height: 1.3;
 }
 
 .identification-panel {

@@ -48,7 +48,7 @@ def keycard_door_identify(context: 'EventContext') -> None:
     })
     if hidden_zone:
         tile['hidden_zone'] = hidden_zone
-    add_map_log(context, '鉴别并刷门禁卡打开了经理办公室暗门。')
+    add_map_log(context, '鉴别并使用门禁卡打开了经理办公室暗门。')
     add_tile_update_step(context.state, tile)
     add_action_step(context.state, {
         'type': 'popup',

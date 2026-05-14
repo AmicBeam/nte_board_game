@@ -10,6 +10,7 @@ from app.config import (
     IDENTIFICATION_RARITY_EXP,
 )
 from app.content.loader import get_item
+from app.engine.buffs import register_safe_bonus_roll_buff
 
 if TYPE_CHECKING:
     from app.engine.event_context import EventContext, JsonDict
@@ -40,7 +41,6 @@ def initialize_identification_state(player_state: 'JsonDict', base_level: int = 
     player_state.setdefault('identification_combo', 0)
     player_state.setdefault('identification_identified_this_turn', False)
     player_state.setdefault('identification_battled_this_turn', False)
-    player_state.setdefault('safe_bonus_rolls', 0)
 
 
 def identification_progress(player_state: 'JsonDict') -> 'JsonDict':
@@ -106,15 +106,6 @@ def reset_turn_flags(player_state: 'JsonDict') -> None:
     player_state['identification_battled_this_turn'] = False
 
 
-def consume_safe_bonus_roll(state: 'JsonDict') -> bool:
-    player_state = state.setdefault('player', {})
-    remaining = int(player_state.get('safe_bonus_rolls', 0) or 0)
-    if remaining <= 0:
-        return False
-    player_state['safe_bonus_rolls'] = remaining - 1
-    return True
-
-
 def _settle_identification_exp(state: 'JsonDict') -> list[str]:
     messages: list[str] = []
     player_state = state.setdefault('player', {})
@@ -138,7 +129,7 @@ def _apply_post_max_buff(state: 'JsonDict') -> str:
     buff_id = random.choice(POST_MAX_BUFFS)
     player_state = state.setdefault('player', {})
     if buff_id == 'safe_bonus_roll':
-        player_state['safe_bonus_rolls'] = int(player_state.get('safe_bonus_rolls', 0) or 0) + 1
+        register_safe_bonus_roll_buff(state)
         return '获得保险箱追加判定：下次开启保险箱时额外产出一次。'
     if buff_id == 'stats_up':
         player_state['attack'] = int(player_state.get('attack', 0) or 0) + 1

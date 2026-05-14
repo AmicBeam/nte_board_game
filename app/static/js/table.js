@@ -23,6 +23,7 @@ const identificationCombo = document.getElementById('identification-combo');
 const identificationLevelLabel = document.getElementById('identification-level-label');
 const identificationBonusLabel = document.getElementById('identification-bonus-label');
 const identificationExpFill = document.getElementById('identification-exp-fill');
+const buffPanel = document.getElementById('buff-panel');
 const itemFloatingTooltip = document.getElementById('item-floating-tooltip');
 const mapFloatingTooltip = document.getElementById('map-floating-tooltip');
 const copyLogBtn = document.getElementById('copy-log-btn');
@@ -331,10 +332,9 @@ function renderState(state) {
     ${statCard('生命', `${state.player.hp} / ${state.player.max_hp}`, { tone: 'hp', current: state.player.hp, max: state.player.max_hp })}
     ${statCard('攻击', state.computed_stats.attack || state.player.attack || 0, { tone: 'attack' })}
     ${statCard('防御', state.computed_stats.defense || state.player.defense || 0, { tone: 'defense' })}
-    ${statCard('鉴别等级', state.computed_stats.identification_level || 1, { tone: 'intel' })}
-    ${statCard('阶段', prettyPhase(state.phase), { tone: 'turn', detail: '当前行动' })}
   `;
   renderIdentificationProgress(state);
+  renderBuffPanel(state);
 
   renderMapGrid(state);
   renderOverlay(state);
@@ -365,6 +365,19 @@ function renderIdentificationProgress(state) {
     : `鉴别 Lv.${progress.level || state.computed_stats?.identification_level || 1}`;
   identificationBonusLabel.textContent = `经验效率 +${bonusPercent}%`;
   identificationExpFill.style.width = `${Math.max(0, Math.min(100, Number(progress.progress_percent || 0)))}%`;
+}
+
+function renderBuffPanel(state) {
+  if (!buffPanel) {
+    return;
+  }
+  const buffs = (state?.player_buffs || [])
+    .map((buff) => String(buff.display_text || '').trim())
+    .filter(Boolean);
+  buffPanel.innerHTML = `
+    <span>当前 Buff</span>
+    <strong>${buffs.length ? buffs.join(' / ') : '暂无'}</strong>
+  `;
 }
 
 function renderCombatHud(state) {
@@ -402,6 +415,14 @@ function renderMapGrid(state) {
   for (let y = 0; y < height; y += 1) {
     for (let x = 0; x < width; x += 1) {
       if (isHiddenCell(state, x, y, layer)) {
+        const cell = document.createElement('span');
+        const bounds = cellBounds(x, y, state);
+        cell.className = 'map-cell cell-hidden-zone';
+        cell.style.left = `${bounds.left}%`;
+        cell.style.top = `${bounds.top}%`;
+        cell.style.width = `${bounds.width}%`;
+        cell.style.height = `${bounds.height}%`;
+        mapGridLayer.appendChild(cell);
         continue;
       }
       const tile = tileByKey.get(cellKey(x, y));

@@ -35,7 +35,7 @@ MAP_OBJECT = {
     'icon': '/static/images/map_object/RobBankItem_G022.webp',
     'block_type': BLOCK_TYPE_PASS,
     'identify_on_pass': True,
-    'tooltip': '刷门禁卡点位：鉴别后低概率获得经理门禁卡。',
+    'tooltip': '经理门禁卡：鉴别后获得 1 张经理门禁卡。',
     'event_hooks': {
         GameEvent.IDENTIFY.value: access_card_spot_identify,
     },

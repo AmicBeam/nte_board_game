@@ -17,6 +17,7 @@ from app.content.loader import (
 from app.content.map_objects.common import choose_loot_from_table, choose_loot_table_entry
 from app.dao import clear_run, get_build, get_current_room, get_run, list_room_members, update_room_status, upsert_build, upsert_run
 from app.db import atomic_transaction
+from app.engine.buffs import migrate_legacy_safe_bonus_rolls, serialize_player_buffs
 from app.engine.damage import PLAYER_TARGET_ID, build_damage_package, resolve_damage_package
 from app.engine.enemy_drop import spawn_enemy_drop
 from app.engine.effects import (
@@ -602,7 +603,6 @@ def create_initial_state(
                 'identification_combo': 0,
                 'identification_identified_this_turn': False,
                 'identification_battled_this_turn': False,
-                'safe_bonus_rolls': 0,
                 'keys': 0,
                 'keycards': 0,
                 'fons_amount': 0,
@@ -651,6 +651,7 @@ def serialize_snapshot(state: JsonDict) -> JsonDict:
         'identification_level': current_identification_level(state),
     }
     payload['identification_progress'] = identification_progress(state['player'])
+    payload['player_buffs'] = serialize_player_buffs(state)
     payload['identification_range'] = identification_range_cells(state)
     if not payload.get('map', {}).get('hidden_room_revealed'):
         for tile in payload.get('map', {}).get('tiles', []):
@@ -881,6 +882,7 @@ def _normalize_loaded_state(state: JsonDict) -> JsonDict:
             int(player_state.get('identification_level', base_identification_level) or base_identification_level),
         )
         initialize_identification_state(player_state, base_identification_level)
+        migrate_legacy_safe_bonus_rolls(player_scope)
         existing_fons = next((item for item in player_scope.get('hand', []) if item.get('definition_id') == 'fons'), None)
         if existing_fons is not None:
             player_state['fons_amount'] = max(
@@ -2036,6 +2038,7 @@ def _capture_player_scope(state: JsonDict) -> None:
     player_scope['has_played_item'] = state['has_played_item']
     player_scope['route_hint'] = state['route_hint']
     player_scope['acted_this_turn'] = state.get('acted_this_turn', False)
+    player_scope['active_effects'] = state.get('active_effects', [])
     player_scope['defeated'] = state['player']['hp'] <= 0
 
 
