@@ -492,7 +492,7 @@
         <div class="sidebar-backdrop" id="sidebarBackdrop"></div>
         <aside class="sidebar" id="sidebar">
             <h2>显示设置</h2>
-            <p>默认不显示浔。打开后会在队友列表里出现，并参与配队计算与额外环合枚举。</p>
+            <p>浔默认显示在队友列表中，并会参与配队计算与额外环合枚举；如需排除，可以在这里手动关闭。</p>
             <label class="sidebar-toggle">
                 <input type="checkbox" id="showXunToggle">
                 <span>显示浔（三测数据）</span>
@@ -659,7 +659,7 @@
             rotationMode: "full_cd",
             selectedMain: null,
             selectedTeam: new Set(),
-            showXun: localStorage.getItem(MENU_STORAGE_KEY) === "1",
+            showXun: localStorage.getItem(MENU_STORAGE_KEY) !== "0",
         };
 
         const cardMeta = {};

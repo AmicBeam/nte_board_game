@@ -36,7 +36,7 @@ PRETEAM_MAIN_CANDIDATES: list[dict[str, object]] = [
 
 PRETEAM_TEAMMATES: list[dict[str, object]] = [
     {'id': 'zhujue', 'name': '主角', 'image': _preteam_avatar('鉴定师.png'), 'elem': '光', 'char_key': 'zhujue'},
-    {'id': 'xun', 'name': '浔', 'image': _preteam_avatar('浔.png'), 'elem': '光', 'char_key': 'xun', 'hidden_default': True},
+    {'id': 'xun', 'name': '浔', 'image': _preteam_avatar('浔.png'), 'elem': '光', 'char_key': 'xun'},
     {'id': 'aidejia', 'name': '埃德嘉', 'image': _preteam_avatar('埃德嘉.png'), 'elem': '光', 'char_key': 'aidejia'},
     {'id': 'jiuyuan', 'name': '九原', 'image': _preteam_avatar('九原.png'), 'elem': '灵', 'char_key': 'jiuyuan'},
     {'id': 'boheT', 'name': '薄荷', 'image': _preteam_avatar('薄荷.png'), 'elem': '灵', 'char_key': 'bohe'},
