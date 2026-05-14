@@ -20,6 +20,37 @@ logger = get_logger('nte.routes')
 main_bp = Blueprint('main', __name__)
 
 
+def _preteam_avatar(filename: str) -> str:
+    return f'images/characters/avatar/{filename}'
+
+
+PRETEAM_MAIN_CANDIDATES: list[dict[str, object]] = [
+    {'id': 'nanali', 'name': '娜娜莉', 'image': _preteam_avatar('娜娜莉.png'), 'elem': '灵', 'char_key': 'nanali'},
+    {'id': 'xiaozhi', 'name': '小吱', 'image': _preteam_avatar('小吱.png'), 'elem': '光', 'char_key': 'xiaozhi'},
+    {'id': 'baicang', 'name': '白藏', 'image': _preteam_avatar('白藏.png'), 'elem': '咒', 'char_key': 'baicang'},
+    {'id': 'hasuoerM', 'name': '哈索尔', 'image': _preteam_avatar('哈索尔.png'), 'elem': '相', 'char_key': 'hasuoer'},
+    {'id': 'haiyue', 'name': '海月', 'image': _preteam_avatar('海月.png'), 'elem': '魂', 'char_key': 'haiyue'},
+    {'id': 'bohe', 'name': '薄荷', 'image': _preteam_avatar('薄荷.png'), 'elem': '灵', 'char_key': 'bohe'},
+    {'id': 'yi', 'name': '翳', 'image': _preteam_avatar('翳.png'), 'elem': '相', 'char_key': 'yi'},
+]
+
+PRETEAM_TEAMMATES: list[dict[str, object]] = [
+    {'id': 'zhujue', 'name': '主角', 'image': _preteam_avatar('鉴定师.png'), 'elem': '光', 'char_key': 'zhujue'},
+    {'id': 'xun', 'name': '浔', 'image': _preteam_avatar('浔.png'), 'elem': '光', 'char_key': 'xun', 'hidden_default': True},
+    {'id': 'aidejia', 'name': '埃德嘉', 'image': _preteam_avatar('埃德嘉.png'), 'elem': '光', 'char_key': 'aidejia'},
+    {'id': 'jiuyuan', 'name': '九原', 'image': _preteam_avatar('九原.png'), 'elem': '灵', 'char_key': 'jiuyuan'},
+    {'id': 'boheT', 'name': '薄荷', 'image': _preteam_avatar('薄荷.png'), 'elem': '灵', 'char_key': 'bohe'},
+    {'id': 'nanaliT', 'name': '娜娜莉', 'image': _preteam_avatar('娜娜莉.png'), 'elem': '灵', 'char_key': 'nanali'},
+    {'id': 'zaowu', 'name': '早雾', 'image': _preteam_avatar('早雾.png'), 'elem': '咒', 'char_key': 'zaowu'},
+    {'id': 'adele', 'name': '阿德勒', 'image': _preteam_avatar('阿德勒.png'), 'elem': '咒', 'char_key': 'adele'},
+    {'id': 'dafutier0', 'name': '达芙蒂尔', 'image': _preteam_avatar('达芙蒂尔.png'), 'elem': '暗', 'char_key': 'dafutier'},
+    {'id': 'fatiya', 'name': '法帝娅', 'image': _preteam_avatar('法帝娅.png'), 'elem': '魂', 'char_key': 'fatiya'},
+    {'id': 'haniya', 'name': '哈尼娅', 'image': _preteam_avatar('哈尼娅.png'), 'elem': '魂', 'char_key': 'haniya'},
+    {'id': 'hasuoer', 'name': '哈索尔', 'image': _preteam_avatar('哈索尔.png'), 'elem': '相', 'char_key': 'hasuoer'},
+    {'id': 'yiT', 'name': '翳', 'image': _preteam_avatar('翳.png'), 'elem': '相', 'char_key': 'yi'},
+]
+
+
 @main_bp.get('/')
 def home():
     return render_template('index.html')
@@ -48,6 +79,15 @@ def codex_page():
 @main_bp.get('/table')
 def table_page():
     return render_template('table.html')
+
+
+@main_bp.get('/preteam')
+def preteam_page():
+    return render_template(
+        'preteam.html',
+        main_candidates=PRETEAM_MAIN_CANDIDATES,
+        teammates=PRETEAM_TEAMMATES,
+    )
 
 
 @main_bp.post('/api/auth/login')

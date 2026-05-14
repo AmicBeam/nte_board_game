@@ -49,5 +49,8 @@ async function login() {
 }
 
 loginBtn.addEventListener('click', login);
-playerUidInput.value = '10001';
-codeInput.value = '654321';
+
+if (window.NTE_IS_DEV_ENV === true) {
+  playerUidInput.value = '10001';
+  codeInput.value = '654321';
+}

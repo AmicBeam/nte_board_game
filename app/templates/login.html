@@ -8,11 +8,11 @@
         <p class="subtle">先跟机器人“Fairy”发送“注册账号”命令。你的 QQ 号就是账号，机器人会回传一个验证码作为密码；登录后可以在网页中修改密码。</p>
         <label class="field-label">
             <span>玩家号</span>
-            <input id="player-uid-input" placeholder="例如 10001">
+            <input id="player-uid-input">
         </label>
         <label class="field-label">
             <span>密码</span>
-            <input id="code-input" placeholder="例如 654321">
+            <input id="code-input">
         </label>
         <div class="hero-actions">
             <button class="primary-btn" id="login-btn">登录</button>
@@ -21,6 +21,9 @@
         <div id="login-feedback" class="note-box"></div>
     </section>
 </main>
+<script>
+    window.NTE_IS_DEV_ENV = {{ 'true' if config['IS_DEV_ENV'] else 'false' }};
+</script>
 <script src="{{ url_for('static', filename='js/common.js') }}"></script>
 <script src="{{ url_for('static', filename='js/login.js') }}"></script>
 {% endblock %}

@@ -1,6 +1,6 @@
 from flask import Flask, g, request
 
-from app.config import SECRET_KEY
+from app.config import IS_DEV_ENV, SECRET_KEY
 from app.db import init_db
 from app.models import AccessToken, DeckBuild, GameRun, LoginCode, Player, PlayerTutorial, Room, RoomMember
 from app.utils.logger import get_logger, setup_logging
@@ -11,6 +11,7 @@ def create_app() -> Flask:
     logger = get_logger('nte.app')
     app = Flask(__name__)
     app.config['SECRET_KEY'] = SECRET_KEY
+    app.config['IS_DEV_ENV'] = IS_DEV_ENV
     init_db([Player, PlayerTutorial, LoginCode, AccessToken, DeckBuild, Room, RoomMember, GameRun])
 
     @app.before_request
