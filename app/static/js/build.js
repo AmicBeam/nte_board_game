@@ -160,8 +160,10 @@ async function bootstrap() {
   let lastWheelInputAt = 0;
   let dragStartY = 0;
   let dragStartPosition = 0;
+  let pointerTapTargetIndex = null;
   const wheelSpeed = 0.0027;
   const wheelStepHeight = 82;
+  const wheelTapMoveThreshold = 8;
   const visibleRadius = Math.min(2, Math.max(1.5, (selected.characters.length - 1) / 2));
 
   function stopWheelAnimation() {
@@ -255,13 +257,13 @@ async function bootstrap() {
     }
   }
 
-  function targetForIndex(index) {
+  function targetForIndex(index, fromPosition = wheelPosition) {
     const count = selected.characters.length;
     if (!count) {
       return 0;
     }
     const normalizedTarget = normalizeIndex(index);
-    const current = normalizedPosition(targetWheelPosition);
+    const current = normalizedPosition(fromPosition);
     let delta = normalizedTarget - current;
     if (delta > count / 2) {
       delta -= count;
@@ -269,7 +271,7 @@ async function bootstrap() {
     if (delta < -count / 2) {
       delta += count;
     }
-    return targetWheelPosition + delta;
+    return fromPosition + delta;
   }
 
   function setCharacterIndex(index) {
@@ -376,6 +378,11 @@ async function bootstrap() {
     stopWheelAnimation();
     dragStartY = event.clientY;
     dragStartPosition = wheelPosition;
+    pointerTapTargetIndex = null;
+    const tappedButton = event.target.closest('.wheel-character');
+    if (tappedButton) {
+      pointerTapTargetIndex = Number(tappedButton.dataset.index);
+    }
     characterCarousel.setPointerCapture(event.pointerId);
   });
   characterCarousel.addEventListener('pointermove', (event) => {
@@ -391,6 +398,12 @@ async function bootstrap() {
     if (characterCarousel.hasPointerCapture(event.pointerId)) {
       characterCarousel.releasePointerCapture(event.pointerId);
     }
+    if (pointerTapTargetIndex !== null && Math.abs(event.clientY - dragStartY) <= wheelTapMoveThreshold) {
+      setCharacterIndex(pointerTapTargetIndex);
+      pointerTapTargetIndex = null;
+      return;
+    }
+    pointerTapTargetIndex = null;
     targetWheelPosition = Math.round(wheelPosition);
     startWheelAnimation();
   });
@@ -398,6 +411,7 @@ async function bootstrap() {
     if (characterCarousel.hasPointerCapture(event.pointerId)) {
       characterCarousel.releasePointerCapture(event.pointerId);
     }
+    pointerTapTargetIndex = null;
     targetWheelPosition = Math.round(wheelPosition);
     startWheelAnimation();
   });
