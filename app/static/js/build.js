@@ -16,16 +16,21 @@ const ITEM_TYPE_LABELS = {
 };
 
 async function bootstrap() {
-  try {
-    const activeState = await apiRequest('/api/game/state');
-    if (activeState.status === 'playing') {
-      window.location.href = '/table';
-      return;
-    }
-  } catch (error) {
-    // 没有进行中对局时继续构筑。
+  const activeStatePromise = apiRequest('/api/game/state').catch(() => null);
+  const catalogPromise = apiRequest('/api/catalog').then(
+    (data) => ({ data }),
+    (error) => ({ error }),
+  );
+  const activeState = await activeStatePromise;
+  if (activeState?.status === 'playing') {
+    window.location.href = '/table';
+    return;
   }
-  const data = await apiRequest('/api/catalog');
+  const catalogResult = await catalogPromise;
+  if (catalogResult.error) {
+    throw catalogResult.error;
+  }
+  const data = catalogResult.data;
   const savedCharacterId = data.saved_build ? data.saved_build.character_id : null;
   const selected = {
     characterId: savedCharacterId || data.characters[0]?.id || null,
@@ -36,7 +41,6 @@ async function bootstrap() {
     characters: data.characters,
     items: data.items,
   };
-  preloadCharacterAssets(selected.characters);
 
   const characterCarousel = document.getElementById('character-carousel');
   const selectedPortrait = document.getElementById('selected-character-portrait');
@@ -98,35 +102,13 @@ async function bootstrap() {
   function iconMarkup(icon, fallback = 'item') {
     const value = String(icon || fallback);
     if (/\.(png|jpg|jpeg|webp|gif|svg)$/i.test(value) || value.startsWith('/static/')) {
-      return `<img class="item-icon-img" src="${value}" alt="">`;
+      return `<img class="item-icon-img" src="${value}" alt="" loading="lazy" decoding="async" fetchpriority="low">`;
     }
     return `<span class="item-icon item-icon-${classToken(value)}"></span>`;
   }
 
   function characterAvatar(character) {
-    return `<img src="${character.avatar_image}" alt="" loading="eager" decoding="async">`;
-  }
-
-  function preloadCharacterAssets(characters) {
-    const seen = new Set();
-    characters.forEach((character) => {
-      [character.avatar_image, character.portrait_image].forEach((assetUrl) => {
-        if (!assetUrl || seen.has(assetUrl)) {
-          return;
-        }
-        seen.add(assetUrl);
-        const preload = document.createElement('link');
-        preload.rel = 'preload';
-        preload.as = 'image';
-        preload.href = assetUrl;
-        document.head.appendChild(preload);
-
-        const image = new Image();
-        image.decoding = 'async';
-        image.loading = 'eager';
-        image.src = assetUrl;
-      });
-    });
+    return `<img src="${character.avatar_image}" alt="" loading="lazy" decoding="async" fetchpriority="low">`;
   }
 
   function itemTypeLabel(type) {
@@ -140,6 +122,8 @@ async function bootstrap() {
     if (character) {
       selectedPortrait.src = character.portrait_image;
       selectedPortrait.alt = character.name;
+      selectedPortrait.decoding = 'async';
+      selectedPortrait.fetchPriority = 'high';
       selectedCharacterInfo.innerHTML = `
         <div class="card-headline">
           <h2>${character.name}</h2>
@@ -211,7 +195,7 @@ async function bootstrap() {
   }
 
   function renderCharacters() {
-    characterCarousel.innerHTML = '';
+    const fragment = document.createDocumentFragment();
     selected.characters.forEach((item, index) => {
       if (!item) {
         return;
@@ -225,8 +209,9 @@ async function bootstrap() {
         <span>${item.name}</span>
       `;
       button.addEventListener('click', () => setCharacterIndex(index));
-      characterCarousel.appendChild(button);
+      fragment.appendChild(button);
     });
+    characterCarousel.replaceChildren(fragment);
     renderCharacterDetails();
     updateWheelLayout();
   }
@@ -285,7 +270,7 @@ async function bootstrap() {
   }
 
   function renderItems() {
-    itemGrid.innerHTML = '';
+    const fragment = document.createDocumentFragment();
     const locked = new Set(currentLockedItemIds());
     selected.items.forEach((item) => {
       if (item.hidden_from_build && !locked.has(item.id)) {
@@ -315,8 +300,9 @@ async function bootstrap() {
       if (!isLocked) {
         card.addEventListener('click', () => toggleItem(item.id));
       }
-      itemGrid.appendChild(card);
+      fragment.appendChild(card);
     });
+    itemGrid.replaceChildren(fragment);
     deckCount.textContent = `已选择 ${selected.itemIds.length} / 最多 ${selected.buildSize} 个`;
   }
 
