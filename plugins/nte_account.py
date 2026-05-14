@@ -1,20 +1,18 @@
 # SPDX-License-Identifier: GPL-3.0-only
 from nonebot import on_command
 from nonebot.typing import T_State
-from nonebot.adapters.onebot.v11 import Bot, MessageEvent
+from nonebot.adapters.onebot.v11 import Bot, Message, PrivateMessageEvent
 
 from .nte_account_db import issue_account_register_code
-from .utils.logger import Logger, log_function_call
-from .utils.message_util import MessageUtils
+from .utils.logger import Logger
 
 
 register_account = on_command('注册账号')
 reset_password = on_command('重置密码')
 
 
-async def _issue_password_reply(bot: Bot, event: MessageEvent, action_label: str, nickname: str = ''):
+def _build_password_reply(event: PrivateMessageEvent, action_label: str, nickname: str = '') -> str:
     user_id = int(event.get_user_id())
-    msg = MessageUtils.gen_at_message(event, user_id)
     code, created = issue_account_register_code(str(user_id), nickname)
     if action_label == 'register':
         if created:
@@ -25,29 +23,27 @@ async def _issue_password_reply(bot: Bot, event: MessageEvent, action_label: str
     else:
         reply = f"密码已重置，新的网页登录密码为：{code}。"
     reply += "\n该密码永久有效，请在 NTE 网页中使用该密码登录，登录后也可以在网页里修改用户名和密码。"
-    await MessageUtils.send_message(bot, event, msg + reply)
+    return reply
 
 
 @register_account.handle()
-@log_function_call
-async def h_register_account(bot: Bot, event: MessageEvent, state: T_State):
+async def h_register_account(bot: Bot, event: PrivateMessageEvent, state: T_State):
     try:
         nickname = str(event.get_message()).replace('注册账号', '', 1).strip()
-        await _issue_password_reply(bot, event, 'register', nickname)
+        reply = _build_password_reply(event, 'register', nickname)
     except Exception as e:
-        user_id = int(event.get_user_id())
-        msg = MessageUtils.gen_at_message(event, user_id)
         Logger().error(f"Error in register_account: {str(e)}")
-        await MessageUtils.send_message(bot, event, msg + "注册账号过程中发生错误，请稍后重试")
+        await register_account.finish(Message("注册账号过程中发生错误，请稍后重试"))
+    else:
+        await register_account.finish(Message(reply))
 
 
 @reset_password.handle()
-@log_function_call
-async def h_reset_password(bot: Bot, event: MessageEvent, state: T_State):
+async def h_reset_password(bot: Bot, event: PrivateMessageEvent, state: T_State):
     try:
-        await _issue_password_reply(bot, event, 'reset')
+        reply = _build_password_reply(event, 'reset')
     except Exception as e:
-        user_id = int(event.get_user_id())
-        msg = MessageUtils.gen_at_message(event, user_id)
         Logger().error(f"Error in reset_password: {str(e)}")
-        await MessageUtils.send_message(bot, event, msg + "重置密码过程中发生错误，请稍后重试")
+        await reset_password.finish(Message("重置密码过程中发生错误，请稍后重试"))
+    else:
+        await reset_password.finish(Message(reply))
