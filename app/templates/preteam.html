@@ -1007,6 +1007,7 @@
             if (!hasId("xun", allIds)) return [capReactionCounts(baseCounts)];
             const variants = [capReactionCounts(baseCounts)];
             const options = [];
+            const xunRecordBonus = hasId("zhujue", allIds) ? 1 : 0.5;
             if ((baseCounts.delayCount || 0) > 0) options.push({ field: "delayCount", label: "延滞" });
             if (((baseCounts.creationCountBase || 0) + (baseCounts.creationCountNoMasteryDouble || 0)) > 0) {
                 if ((baseCounts.creationCountNoMasteryDouble || 0) > 0) {
@@ -1023,7 +1024,7 @@
             for (const option of options) {
                 const boosted = {
                     ...baseCounts,
-                    [option.field]: (baseCounts[option.field] || 0) + 0.5,
+                    [option.field]: (baseCounts[option.field] || 0) + xunRecordBonus,
                     xunSacrifice: true,
                     xunBoostLabel: option.label,
                 };
@@ -1110,14 +1111,14 @@
                 for (const masteryId of masterySet) {
                     const masteryElem = cardMeta[masteryId]?.elem;
                     if (type === "creation") {
-                        if (masteryElem === "灵" && (providerId === masteryId || providerElem === "光")) mult = Math.max(mult, 1.75);
-                        if (masteryElem === "光" && (providerId === masteryId || providerElem === "灵")) mult = Math.max(mult, 1.9);
+                        if (masteryElem === "灵" && (providerId === masteryId || providerElem === "光")) mult = Math.max(mult, 1.5);
+                        if (masteryElem === "光" && (providerId === masteryId || providerElem === "灵")) mult = Math.max(mult, 1.5);
                     } else if (type === "zhuoran") {
-                        if (masteryElem === "咒" && (providerId === masteryId || providerElem === "暗")) mult = Math.max(mult, 1.75);
-                        if (masteryElem === "暗" && (providerId === masteryId || providerElem === "咒")) mult = Math.max(mult, 1.9);
+                        if (masteryElem === "咒" && (providerId === masteryId || providerElem === "暗")) mult = Math.max(mult, 1.5);
+                        if (masteryElem === "暗" && (providerId === masteryId || providerElem === "咒")) mult = Math.max(mult, 1.5);
                     } else if (type === "anxing") {
-                        if (masteryElem === "暗" && (providerId === masteryId || providerElem === "魂")) mult = Math.max(mult, 1.9);
-                        if (masteryElem === "魂" && (providerId === masteryId || providerElem === "暗")) mult = Math.max(mult, 1.9);
+                        if (masteryElem === "暗" && (providerId === masteryId || providerElem === "魂")) mult = Math.max(mult, 1.5);
+                        if (masteryElem === "魂" && (providerId === masteryId || providerElem === "暗")) mult = Math.max(mult, 1.5);
                     }
                 }
                 return mult;

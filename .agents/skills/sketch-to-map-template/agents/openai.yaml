@@ -1,0 +1,4 @@
+interface:
+  display_name: "Sketch To Map Template"
+  short_description: "Convert annotated map sketches into tile-map templates."
+  default_prompt: "Convert this sketch or draft layout into a validated tile-map JSON template."

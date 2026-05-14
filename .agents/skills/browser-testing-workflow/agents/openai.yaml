@@ -1,0 +1,4 @@
+interface:
+  display_name: "Browser Testing Workflow"
+  short_description: "Use the in-app browser to test local web apps."
+  default_prompt: "Open the local app in the in-app browser, inspect it, and verify the requested flow."

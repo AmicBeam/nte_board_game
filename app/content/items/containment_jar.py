@@ -83,7 +83,7 @@ def containment_jar_played(context: 'EventContext') -> None:
     ))
     message = f'临时收容罐收容了 {monster["name"]}，将在第 {release_turn} 回合重新释放。'
     add_item_log(context, message)
-    add_item_popup(context, '临时收容罐', message, '/static/images/item/containment_jar.png')
+    add_item_popup(context, '临时收容罐', message, '/static/images/item/containment_jar.webp')
     context.payload['resolved'] = True
 
 
@@ -109,7 +109,7 @@ def release_captured_enemy(context: 'EventContext') -> None:
     monster['layer'] = _current_layer(context.state)
     message = f'临时收容罐释放了 {monster["name"]}。'
     add_item_log(context, message)
-    add_item_popup(context, '临时收容罐', message, '/static/images/item/containment_jar.png')
+    add_item_popup(context, '临时收容罐', message, '/static/images/item/containment_jar.webp')
     remove_runtime_effect(context.state, str(context.instance_id))
 
 
@@ -118,7 +118,7 @@ ITEM = {
     'name': '临时收容罐',
     'type': 'utility',
     'rarity': 'rare',
-    'icon': '/static/images/item/containment_jar.png',
+    'icon': '/static/images/item/containment_jar.webp',
     'description': '主动使用：将附近最近的一个非 Boss 敌人收入道具栏，10 回合后在附近释放。',
     'consume_on_play': False,
     'hidden_from_build': True,
