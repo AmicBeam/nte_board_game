@@ -1,4 +1,4 @@
-from flask import Blueprint, g, jsonify, render_template, request
+from flask import Blueprint, g, jsonify, redirect, render_template, request, url_for
 
 from app.auth import login_with_code, token_required
 from app.dao import is_tutorial_completed, mark_tutorial_completed, update_player_nickname, update_player_password
@@ -52,6 +52,11 @@ PRETEAM_TEAMMATES: list[dict[str, object]] = [
 
 
 @main_bp.get('/')
+def default_page():
+    return redirect(url_for('main.login_page'))
+
+
+@main_bp.get('/home')
 def home():
     return render_template('index.html')
 

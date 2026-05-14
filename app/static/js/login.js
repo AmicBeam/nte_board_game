@@ -40,7 +40,7 @@ async function login() {
     if (!catalogResponse.ok || catalog.error) {
       throw new Error(catalog.error || '读取构筑失败');
     }
-    window.location.href = catalog.saved_build ? '/' : '/build';
+    window.location.href = catalog.saved_build ? '/home' : '/build';
   } catch (error) {
     loginFeedback.textContent = error.message;
   } finally {

@@ -2291,7 +2291,7 @@ async function resetRun() {
     return;
   }
   await apiRequest('/api/game/reset', { method: 'POST' });
-  window.location.href = '/';
+  window.location.href = '/home';
 }
 
 function logoutRun() {

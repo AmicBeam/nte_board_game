@@ -352,7 +352,7 @@ async function bootstrap() {
           item_ids: selected.itemIds,
         }),
       });
-      window.location.href = '/';
+      window.location.href = '/home';
     } catch (error) {
       window.alert(error.message);
     } finally {

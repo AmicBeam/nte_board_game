@@ -1,5 +1,18 @@
 {% extends 'base.html' %}
 {% block title %}NTE Board Game{% endblock %}
+{% block head %}
+<script>
+    (function () {
+        try {
+            if (!window.localStorage.getItem('nte_token')) {
+                window.location.replace("{{ url_for('main.login_page') }}");
+            }
+        } catch (error) {
+            window.location.replace("{{ url_for('main.login_page') }}");
+        }
+    }());
+</script>
+{% endblock %}
 {% block body %}
 <main class="main-page">
     <section class="glass-card panel-header">
