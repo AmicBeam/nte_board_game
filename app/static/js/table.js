@@ -2487,11 +2487,13 @@ function startMoveIntentLoop(preview) {
 function createItemCastEffect(item) {
   const effect = document.createElement('span');
   const rect = stageRect();
-  const flyDistance = Math.max(260, rect.height * 0.72);
+  const orbRadius = 17;
+  const flyDistance = rect.height ? (rect.height / 2) + orbRadius : 260;
   effect.className = 'item-cast-effect';
   effect.style.setProperty('--item-cast-intro-duration', `${ITEM_CAST_INTRO_MS}ms`);
   effect.style.setProperty('--item-cast-exit-duration', `${ITEM_CAST_EXIT_MS}ms`);
   effect.style.setProperty('--item-cast-fly-y', `${-flyDistance.toFixed(1)}px`);
+  effect.style.setProperty('--item-cast-fly-y-visible', `${-(Math.max(0, flyDistance - orbRadius)).toFixed(1)}px`);
   effect.style.setProperty('--item-cast-fly-y-step', `${-(flyDistance * 0.18).toFixed(1)}px`);
   effect.innerHTML = `
     <span class="item-cast-aura" aria-hidden="true"></span>
@@ -2894,6 +2896,7 @@ async function move(direction, path = null) {
   } finally {
     moveLocked = false;
     if (currentState) {
+      renderHand(currentState);
       syncButtons(currentState);
     }
   }
