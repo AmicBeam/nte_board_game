@@ -1,0 +1,4 @@
+interface:
+  display_name: "Mobile UI Verification"
+  short_description: "Verify mobile landscape UI with Chrome and Playwright."
+  default_prompt: "Use $mobile-ui-verification to test the local web app in a phone-like landscape viewport."

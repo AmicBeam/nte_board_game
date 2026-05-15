@@ -1013,14 +1013,18 @@ function usesTouchPriming() {
 }
 
 function canRequestImmersiveMode() {
-  return Boolean(document.documentElement.requestFullscreen || screen.orientation?.lock);
+  return Boolean(document.documentElement.requestFullscreen || document.documentElement.webkitRequestFullscreen || screen.orientation?.lock);
+}
+
+function currentFullscreenElement() {
+  return document.fullscreenElement || document.webkitFullscreenElement || null;
 }
 
 function syncImmersiveButton() {
   if (!immersiveBtn) {
     return;
   }
-  immersiveBtn.hidden = !usesTouchPriming() || !canRequestImmersiveMode() || Boolean(document.fullscreenElement);
+  immersiveBtn.hidden = !usesTouchPriming() || !canRequestImmersiveMode() || Boolean(currentFullscreenElement());
 }
 
 async function requestImmersiveMode(force = false) {
@@ -1030,8 +1034,9 @@ async function requestImmersiveMode(force = false) {
   immersiveModeRequested = true;
   const root = document.documentElement;
   try {
-    if (!document.fullscreenElement && root.requestFullscreen) {
-      await root.requestFullscreen({ navigationUI: 'hide' });
+    const requestFullscreen = root.requestFullscreen || root.webkitRequestFullscreen;
+    if (!currentFullscreenElement() && requestFullscreen) {
+      await requestFullscreen.call(root, { navigationUI: 'hide' });
     }
   } catch (error) {
     // Browser support varies; orientation lock below may still work.
@@ -1666,6 +1671,9 @@ function currentCellPixelSize(state = currentState, layer = activeLayer(state)) 
 }
 
 function shouldShowPreviewIndex(index, state = currentState) {
+  if (usesTouchPriming()) {
+    return false;
+  }
   return index > 0 && currentCellPixelSize(state) >= 22;
 }
 
@@ -2506,6 +2514,7 @@ if (immersiveBtn) {
     requestImmersiveMode(true);
   });
   document.addEventListener('fullscreenchange', syncImmersiveButton);
+  document.addEventListener('webkitfullscreenchange', syncImmersiveButton);
   window.addEventListener('orientationchange', syncImmersiveButton);
   syncImmersiveButton();
 }
