@@ -507,6 +507,9 @@ function renderOverlay(state) {
     } else if (icon.left_percent > 82) {
       node.classList.add('tooltip-right');
     }
+    if (icon.entity_type === 'player' && icon.is_current_player) {
+      node.classList.add('token-current-player');
+    }
     node.style.left = `${icon.left_percent}%`;
     node.style.top = `${icon.top_percent}%`;
     node.dataset.x = String(icon.x);
@@ -2348,6 +2351,23 @@ function setMoveGhostPosition(ghost, point, metrics, state = currentState) {
   ghost.style.transform = moveGhostTransform(point, metrics, state);
 }
 
+function currentPlayerToken() {
+  return mapOverlay?.querySelector('.token-current-player') || mapOverlay?.querySelector('.token-player');
+}
+
+function setPlayerOverlayPosition(point, state = currentState) {
+  const playerToken = currentPlayerToken();
+  if (!playerToken || !state || !point) {
+    return;
+  }
+  const pos = cellPercent(point, state);
+  playerToken.style.left = `${pos.left}%`;
+  playerToken.style.top = `${pos.top}%`;
+  playerToken.dataset.x = String(point.x);
+  playerToken.dataset.y = String(point.y);
+  playerToken.dataset.layer = String(point.layer || activeLayer(state));
+}
+
 function moveIntentPathFromDirections(directions) {
   if (!currentState || !Array.isArray(directions) || directions.length === 0) {
     return null;
@@ -2545,7 +2565,7 @@ function startItemCastEffect(item) {
   };
 }
 
-async function animateMovePath(path) {
+async function animateMovePath(path, options = {}) {
   if (!currentState || !path || path.length <= 1) {
     return;
   }
@@ -2558,7 +2578,7 @@ async function animateMovePath(path) {
   ghost.style.height = `${metrics.tokenHeight}px`;
   setMoveGhostPosition(ghost, path[0], metrics);
 
-  const playerToken = mapOverlay?.querySelector('.token-player');
+  const playerToken = currentPlayerToken();
   if (cameraInteractionTimer) {
     window.clearTimeout(cameraInteractionTimer);
     cameraInteractionTimer = 0;
@@ -2580,6 +2600,7 @@ async function animateMovePath(path) {
       setMoveGhostPosition(ghost, point, metrics);
       await sleep(duration + MOVE_GHOST_SETTLE_MS);
     }
+    options.onArrive?.(path[path.length - 1]);
   } finally {
     ghost.remove();
     playerToken?.classList.remove('is-moving-origin');
@@ -2597,18 +2618,22 @@ async function animateBackendMoves(steps) {
     return;
   }
   const path = [
-    { x: Number(currentState.player.x), y: Number(currentState.player.y), kind: 'start' },
+    { x: Number(currentState.player.x), y: Number(currentState.player.y), layer, kind: 'start' },
     ...visibleSteps.map((step) => ({
       x: Number(step.x),
       y: Number(step.y),
+      layer: Number(step.layer || layer),
       kind: 'step',
       direction: step.direction,
     })),
   ];
-  await animateMovePath(path);
-  const landing = visibleSteps[visibleSteps.length - 1];
-  currentState.player.x = Number(landing.x);
-  currentState.player.y = Number(landing.y);
+  await animateMovePath(path, {
+    onArrive: (point) => {
+      currentState.player.x = Number(point.x);
+      currentState.player.y = Number(point.y);
+      setPlayerOverlayPosition(point);
+    },
+  });
   ensureCameraShowsPlayer(currentState, { smooth: true });
 }
 
