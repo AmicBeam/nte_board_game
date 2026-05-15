@@ -3,6 +3,7 @@ from collections.abc import Callable
 from copy import deepcopy
 
 from app.config import DEFAULT_MAP_ID, MOVE_STEP_LIMIT
+from app.async_persistence import discard_cached_room_run, get_cached_room_run, queue_room_snapshot_persist
 from app.content.loader import (
     get_character,
     get_item,
@@ -15,7 +16,7 @@ from app.content.loader import (
     resolve_map_object_id,
 )
 from app.content.map_objects.common import choose_loot_from_table, choose_loot_table_entry
-from app.dao import clear_run, get_build, get_current_room, get_run, list_room_members, update_room_status, upsert_build, upsert_run
+from app.dao import clear_run, get_build, get_current_room, get_run, list_room_members, update_room_status, upsert_build
 from app.db import atomic_transaction
 from app.engine.buffs import migrate_legacy_safe_bonus_rolls, serialize_player_buffs
 from app.engine.damage import PLAYER_TARGET_ID, build_damage_package, resolve_damage_package
@@ -54,11 +55,13 @@ XIAOZHI_FONS_ATTACK_STEP = 1000
 XIAOZHI_FONS_ATTACK_CAP = 5
 MAMEN_FONS_DEFENSE_STEP = 10000
 MAMEN_FONS_DAMAGE_TAX_PERCENT = 10
+MIN_FOG_RADIUS = 6
 MIN_IDENTIFICATION_LEVEL = 1
 MAX_IDENTIFICATION_LEVEL = 4
 LOG_LIMIT = 18
 DEFAULT_ROUTE_HINT = '搜刮办公室资源，找到传送门后进入 Boss 房间。'
 ACTION_QUEUE_KEY = '_action_queue'
+POST_BATTLE_ACTION_QUEUE_KEY = '_post_battle_action_queue'
 DIRECTIONS = {
     'up': (0, -1),
     'down': (0, 1),
@@ -316,18 +319,16 @@ def start_or_resume_run_for_room(room: Room, player: Player) -> JsonDict:
                 raise RuleValidationError(f'玩家 {member.player.player_uid} 尚未完成构筑。')
             build = normalize_build_payload(build)
             builds_by_player_uid[member.player.player_uid] = build
-        existing_run = get_run(room)
+        existing_run = _get_room_run(room)
         if existing_run and existing_run['status'] in {'playing', 'victory', 'defeat'}:
             existing_run['snapshot'] = _normalize_loaded_state(existing_run['snapshot'])
-            validate_state(existing_run['snapshot'])
-            _persist_room_snapshot(room, existing_run['snapshot'])
+            payload = _save_and_serialize_for_room(room, existing_run['snapshot'])
             logger.info('resume_run room_code=%s player_uid=%s status=%s', room.room_code, player.player_uid, existing_run['status'])
-            return serialize_snapshot(existing_run['snapshot'])
+            return payload
         state = create_initial_state(room, room_members, builds_by_player_uid, DEFAULT_MAP_ID)
-        validate_state(state)
-        _persist_room_snapshot(room, state)
+        payload = _save_and_serialize_for_room(room, state)
     logger.info('start_new_run room_code=%s player_uid=%s', room.room_code, player.player_uid)
-    return serialize_snapshot(state)
+    return payload
 
 
 def normalize_build_payload(build: JsonDict) -> JsonDict:
@@ -403,7 +404,7 @@ def get_run_state(player: Player) -> JsonDict | None:
 
 
 def get_run_state_for_room(room: Room, player: Player | None = None) -> JsonDict | None:
-    run = get_run(room)
+    run = _get_room_run(room)
     if run is None:
         return None
     run['snapshot'] = _normalize_loaded_state(run['snapshot'])
@@ -420,6 +421,7 @@ def reset_run(player: Player) -> None:
 
 def reset_run_for_room(room: Room) -> None:
     with atomic_transaction():
+        discard_cached_room_run(room.id)
         clear_run(room)
         update_room_status(room, 'ready' if room.mode == 'solo' else 'waiting')
     logger.info('reset_run room_code=%s', room.room_code)
@@ -443,7 +445,7 @@ def play_item(player: Player, item_instance_id: str, declared_value: int | None 
         _ensure(item_instance is not None, '该道具实例不在手牌中。')
         item = get_item(item_instance['definition_id'])
         _ensure(item is not None, '道具定义不存在。')
-        _ensure(can_play_item_now(state, item), '该道具当前不能主动使用。')
+        _ensure(can_play_item_instance_now(state, item_instance), '该道具当前不能主动使用。')
         event_payload = {
             'item_id': item['id'],
             'item_name': item['name'],
@@ -539,6 +541,7 @@ def move_player(player: Player, direction: str, path: list[str] | None = None) -
                 'layer': current_map_layer(state),
                 'direction': active_direction,
             })
+            reveal_fog_around_player(state)
             # 每前进一步都派发一次事件，供“经过某格”“移动若干步后生效”等效果监听。
             dispatch_event(state, GameEvent.MOVE_STEP, {
                 'x': actor['x'],
@@ -547,6 +550,7 @@ def move_player(player: Player, direction: str, path: list[str] | None = None) -
                 'steps_remaining': steps_remaining,
             })
             active_direction, intercepted = resolve_tile_entry(state, active_direction, steps_remaining)
+            reveal_fog_around_player(state)
             if intercepted:
                 add_log(state, '移动被当前格子拦截，剩余步数已结束。')
                 break
@@ -606,6 +610,7 @@ def create_initial_state(
                 'keys': 0,
                 'keycards': 0,
                 'fons_amount': 0,
+                'explored_cells': [],
             },
             'discard_pile': [],
             'hand': item_instances,
@@ -632,6 +637,7 @@ def create_initial_state(
         'log': [],
     }
     _project_player_scope(state, member_order[0])
+    _refresh_all_fog_exploration(state)
     _initialize_item_zones(state, emit_initial_events=True)
     add_log(state, _build_start_log(state))
     _start_shared_turn(state, reason='start_game')
@@ -669,6 +675,7 @@ def serialize_snapshot(state: JsonDict) -> JsonDict:
                 for position in boss_payload.get('positions', [])
                 if not position.get('hidden_zone')
             ]
+    _apply_fog_to_payload(state, payload)
     payload['board'] = build_board_overlay(state)
     payload['available_directions'] = list(DIRECTIONS.keys())
     payload['hand_details'] = [
@@ -755,22 +762,42 @@ def serialize_hand_item_instance(state: JsonDict, item_instance: JsonDict) -> Js
     item_payload = serialize_item_instance(item_instance)
     if item_payload is None:
         return None
-    item_payload['can_play_this_turn'] = can_play_item_now(state, item_payload)
+    item_payload['can_play_this_turn'] = can_play_item_instance_now(state, item_instance)
+    if item_cooldown_until_turn(item_payload) <= int(state.get('turn', 1)):
+        item_payload.pop('cooldown_until_turn', None)
     return item_payload
 
 
-def can_play_item_now(state: JsonDict, item_definition: JsonDict) -> bool:
+def item_cooldown_until_turn(item_payload: JsonDict) -> int:
+    try:
+        return int(item_payload.get('cooldown_until_turn', 0) or 0)
+    except (TypeError, ValueError):
+        return 0
+
+
+def can_play_item_instance_now(state: JsonDict, item_instance: JsonDict) -> bool:
+    item_definition = get_item(item_instance.get('definition_id', ''))
+    if item_definition is None:
+        return False
+    item_payload = {
+        **item_definition,
+        'cooldown_until_turn': item_instance.get('cooldown_until_turn', item_definition.get('cooldown_until_turn', 0)),
+    }
+    return can_play_item_now(state, item_payload)
+
+
+def can_play_item_now(state: JsonDict, item_payload: JsonDict) -> bool:
     return (
         state.get('phase') == 'action'
         and state.get('has_played_item') is False
-        and bool(item_definition.get('can_play', True))
-        and int(item_definition.get('cooldown_until_turn', 0) or 0) <= int(state.get('turn', 1))
+        and bool(item_payload.get('can_play', True))
+        and item_cooldown_until_turn(item_payload) <= int(state.get('turn', 1))
     )
 
 
 def _load_state(player: Player) -> JsonDict:
     room = _require_room(player)
-    run = get_run(room)
+    run = _get_room_run(room)
     if run is None or not run['snapshot']:
         raise RuleValidationError('当前没有进行中的对局，请先开始。')
     run['snapshot'] = _normalize_loaded_state(run['snapshot'])
@@ -781,6 +808,7 @@ def _load_state(player: Player) -> JsonDict:
 
 def _save_and_serialize(player: Player, state: JsonDict) -> JsonDict:
     room = _require_room(player)
+    add_action_steps(state, take_post_battle_action_steps(state))
     action_queue = take_action_queue(state)
     payload = _save_and_serialize_for_room(room, state)
     payload['action_queue'] = action_queue
@@ -790,8 +818,9 @@ def _save_and_serialize(player: Player, state: JsonDict) -> JsonDict:
 def _save_and_serialize_for_room(room: Room, state: JsonDict) -> JsonDict:
     _capture_player_scope(state)
     validate_state(state)
+    payload = serialize_snapshot(state)
     _persist_room_snapshot(room, state)
-    return serialize_snapshot(state)
+    return payload
 
 
 def validate_state(state: JsonDict) -> None:
@@ -831,6 +860,7 @@ def _normalize_loaded_state(state: JsonDict) -> JsonDict:
             map_replaced = True
         normalized['map']['name'] = map_definition.get('name', normalized['map'].get('name'))
         normalized['map']['background_image'] = map_definition.get('background_image', normalized['map'].get('background_image'))
+        normalized['map']['fog_of_war'] = deepcopy(map_definition.get('fog_of_war', normalized['map'].get('fog_of_war', {})))
         monster_definitions = {monster['id']: monster for monster in map_definition.get('monsters', [])}
         for monster in normalized['map'].get('monsters', []):
             monster_definition = monster_definitions.get(monster.get('id'))
@@ -876,6 +906,7 @@ def _normalize_loaded_state(state: JsonDict) -> JsonDict:
         player_state = player_scope.setdefault('player', {})
         player_state.setdefault('keycards', 0)
         player_state.setdefault('fons_amount', 0)
+        player_state.setdefault('explored_cells', [])
         base_identification_level = int(character_instance.get('identification_level', 1))
         player_state['identification_level'] = max(
             base_identification_level,
@@ -894,6 +925,7 @@ def _normalize_loaded_state(state: JsonDict) -> JsonDict:
             entry = map_entry_point(normalized['map'])
             player_scope['player']['x'] = entry['x']
             player_scope['player']['y'] = entry['y']
+            player_scope['player']['explored_cells'] = []
         if 'pending_dice' not in player_scope:
             player_scope['pending_dice'] = _dice_pair_from_legacy_die(player_scope.get('pending_die'))
         dice_values = pending_dice_values({
@@ -927,6 +959,7 @@ def _normalize_loaded_state(state: JsonDict) -> JsonDict:
                 item_instance['amount'] = int(player_scope['player'].get('fons_amount', 0))
             player_scope.setdefault('hand', []).insert(0, item_instance)
     _project_player_scope(normalized, str(normalized['current_actor_uid']))
+    _refresh_all_fog_exploration(normalized)
     _initialize_item_zones(normalized, emit_initial_events=False)
     return normalized
 
@@ -947,9 +980,19 @@ def _absorb_convertible_hand_items(player_scope: JsonDict) -> None:
 
 def _persist_room_snapshot(room: Room, state: JsonDict) -> None:
     _capture_player_scope(state)
-    upsert_run(room, state['map']['id'], state['status'], state)
-    if state['status'] in {'playing', 'victory', 'defeat'}:
-        update_room_status(room, state['status'])
+    status_touches_room = state['status'] in {'playing', 'victory', 'defeat'}
+    queue_room_snapshot_persist(
+        room.id,
+        state['map']['id'],
+        state['status'],
+        state,
+        touch_room=not status_touches_room,
+        update_room_status=status_touches_room,
+    )
+
+
+def _get_room_run(room: Room) -> JsonDict | None:
+    return get_cached_room_run(room.id) or get_run(room)
 
 
 def _require_room(player: Player) -> Room:
@@ -971,6 +1014,22 @@ def begin_action_queue(state: JsonDict) -> None:
 
 def add_action_step(state: JsonDict, step: JsonDict) -> None:
     state.setdefault(ACTION_QUEUE_KEY, []).append(step)
+
+
+def pop_action_steps_since(state: JsonDict, start_index: int) -> list[JsonDict]:
+    queue = state.setdefault(ACTION_QUEUE_KEY, [])
+    deferred_steps = queue[start_index:]
+    del queue[start_index:]
+    return deferred_steps
+
+
+def add_action_steps(state: JsonDict, steps: list[JsonDict]) -> None:
+    for step in steps:
+        add_action_step(state, step)
+
+
+def take_post_battle_action_steps(state: JsonDict) -> list[JsonDict]:
+    return list(state.pop(POST_BATTLE_ACTION_QUEUE_KEY, []))
 
 
 def take_action_queue(state: JsonDict) -> list[JsonDict]:
@@ -1049,6 +1108,141 @@ def current_map_dimensions(state: JsonDict) -> tuple[int, int]:
     return map_layer_dimensions(state['map'], current_map_layer(state))
 
 
+def fog_radius_for_layer(game_map: JsonDict, layer: int) -> int | None:
+    fog_config = game_map.get('fog_of_war')
+    if not isinstance(fog_config, dict) or fog_config.get('enabled') is False:
+        return None
+    layer_values = fog_config.get('layers', {})
+    raw_radius = None
+    if isinstance(layer_values, dict):
+        raw_radius = layer_values.get(str(layer), layer_values.get(layer))
+    if raw_radius is None:
+        raw_radius = fog_config.get('default_radius')
+    if raw_radius is None:
+        return None
+    try:
+        radius = int(raw_radius)
+    except (TypeError, ValueError):
+        return None
+    return None if radius < 0 else max(MIN_FOG_RADIUS, radius)
+
+
+def _fog_disabled_for_layer(state: JsonDict, layer: int) -> bool:
+    radius = fog_radius_for_layer(state['map'], layer)
+    if radius is None:
+        return True
+    width, height = map_layer_dimensions(state['map'], layer)
+    return radius >= max(width, height)
+
+
+def _fog_cell_key(layer: int, x: int, y: int) -> str:
+    return f'{int(layer)}:{int(x)}:{int(y)}'
+
+
+def _explored_cell_keys(player_state: JsonDict) -> set[str]:
+    keys = set()
+    for cell in player_state.get('explored_cells', []):
+        try:
+            keys.add(_fog_cell_key(int(cell.get('layer', 1)), int(cell['x']), int(cell['y'])))
+        except (KeyError, TypeError, ValueError):
+            continue
+    return keys
+
+
+def reveal_fog_around_player(state: JsonDict) -> None:
+    layer = current_map_layer(state)
+    radius = fog_radius_for_layer(state['map'], layer)
+    if radius is None or _fog_disabled_for_layer(state, layer):
+        return
+    width, height = current_map_dimensions(state)
+    actor = state['player']
+    origin_x = int(actor['x'])
+    origin_y = int(actor['y'])
+    explored_keys = _explored_cell_keys(actor)
+    for y in range(max(0, origin_y - radius), min(height, origin_y + radius + 1)):
+        for x in range(max(0, origin_x - radius), min(width, origin_x + radius + 1)):
+            explored_keys.add(_fog_cell_key(layer, x, y))
+    actor['explored_cells'] = [
+        {'layer': int(cell_layer), 'x': int(cell_x), 'y': int(cell_y)}
+        for cell_layer, cell_x, cell_y in sorted(key.split(':') for key in explored_keys)
+    ]
+
+
+def _refresh_all_fog_exploration(state: JsonDict) -> None:
+    original_actor_uid = str(state['current_actor_uid'])
+    for actor_uid in state.get('players', {}):
+        _project_player_scope(state, actor_uid)
+        state['player'].setdefault('explored_cells', [])
+        reveal_fog_around_player(state)
+        _capture_player_scope(state)
+    _project_player_scope(state, original_actor_uid)
+
+
+def is_fog_hidden_for_current_player(state: JsonDict, x: int, y: int, layer: int | None = None) -> bool:
+    resolved_layer = current_map_layer(state) if layer is None else int(layer)
+    if _fog_disabled_for_layer(state, resolved_layer):
+        return False
+    width, height = map_layer_dimensions(state['map'], resolved_layer)
+    if x < 0 or y < 0 or x >= width or y >= height:
+        return False
+    return _fog_cell_key(resolved_layer, x, y) not in _explored_cell_keys(state['player'])
+
+
+def _tile_has_fog_visible_cell(state: JsonDict, tile: JsonDict) -> bool:
+    layer = int(tile.get('layer', current_map_layer(state)))
+    for offset_y in range(max(1, int(tile.get('height', 1) or 1))):
+        for offset_x in range(max(1, int(tile.get('width', 1) or 1))):
+            if not is_fog_hidden_for_current_player(
+                state,
+                int(tile.get('x', 0)) + offset_x,
+                int(tile.get('y', 0)) + offset_y,
+                layer,
+            ):
+                return True
+    return False
+
+
+def fog_hidden_cells(state: JsonDict) -> list[JsonDict]:
+    layer = current_map_layer(state)
+    if _fog_disabled_for_layer(state, layer):
+        return []
+    width, height = current_map_dimensions(state)
+    cells = []
+    for y in range(height):
+        for x in range(width):
+            if is_fog_hidden_for_current_player(state, x, y, layer):
+                cells.append({'layer': layer, 'x': x, 'y': y})
+    return cells
+
+
+def _apply_fog_to_payload(state: JsonDict, payload: JsonDict) -> None:
+    payload.setdefault('map', {})['fog_cells'] = fog_hidden_cells(state)
+    payload['map']['tiles'] = [
+        tile for tile in payload.get('map', {}).get('tiles', [])
+        if _tile_has_fog_visible_cell(state, tile)
+    ]
+    payload['map']['monsters'] = [
+        monster for monster in payload.get('map', {}).get('monsters', [])
+        if not is_fog_hidden_for_current_player(
+            state,
+            int(monster.get('x', 0)),
+            int(monster.get('y', 0)),
+            int(monster.get('layer', current_map_layer(state))),
+        )
+    ]
+    boss_payload = payload.get('map', {}).get('boss')
+    if isinstance(boss_payload, dict):
+        boss_payload['positions'] = [
+            position for position in boss_payload.get('positions', [])
+            if not is_fog_hidden_for_current_player(
+                state,
+                int(position.get('x', 0)),
+                int(position.get('y', 0)),
+                int(position.get('layer', current_map_layer(state))),
+            )
+        ]
+
+
 def in_current_layer_bounds(state: JsonDict, x: int, y: int) -> bool:
     width, height = current_map_dimensions(state)
     return 0 <= x < width and 0 <= y < height
@@ -1122,6 +1316,8 @@ def is_turn_belt_tile(tile: JsonDict | None) -> bool:
 def get_block_reason(state: JsonDict, x: int, y: int) -> str | None:
     if not in_current_layer_bounds(state, x, y):
         return '超出地图边界'
+    if is_fog_hidden_for_current_player(state, x, y):
+        return '迷雾遮挡了道路'
     tile = tile_at(state, x, y)
     if monster_at(state, x, y):
         return '怪物阻挡了道路'
@@ -1408,6 +1604,7 @@ def _default_direct_attack(context: EventContext, state: JsonDict) -> None:
             'player_lost_hp': 0,
         })
         return
+    queue_start = len(state.get(ACTION_QUEUE_KEY, []))
     incoming_result = resolve_damage_package(state, build_damage_package(
         source_name=str(enemy['name']),
         source_id=str(enemy['id']),
@@ -1420,7 +1617,9 @@ def _default_direct_attack(context: EventContext, state: JsonDict) -> None:
         attack_kind=str(context.payload.get('attack_kind', '反击')),
         allow_block=True,
     ))
-    _apply_mamen_fons_tax(state, enemy, incoming_result)
+    post_damage_steps = pop_action_steps_since(state, queue_start)
+    post_damage_steps.extend(take_post_battle_action_steps(state))
+    mamen_tax_step = _apply_mamen_fons_tax(state, enemy, incoming_result)
     context.payload['incoming_damage'] = incoming_result['final_damage']
     add_action_step(state, {
         'type': 'battle',
@@ -1430,6 +1629,9 @@ def _default_direct_attack(context: EventContext, state: JsonDict) -> None:
         'enemy_lost_hp': damage_result['final_damage'],
         'player_lost_hp': incoming_result['final_damage'],
     })
+    add_action_steps(state, post_damage_steps)
+    if mamen_tax_step is not None:
+        add_action_step(state, mamen_tax_step)
     dispatch_event(state, GameEvent.DIRECT_ATTACK_RESOLVED, {
         'enemy_id': enemy['id'],
         'enemy_name': enemy['name'],
@@ -1442,6 +1644,7 @@ def _default_ranged_attack(context: EventContext, state: JsonDict) -> None:
     _ensure(enemy is not None, f"未找到远程目标：{context.payload['enemy_id']}")
     actor_profile = state['players'][str(state['current_actor_uid'])]['profile']
     mark_battle_step(state)
+    queue_start = len(state.get(ACTION_QUEUE_KEY, []))
     damage_result = resolve_damage_package(state, build_damage_package(
         source_name=str(enemy['name']),
         source_id=str(enemy['id']),
@@ -1454,7 +1657,9 @@ def _default_ranged_attack(context: EventContext, state: JsonDict) -> None:
         attack_kind=str(context.payload.get('attack_kind', '远程攻击')),
         allow_block=True,
     ))
-    _apply_mamen_fons_tax(state, enemy, damage_result)
+    post_damage_steps = pop_action_steps_since(state, queue_start)
+    post_damage_steps.extend(take_post_battle_action_steps(state))
+    mamen_tax_step = _apply_mamen_fons_tax(state, enemy, damage_result)
     context.payload['incoming_damage'] = damage_result['final_damage']
     add_action_step(state, {
         'type': 'battle',
@@ -1464,6 +1669,9 @@ def _default_ranged_attack(context: EventContext, state: JsonDict) -> None:
         'enemy_lost_hp': 0,
         'player_lost_hp': damage_result['final_damage'],
     })
+    add_action_steps(state, post_damage_steps)
+    if mamen_tax_step is not None:
+        add_action_step(state, mamen_tax_step)
     dispatch_event(state, GameEvent.RANGED_ATTACK_RESOLVED, {
         'enemy_id': enemy['id'],
         'enemy_name': enemy['name'],
@@ -1488,21 +1696,21 @@ def effective_enemy_defense(state: JsonDict, enemy: JsonDict) -> int:
     return max(0, defense - (fons_amount(state) // MAMEN_FONS_DEFENSE_STEP))
 
 
-def _apply_mamen_fons_tax(state: JsonDict, enemy: JsonDict, damage_result: JsonDict) -> None:
+def _apply_mamen_fons_tax(state: JsonDict, enemy: JsonDict, damage_result: JsonDict) -> JsonDict | None:
     if enemy.get('id') != 'mamen' or int(damage_result.get('final_damage', 0) or 0) <= 0:
-        return
+        return None
     current_fons = fons_amount(state)
     if current_fons <= 0:
-        return
+        return None
     consumed = max(1, current_fons * MAMEN_FONS_DAMAGE_TAX_PERCENT // 100)
     set_fons_amount(state, max(0, current_fons - consumed))
     add_log(state, f"玛门吞噬了 {consumed} 方斯。")
-    add_action_step(state, {
+    return {
         'type': 'popup',
         'icon': _boss_icon(enemy),
         'title': '玛门',
         'message': f'玛门对富有者更加疯狂，造成伤害后吞噬了 {consumed} 方斯。',
-    })
+    }
 
 
 def current_attack(state: JsonDict) -> int:
@@ -1747,6 +1955,8 @@ def build_board_overlay(state: JsonDict) -> JsonDict:
     for tile in state['map']['tiles']:
         if not _is_on_current_layer(state, tile):
             continue
+        if not _tile_has_fog_visible_cell(state, tile):
+            continue
         if tile.get('hidden_zone') and not state['map'].get('hidden_room_revealed') and tile.get('object_id') != 'hidden_door':
             continue
         object_id = resolve_map_object_id(tile)
@@ -1774,13 +1984,23 @@ def build_board_overlay(state: JsonDict) -> JsonDict:
             overlay['tags'] = map_object_tags(map_object)
             overlays.append(overlay)
     for monster in state['map']['monsters']:
-        if _is_on_current_layer(state, monster) and monster['hp'] > 0 and not monster.get('captured') and not is_hidden_entity(state, monster):
+        if (
+            _is_on_current_layer(state, monster)
+            and monster['hp'] > 0
+            and not monster.get('captured')
+            and not is_hidden_entity(state, monster)
+            and not is_fog_hidden_for_current_player(state, int(monster['x']), int(monster['y']))
+        ):
             overlays.append(_overlay(monster['x'], monster['y'], width, height, _monster_icon(monster), f"{monster['name']}：HP {monster['hp']}/{monster['max_hp']}，攻击 {monster['attack']}，防御 {monster['defense']}，射程 {monster['range']}", 'monster', current_map_layer(state)))
     boss = state['map']['boss']
     boss_positions = [
         pos
         for pos in boss['positions']
-        if _is_on_current_layer(state, pos) and not is_hidden_entity(state, pos)
+        if (
+            _is_on_current_layer(state, pos)
+            and not is_hidden_entity(state, pos)
+            and not is_fog_hidden_for_current_player(state, int(pos['x']), int(pos['y']))
+        )
     ]
     if boss['hp'] > 0 and boss_positions:
         overlays.append(_area_overlay(
@@ -1794,6 +2014,11 @@ def build_board_overlay(state: JsonDict) -> JsonDict:
     for player_scope in state['players'].values():
         profile = player_scope['profile']
         player_state = player_scope['player']
+        if (
+            profile['player_uid'] != state['current_actor_uid']
+            and is_fog_hidden_for_current_player(state, int(player_state['x']), int(player_state['y']))
+        ):
+            continue
         character_instance = player_scope.get('character_instance', {})
         player_overlay = _overlay(
             player_state['x'],

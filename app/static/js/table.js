@@ -30,11 +30,13 @@ const copyLogBtn = document.getElementById('copy-log-btn');
 const resetRunBtn = document.getElementById('reset-run-btn');
 const logoutRunBtn = document.getElementById('logout-run-btn');
 const immersiveBtn = document.getElementById('immersive-btn');
-const directionButtons = Array.from(document.querySelectorAll('[data-direction]'));
 const mapZoomSlider = document.getElementById('map-zoom-slider');
 const MAP_MIN_ZOOM = 1;
 const MAP_HARD_MAX_ZOOM = 8;
 const MAP_TARGET_CELL_PIXELS = 52;
+const EMPTY_CELL_ENTRIES = [];
+const fogCellSetCache = new WeakMap();
+const hiddenCellSetCache = new WeakMap();
 const eventModal = document.getElementById('event-modal');
 const eventModalIcon = document.getElementById('event-modal-icon');
 const eventModalTitle = document.getElementById('event-modal-title');
@@ -94,6 +96,7 @@ const RARITY_LABELS = {
 let currentState = null;
 let activePreview = null;
 let moveLocked = false;
+let actionLocked = false;
 let initialCameraCentered = false;
 let lastRenderedLayer = null;
 let primedControl = null;
@@ -102,7 +105,30 @@ let tableTutorialInitialized = false;
 let hoveredMapCellKey = null;
 let mapCameraFrame = 0;
 let pendingMapCameraOptions = {};
+let lastAppliedCameraTransform = '';
+let zoomSliderFrame = 0;
+let zoomSliderTimer = 0;
+let lastSliderZoomAppliedAt = 0;
+let pendingSliderZoom = null;
+let pendingSliderZoomFinal = false;
+let zoomVariableSyncTimer = 0;
+let cameraInteractionTimer = 0;
+let zoomSliderInteracting = false;
+let zoomSliderPointerId = null;
 let immersiveModeRequested = false;
+const ZOOM_SLIDER_APPLY_INTERVAL = 32;
+const CAMERA_INTERACTION_IDLE_MS = 180;
+const ZOOM_EDGE_SNAP_EPSILON = 0.025;
+const MOVE_GHOST_STEP_MS = 150;
+const MOVE_GHOST_DIRECT_MS = 210;
+const MOVE_GHOST_SETTLE_MS = 56;
+const MOVE_INTENT_ENTRY_MS = 150;
+const MOVE_INTENT_STEP_MS = 130;
+const MOVE_INTENT_EXIT_MS = 150;
+const MOVE_INTENT_GAP_MS = 150;
+const IDENTIFY_FLASH_MS = 520;
+const ITEM_CAST_INTRO_MS = 620;
+const ITEM_CAST_EXIT_MS = 360;
 
 const mapCamera = {
   x: 0,
@@ -345,7 +371,7 @@ function renderState(state) {
   renderHand(state);
   renderLog(state);
   syncButtons(state);
-  refreshActivePreview();
+  clearPreview();
   clampMapCamera();
   applyMapCamera();
   if (shouldResetMapZoom) {
@@ -417,10 +443,10 @@ function renderMapGrid(state) {
 
   for (let y = 0; y < height; y += 1) {
     for (let x = 0; x < width; x += 1) {
-      if (isHiddenCell(state, x, y, layer)) {
+      if (isFogCell(state, x, y, layer) || isHiddenCell(state, x, y, layer)) {
         const cell = document.createElement('span');
         const bounds = cellBounds(x, y, state);
-        cell.className = 'map-cell cell-hidden-zone';
+        cell.className = `map-cell ${isFogCell(state, x, y, layer) ? 'cell-fog-zone' : 'cell-hidden-zone'}`;
         cell.style.left = `${bounds.left}%`;
         cell.style.top = `${bounds.top}%`;
         cell.style.width = `${bounds.width}%`;
@@ -554,16 +580,16 @@ function renderHand(state) {
   state.hand_details.forEach((item) => {
     const card = document.createElement('article');
     const stackLabel = itemStackLabel(item, state);
-    const canPlay = item.can_play_this_turn !== false && state.phase === 'action' && !state.has_played_item;
+    const canPlay = !interactionLocked() && item.can_play_this_turn !== false && state.phase === 'action' && !state.has_played_item;
     card.className = `hand-card item-card item-tool rarity-${classToken(item.rarity)} type-${classToken(item.type)}`;
     card.innerHTML = `
-      <button class="item-tool-button" ${canPlay ? '' : 'disabled'} aria-label="使用${item.name}">
+      <button class="item-tool-button" data-item-instance-id="${item.instance_id}" ${canPlay ? '' : 'disabled'} aria-label="使用${item.name}">
         <span class="item-art small" aria-hidden="true">${itemIconMarkup(item)}</span>
         ${stackLabel ? `<span class="item-stack">${stackLabel}</span>` : ''}
       </button>
     `;
     card.querySelector('button').addEventListener('click', (event) => {
-      if (!canPlay) {
+      if (!canPlay || interactionLocked()) {
         return;
       }
       if (primeTouchControl(event, `item:${item.instance_id}`, card, () => showItemTooltip(card, item, stackLabel))) {
@@ -803,6 +829,9 @@ function rangeCellsForThreat(threat) {
           return;
         }
         seen.add(key);
+        if (isFogCell(currentState, x, y) || isHiddenCell(currentState, x, y)) {
+          return;
+        }
         if (isRangeBlocked(currentState, x, y)) {
           return;
         }
@@ -812,6 +841,46 @@ function rangeCellsForThreat(threat) {
     }
   });
   return Array.from(cells.values());
+}
+
+function activeThreats(state = currentState) {
+  if (!state?.map) {
+    return [];
+  }
+  const layer = activeLayer(state);
+  const threats = (state.map.monsters || [])
+    .filter((monster) => onLayer(monster, layer) && Number(monster.hp || 0) > 0 && !monster.captured);
+  const boss = state.map.boss || {};
+  if (Number(boss.hp || 0) > 0 && (boss.positions || []).some((position) => onLayer(position, layer))) {
+    threats.push(boss);
+  }
+  return threats;
+}
+
+function previewThreatRanges(preview, state = currentState) {
+  if (!preview?.landing || preview.blocked || !state?.map) {
+    return [];
+  }
+  const landingKey = cellKey(preview.landing.x, preview.landing.y);
+  return activeThreats(state)
+    .map((threat) => ({
+      threat,
+      cells: rangeCellsForThreat(threat),
+    }))
+    .filter((entry) => entry.cells.some((cell) => cellKey(cell.x, cell.y) === landingKey));
+}
+
+function addPreviewThreatRange(cells) {
+  cells.forEach((cell) => {
+    const marker = document.createElement('span');
+    marker.className = 'range-cell preview-threat-range-cell';
+    const bounds = cellBounds(cell.x, cell.y);
+    marker.style.left = `${bounds.left}%`;
+    marker.style.top = `${bounds.top}%`;
+    marker.style.width = `${bounds.width}%`;
+    marker.style.height = `${bounds.height}%`;
+    mapPreviewLayer.appendChild(marker);
+  });
 }
 
 function identifyOffsets(level) {
@@ -1000,11 +1069,36 @@ function setSideView(view) {
 }
 
 function syncButtons(state) {
-  directionButtons.forEach((button) => {
-    button.disabled = moveLocked || !canPreview(state);
-  });
+  const locked = interactionLocked();
   if (mapStage) {
-    mapStage.classList.toggle('can-select-target', canPreview(state) && !moveLocked);
+    mapStage.classList.toggle('can-select-target', canPreview(state) && !locked);
+    mapStage.classList.toggle('action-locked', actionLocked);
+  }
+}
+
+function interactionLocked() {
+  return moveLocked || actionLocked;
+}
+
+function setActionLocked(locked, itemInstanceId = null) {
+  actionLocked = Boolean(locked);
+  document.body.classList.toggle('action-locked', actionLocked);
+  mapStage?.classList.toggle('action-locked', actionLocked);
+  if (actionLocked) {
+    handList.querySelectorAll('.item-tool-button').forEach((button) => {
+      button.disabled = true;
+      button.classList.toggle('is-loading', button.dataset.itemInstanceId === String(itemInstanceId));
+    });
+  } else {
+    handList.querySelectorAll('.item-tool-button').forEach((button) => {
+      button.classList.remove('is-loading');
+    });
+    if (currentState) {
+      renderHand(currentState);
+    }
+  }
+  if (currentState) {
+    syncButtons(currentState);
   }
 }
 
@@ -1148,26 +1242,86 @@ function cellKey(x, y) {
 }
 
 function hiddenCellEntries(state = currentState) {
-  return Array.isArray(state?.map?.hidden_cells) ? state.map.hidden_cells : [];
+  return Array.isArray(state?.map?.hidden_cells) ? state.map.hidden_cells : EMPTY_CELL_ENTRIES;
+}
+
+function fogCellEntries(state = currentState) {
+  return Array.isArray(state?.map?.fog_cells) ? state.map.fog_cells : EMPTY_CELL_ENTRIES;
 }
 
 function activeLayer(state = currentState) {
   return Number(state?.map?.current_layer || state?.board?.current_layer || 1);
 }
 
+function cellEntryKey(layer, x, y) {
+  return `${Number(layer || 1)}:${Number(x)}:${Number(y)}`;
+}
+
+function cellSetFor(entries, cache) {
+  if (cache.has(entries)) {
+    return cache.get(entries);
+  }
+  const set = new Set((entries || []).map((cell) => cellEntryKey(cell.layer || 1, cell.x, cell.y)));
+  cache.set(entries, set);
+  return set;
+}
+
+function isFogCell(state, x, y, layer = activeLayer(state)) {
+  return cellSetFor(fogCellEntries(state), fogCellSetCache).has(cellEntryKey(layer, x, y));
+}
+
+function fogRadiusForLayer(state = currentState, layer = activeLayer(state)) {
+  const config = state?.map?.fog_of_war;
+  if (!config || config.enabled === false) {
+    return null;
+  }
+  const layerValues = config.layers || {};
+  const rawRadius = layerValues[String(layer)] ?? layerValues[layer] ?? config.default_radius;
+  if (rawRadius === undefined || rawRadius === null) {
+    return null;
+  }
+  const radius = Number(rawRadius);
+  return Number.isFinite(radius) && radius >= 0 ? radius : null;
+}
+
+function isFogDisabledForLayer(state = currentState, layer = activeLayer(state)) {
+  const radius = fogRadiusForLayer(state, layer);
+  return radius === null || radius >= Math.max(mapWidth(state, layer), mapHeight(state, layer));
+}
+
+function createPreviewFogTracker(state = currentState) {
+  const layer = activeLayer(state);
+  const fogKeys = new Set(fogCellEntries(state).map((cell) => cellEntryKey(cell.layer || 1, cell.x, cell.y)));
+  const revealedKeys = new Set();
+  const radius = fogRadiusForLayer(state, layer);
+  const disabled = isFogDisabledForLayer(state, layer);
+  const reveal = (originX, originY) => {
+    if (disabled || radius === null) {
+      return;
+    }
+    const width = mapWidth(state, layer);
+    const height = mapHeight(state, layer);
+    for (let y = Math.max(0, Number(originY) - radius); y < Math.min(height, Number(originY) + radius + 1); y += 1) {
+      for (let x = Math.max(0, Number(originX) - radius); x < Math.min(width, Number(originX) + radius + 1); x += 1) {
+        revealedKeys.add(cellEntryKey(layer, x, y));
+      }
+    }
+  };
+  return {
+    reveal,
+    isHidden: (x, y) => !disabled && fogKeys.has(cellEntryKey(layer, x, y)) && !revealedKeys.has(cellEntryKey(layer, x, y)),
+  };
+}
+
 function isHiddenCell(state, x, y, layer = activeLayer(state)) {
   if (!state?.map || state.map.hidden_room_revealed) {
     return false;
   }
-  return hiddenCellEntries(state).some((cell) => (
-    Number(cell.layer || 1) === Number(layer)
-    && Number(cell.x) === Number(x)
-    && Number(cell.y) === Number(y)
-  ));
+  return cellSetFor(hiddenCellEntries(state), hiddenCellSetCache).has(cellEntryKey(layer, x, y));
 }
 
 function visibleTileDisplayType(state, tile, x, y, layer = activeLayer(state)) {
-  if (isHiddenCell(state, x, y, layer)) {
+  if (isFogCell(state, x, y, layer) || isHiddenCell(state, x, y, layer)) {
     return 'floor';
   }
   return tileDisplayType(tile);
@@ -1252,9 +1406,15 @@ function isPassableHiddenDoor(tile) {
   return tile?.type === 'hidden_door' || tile?.object_id === 'hidden_door';
 }
 
-function getBasicBlockReason(state, x, y) {
+function getBasicBlockReason(state, x, y, options = {}) {
   if (x < 0 || y < 0 || x >= mapWidth(state) || y >= mapHeight(state)) {
     return '边界';
+  }
+  const fogHidden = options.fogTracker
+    ? options.fogTracker.isHidden(x, y)
+    : isFogCell(state, x, y);
+  if (fogHidden) {
+    return '迷雾区域';
   }
   if (isHiddenCell(state, x, y)) {
     return '隐藏区域尚未发现';
@@ -1301,75 +1461,6 @@ function turnBeltDirection(tile) {
   return DIRECTION_VECTORS[direction] ? direction : null;
 }
 
-function buildMovePreview(state, direction) {
-  if (!canPreview(state) || !DIRECTION_VECTORS[direction]) {
-    return null;
-  }
-  let x = Number(state.player.x);
-  let y = Number(state.player.y);
-  let activeDirection = direction;
-  const dice = pendingDice(state);
-  let stepsRemaining = direction === 'left' || direction === 'right'
-    ? Math.max(dice?.a || 0, dice?.b || 0)
-    : Math.max(dice?.a || 0, dice?.b || 0);
-  const path = [{ x, y, kind: 'start' }];
-  const redirects = [];
-  let blocked = null;
-  let intercepted = null;
-  let guard = 0;
-  const startTurn = basicTurnDirection(tileAt(state, x, y), stepsRemaining);
-  if (startTurn) {
-    activeDirection = startTurn;
-    redirects.push({ x, y, direction: startTurn });
-  }
-
-  while (stepsRemaining > 0) {
-    guard += 1;
-    if (guard > 32) {
-      blocked = { x, y, reason: '预览达到上限' };
-      break;
-    }
-
-    const vector = DIRECTION_VECTORS[activeDirection];
-    const nextX = x + vector.x;
-    const nextY = y + vector.y;
-    const blockReason = getBasicBlockReason(state, nextX, nextY);
-    if (blockReason) {
-      blocked = { x: nextX, y: nextY, reason: blockReason };
-      break;
-    }
-
-    x = nextX;
-    y = nextY;
-    stepsRemaining -= 1;
-    const tile = tileAt(state, x, y);
-    const point = { x, y, kind: stepsRemaining === 0 ? 'landing' : 'step', direction: activeDirection };
-    path.push(point);
-
-    if (isBasicIntercept(tile)) {
-      point.kind = 'intercept';
-      intercepted = { x, y, reason: '拦截' };
-      break;
-    }
-
-    const turned = basicTurnDirection(tile, stepsRemaining);
-    if (turned) {
-      activeDirection = turned;
-      redirects.push({ x, y, direction: turned });
-    }
-  }
-
-  const landing = path[path.length - 1];
-  return {
-    direction,
-    path,
-    landing: { x: landing.x, y: landing.y },
-    redirects,
-    blocked,
-    intercepted,
-  };
-}
-
 function showThreatTarget(node, icon) {
   showThreatRange(icon);
   showMapTooltip(node, icon.tooltip, icon.tags || []);
@@ -1385,7 +1476,7 @@ function hideThreatTarget(node = null) {
 }
 
 function showMapTarget(node, icon) {
-  if (!canPreview(currentState) || moveLocked) {
+  if (!canPreview(currentState) || interactionLocked()) {
     showMapTooltip(node, icon.tooltip, icon.tags || []);
     return;
   }
@@ -1488,6 +1579,9 @@ function buildMoveRangeCells(state, dice = pendingDice(state)) {
       if (x < 0 || y < 0 || x >= width || y >= height) {
         continue;
       }
+      if (isFogCell(state, x, y)) {
+        continue;
+      }
       if (isHiddenCell(state, x, y)) {
         continue;
       }
@@ -1524,13 +1618,18 @@ function previewFromDirections(state, directions, target) {
   const path = [{ x, y, kind: 'start' }];
   let previousDirection = null;
   let turns = 0;
+  const fogTracker = createPreviewFogTracker(state);
+  fogTracker.reveal(x, y);
   for (const direction of directions) {
     const vector = DIRECTION_VECTORS[direction];
     x += vector.x;
     y += vector.y;
     const isFinal = x === Number(target.x) && y === Number(target.y);
     const tile = tileAt(state, x, y);
-    const reason = getPathObstacleReason(state, x, y, { allowIntercept: isFinal && isBasicIntercept(tile) });
+    const reason = getPathObstacleReason(state, x, y, {
+      allowIntercept: isFinal && isBasicIntercept(tile),
+      fogTracker,
+    });
     if (reason) {
       return {
         direction: 'target',
@@ -1547,6 +1646,7 @@ function previewFromDirections(state, directions, target) {
     }
     previousDirection = direction;
     path.push({ x, y, kind: isFinal ? 'landing' : 'step', direction });
+    fogTracker.reveal(x, y);
     if (!isFinal && isBasicIntercept(tile)) {
       return {
         direction: 'target',
@@ -1571,7 +1671,7 @@ function previewFromDirections(state, directions, target) {
 }
 
 function getPathObstacleReason(state, x, y, target = null) {
-  const blockReason = getBasicBlockReason(state, x, y);
+  const blockReason = getBasicBlockReason(state, x, y, target || {});
   if (blockReason) {
     return blockReason;
   }
@@ -1615,6 +1715,19 @@ function renderPreview(preview) {
     addMoveRangeOutline(preview.rangeOutline);
   }
 
+  const threatRanges = previewThreatRanges(preview);
+  const threatCellKeys = new Set();
+  threatRanges.forEach((entry) => {
+    entry.cells.forEach((cell) => {
+      const key = cellKey(cell.x, cell.y);
+      if (threatCellKeys.has(key)) {
+        return;
+      }
+      threatCellKeys.add(key);
+      addPreviewThreatRange([cell]);
+    });
+  });
+
   preview.path.forEach((point, index) => {
     if (index > 0) {
       addPreviewSegment(preview.path[index - 1], point);
@@ -1650,15 +1763,18 @@ function renderPreview(preview) {
 
   const reason = preview.blocked?.reason || preview.intercepted?.reason;
   const target = preview.blocked ? preview.blocked : preview.landing;
+  const threatSuffix = threatRanges.length
+    ? `，落点在 ${threatRanges.map((entry) => entry.threat.name || '敌人').join(' / ')} 的攻击范围内`
+    : '';
   if (preview.targetLabel) {
     routeHint.textContent = reason
       ? `目标路径：${reason}。`
-      : `目标路径：移动 ${preview.path.length - 1} 步至 (${preview.landing.x}, ${preview.landing.y})${preview.turns ? '，转弯一次' : ''}。`;
+      : `目标路径：移动 ${preview.path.length - 1} 步至 (${preview.landing.x}, ${preview.landing.y})${preview.turns ? '，转弯一次' : ''}${threatSuffix}。`;
     return;
   }
   routeHint.textContent = reason
     ? `预览：${preview.path.length - 1} 步后在 (${preview.landing.x}, ${preview.landing.y}) 停止，${reason} 于 (${target.x}, ${target.y})。`
-    : `预览：落点 (${preview.landing.x}, ${preview.landing.y})。${preview.redirects.length ? '途中会发生转向。' : ''}`;
+    : `预览：落点 (${preview.landing.x}, ${preview.landing.y})${threatSuffix}。${preview.redirects.length ? '途中会发生转向。' : ''}`;
 }
 
 function currentCellPixelSize(state = currentState, layer = activeLayer(state)) {
@@ -1733,29 +1849,12 @@ function clearPreview() {
   }
 }
 
-function showPreview(direction) {
-  if (moveLocked || !canPreview(currentState)) {
-    return;
-  }
-  renderPreview(buildMovePreview(currentState, direction));
-}
-
-function refreshActivePreview() {
-  const hovered = directionButtons.find((button) => button.matches(':hover, :focus-visible'));
-  if (hovered && canPreview(currentState)) {
-    showPreview(hovered.dataset.direction);
-  } else {
-    clearPreview();
-  }
-}
-
-function directionLabel(direction) {
-  const mapping = { up: '↑', down: '↓', left: '←', right: '→' };
-  return mapping[direction] || '';
-}
-
 function sleep(ms) {
   return new Promise((resolve) => window.setTimeout(resolve, ms));
+}
+
+function nextAnimationFrame() {
+  return new Promise((resolve) => window.requestAnimationFrame(resolve));
 }
 
 function stageRect() {
@@ -1862,14 +1961,87 @@ function applyMapCamera(options = {}) {
 }
 
 function applyMapCameraNow(options = {}) {
-  mapStageInner.style.setProperty('--map-zoom', mapCamera.zoom.toFixed(3));
+  if (options.skipZoomVariable) {
+    scheduleZoomVariableSync();
+  } else {
+    syncZoomVariable();
+  }
   mapStageInner.classList.toggle('camera-smooth', Boolean(options.smooth));
-  mapStageInner.style.transform = `translate3d(${mapCamera.x}px, ${mapCamera.y}px, 0) scale(${mapCamera.zoom})`;
+  const transform = `translate3d(${mapCamera.x.toFixed(2)}px, ${mapCamera.y.toFixed(2)}px, 0) scale(${mapCamera.zoom.toFixed(4)})`;
+  if (transform !== lastAppliedCameraTransform) {
+    lastAppliedCameraTransform = transform;
+    mapStageInner.style.transform = transform;
+  }
+}
+
+function beginCameraInteraction() {
+  if (!mapStage) {
+    return;
+  }
+  if (cameraInteractionTimer) {
+    window.clearTimeout(cameraInteractionTimer);
+    cameraInteractionTimer = 0;
+  }
+  mapStage.classList.add('camera-interacting');
+}
+
+function endCameraInteractionSoon(delay = CAMERA_INTERACTION_IDLE_MS) {
+  if (!mapStage) {
+    return;
+  }
+  if (cameraInteractionTimer) {
+    window.clearTimeout(cameraInteractionTimer);
+  }
+  cameraInteractionTimer = window.setTimeout(() => {
+    cameraInteractionTimer = 0;
+    mapStage.classList.remove('camera-interacting');
+  }, delay);
+}
+
+function syncZoomVariable() {
+  if (zoomVariableSyncTimer) {
+    window.clearTimeout(zoomVariableSyncTimer);
+    zoomVariableSyncTimer = 0;
+  }
+  mapStageInner.style.setProperty('--map-zoom', mapCamera.zoom.toFixed(3));
+}
+
+function scheduleZoomVariableSync() {
+  if (zoomVariableSyncTimer) {
+    window.clearTimeout(zoomVariableSyncTimer);
+  }
+  zoomVariableSyncTimer = window.setTimeout(() => {
+    zoomVariableSyncTimer = 0;
+    if (zoomSliderInteracting) {
+      return;
+    }
+    syncZoomVariable();
+  }, 80);
 }
 
 function setMapZoom(value, options = {}) {
   const rect = stageRect();
-  const nextZoom = Math.max(MAP_MIN_ZOOM, Math.min(currentMapMaxZoom(currentState), Number(value) || MAP_MIN_ZOOM));
+  const maxZoom = currentMapMaxZoom(currentState);
+  let numericValue = Number(value);
+  if (!Number.isFinite(numericValue)) {
+    numericValue = MAP_MIN_ZOOM;
+  }
+  if (numericValue <= MAP_MIN_ZOOM + ZOOM_EDGE_SNAP_EPSILON) {
+    numericValue = MAP_MIN_ZOOM;
+  } else if (numericValue >= maxZoom - ZOOM_EDGE_SNAP_EPSILON) {
+    numericValue = maxZoom;
+  }
+  const nextZoom = Math.max(MAP_MIN_ZOOM, Math.min(maxZoom, numericValue));
+  const hasFocalPoint = Number.isFinite(options.focalClientX) || Number.isFinite(options.focalClientY);
+  if (!hasFocalPoint && Math.abs(nextZoom - mapCamera.zoom) < 0.0005) {
+    if (mapZoomSlider && options.syncSlider !== false) {
+      mapZoomSlider.value = mapCamera.zoom.toFixed(2);
+    }
+    if (!options.skipZoomVariable) {
+      syncZoomVariable();
+    }
+    return;
+  }
   if (!rect.width || !rect.height) {
     mapCamera.zoom = nextZoom;
     applyMapCamera(options);
@@ -1883,10 +2055,83 @@ function setMapZoom(value, options = {}) {
   mapCamera.x = focalX - (centerWorldX * mapCamera.zoom);
   mapCamera.y = focalY - (centerWorldY * mapCamera.zoom);
   clampMapCamera();
-  if (mapZoomSlider) {
+  if (mapZoomSlider && options.syncSlider !== false) {
     mapZoomSlider.value = mapCamera.zoom.toFixed(2);
   }
   applyMapCamera(options);
+}
+
+function scheduleSliderZoom(value) {
+  pendingSliderZoom = value;
+  beginCameraInteraction();
+  if (zoomSliderFrame || zoomSliderTimer) {
+    return;
+  }
+  const now = window.performance?.now?.() ?? Date.now();
+  const elapsed = now - lastSliderZoomAppliedAt;
+  const delay = Math.max(0, ZOOM_SLIDER_APPLY_INTERVAL - elapsed);
+  zoomSliderTimer = window.setTimeout(() => {
+    zoomSliderTimer = 0;
+    flushSliderZoom();
+  }, delay);
+}
+
+function beginZoomSliderInteraction(event = null) {
+  zoomSliderInteracting = true;
+  if (event?.pointerId !== undefined) {
+    zoomSliderPointerId = event.pointerId;
+  }
+  if (zoomVariableSyncTimer) {
+    window.clearTimeout(zoomVariableSyncTimer);
+    zoomVariableSyncTimer = 0;
+  }
+  beginCameraInteraction();
+}
+
+function finishZoomSliderInteraction(event = null) {
+  if (
+    event?.pointerId !== undefined
+    && zoomSliderPointerId !== null
+    && event.pointerId !== zoomSliderPointerId
+  ) {
+    return;
+  }
+  if (!zoomSliderInteracting && !pendingSliderZoom) {
+    return;
+  }
+  zoomSliderInteracting = false;
+  zoomSliderPointerId = null;
+  pendingSliderZoom = mapZoomSlider?.value ?? pendingSliderZoom;
+  flushSliderZoom({ final: true });
+}
+
+function flushSliderZoom(options = {}) {
+  pendingSliderZoomFinal = pendingSliderZoomFinal || Boolean(options.final);
+  if (zoomSliderTimer) {
+    window.clearTimeout(zoomSliderTimer);
+    zoomSliderTimer = 0;
+  }
+  if (zoomSliderFrame) {
+    return;
+  }
+  zoomSliderFrame = window.requestAnimationFrame(() => {
+    zoomSliderFrame = 0;
+    const nextValue = pendingSliderZoom ?? mapZoomSlider?.value ?? mapCamera.zoom;
+    const isFinal = pendingSliderZoomFinal;
+    pendingSliderZoom = null;
+    pendingSliderZoomFinal = false;
+    lastSliderZoomAppliedAt = window.performance?.now?.() ?? Date.now();
+    setMapZoom(nextValue, {
+      syncSlider: false,
+      skipZoomVariable: !isFinal,
+    });
+    if (isFinal) {
+      syncZoomVariable();
+    }
+    if (isFinal || !zoomSliderInteracting) {
+      endCameraInteractionSoon(isFinal ? 40 : CAMERA_INTERACTION_IDLE_MS);
+    }
+  });
 }
 
 function centerCameraOnCell(x, y, options = {}) {
@@ -1956,7 +2201,7 @@ function mapPointFromClient(event) {
   if (x < 0 || y < 0 || x >= mapWidth(currentState) || y >= mapHeight(currentState)) {
     return null;
   }
-  if (isHiddenCell(currentState, x, y)) {
+  if (isFogCell(currentState, x, y) || isHiddenCell(currentState, x, y)) {
     return null;
   }
   return { x, y };
@@ -1975,7 +2220,8 @@ function finishMapDrag(event = null) {
     event
       && pointerId === event.pointerId
       && !mapCamera.dragMoved
-      && !isOverlayTarget(event),
+      && !isOverlayTarget(event)
+      && !actionLocked
   );
   if (pointerId !== null && mapStage?.hasPointerCapture(pointerId)) {
     mapStage.releasePointerCapture(pointerId);
@@ -1989,10 +2235,14 @@ function finishMapDrag(event = null) {
   } else {
     clearPrimedMapTarget();
   }
+  endCameraInteractionSoon(60);
 }
 
 function showMapPointerPreview(event) {
-  if (mapCamera.dragging || event.target.closest('.overlay-token')) {
+  if (interactionLocked() || mapCamera.dragging || event.target.closest('.overlay-token')) {
+    if (actionLocked) {
+      clearPreview();
+    }
     return;
   }
   const point = mapPointFromClient(event);
@@ -2010,6 +2260,9 @@ function showMapPointerPreview(event) {
 }
 
 function handleMapPointerSelection(event) {
+  if (interactionLocked()) {
+    return;
+  }
   const point = mapPointFromClient(event);
   if (!point) {
     return;
@@ -2018,7 +2271,7 @@ function handleMapPointerSelection(event) {
 }
 
 function handleMapTargetSelection(x, y, node = null, icon = null, sourceEvent = null) {
-  if (moveLocked || !canPreview(currentState)) {
+  if (interactionLocked() || !canPreview(currentState)) {
     if (node && icon) {
       showMapTooltip(node, icon.tooltip, icon.tags || []);
     }
@@ -2058,48 +2311,311 @@ async function animatePreview(preview) {
   if (!preview || preview.path.length <= 1) {
     return;
   }
-  const ghost = document.createElement('span');
-  ghost.className = 'move-ghost';
-  const avatar = currentState?.character_instance?.avatar_image;
-  ghost.innerHTML = avatar ? `<img src="${avatar}" alt="">` : iconMarkup('player');
-  const start = cellPercent(preview.path[0]);
-  const bounds = cellBounds(preview.path[0].x, preview.path[0].y);
-  ghost.style.left = `${start.left}%`;
-  ghost.style.top = `${start.top}%`;
-  ghost.style.width = `${bounds.width * 0.92}%`;
-  ghost.style.height = `${bounds.height * 0.92}%`;
-  mapFxLayer.appendChild(ghost);
-
-  await sleep(20);
-  for (const point of preview.path.slice(1)) {
-    const pos = cellPercent(point);
-    ghost.style.left = `${pos.left}%`;
-    ghost.style.top = `${pos.top}%`;
-    await sleep(120);
-  }
-  ghost.classList.add('fade');
-  await sleep(160);
-  ghost.remove();
+  await animateMovePath(preview.path);
 }
 
-async function animateBackendMove(step) {
-  if (!currentState || Number(step.layer || activeLayer(currentState)) !== activeLayer(currentState)) {
+function movementAnimationMetrics(state = currentState) {
+  const rect = stageRect();
+  const baseWidth = mapCamera.baseWidth || mapStageInner?.offsetWidth || rect.width || 1;
+  const baseHeight = mapCamera.baseHeight || mapStageInner?.offsetHeight || rect.height || 1;
+  const cellWidth = baseWidth / Math.max(1, mapWidth(state));
+  const cellHeight = baseHeight / Math.max(1, mapHeight(state));
+  return {
+    baseWidth,
+    baseHeight,
+    cellWidth,
+    cellHeight,
+    tokenWidth: cellWidth * 0.92,
+    tokenHeight: cellHeight * 0.92,
+  };
+}
+
+function cellCenterPixels(point, metrics, state = currentState) {
+  return {
+    x: ((Number(point.x) + 0.5) / mapWidth(state)) * metrics.baseWidth,
+    y: ((Number(point.y) + 0.5) / mapHeight(state)) * metrics.baseHeight,
+  };
+}
+
+function moveGhostTransform(point, metrics, state = currentState) {
+  const center = cellCenterPixels(point, metrics, state);
+  const x = center.x - (metrics.tokenWidth / 2);
+  const y = center.y - (metrics.tokenHeight / 2);
+  return `translate3d(${x.toFixed(2)}px, ${y.toFixed(2)}px, 0)`;
+}
+
+function setMoveGhostPosition(ghost, point, metrics, state = currentState) {
+  ghost.style.transform = moveGhostTransform(point, metrics, state);
+}
+
+function moveIntentPathFromDirections(directions) {
+  if (!currentState || !Array.isArray(directions) || directions.length === 0) {
+    return null;
+  }
+  let x = Number(currentState.player.x);
+  let y = Number(currentState.player.y);
+  const path = [{ x, y, kind: 'start' }];
+  for (const direction of directions) {
+    const vector = DIRECTION_VECTORS[direction];
+    if (!vector) {
+      continue;
+    }
+    x += vector.x;
+    y += vector.y;
+    path.push({ x, y, kind: 'step', direction });
+  }
+  return path.length > 1 ? { path } : null;
+}
+
+function moveIntentPreview(path = null) {
+  if (activePreview?.path?.length > 1 && !activePreview.blocked) {
+    return {
+      path: activePreview.path.map((point) => ({ ...point })),
+    };
+  }
+  if (Array.isArray(path) && path.length) {
+    return moveIntentPathFromDirections(path);
+  }
+  return null;
+}
+
+function moveIntentArrowTransform(point, metrics, size, angle, scale = 1, offsetCells = 0, state = currentState) {
+  const center = cellCenterPixels(point, metrics, state);
+  const offset = Math.min(metrics.cellWidth, metrics.cellHeight) * offsetCells;
+  center.x += Math.cos(angle) * offset;
+  center.y += Math.sin(angle) * offset;
+  const x = center.x - (size / 2);
+  const y = center.y - (size / 2);
+  return `translate3d(${x.toFixed(2)}px, ${y.toFixed(2)}px, 0) rotate(${angle.toFixed(4)}rad) scale(${scale})`;
+}
+
+function angleBetweenPoints(from, to, metrics, state = currentState) {
+  const fromCenter = cellCenterPixels(from, metrics, state);
+  const toCenter = cellCenterPixels(to, metrics, state);
+  return Math.atan2(toCenter.y - fromCenter.y, toCenter.x - fromCenter.x);
+}
+
+async function playMoveIntentArrow(path) {
+  if (!currentState || !path || path.length <= 1) {
+    return;
+  }
+  const metrics = movementAnimationMetrics(currentState);
+  const start = path[0];
+  const firstStep = path[1];
+  const size = Math.max(14, Math.min(metrics.cellWidth, metrics.cellHeight) * 0.72);
+  let angle = angleBetweenPoints(start, firstStep, metrics);
+  const arrow = document.createElement('span');
+  arrow.className = 'move-intent-arrow';
+  arrow.style.width = `${size}px`;
+  arrow.style.height = `${size}px`;
+  arrow.style.transitionDuration = `${MOVE_INTENT_ENTRY_MS}ms`;
+  arrow.style.transform = moveIntentArrowTransform(start, metrics, size, angle, 0.36, -0.62);
+  mapFxLayer.appendChild(arrow);
+
+  await nextAnimationFrame();
+  arrow.classList.add('active');
+  arrow.style.transform = moveIntentArrowTransform(start, metrics, size, angle, 1);
+  await sleep(MOVE_INTENT_ENTRY_MS);
+
+  const travelMs = Math.max(MOVE_INTENT_STEP_MS, (path.length - 1) * MOVE_INTENT_STEP_MS);
+  const lastIndex = path.length - 1;
+  const travelFrames = path.map((point, index) => {
+    const nextPoint = path[Math.min(index + 1, lastIndex)];
+    const previousPoint = path[Math.max(index - 1, 0)];
+    const facingTo = index < lastIndex ? nextPoint : point;
+    const facingFrom = index < lastIndex ? point : previousPoint;
+    const frameAngle = angleBetweenPoints(facingFrom, facingTo, metrics);
+    return {
+      offset: index / lastIndex,
+      transform: moveIntentArrowTransform(point, metrics, size, frameAngle, 1),
+    };
+  });
+  arrow.style.transitionDuration = '0ms';
+  if (arrow.animate) {
+    const animation = arrow.animate(travelFrames, {
+      duration: travelMs,
+      easing: 'linear',
+      fill: 'forwards',
+    });
+    await animation.finished.catch(() => {});
+    arrow.style.transform = travelFrames[travelFrames.length - 1].transform;
+  } else {
+    arrow.style.transitionDuration = `${MOVE_INTENT_STEP_MS}ms`;
+    for (let index = 1; index < path.length; index += 1) {
+      await nextAnimationFrame();
+      arrow.style.transform = travelFrames[index].transform;
+      await sleep(MOVE_INTENT_STEP_MS);
+    }
+  }
+
+  arrow.classList.add('exit');
+  arrow.classList.remove('active');
+  arrow.style.transitionDuration = `${MOVE_INTENT_EXIT_MS}ms`;
+  angle = angleBetweenPoints(path[Math.max(path.length - 2, 0)], path[path.length - 1], metrics);
+  arrow.style.transform = moveIntentArrowTransform(path[path.length - 1], metrics, size, angle, 0.34, 0.68);
+  await sleep(MOVE_INTENT_EXIT_MS);
+  arrow.remove();
+}
+
+function startMoveIntentLoop(preview) {
+  if (!preview?.path?.length || preview.path.length <= 1) {
+    return null;
+  }
+  let shouldStop = false;
+  const done = (async () => {
+    mapStage?.classList.add('move-requesting');
+    try {
+      do {
+        await playMoveIntentArrow(preview.path);
+        if (!shouldStop) {
+          await sleep(MOVE_INTENT_GAP_MS);
+        }
+      } while (!shouldStop);
+    } finally {
+      mapStage?.classList.remove('move-requesting');
+      mapFxLayer.querySelectorAll('.move-intent-arrow').forEach((node) => node.remove());
+    }
+  })();
+  return {
+    stop: async () => {
+      shouldStop = true;
+      await done;
+    },
+  };
+}
+
+function createItemCastEffect(item) {
+  const effect = document.createElement('span');
+  const rect = stageRect();
+  const flyDistance = Math.max(260, rect.height * 0.72);
+  effect.className = 'item-cast-effect';
+  effect.style.setProperty('--item-cast-intro-duration', `${ITEM_CAST_INTRO_MS}ms`);
+  effect.style.setProperty('--item-cast-exit-duration', `${ITEM_CAST_EXIT_MS}ms`);
+  effect.style.setProperty('--item-cast-fly-y', `${-flyDistance.toFixed(1)}px`);
+  effect.style.setProperty('--item-cast-fly-y-step', `${-(flyDistance * 0.18).toFixed(1)}px`);
+  effect.innerHTML = `
+    <span class="item-cast-aura" aria-hidden="true"></span>
+    <span class="item-cast-light" aria-hidden="true"></span>
+    <span class="item-cast-card" aria-hidden="true">${itemIconMarkup(item || {})}</span>
+    <span class="item-cast-orb" aria-hidden="true"></span>
+  `;
+  return effect;
+}
+
+function startItemCastEffect(item) {
+  if (!mapStage) {
+    return null;
+  }
+  const effect = createItemCastEffect(item);
+  let stopped = false;
+  let stopPromise = null;
+  mapStage.querySelectorAll(':scope > .item-cast-effect').forEach((node) => node.remove());
+  mapStage.appendChild(effect);
+  const done = (async () => {
+    mapStage?.classList.add('item-casting');
+    await sleep(ITEM_CAST_INTRO_MS);
+    if (!stopped) {
+      effect.classList.add('is-holding');
+    }
+  })();
+  return {
+    stop: async () => {
+      if (stopPromise) {
+        return stopPromise;
+      }
+      stopped = true;
+      stopPromise = (async () => {
+        await done;
+        effect.classList.remove('is-holding');
+        effect.classList.add('is-exiting');
+        await sleep(ITEM_CAST_EXIT_MS);
+        effect.remove();
+        mapStage?.classList.remove('item-casting');
+      })();
+      return stopPromise;
+    },
+    cancel: async () => {
+      stopped = true;
+      await done;
+      effect.remove();
+      mapStage?.classList.remove('item-casting');
+    },
+  };
+}
+
+async function animateMovePath(path) {
+  if (!currentState || !path || path.length <= 1) {
+    return;
+  }
+  const metrics = movementAnimationMetrics(currentState);
+  const ghost = document.createElement('span');
+  ghost.className = 'move-ghost move-ghost-translate';
+  const avatar = currentState?.character_instance?.avatar_image;
+  ghost.innerHTML = avatar ? `<img src="${avatar}" alt="">` : iconMarkup('player');
+  ghost.style.width = `${metrics.tokenWidth}px`;
+  ghost.style.height = `${metrics.tokenHeight}px`;
+  setMoveGhostPosition(ghost, path[0], metrics);
+
+  const playerToken = mapOverlay?.querySelector('.token-player');
+  if (cameraInteractionTimer) {
+    window.clearTimeout(cameraInteractionTimer);
+    cameraInteractionTimer = 0;
+  }
+  mapStage?.classList.remove('camera-interacting');
+  mapStage?.classList.add('move-animating');
+  playerToken?.classList.add('is-moving-origin');
+  try {
+    mapFxLayer.appendChild(ghost);
+
+    await nextAnimationFrame();
+    for (let index = 1; index < path.length; index += 1) {
+      const previous = path[index - 1];
+      const point = path[index];
+      const distance = Math.max(1, Math.abs(Number(point.x) - Number(previous.x)) + Math.abs(Number(point.y) - Number(previous.y)));
+      const duration = distance === 1 ? MOVE_GHOST_STEP_MS : MOVE_GHOST_DIRECT_MS;
+      ghost.style.transitionDuration = `${duration}ms`;
+      await nextAnimationFrame();
+      setMoveGhostPosition(ghost, point, metrics);
+      await sleep(duration + MOVE_GHOST_SETTLE_MS);
+    }
+  } finally {
+    ghost.remove();
+    playerToken?.classList.remove('is-moving-origin');
+    mapStage?.classList.remove('move-animating');
+  }
+}
+
+async function animateBackendMoves(steps) {
+  if (!currentState || !steps?.length) {
+    return;
+  }
+  const layer = activeLayer(currentState);
+  const visibleSteps = steps.filter((step) => Number(step.layer || layer) === layer);
+  if (!visibleSteps.length) {
     return;
   }
   const path = [
     { x: Number(currentState.player.x), y: Number(currentState.player.y), kind: 'start' },
-    { x: Number(step.x), y: Number(step.y), kind: 'landing' },
+    ...visibleSteps.map((step) => ({
+      x: Number(step.x),
+      y: Number(step.y),
+      kind: 'step',
+      direction: step.direction,
+    })),
   ];
-  currentState.player.x = Number(step.x);
-  currentState.player.y = Number(step.y);
+  await animateMovePath(path);
+  const landing = visibleSteps[visibleSteps.length - 1];
+  currentState.player.x = Number(landing.x);
+  currentState.player.y = Number(landing.y);
   ensureCameraShowsPlayer(currentState, { smooth: true });
-  await animatePreview({ path });
 }
 
 async function flashIdentifyRange(step) {
   if (!currentState || Number(step.layer || activeLayer(currentState)) !== activeLayer(currentState)) {
     return;
   }
+  mapFxLayer.querySelectorAll('.identify-flash-cell').forEach((node) => node.remove());
+  const markers = [];
   (step.cells || []).forEach((cell) => {
     const marker = document.createElement('span');
     marker.className = 'identify-flash-cell';
@@ -2109,17 +2625,25 @@ async function flashIdentifyRange(step) {
     marker.style.width = `${bounds.width}%`;
     marker.style.height = `${bounds.height}%`;
     mapFxLayer.appendChild(marker);
+    markers.push(marker);
   });
   routeHint.textContent = `停留鉴别：${(step.cells || []).length} 格范围。`;
-  await sleep(520);
-  mapFxLayer.querySelectorAll('.identify-flash-cell').forEach((node) => node.remove());
+  await sleep(IDENTIFY_FLASH_MS);
+  markers.forEach((node) => node.remove());
 }
 
 async function playActionQueue(queue, nextState) {
   let showedBattle = false;
-  for (const step of queue || []) {
+  const steps = queue || [];
+  for (let index = 0; index < steps.length; index += 1) {
+    const step = steps[index];
     if (step.type === 'move') {
-      await animateBackendMove(step);
+      const moveSteps = [step];
+      while (steps[index + 1]?.type === 'move') {
+        index += 1;
+        moveSteps.push(steps[index]);
+      }
+      await animateBackendMoves(moveSteps);
     } else if (step.type === 'identify_range') {
       await flashIdentifyRange(step);
     } else if (step.type === 'tile_update') {
@@ -2293,6 +2817,9 @@ async function loadState() {
 }
 
 async function playItem(itemInstanceId) {
+  if (interactionLocked()) {
+    return;
+  }
   try {
     const item = (currentState?.hand_details || []).find((entry) => entry.instance_id === itemInstanceId);
     let declaredValue = null;
@@ -2308,34 +2835,53 @@ async function playItem(itemInstanceId) {
         return;
       }
     }
-    const nextState = await apiRequest('/api/game/play-item', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ item_instance_id: itemInstanceId, declared_value: declaredValue }),
-    });
+    setActionLocked(true, itemInstanceId);
+    routeHint.textContent = `${item?.name || '道具'}结算中...`;
+    const castEffect = startItemCastEffect(item);
+    let nextState;
+    try {
+      nextState = await apiRequest('/api/game/play-item', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ item_instance_id: itemInstanceId, declared_value: declaredValue }),
+      });
+    } finally {
+      await castEffect?.stop();
+    }
     await playActionQueue(nextState.action_queue || [], nextState);
     renderState(nextState);
   } catch (error) {
     window.alert(error.message);
+  } finally {
+    setActionLocked(false);
   }
 }
 
 async function move(direction, path = null) {
-  if (moveLocked) {
+  if (interactionLocked()) {
     return;
   }
   const beforeState = currentState;
+  const intentPreview = moveIntentPreview(path);
+  let intentLoop = null;
   try {
     moveLocked = true;
     syncButtons(currentState);
     clearPreview();
     clearPrimedControl();
     clearPrimedMapTarget();
-    const nextState = await apiRequest('/api/game/move', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ direction, path }),
-    });
+    routeHint.textContent = '移动指令已发送，等待结算...';
+    intentLoop = startMoveIntentLoop(intentPreview);
+    let nextState;
+    try {
+      nextState = await apiRequest('/api/game/move', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ direction, path }),
+      });
+    } finally {
+      await intentLoop?.stop();
+    }
     const showedBattle = await playActionQueue(nextState.action_queue || [], nextState);
     renderState(nextState);
     clearPreview();
@@ -2402,24 +2948,58 @@ battleModal.addEventListener('click', (event) => {
   }
 });
 if (mapZoomSlider) {
+  mapZoomSlider.addEventListener('pointerdown', (event) => {
+    beginZoomSliderInteraction(event);
+  });
+  mapZoomSlider.addEventListener('mousedown', beginZoomSliderInteraction);
+  mapZoomSlider.addEventListener('touchstart', beginZoomSliderInteraction, { passive: true });
   mapZoomSlider.addEventListener('input', () => {
     clearPrimedControl();
     clearPrimedMapTarget();
-    setMapZoom(mapZoomSlider.value);
+    scheduleSliderZoom(mapZoomSlider.value);
   });
+  mapZoomSlider.addEventListener('change', (event) => {
+    if (zoomSliderPointerId !== null) {
+      return;
+    }
+    finishZoomSliderInteraction(event);
+  });
+  mapZoomSlider.addEventListener('keydown', (event) => {
+    if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End', 'PageUp', 'PageDown'].includes(event.key)) {
+      beginZoomSliderInteraction();
+    }
+  });
+  mapZoomSlider.addEventListener('keyup', finishZoomSliderInteraction);
+  mapZoomSlider.addEventListener('blur', finishZoomSliderInteraction);
+  window.addEventListener('pointerup', finishZoomSliderInteraction);
+  window.addEventListener('pointercancel', finishZoomSliderInteraction);
+  window.addEventListener('mouseup', finishZoomSliderInteraction);
+  window.addEventListener('touchend', finishZoomSliderInteraction, { passive: true });
+  window.addEventListener('touchcancel', finishZoomSliderInteraction, { passive: true });
+  window.addEventListener('blur', finishZoomSliderInteraction);
+  if (window.visualViewport) {
+    window.visualViewport.addEventListener('resize', finishZoomSliderInteraction);
+  }
 }
 if (mapStage) {
   mapStage.addEventListener('wheel', (event) => {
     event.preventDefault();
     clearPrimedControl();
     clearPrimedMapTarget();
+    beginCameraInteraction();
     const nextZoom = mapCamera.zoom - (event.deltaY * 0.00065);
     setMapZoom(nextZoom, {
       focalClientX: event.clientX,
       focalClientY: event.clientY,
+      skipZoomVariable: true,
     });
+    endCameraInteractionSoon();
   }, { passive: false });
   mapStage.addEventListener('pointerdown', (event) => {
+    if (actionLocked) {
+      event.preventDefault();
+      return;
+    }
     if (event.button !== 0) {
       return;
     }
@@ -2435,6 +3015,7 @@ if (mapStage) {
     mapCamera.originX = mapCamera.x;
     mapCamera.originY = mapCamera.y;
     mapStage.classList.add('drag-ready');
+    beginCameraInteraction();
     mapStage.setPointerCapture(event.pointerId);
     mapStageInner?.classList.remove('camera-smooth');
   });

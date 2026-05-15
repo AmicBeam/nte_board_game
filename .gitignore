@@ -24,6 +24,8 @@ env/
 
 # Local database and logs
 *.db
+*.db-shm
+*.db-wal
 logs/
 
 # IDE settings

@@ -1,7 +1,7 @@
 {
   "id": "rob_bank",
   "english_name": "RobBank",
-  "version": 19,
+  "version": 20,
   "name": "粉爪大劫案",
   "background_image": "/static/images/maps/rob_bank_abandoned_city.png",
   "layer_background_images": {
@@ -9,6 +9,14 @@
     "2": "/static/images/maps/rob_bank_gold_arena.png"
   },
   "hidden_room_revealed": false,
+  "fog_of_war": {
+    "enabled": true,
+    "default_radius": 6,
+    "layers": {
+      "1": 8,
+      "2": 99
+    }
+  },
   "loot_tables": {
     "desk": [
       {
@@ -311,8 +319,8 @@
     "name": "玛门",
     "max_hp": 80,
     "hp": 80,
-    "attack": 14,
-    "defense": 5,
+    "attack": 12,
+    "defense": 7,
     "range": 1,
     "kind": "boss",
     "drop_table_id": "enemy_boss"

@@ -5,7 +5,12 @@ from peewee import Model, SqliteDatabase
 
 from app.config import DATABASE_PATH
 
-db = SqliteDatabase(DATABASE_PATH, pragmas={'foreign_keys': 1})
+db = SqliteDatabase(DATABASE_PATH, pragmas={
+    'foreign_keys': 1,
+    'journal_mode': 'wal',
+    'synchronous': 'normal',
+    'busy_timeout': 5000,
+})
 
 
 def init_db(models: list[type[Model]]) -> None:

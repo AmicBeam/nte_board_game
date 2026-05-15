@@ -124,7 +124,7 @@ def create_access_token(player: Player) -> AccessToken:
 def get_player_by_token(token: str) -> Player | None:
     if not token:
         return None
-    record = AccessToken.select().where(
+    record = AccessToken.select(AccessToken, Player).join(Player).where(
         (AccessToken.token == token) &
         (AccessToken.revoked == False) &
         (AccessToken.expires_at >= datetime.utcnow())
@@ -276,20 +276,21 @@ def set_room_member_ready(room: Room, player: Player, is_ready: bool) -> RoomMem
 def update_room_status(room: Room, status: str) -> Room:
     room.status = status
     room.updated_at = datetime.utcnow()
-    room.save()
+    room.save(only=[Room.status, Room.updated_at])
     logger.info('update_room_status room_code=%s status=%s', room.room_code, status)
     return room
 
 
-def upsert_run(room: Room, map_id: str, status: str, snapshot: dict[str, Any]) -> GameRun:
+def upsert_run(room: Room, map_id: str, status: str, snapshot: dict[str, Any], *, touch_room: bool = True) -> GameRun:
     run, _ = GameRun.get_or_create(room=room)
     run.map_id = map_id
     run.status = status
     run.snapshot = json.dumps(snapshot, ensure_ascii=False)
     run.updated_at = datetime.utcnow()
-    run.save()
-    room.updated_at = datetime.utcnow()
-    room.save()
+    run.save(only=[GameRun.map_id, GameRun.status, GameRun.snapshot, GameRun.updated_at])
+    if touch_room:
+        room.updated_at = datetime.utcnow()
+        room.save(only=[Room.updated_at])
     logger.info('upsert_run room_code=%s status=%s map_id=%s', room.room_code, status, map_id)
     return run
 
