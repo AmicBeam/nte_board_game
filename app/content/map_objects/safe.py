@@ -10,6 +10,7 @@ from app.content.map_objects.common import (
 )
 from app.engine.buffs import SAFE_BONUS_ROLL_BUFF_ID, SAFE_OPEN_TRIGGER, trigger_player_buffs
 from app.engine.events import GameEvent
+from app.engine.map_phase import advance_map_phase_for_safe
 
 if TYPE_CHECKING:
     from app.engine.event_context import EventContext
@@ -77,6 +78,7 @@ def safe_identify(context: 'EventContext') -> None:
         'title': _safe_title(context.payload.get('object_id')),
         'message': f"鉴别打开保险箱，{loot['name']}转化为 {gained} 方斯。{extra_loot_name}本次共获得 {total_gained} 方斯。",
     })
+    advance_map_phase_for_safe(context.state, context.payload.get('object_id'))
     context.emit(GameEvent.MAP_OBJECT_TRIGGERED, {
         'object_id': context.payload['object_id'],
         'object_type': context.payload['tile_type'],

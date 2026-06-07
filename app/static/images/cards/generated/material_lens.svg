@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 448" role="img">
+  <title>material_lens</title>
+  <defs>
+    <linearGradient id="g29" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#10070f"/>
+      <stop offset="0.52" stop-color="#2b1b32"/>
+      <stop offset="1" stop-color="#070912"/>
+    </linearGradient>
+    <pattern id="p29" width="29" height="29" patternUnits="userSpaceOnUse">
+      <path d="M0 29L29 0" stroke="#ef5d75" stroke-width="1.4" opacity="0.24"/>
+      <circle cx="12" cy="7" r="1.7" fill="#f2d492" opacity="0.42"/>
+    </pattern>
+    <filter id="f29" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="7" result="blur"/>
+      <feColorMatrix in="blur" type="matrix" values="0 0 0 0 0.4 0 0 0 0 0.95 0 0 0 0 0.9 0 0 0 0.8 0"/>
+      <feBlend in="SourceGraphic"/>
+    </filter>
+  </defs>
+  <rect width="320" height="448" rx="22" fill="url(#g29)"/>
+  <rect x="12" y="12" width="296" height="424" rx="20" fill="#07111d" opacity="0.72" stroke="#ef5d75" stroke-width="3"/>
+  <rect x="28" y="30" width="264" height="286" rx="18" fill="url(#p29)" opacity="0.88"/>
+  <path d="M38 344c42-24 76-24 118 0s82 24 126 0" fill="none" stroke="#f2d492" stroke-width="6" opacity="0.72" stroke-linecap="round"/>
+  <path d="M52 366c32-14 64-14 96 0s72 14 118 0" fill="none" stroke="#ef5d75" stroke-width="4" opacity="0.72" stroke-linecap="round"/>
+  <g filter="url(#f29)">
+  <g transform="rotate(148 160 204)" opacity="0.79">
+    <path d="M160 58c34 50 12 73 48 110 22 23 34 54 24 88-14 48-53 78-101 70-42-7-72-42-73-82-1-45 29-72 63-98 30-23 37-48 39-88z" fill="#f2d492" opacity="0.9"/>
+    <path d="M159 147c23 35 12 54 31 78 11 14 14 34 5 51-12 25-38 39-66 28-23-9-36-31-34-54 2-27 20-43 41-59 15-12 20-25 23-44z" fill="#ef5d75"/>
+  </g>
+  </g>
+  <rect x="50" y="382" width="220" height="38" rx="12" fill="#070b13" opacity="0.74" stroke="#ef5d75" stroke-width="2"/>
+  <text x="160" y="407" fill="#f6fbff" font-family="Arial, sans-serif" font-size="15" font-weight="700" text-anchor="middle">material_lens</text>
+</svg>

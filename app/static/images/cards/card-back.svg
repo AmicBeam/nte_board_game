@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 448" role="img" aria-label="card back">
+  <defs>
+    <linearGradient id="bg" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0" stop-color="#10192a"/>
+      <stop offset=".55" stop-color="#162a3d"/>
+      <stop offset="1" stop-color="#240f26"/>
+    </linearGradient>
+    <linearGradient id="line" x1="0" x2="1">
+      <stop offset="0" stop-color="#58d8d2"/>
+      <stop offset="1" stop-color="#ffbf57"/>
+    </linearGradient>
+  </defs>
+  <rect width="320" height="448" rx="28" fill="url(#bg)"/>
+  <rect x="18" y="18" width="284" height="412" rx="22" fill="none" stroke="rgba(255,255,255,.26)" stroke-width="4"/>
+  <path d="M64 102h192M64 346h192" stroke="url(#line)" stroke-width="5" stroke-linecap="round"/>
+  <path d="M160 118c49 0 88 39 88 88s-39 88-88 88-88-39-88-88 39-88 88-88Z" fill="none" stroke="url(#line)" stroke-width="8"/>
+  <path d="M160 148l42 58-42 58-42-58 42-58Z" fill="rgba(88,216,210,.16)" stroke="#58d8d2" stroke-width="5"/>
+  <path d="M96 206h128M160 142v128" stroke="rgba(255,255,255,.42)" stroke-width="3" stroke-linecap="round"/>
+</svg>

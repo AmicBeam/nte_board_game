@@ -1,2288 +1,3249 @@
-import random
-from collections.abc import Callable
-from copy import deepcopy
+from __future__ import annotations
 
-from app.config import DEFAULT_MAP_ID, MOVE_STEP_LIMIT
+import random
+from copy import deepcopy
+from dataclasses import dataclass
+from typing import Any
+
 from app.async_persistence import discard_cached_room_run, get_cached_room_run, queue_room_snapshot_persist
 from app.content.loader import (
-    get_character,
-    get_item,
-    get_map,
-    get_map_object,
-    get_map_object_tooltip,
-    load_map_object_modules,
+    default_duel_deck_id,
+    get_duel_card,
+    get_duel_deck,
     load_characters,
-    load_items,
-    resolve_map_object_id,
+    load_duel_cards,
+    load_duel_decks,
+    validate_duel_deck_card_ids,
 )
-from app.content.map_objects.common import choose_loot_from_table, choose_loot_table_entry
-from app.dao import clear_run, get_build, get_current_room, get_run, list_room_members, update_room_status, upsert_build
+from app.dao import (
+    clear_run,
+    get_build,
+    get_run,
+    list_room_members,
+    serialize_room,
+    update_room_status,
+    upsert_build,
+    upsert_run,
+)
 from app.db import atomic_transaction
-from app.engine.buffs import migrate_legacy_safe_bonus_rolls, serialize_player_buffs
-from app.engine.damage import PLAYER_TARGET_ID, build_damage_package, resolve_damage_package
-from app.engine.enemy_drop import spawn_enemy_drop
-from app.engine.effects import (
-    build_runtime_effect,
-    consume_runtime_effect_bonus,
-    find_runtime_effect_by_source,
-    register_runtime_effect,
-    remove_runtime_effect_by_source,
-    sum_runtime_effect_bonus,
-)
-from app.engine.event_bus import dispatch_event, run_phase_sequence
-from app.engine.event_context import EventContext, EventHook, JsonDict
-from app.engine.events import GameEvent, TURN_CLOSING_SEQUENCE, TURN_OPENING_SEQUENCE
-from app.engine.identification import (
-    identification_progress,
-    initialize_identification_state,
-    mark_battle_step,
-    reset_turn_flags,
-    settle_combo_for_turn,
-)
-from app.engine.runtime import (
-    build_character_instance,
-    build_item_instances,
-    serialize_item_definition,
-    serialize_item_instance,
-)
+from app.engine.event_bus import dispatch_event
+from app.engine.events import GameEvent
 from app.errors import RuleValidationError
 from app.models import Player, Room
-from app.utils.logger import get_logger
 
-MAX_BUILD_ITEM_COUNT = 6
+JsonDict = dict[str, Any]
+
+GAME_ID = 'anomaly_snap_duel'
+SCHEMA_VERSION = 1
+SIDE_A = 'a'
+SIDE_B = 'b'
+SIDE_KEYS = (SIDE_A, SIDE_B)
+MAX_TURNS = 6
+MAX_ENERGY = 6
+OPENING_SELECTION_SIZE = 4
+TURN_SELECTION_SIZE = 2
+TURN_SELECTION_PICK_COUNT = 1
+MAX_HAND_SIZE = 10
+LOCATION_CARD_LIMIT = 16
+MIN_BUILD_ITEM_COUNT = 10
+MAX_BUILD_ITEM_COUNT = 20
+MAX_BUILD_ESPER_COUNT = 4
+MAX_COPIES_PER_ITEM_CARD = 3
 MAP_LOCKED_ITEM_IDS: tuple[str, ...] = ()
-XIAOZHI_FONS_ATTACK_STEP = 1000
-XIAOZHI_FONS_ATTACK_CAP = 5
-MAMEN_FONS_DEFENSE_STEP = 10000
-MAMEN_FONS_DAMAGE_TAX_PERCENT = 10
-MIN_FOG_RADIUS = 6
-MIN_IDENTIFICATION_LEVEL = 1
-MAX_IDENTIFICATION_LEVEL = 4
-LOG_LIMIT = 18
-DEFAULT_ROUTE_HINT = '搜刮办公室资源，找到传送门后进入 Boss 房间。'
-ACTION_QUEUE_KEY = '_action_queue'
-POST_BATTLE_ACTION_QUEUE_KEY = '_post_battle_action_queue'
-DIRECTIONS = {
-    'up': (0, -1),
-    'down': (0, 1),
-    'left': (-1, 0),
-    'right': (1, 0),
-}
-DIRECTION_LABELS = {
-    'up': '上',
-    'down': '下',
-    'left': '左',
-    'right': '右',
-}
-TURN_BELT_DIRECTIONS = {
-    'turn_belt_up': 'up',
-    'turn_belt_down': 'down',
-    'turn_belt_left': 'left',
-    'turn_belt_right': 'right',
-}
-IDENTIFICATION_OFFSETS = {
-    1: ((0, -1), (-1, 0), (1, 0), (0, 1)),
-    2: tuple(
-        (dx, dy)
-        for dy in range(-1, 2)
-        for dx in range(-1, 2)
-        if dx != 0 or dy != 0
-    ),
-    3: tuple(
-        (dx, dy)
-        for dy in range(-1, 2)
-        for dx in range(-1, 2)
-        if dx != 0 or dy != 0
-    ) + ((0, -2), (-2, 0), (2, 0), (0, 2)),
-    4: tuple(
-        (dx, dy)
-        for dy in range(-2, 3)
-        for dx in range(-2, 3)
-        if dx != 0 or dy != 0
-    ),
-}
-ICONS = {
-    'player': 'player',
-    'monster': 'monster',
-    'boss': 'boss',
-    'turn_belt': 'turn_belt',
-    'chest': 'chest',
-    'portal': 'portal',
-    'door': 'door',
-    'wall': 'wall',
-    'event': 'event',
-    'boss_tile': 'boss',
-}
-MONSTER_KIND_ICONS = {
-    'camera': '/static/images/monster/compass.svg',
-    'boss': '/static/images/monster/mamen.webp',
+LOG_LIMIT = 28
+
+CARD_BACK_IMAGE = '/static/images/cards/card-back.svg'
+TAG_MURK = 'murk'
+TAG_DELAY = 'delay'
+TAG_DARKSTAR = 'darkstar'
+TAG_GENESIS = 'genesis'
+TAG_SURPLUS = 'surplus'
+TAG_DISCORD = 'discord'
+TAG_COLLAPSING = 'collapsing'
+TAG_MATERIAL = 'material'
+TAG_HARMONY = 'harmony'
+CARD_TYPE_ESPER = 'esper'
+CARD_TYPE_ANOMALY_ITEM = 'anomaly_item'
+CARD_TYPE_TOKEN = 'token'
+HARMONY_TAGS = frozenset({TAG_GENESIS, TAG_MURK, TAG_DELAY, TAG_DARKSTAR, TAG_SURPLUS, TAG_DISCORD, TAG_COLLAPSING})
+LOCATION_MARK_NAMES = {
+    TAG_GENESIS: '创生',
+    TAG_MURK: '浊燃',
+    TAG_DELAY: '延滞',
+    TAG_DARKSTAR: '黯星',
+    TAG_DISCORD: '失谐',
+    TAG_SURPLUS: '盈蓄',
+    TAG_COLLAPSING: '倾陷',
 }
 
-logger = get_logger('nte.game_service')
+SPECIAL_TARGET_RULES: dict[str, JsonDict] = {
+    'genesis_chip_washer': {
+        'scope': 'ally_item_same_location',
+        'prompt': '选择 1 张己方道具。',
+    },
+}
+
+CARD_LIBRARY: list[JsonDict] = load_duel_cards()
+
+BATTLEFIELD_TRAITS: list[JsonDict] = [
+    {
+        'id': 'mirror_archive',
+        'name': '镜像档案馆',
+        'short_name': '档案馆',
+        'reveal_turn': 1,
+        'art': '/static/images/locations/mirror-archive.svg',
+        'description': '每边在此空间揭示的第一张牌 +2 战力。',
+        'effect': 'first_card_plus_two',
+    },
+    {
+        'id': 'tide_platform',
+        'name': '潮汐站台',
+        'short_name': '站台',
+        'reveal_turn': 2,
+        'art': '/static/images/locations/tide-platform.svg',
+        'description': '揭示前本方不领先时，每方每回合前 3 张在此空间揭示的牌永久 +1 战力。',
+        'effect': 'revealed_cards_plus_one',
+    },
+    {
+        'id': 'hollow_theater',
+        'name': '空洞剧场',
+        'short_name': '剧场',
+        'reveal_turn': 3,
+        'art': '/static/images/locations/hollow-theater.svg',
+        'description': '如果一边只有 1 张牌在此空间，那张牌 +4 战力。',
+        'effect': 'solo_card_plus_four',
+    },
+]
+
+LOCATION_LIBRARY: list[JsonDict] = BATTLEFIELD_TRAITS
 
 
-def _monster_icon(monster: JsonDict) -> str:
-    return str(
-        monster.get('avatar_image')
-        or monster.get('image')
-        or MONSTER_KIND_ICONS.get(str(monster.get('id', '')))
-        or MONSTER_KIND_ICONS.get(str(monster.get('kind', 'monster')), ICONS['monster'])
-    )
-
-
-def _boss_icon(boss: JsonDict) -> str:
-    return str(
-        boss.get('avatar_image')
-        or boss.get('image')
-        or MONSTER_KIND_ICONS.get(str(boss.get('id', '')))
-        or MONSTER_KIND_ICONS.get(str(boss.get('kind', 'boss')), ICONS['boss'])
-    )
+@dataclass(frozen=True)
+class SidePerspective:
+    own: str
+    opponent: str
 
 
 def get_catalog_payload(player: Player) -> JsonDict:
     saved_build = get_build(player)
-    catalog_item_ids = _catalog_visible_item_ids()
+    cards = _card_catalog()
     return {
-        'characters': [
-            serialize_character_definition(character_definition)
-            for character_definition in _selectable_characters()
-        ],
-        'items': [
-            serialize_item_definition(item_definition)
-            for item_definition in load_items()
-            if not item_definition.get('hidden_from_build') or item_definition['id'] in catalog_item_ids
-        ],
+        'characters': _leader_catalog(cards),
+        'items': cards,
+        'min_build_size': MIN_BUILD_ITEM_COUNT,
         'build_size': MAX_BUILD_ITEM_COUNT,
+        'opening_hand_size': OPENING_SELECTION_SIZE,
+        'max_esper_cards': MAX_BUILD_ESPER_COUNT,
         'locked_item_ids': list(MAP_LOCKED_ITEM_IDS),
+        'decks': _deck_catalog(),
+        'default_deck_id': default_duel_deck_id(),
         'saved_build': normalize_build_payload(saved_build) if saved_build is not None else None,
+        'copy': {
+            'build_title': '异象牌组',
+            'character_label': '领队',
+            'item_label': '异象卡牌',
+        },
     }
 
 
 def get_encyclopedia_payload() -> JsonDict:
-    game_map = deepcopy(get_map(DEFAULT_MAP_ID))
-    _ensure(game_map is not None, '地图配置不存在。')
-    map_object_ids = _collect_map_object_ids(game_map)
-    map_object_modules = load_map_object_modules()
-    map_objects = []
-    for object_id in sorted(map_object_ids):
-        definition = map_object_modules.get(object_id, {}).get('definition')
-        if definition is None:
-            continue
-        sample_tile = next(
-            (tile for tile in game_map.get('tiles', []) if resolve_map_object_id(tile) == object_id),
-            {'type': object_id, 'object_id': object_id},
-        )
-        map_objects.append({
-            'id': object_id,
-            'name': _map_object_display_name(object_id),
-            'icon': definition.get('icon', ICONS.get(object_id, 'event')),
-            'description': get_map_object_tooltip(sample_tile),
-            'block_type': definition.get('block_type', ''),
-            'tags': map_object_tags(definition),
-        })
-    exclusive_item_ids = _exclusive_item_ids()
-    codex_items = []
-    loot_items = []
-    for item in load_items():
-        if item.get('type') in {'loot', 'key'}:
-            loot_items.append(serialize_item_definition(item))
-            continue
-        if not _is_codex_item(item, exclusive_item_ids):
-            continue
-        serialized_item = serialize_item_definition(item)
-        if item['id'] in exclusive_item_ids:
-            _append_tag(serialized_item, '专属')
-        codex_items.append(serialized_item)
-    enemies = []
-    seen_enemy_ids: set[str] = set()
-    for monster in game_map.get('monsters', []):
-        enemy_id = str(monster.get('definition_id') or monster.get('id') or monster.get('kind') or '')
-        if enemy_id in seen_enemy_ids:
-            continue
-        seen_enemy_ids.add(enemy_id)
-        enemies.append({
-            'id': enemy_id,
-            'name': monster['name'],
-            'kind': monster.get('kind', 'monster'),
-            'icon': _monster_icon(monster),
-            'hp': monster.get('max_hp', monster.get('hp', 0)),
-            'attack': monster.get('attack', 0),
-            'defense': monster.get('defense', 0),
-            'range': monster.get('range', 1),
-            'description': f"HP {monster.get('max_hp', monster.get('hp', 0))} / 攻击 {monster.get('attack', 0)} / 防御 {monster.get('defense', 0)} / 射程 {monster.get('range', 1)}",
-        })
-    boss = game_map.get('boss', {})
-    if boss:
-        boss_description = f"HP {boss.get('max_hp', boss.get('hp', 0))} / 攻击 {boss.get('attack', 0)} / 防御 {boss.get('defense', 0)} / 射程 {boss.get('range', 1)}"
-        if boss.get('id') == 'mamen':
-            boss_description += '。玛门会被方斯刺激：玩家每持有 10000 方斯，玛门防御 -1，最低为 0；玛门造成伤害时会吞噬玩家当前 10% 方斯。'
-        enemies.append({
-            'id': boss.get('id', 'boss'),
-            'name': boss.get('name', 'Boss'),
-            'kind': 'boss',
-            'icon': _boss_icon(boss),
-            'hp': boss.get('max_hp', boss.get('hp', 0)),
-            'attack': boss.get('attack', 0),
-            'defense': boss.get('defense', 0),
-            'range': boss.get('range', 1),
-            'description': boss_description,
-        })
     return {
-        'map': {
-            'id': game_map['id'],
-            'name': game_map['name'],
-            'total_layers': game_map.get('total_layers', 1),
+        'game': {
+            'id': GAME_ID,
+            'name': '异象逆转',
+            'description': '每局 6 回合，双方争夺 3 个异象空间，赢下至少 2 个空间即可获胜。',
         },
-        'map_objects': map_objects,
-        'items': codex_items,
-        'loot_items': loot_items,
-        'enemies': enemies,
+        'locations': [deepcopy(location) for location in LOCATION_LIBRARY],
+        'cards': _card_catalog(),
+        'decks': _deck_catalog(),
+        'map': {
+            'id': GAME_ID,
+            'name': '三重异象空间',
+            'total_layers': 1,
+        },
+        'map_objects': [],
+        'items': _card_catalog(),
+        'loot_items': [],
+        'enemies': [],
     }
 
 
-def _collect_map_object_ids(game_map: JsonDict) -> set[str]:
-    map_object_ids: set[str] = set()
-    for tile in game_map.get('tiles', []):
-        _append_map_object_id(map_object_ids, tile)
-    for entries in game_map.get('loot_tables', {}).values():
-        if not isinstance(entries, list):
-            continue
-        for entry in entries:
-            if isinstance(entry, dict) and isinstance(entry.get('result'), dict):
-                _append_map_object_id(map_object_ids, entry['result'])
-    return map_object_ids
+def save_build(player: Player, character_id: str, item_ids: list[str]) -> JsonDict:
+    known_item_ids = _known_card_ids(item_ids or [], card_type=CARD_TYPE_ANOMALY_ITEM)
+    return save_build_with_starters(
+        player,
+        character_id,
+        known_item_ids[:OPENING_SELECTION_SIZE],
+        known_item_ids[OPENING_SELECTION_SIZE:MAX_BUILD_ITEM_COUNT],
+        [],
+    )
 
 
-def _append_map_object_id(map_object_ids: set[str], tile: JsonDict) -> None:
-    object_id = resolve_map_object_id(tile)
-    if object_id and object_id not in {'floor', 'random', 'wall', 'boss_tile', 'access_card_spot'}:
-        map_object_ids.add(object_id)
-
-
-def _map_object_display_name(object_id: str) -> str:
-    labels = {
-        'door': '门',
-        'hidden_door': '隐藏门',
-        'keycard_door': '经理办公室暗门',
-        'large_safe': '大型保险箱',
-        'open_door': '已开启的门',
-        'portal': '传送门',
-        'safe': '保险箱',
+def save_build_with_starters(
+    player: Player,
+    character_id: str,
+    starter_item_ids: list[str],
+    reserve_item_ids: list[str],
+    esper_card_ids: list[str] | None = None,
+) -> JsonDict:
+    starter_ids = _sort_card_ids(_known_card_ids(starter_item_ids or [], card_type=CARD_TYPE_ANOMALY_ITEM))[:OPENING_SELECTION_SIZE]
+    reserve_ids = _sort_card_ids(_known_card_ids(reserve_item_ids or [], card_type=CARD_TYPE_ANOMALY_ITEM))[:MAX_BUILD_ITEM_COUNT - OPENING_SELECTION_SIZE]
+    selected_item_ids = [*starter_ids, *reserve_ids]
+    selected_esper_ids = _unique_known_ids(esper_card_ids or [])
+    _validate_custom_build_sections(selected_item_ids, selected_esper_ids)
+    leader_id = str(character_id or '').strip() or (selected_esper_ids[0] if selected_esper_ids else 'protagonist')
+    if leader_id not in _card_by_id() or _card_type(leader_id) != CARD_TYPE_ESPER:
+        leader_id = selected_esper_ids[0] if selected_esper_ids else 'protagonist'
+    is_valid, validation_error = validate_duel_deck_card_ids([*selected_item_ids, *selected_esper_ids])
+    if not is_valid:
+        raise RuleValidationError(validation_error)
+    build_payload = {
+        'starter_item_ids': selected_item_ids[:OPENING_SELECTION_SIZE],
+        'reserve_item_ids': selected_item_ids[OPENING_SELECTION_SIZE:MAX_BUILD_ITEM_COUNT],
+        'item_ids': selected_item_ids[:MAX_BUILD_ITEM_COUNT],
+        'esper_card_ids': selected_esper_ids[:MAX_BUILD_ESPER_COUNT],
     }
-    return labels.get(object_id, object_id)
-
-
-def serialize_character_definition(character_definition: JsonDict) -> JsonDict:
+    build = upsert_build(player, leader_id, build_payload)
     return {
-        'id': character_definition['id'],
-        'name': character_definition['name'],
-        'max_hp': character_definition['max_hp'],
-        'attack': character_definition['attack'],
-        'defense': character_definition['defense'],
-        'identification_level': int(character_definition.get('identification_level', 1)),
-        'passive': character_definition['passive'],
-        'exclusive_item_ids': list(character_definition.get('exclusive_item_ids', [])),
-        'portrait_image': character_definition.get('portrait_image', f"/static/images/characters/portrait/{character_definition['name']}.png"),
-        'avatar_image': character_definition.get('avatar_image', f"/static/images/characters/avatar/{character_definition['name']}.png"),
+        'ok': True,
+        'build': normalize_build_payload({
+            'character_id': build.character_id,
+            **build_payload,
+            'updated_at': build.updated_at.isoformat(),
+        }),
     }
-
-
-def save_build(player: Player, character_id: str, item_ids: list[str]) -> JsonDict | None:
-    character_definition = get_character(character_id)
-    _ensure(character_definition is not None, '角色不存在。')
-    _ensure(_is_character_selectable(character_definition), '该角色暂不可在构筑中选择。')
-    selectable_item_ids = _selectable_item_ids(character_definition, item_ids)
-    _ensure(len(selectable_item_ids) <= MAX_BUILD_ITEM_COUNT, f'最多选择 {MAX_BUILD_ITEM_COUNT} 个道具。')
-    for item_id in selectable_item_ids:
-        item = get_item(item_id)
-        _ensure(item is not None, f'未知道具：{item_id}')
-        _ensure(not item.get('hidden_from_build'), f'该道具不可在构筑中选择：{item_id}')
-    with atomic_transaction():
-        upsert_build(player, character_id, selectable_item_ids)
-    logger.info('save_build player_uid=%s character_id=%s', player.player_uid, character_id)
-    return get_build(player)
-
-
-def start_or_resume_run(player: Player) -> JsonDict:
-    room = _require_room(player)
-    return start_or_resume_run_for_room(room, player)
-
-
-def start_or_resume_run_for_room(room: Room, player: Player) -> JsonDict:
-    with atomic_transaction():
-        room_members = list_room_members(room)
-        _ensure(room_members, '房间内没有成员，无法开始对局。')
-        builds_by_player_uid: dict[str, JsonDict] = {}
-        for member in room_members:
-            build = get_build(member.player)
-            if build is None:
-                raise RuleValidationError(f'玩家 {member.player.player_uid} 尚未完成构筑。')
-            build = normalize_build_payload(build)
-            builds_by_player_uid[member.player.player_uid] = build
-        existing_run = _get_room_run(room)
-        if existing_run and existing_run['status'] in {'playing', 'victory', 'defeat'}:
-            existing_run['snapshot'] = _normalize_loaded_state(existing_run['snapshot'])
-            payload = _save_and_serialize_for_room(room, existing_run['snapshot'])
-            logger.info('resume_run room_code=%s player_uid=%s status=%s', room.room_code, player.player_uid, existing_run['status'])
-            return payload
-        state = create_initial_state(room, room_members, builds_by_player_uid, DEFAULT_MAP_ID)
-        payload = _save_and_serialize_for_room(room, state)
-    logger.info('start_new_run room_code=%s player_uid=%s', room.room_code, player.player_uid)
-    return payload
 
 
 def normalize_build_payload(build: JsonDict) -> JsonDict:
-    characters = _selectable_characters()
-    default_character_id = characters[0]['id'] if characters else ''
-    character_id = build.get('character_id')
-    character_definition = get_character(str(character_id))
-    if character_definition is None or not _is_character_selectable(character_definition):
-        character_id = default_character_id
-        character_definition = get_character(str(character_id))
-    item_ids = _selectable_item_ids(character_definition, build.get('item_ids', []))[:MAX_BUILD_ITEM_COUNT]
-    return {'character_id': character_id, 'item_ids': item_ids}
+    starter_ids = _known_card_ids(build.get('starter_item_ids', []), card_type=CARD_TYPE_ANOMALY_ITEM)
+    reserve_ids = _known_card_ids(build.get('reserve_item_ids', []), card_type=CARD_TYPE_ANOMALY_ITEM)
+    item_ids = _known_card_ids(build.get('item_ids', []), card_type=CARD_TYPE_ANOMALY_ITEM)
+    esper_ids = _unique_known_ids(build.get('esper_card_ids', []))
+    if not starter_ids and not reserve_ids:
+        starter_ids = item_ids[:OPENING_SELECTION_SIZE]
+        reserve_ids = item_ids[OPENING_SELECTION_SIZE:MAX_BUILD_ITEM_COUNT]
+    starter_ids = _sort_card_ids(starter_ids)[:OPENING_SELECTION_SIZE]
+    reserve_ids = _sort_card_ids(reserve_ids)[:MAX_BUILD_ITEM_COUNT - OPENING_SELECTION_SIZE]
+    item_ids = [*starter_ids, *reserve_ids][:MAX_BUILD_ITEM_COUNT]
+    legacy_espers = [card_id for card_id in item_ids if _card_type(card_id) == CARD_TYPE_ESPER]
+    esper_ids = _unique_ids([*esper_ids, *legacy_espers])
+    return {
+        'character_id': str(build.get('character_id') or ''),
+        'item_ids': item_ids,
+        'starter_item_ids': starter_ids[:OPENING_SELECTION_SIZE],
+        'reserve_item_ids': reserve_ids[:MAX_BUILD_ITEM_COUNT - OPENING_SELECTION_SIZE],
+        'esper_card_ids': [card_id for card_id in esper_ids if _card_type(card_id) == CARD_TYPE_ESPER][:MAX_BUILD_ESPER_COUNT],
+        'updated_at': build.get('updated_at'),
+    }
 
 
-def _selectable_characters() -> list[JsonDict]:
-    return [
-        character_definition
-        for character_definition in load_characters()
-        if _is_character_selectable(character_definition)
-    ]
+def start_or_resume_run_for_room(room: Room, actor: Player, options: JsonDict | None = None) -> JsonDict:
+    options = options or {}
+    force_new = bool(options.get('force_new'))
+    if force_new:
+        discard_cached_room_run(room.id)
+        clear_run(room)
+
+    cached = get_cached_room_run(room.id)
+    run = cached or get_run(room)
+    if run is not None and _is_snap_snapshot(run.get('snapshot', {})):
+        snapshot = deepcopy(run['snapshot'])
+        return _public_state(snapshot, room, actor)
+
+    members = list_room_members(room)
+    if room.mode == 'duo' and len(members) < 2:
+        raise RuleValidationError('未来 1v1 房间需要两名玩家都进入后才能开始。')
+
+    snapshot = _create_initial_snapshot(room, members, options)
+    with atomic_transaction():
+        upsert_run(room, GAME_ID, snapshot['status'], snapshot)
+        update_room_status(room, snapshot['status'])
+    discard_cached_room_run(room.id)
+    return _public_state(snapshot, room, actor)
 
 
-def _is_character_selectable(character_definition: JsonDict | None) -> bool:
-    return bool(character_definition) and not character_definition.get('hidden_from_build')
-
-
-def _locked_item_ids_for_character(character_definition: JsonDict | None) -> list[str]:
-    locked_ids = list(MAP_LOCKED_ITEM_IDS)
-    locked_ids.extend((character_definition or {}).get('exclusive_item_ids', []))
-    return list(dict.fromkeys(locked_ids))
-
-
-def _exclusive_item_ids() -> set[str]:
-    item_ids = set(MAP_LOCKED_ITEM_IDS)
-    for character_definition in load_characters():
-        item_ids.update(str(item_id) for item_id in character_definition.get('exclusive_item_ids', []))
-    return item_ids
-
-
-def _catalog_visible_item_ids() -> set[str]:
-    return _exclusive_item_ids()
-
-
-def _is_codex_item(item_definition: JsonDict, exclusive_item_ids: set[str]) -> bool:
-    if item_definition.get('type') in {'loot', 'key'}:
-        return False
-    return not item_definition.get('hidden_from_build') or item_definition['id'] in exclusive_item_ids
-
-
-def _append_tag(payload: JsonDict, tag: str) -> None:
-    tags = [str(item) for item in payload.get('tags', []) if str(item)]
-    if tag not in tags:
-        tags.append(tag)
-    payload['tags'] = tags
-
-
-def _selectable_item_ids(character_definition: JsonDict | None, item_ids: list[str]) -> list[str]:
-    locked_ids = set(_locked_item_ids_for_character(character_definition))
-    return [
-        str(item_id)
-        for item_id in item_ids
-        if str(item_id) not in locked_ids
-        and (item := get_item(str(item_id))) is not None
-        and not item.get('hidden_from_build')
-    ]
-
-
-def get_run_state(player: Player) -> JsonDict | None:
-    room = get_current_room(player)
-    if room is None:
-        return None
-    return get_run_state_for_room(room, player)
-
-
-def get_run_state_for_room(room: Room, player: Player | None = None) -> JsonDict | None:
-    run = _get_room_run(room)
+def get_run_state_for_room(room: Room, player: Player) -> JsonDict | None:
+    run = get_cached_room_run(room.id) or get_run(room)
     if run is None:
         return None
-    run['snapshot'] = _normalize_loaded_state(run['snapshot'])
-    if player is not None and player.player_uid in run['snapshot']['players']:
-        _project_player_scope(run['snapshot'], player.player_uid)
-    validate_state(run['snapshot'])
-    return serialize_snapshot(run['snapshot'])
-
-
-def reset_run(player: Player) -> None:
-    room = _require_room(player)
-    reset_run_for_room(room)
+    snapshot = deepcopy(run['snapshot'])
+    if not _is_snap_snapshot(snapshot):
+        return None
+    return _public_state(snapshot, room, player)
 
 
 def reset_run_for_room(room: Room) -> None:
-    with atomic_transaction():
-        discard_cached_room_run(room.id)
-        clear_run(room)
-        update_room_status(room, 'ready' if room.mode == 'solo' else 'waiting')
-    logger.info('reset_run room_code=%s', room.room_code)
+    discard_cached_room_run(room.id)
+    clear_run(room)
+    update_room_status(room, 'ready' if room.mode == 'solo' else 'waiting')
 
 
-def roll_dice(player: Player) -> JsonDict:
-    with atomic_transaction():
-        state = _load_state(player)
-        _ensure(state['phase'] != 'dice', '骰子现在会在回合开始时自动结算。')
-        return _save_and_serialize(player, state)
-
-
-def play_item(player: Player, item_instance_id: str, declared_value: int | None = None) -> JsonDict:
-    with atomic_transaction():
-        state = _load_state(player)
-        begin_action_queue(state)
-        state['_declared_item_value'] = declared_value
-        _ensure(state['phase'] == 'action', '当前不是行动阶段。')
-        _ensure(not state['has_played_item'], '每回合只能使用 1 个道具。')
-        item_instance = _find_item_instance(state['hand'], item_instance_id)
-        _ensure(item_instance is not None, '该道具实例不在手牌中。')
-        item = get_item(item_instance['definition_id'])
-        _ensure(item is not None, '道具定义不存在。')
-        _ensure(can_play_item_instance_now(state, item_instance), '该道具当前不能主动使用。')
-        event_payload = {
-            'item_id': item['id'],
-            'item_name': item['name'],
-            'item_instance_id': item_instance_id,
-            'target_instance_id': item_instance_id,
-            'declared_value': state.get('_declared_item_value'),
-            'resolved': False,
+def play_card(player: Player, card_instance_id: str, location_id: str) -> JsonDict:
+    room, snapshot, side = _load_mutable_player_run(player)
+    _ensure_playing(snapshot)
+    _ensure_selection_resolved(snapshot, side)
+    _ensure_not_ended(snapshot, side)
+    location = _find_location(snapshot, str(location_id))
+    if not _is_location_revealed(snapshot, location):
+        raise RuleValidationError('这个异象空间尚未显现，暂时不能出牌。')
+    if len(location['cards'][side]) >= LOCATION_CARD_LIMIT:
+        raise RuleValidationError('这个空间已满。')
+    hand = snapshot['sides'][side]['hand']
+    card = _find_card_in_zone(hand, str(card_instance_id), '手牌中没有这张牌。')
+    delay_tax = _delay_tax(snapshot, side, location)
+    cost = _effective_cost(card) + delay_tax
+    if cost > _energy_remaining(snapshot, side):
+        raise RuleValidationError('能量不足。')
+    _ensure_turn_undo_checkpoint(snapshot, side)
+    hand.remove(card)
+    card['played_turn'] = snapshot['turn']
+    card['location_id'] = location['id']
+    card['revealed'] = False
+    card['staged'] = True
+    card['paid_cost'] = cost
+    card['play_sequence'] = _next_play_sequence(snapshot)
+    card.pop('selected_target_instance_id', None)
+    card.pop('selected_target_name', None)
+    card.pop('declared_card_instance_ids', None)
+    card.pop('declared_card_names', None)
+    snapshot['sides'][side]['energy_used'] += cost
+    location['cards'][side].append(card)
+    if delay_tax:
+        _consume_delay_tax(snapshot, side, location)
+    _add_log(snapshot, f"{_side_name(snapshot, side)} 将 {card['name']} 置入 {location['name']}。")
+    dispatch_event(snapshot, GameEvent.CARD_PLAYED, {
+        'target_instance_id': card['instance_id'],
+        'card_instance_id': card['instance_id'],
+        'card': card,
+        'side': side,
+        'opponent_side': _opponent_side(side),
+        'location': location,
+        'location_id': location['id'],
+        'location_index': _location_index(snapshot, location['id']),
+    })
+    target_rule = _target_rule(card)
+    if target_rule:
+        snapshot['sides'][side]['pending_target'] = {
+            'source_instance_id': card['instance_id'],
+            'location_id': location['id'],
+            'scope': target_rule.get('scope', ''),
+            'prompt': target_rule.get('prompt', '请选择一个目标。'),
         }
-
-        if item.get('consume_on_play', True):
-            if item.get('stackable') and int(item_instance.get('quantity', 1)) > 1:
-                item_instance['quantity'] = int(item_instance.get('quantity', 1)) - 1
-            else:
-                _remove_item_instance(state['hand'], item_instance_id)
-                state['discard_pile'].append(item_instance)
-                _set_item_zone(state, item_instance, 'discard_pile', reason='play_item')
-        state['has_played_item'] = True
-        result_payload = dispatch_event(state, GameEvent.ITEM_PLAYED, event_payload)
-        state.pop('_declared_item_value', None)
-        _ensure(result_payload.get('resolved') is True, '该道具未声明可执行的事件效果。')
-        return _save_and_serialize(player, state)
+        _add_log(snapshot, f"{card['name']} 等待选择目标。")
+    elif _prepare_declaration_selection(snapshot, side, location, card):
+        _add_log(snapshot, f"{card['name']} 正在检视牌库。")
+    _recompute_scores(snapshot)
+    _persist_room_snapshot(room, snapshot)
+    return _public_state(snapshot, room, player)
 
 
-def move_player(player: Player, direction: str, path: list[str] | None = None) -> JsonDict:
-    with atomic_transaction():
-        state = _load_state(player)
-        begin_action_queue(state)
-        _ensure(state['phase'] in {'action', 'movement'}, '当前不能移动。')
-        dice_values = pending_dice_values(state)
-        _ensure(dice_values is not None, '请先掷骰。')
-        path_directions = [str(item) for item in (path or [])]
-        if path_directions:
-            _ensure(all(item in DIRECTIONS for item in path_directions), '路径方向非法。')
-            _ensure(_direction_turn_count(path_directions) <= 1, '移动路径最多只能转弯一次。')
-            direction = path_directions[0]
-        _ensure(direction in DIRECTIONS, '方向非法。')
-
-        actor = state['player']
-        move_bonus = sum_runtime_effect_bonus(state, 'move_bonus')
-        move_bonus += consume_runtime_effect_bonus(state, 'stored_next_turn_move', 'consume_on_move')
-        limit_a = max(0, int(dice_values[0]) + move_bonus)
-        limit_b = max(0, int(dice_values[1]) + move_bonus)
-        path_steps = len(path_directions) if path_directions else max(limit_a, limit_b)
-        if path_directions:
-            horizontal_steps, vertical_steps = _path_axis_steps(path_directions)
-            _ensure(
-                _axis_steps_within_dice_limits(horizontal_steps, vertical_steps, limit_a, limit_b),
-                '目标超过当前骰子范围。',
-            )
-        move_phase_payload = dispatch_event(
-            state,
-            GameEvent.MOVE_PHASE_BEGIN,
-            {
-                'direction': direction,
-                'steps': path_steps,
-                'dice': {'a': int(dice_values[0]), 'b': int(dice_values[1])},
-                'axis_limits': {'a': limit_a, 'b': limit_b},
-            },
-            default_handler=build_scoped_default_handler(state, _default_move_phase_begin),
-        )
-        steps_remaining = max(0, int(move_phase_payload.get('steps', path_steps)))
-        if path_directions:
-            _ensure(len(path_directions) <= steps_remaining, '目标超过当前骰子范围。')
-            steps_remaining = len(path_directions)
-        active_direction = str(move_phase_payload.get('direction', direction))
-        active_direction = resolve_start_tile_redirect(state, active_direction, steps_remaining)
-        loop_counter = 0
-        path_index = 0
-
-        while steps_remaining > 0:
-            loop_counter += 1
-            if loop_counter > MOVE_STEP_LIMIT:
-                add_log(state, '移动循环达到安全上限，已强制终止本次移动。')
-                logger.error('move loop exceeded limit player_uid=%s', player.player_uid)
-                break
-            if path_directions:
-                if path_index >= len(path_directions):
-                    break
-                active_direction = path_directions[path_index]
-            next_x, next_y = step_position(actor['x'], actor['y'], active_direction)
-            block_reason = get_block_reason(state, next_x, next_y)
-            if block_reason:
-                add_log(state, f'移动停止：{block_reason}')
-                break
-            actor['x'], actor['y'] = next_x, next_y
-            steps_remaining -= 1
-            path_index += 1
-            add_log(state, f"移动至 ({actor['x']}, {actor['y']})。")
-            add_action_step(state, {
-                'type': 'move',
-                'x': actor['x'],
-                'y': actor['y'],
-                'layer': current_map_layer(state),
-                'direction': active_direction,
-            })
-            reveal_fog_around_player(state)
-            # 每前进一步都派发一次事件，供“经过某格”“移动若干步后生效”等效果监听。
-            dispatch_event(state, GameEvent.MOVE_STEP, {
-                'x': actor['x'],
-                'y': actor['y'],
-                'direction': active_direction,
-                'steps_remaining': steps_remaining,
-            })
-            active_direction, intercepted = resolve_tile_entry(state, active_direction, steps_remaining)
-            reveal_fog_around_player(state)
-            if intercepted:
-                add_log(state, '移动被当前格子拦截，剩余步数已结束。')
-                break
-
-        identify_tiles_in_range(state, source='move_stop', show_effect=True)
-        state['phase'] = 'battle'
-        resolve_battle(state)
-        if state['status'] == 'playing':
-            _finish_player_turn(state)
-        return _save_and_serialize(player, state)
-
-
-def create_initial_state(
-    room: Room,
-    room_members: list[object],
-    builds_by_player_uid: dict[str, JsonDict],
-    map_id: str,
+def play_esper(
+    player: Player,
+    card_instance_id: str,
+    location_id: str,
+    material_instance_ids: list[str] | None = None,
 ) -> JsonDict:
-    game_map = deepcopy(get_map(map_id))
-    _ensure(game_map is not None, '初始化配置失败。')
-    entry = map_entry_point(game_map)
-    game_map['current_layer'] = int(entry.get('layer', game_map.get('current_layer', 1)))
-    _materialize_random_tiles(game_map)
-    member_order = [member.player.player_uid for member in room_members]
-    _ensure(member_order, '初始化配置失败。')
-    players: dict[str, JsonDict] = {}
-    for member in room_members:
-        build = builds_by_player_uid[member.player.player_uid]
-        character_definition = deepcopy(get_character(build['character_id']))
-        _ensure(character_definition is not None, '初始化配置失败。')
-        initial_item_ids = _locked_item_ids_for_character(character_definition) + build['item_ids']
-        item_instances = build_item_instances(list(dict.fromkeys(initial_item_ids)), turn=1)
-        for item_instance in item_instances:
-            if item_instance['definition_id'] == 'fons':
-                item_instance['amount'] = 0
-        character_instance = build_character_instance(character_definition)
-        players[member.player.player_uid] = {
-            'profile': {
-                'player_uid': member.player.player_uid,
-                'nickname': member.player.nickname or member.player.player_uid,
-                'seat': member.seat,
-                'is_host': member.is_host,
-            },
-            'character_instance': character_instance,
-            'player': {
-                'x': entry['x'],
-                'y': entry['y'],
-                'max_hp': character_instance['max_hp'],
-                'hp': character_instance['max_hp'],
-                'attack': character_instance['attack'],
-                'defense': character_instance['defense'],
-                'identification_level': int(character_instance.get('identification_level', 1)),
-                'identification_exp_units': 0,
-                'identification_combo': 0,
-                'identification_identified_this_turn': False,
-                'identification_battled_this_turn': False,
-                'keys': 0,
-                'keycards': 0,
-                'fons_amount': 0,
-                'explored_cells': [],
-            },
-            'discard_pile': [],
-            'hand': item_instances,
-            'active_effects': [],
-            'pending_die': None,
-            'pending_dice': None,
-            'phase': 'dice',
-            'has_played_item': False,
-            'route_hint': DEFAULT_ROUTE_HINT,
-            'acted_this_turn': False,
-            'defeated': False,
-        }
-    state = {
-        'turn': 1,
-        'status': 'playing',
-        'room': {
-            'room_code': room.room_code,
-            'mode': room.mode,
-            'member_order': member_order,
-        },
-        'players': players,
-        'current_actor_uid': member_order[0],
-        'map': game_map,
-        'log': [],
-    }
-    _project_player_scope(state, member_order[0])
-    _refresh_all_fog_exploration(state)
-    _initialize_item_zones(state, emit_initial_events=True)
-    add_log(state, _build_start_log(state))
-    _start_shared_turn(state, reason='start_game')
-    return state
-
-
-def serialize_snapshot(state: JsonDict) -> JsonDict:
-    _project_player_scope(state, str(state['current_actor_uid']))
-    payload = deepcopy(state)
-    current_width, current_height = current_map_dimensions(state)
-    payload['map']['width'] = current_width
-    payload['map']['height'] = current_height
-    current_profile = payload['players'][payload['current_actor_uid']]['profile']
-    payload['computed_stats'] = {
-        'attack': current_attack(state),
-        'defense': current_defense(state),
-        'identification_level': current_identification_level(state),
-    }
-    payload['identification_progress'] = identification_progress(state['player'])
-    payload['player_buffs'] = serialize_player_buffs(state)
-    payload['identification_range'] = identification_range_cells(state)
-    if not payload.get('map', {}).get('hidden_room_revealed'):
-        for tile in payload.get('map', {}).get('tiles', []):
-            if tile.get('hidden_zone') and tile.get('object_id') != 'hidden_door':
-                tile['display_type'] = 'floor'
-        payload['map']['monsters'] = [
-            monster
-            for monster in payload.get('map', {}).get('monsters', [])
-            if not monster.get('hidden_zone')
-        ]
-        boss_payload = payload.get('map', {}).get('boss')
-        if isinstance(boss_payload, dict):
-            boss_payload['positions'] = [
-                position
-                for position in boss_payload.get('positions', [])
-                if not position.get('hidden_zone')
-            ]
-    _apply_fog_to_payload(state, payload)
-    payload['board'] = build_board_overlay(state)
-    payload['available_directions'] = list(DIRECTIONS.keys())
-    payload['hand_details'] = [
-        item
-        for item in (serialize_hand_item_instance(state, item_instance) for item_instance in state['hand'])
-        if item is not None
-    ]
-    payload['players_overview'] = [_serialize_player_overview(player_scope) for player_scope in state['players'].values()]
-    payload['current_viewer'] = {
-        'player_uid': current_profile['player_uid'],
-        'nickname': current_profile['nickname'],
-        'seat': current_profile['seat'],
-    }
-    payload['turn_progress'] = {
-        'turn': payload['turn'],
-        'acted_player_uids': [
-            player_scope['profile']['player_uid']
-            for player_scope in payload['players'].values()
-            if player_scope.get('acted_this_turn', False)
-        ],
-        'alive_player_uids': [
-            player_scope['profile']['player_uid']
-            for player_scope in payload['players'].values()
-            if player_scope['player']['hp'] > 0 and not player_scope.get('defeated', False)
-        ],
-    }
-    return payload
-
-
-def _materialize_random_tiles(game_map: JsonDict) -> None:
-    materialized_tiles = []
-    random_index = 0
-    for tile in game_map.get('tiles', []):
-        if tile.get('type') != 'random':
-            materialized_tiles.append(tile)
-            continue
-        random_index += 1
-        if random.random() > float(tile.get('chance', 1)):
-            continue
-        result_tile = _build_random_tile_result(game_map, tile, random_index)
-        if result_tile is not None:
-            normalize_tile_footprint(result_tile)
-            materialized_tiles.append(result_tile)
-    game_map['tiles'] = materialized_tiles
-
-
-def normalize_tile_footprint(tile: JsonDict) -> None:
-    object_id = resolve_map_object_id(tile)
-    if object_id == 'large_safe':
-        tile.setdefault('width', 2)
-        tile.setdefault('height', 2)
-    tile['width'] = max(1, int(tile.get('width', 1) or 1))
-    tile['height'] = max(1, int(tile.get('height', 1) or 1))
-
-
-def _build_random_tile_result(game_map: JsonDict, tile: JsonDict, random_index: int) -> JsonDict | None:
-    entry = choose_loot_table_entry(game_map, tile.get('loot_table_id'))
-    if entry is None:
-        return None
-    if entry.get('result') is not None:
-        result = deepcopy(entry['result'])
-        if result.get('type') == 'floor':
-            return None
-    else:
-        loot = entry.get('loot')
-        if loot is None:
-            return None
-        result = {
-            'type': 'loot_item',
-            'object_id': 'loot_item',
-            'loot': loot,
-        }
-    result['layer'] = int(tile.get('layer', 1))
-    result['x'] = int(tile['x'])
-    result['y'] = int(tile['y'])
-    result.setdefault('object_id', result.get('type'))
-    result.setdefault('spawn_id', f"random_{random_index}")
-    if tile.get('hidden_zone') and not result.get('hidden_zone'):
-        result['hidden_zone'] = tile['hidden_zone']
-    return result
-
-
-def serialize_hand_item_instance(state: JsonDict, item_instance: JsonDict) -> JsonDict | None:
-    item_payload = serialize_item_instance(item_instance)
-    if item_payload is None:
-        return None
-    item_payload['can_play_this_turn'] = can_play_item_instance_now(state, item_instance)
-    if item_cooldown_until_turn(item_payload) <= int(state.get('turn', 1)):
-        item_payload.pop('cooldown_until_turn', None)
-    return item_payload
-
-
-def item_cooldown_until_turn(item_payload: JsonDict) -> int:
+    room, snapshot, side = _load_mutable_player_run(player)
+    _ensure_playing(snapshot)
+    _ensure_selection_resolved(snapshot, side)
+    _ensure_not_ended(snapshot, side)
+    location = _find_location(snapshot, str(location_id))
+    if not _is_location_revealed(snapshot, location):
+        raise RuleValidationError('这个异象空间尚未显现，暂时不能唤醒异能者。')
+    standby = snapshot['sides'][side].setdefault('esper_standby', [])
+    card = _find_card_in_zone_or_none(standby, str(card_instance_id))
+    is_reactivation = False
+    if card is None:
+        card, current_location = _find_revealed_esper_on_board(snapshot, side, str(card_instance_id))
+        if current_location['id'] != location['id']:
+            raise RuleValidationError('场上的异能者只能在当前所在空间继续共鸣。')
+        if card.get('pending_material_ids') or card.get('reactivating_turn') == snapshot.get('turn'):
+            raise RuleValidationError('这名异能者本回合已经准备共鸣。')
+        if _side_reactivation_used(snapshot, side):
+            raise RuleValidationError('本回合已经准备过 1 次场上异能者共鸣。')
+        is_reactivation = True
+    selected_material_ids = None if material_instance_ids is None else [str(item) for item in material_instance_ids]
     try:
-        return int(item_payload.get('cooldown_until_turn', 0) or 0)
-    except (TypeError, ValueError):
-        return 0
-
-
-def can_play_item_instance_now(state: JsonDict, item_instance: JsonDict) -> bool:
-    item_definition = get_item(item_instance.get('definition_id', ''))
-    if item_definition is None:
-        return False
-    item_payload = {
-        **item_definition,
-        'cooldown_until_turn': item_instance.get('cooldown_until_turn', item_definition.get('cooldown_until_turn', 0)),
-    }
-    return can_play_item_now(state, item_payload)
-
-
-def can_play_item_now(state: JsonDict, item_payload: JsonDict) -> bool:
-    return (
-        state.get('phase') == 'action'
-        and state.get('has_played_item') is False
-        and bool(item_payload.get('can_play', True))
-        and item_cooldown_until_turn(item_payload) <= int(state.get('turn', 1))
-    )
-
-
-def _load_state(player: Player) -> JsonDict:
-    room = _require_room(player)
-    run = _get_room_run(room)
-    if run is None or not run['snapshot']:
-        raise RuleValidationError('当前没有进行中的对局，请先开始。')
-    run['snapshot'] = _normalize_loaded_state(run['snapshot'])
-    _project_player_scope(run['snapshot'], player.player_uid)
-    validate_state(run['snapshot'])
-    return run['snapshot']
-
-
-def _save_and_serialize(player: Player, state: JsonDict) -> JsonDict:
-    room = _require_room(player)
-    add_action_steps(state, take_post_battle_action_steps(state))
-    action_queue = take_action_queue(state)
-    payload = _save_and_serialize_for_room(room, state)
-    payload['action_queue'] = action_queue
-    return payload
-
-
-def _save_and_serialize_for_room(room: Room, state: JsonDict) -> JsonDict:
-    _capture_player_scope(state)
-    validate_state(state)
-    payload = serialize_snapshot(state)
-    _persist_room_snapshot(room, state)
-    return payload
-
-
-def validate_state(state: JsonDict) -> None:
-    required_top_keys = {'turn', 'status', 'room', 'players', 'current_actor_uid', 'phase', 'character_instance', 'player', 'map', 'discard_pile', 'hand', 'active_effects', 'pending_die', 'pending_dice', 'has_played_item', 'route_hint', 'log'}
-    missing = required_top_keys - set(state.keys())
-    _ensure(not missing, f'状态缺少关键字段：{sorted(missing)}')
-    _ensure(state['phase'] in {'dice', 'action', 'movement', 'battle', 'victory', 'defeat', 'completed'}, '状态中的 phase 非法。')
-    _ensure(state['current_actor_uid'] in state['players'], '当前行动玩家不存在。')
-    _ensure(state['player']['hp'] <= state['player']['max_hp'], '玩家生命值超过上限。')
-    all_instances = []
-    for player_scope in state['players'].values():
-        _ensure(get_character(player_scope['character_instance']['definition_id']) is not None, '角色实例定义不存在。')
-        _ensure(player_scope['player']['hp'] <= player_scope['player']['max_hp'], '玩家生命值超过上限。')
-        all_instances.extend(player_scope['discard_pile'] + player_scope['hand'])
-    instance_ids = [item['instance_id'] for item in all_instances]
-    _ensure(len(instance_ids) == len(set(instance_ids)), '道具实例 ID 发生重复。')
-    for instance in all_instances:
-        _ensure(get_item(instance['definition_id']) is not None, f"未知的道具实例定义：{instance['definition_id']}")
-
-
-def _normalize_loaded_state(state: JsonDict) -> JsonDict:
-    normalized = deepcopy(state)
-    map_definition = get_map(normalized.get('map', {}).get('id', DEFAULT_MAP_ID))
-    map_replaced = False
-    if map_definition is not None:
-        if (
-            normalized.get('map', {}).get('name') != map_definition.get('name')
-            or int(normalized.get('map', {}).get('version', 0)) != int(map_definition.get('version', 0))
-            or int(normalized.get('map', {}).get('total_layers', 1)) != int(map_definition.get('total_layers', 1))
-            or normalized.get('map', {}).get('layers') != map_definition.get('layers')
-            or normalized.get('map', {}).get('entries') != map_definition.get('entries')
-        ):
-            normalized['map'] = deepcopy(map_definition)
-            entry = map_entry_point(normalized['map'])
-            normalized['map']['current_layer'] = int(entry['layer'])
-            _materialize_random_tiles(normalized['map'])
-            map_replaced = True
-        normalized['map']['name'] = map_definition.get('name', normalized['map'].get('name'))
-        normalized['map']['background_image'] = map_definition.get('background_image', normalized['map'].get('background_image'))
-        normalized['map']['fog_of_war'] = deepcopy(map_definition.get('fog_of_war', normalized['map'].get('fog_of_war', {})))
-        monster_definitions = {monster['id']: monster for monster in map_definition.get('monsters', [])}
-        for monster in normalized['map'].get('monsters', []):
-            monster_definition = monster_definitions.get(monster.get('id'))
-            if monster_definition is None:
-                continue
-            monster['name'] = monster_definition.get('name', monster.get('name'))
-            monster.pop('icon', None)
-        boss_definition = map_definition.get('boss', {})
-        if normalized['map'].get('boss', {}).get('id') == boss_definition.get('id'):
-            normalized['map']['boss']['name'] = boss_definition.get('name', normalized['map']['boss'].get('name'))
-        normalized['map'].get('boss', {}).pop('icon', None)
-    for tile in normalized.get('map', {}).get('tiles', []):
-        tile.pop('icon', None)
-        if resolve_map_object_id(tile) == 'turn_belt' and str(tile.get('direction', '')) in DIRECTIONS:
-            object_id = f"turn_belt_{tile['direction']}"
-            tile['type'] = object_id
-            tile['object_id'] = object_id
-            tile.pop('direction', None)
-        normalize_tile_footprint(tile)
-    for player_scope in normalized.get('players', {}).values():
-        character_instance = player_scope.get('character_instance', {})
-        character_definition = get_character(character_instance.get('definition_id'))
-        if character_definition is None:
-            characters = load_characters()
-            if not characters:
-                continue
-            character_definition = characters[0]
-            rebuilt_character = build_character_instance(character_definition)
-            rebuilt_character['instance_id'] = character_instance.get('instance_id', rebuilt_character['instance_id'])
-            player_scope['character_instance'] = rebuilt_character
-            character_instance = player_scope['character_instance']
-            player_scope.setdefault('player', {})['max_hp'] = rebuilt_character['max_hp']
-            player_scope['player']['hp'] = min(int(player_scope['player'].get('hp', rebuilt_character['max_hp'])), rebuilt_character['max_hp'])
-            player_scope['player']['attack'] = rebuilt_character['attack']
-            player_scope['player']['defense'] = rebuilt_character['defense']
-        character_instance['name'] = character_definition.get('name', character_instance.get('name'))
-        character_instance.pop('title', None)
-        character_instance['passive'] = character_definition.get('passive', character_instance.get('passive'))
-        character_instance['identification_level'] = int(character_definition.get('identification_level', character_instance.get('identification_level', 1)))
-        serialized_character = serialize_character_definition(character_definition)
-        character_instance['portrait_image'] = serialized_character['portrait_image']
-        character_instance['avatar_image'] = serialized_character['avatar_image']
-        player_state = player_scope.setdefault('player', {})
-        player_state.setdefault('keycards', 0)
-        player_state.setdefault('fons_amount', 0)
-        player_state.setdefault('explored_cells', [])
-        base_identification_level = int(character_instance.get('identification_level', 1))
-        player_state['identification_level'] = max(
-            base_identification_level,
-            int(player_state.get('identification_level', base_identification_level) or base_identification_level),
+        material_cards = _material_cards_for_esper(
+            snapshot,
+            side,
+            location,
+            card,
+            material_instance_ids=selected_material_ids,
         )
-        initialize_identification_state(player_state, base_identification_level)
-        migrate_legacy_safe_bonus_rolls(player_scope)
-        existing_fons = next((item for item in player_scope.get('hand', []) if item.get('definition_id') == 'fons'), None)
-        if existing_fons is not None:
-            player_state['fons_amount'] = max(
-                int(player_state.get('fons_amount', 0)),
-                int(existing_fons.get('amount', 0)),
-            )
-        _absorb_convertible_hand_items(player_scope)
-        if map_replaced:
-            entry = map_entry_point(normalized['map'])
-            player_scope['player']['x'] = entry['x']
-            player_scope['player']['y'] = entry['y']
-            player_scope['player']['explored_cells'] = []
-        if 'pending_dice' not in player_scope:
-            player_scope['pending_dice'] = _dice_pair_from_legacy_die(player_scope.get('pending_die'))
-        dice_values = pending_dice_values({
-            'pending_dice': player_scope.get('pending_dice'),
-            'pending_die': player_scope.get('pending_die'),
-        })
-        if dice_values is None:
-            player_scope['pending_dice'] = None
-            player_scope['pending_die'] = None
-        else:
-            player_scope['pending_dice'] = {'a': int(dice_values[0]), 'b': int(dice_values[1])}
-            player_scope['pending_die'] = max(dice_values)
-        allowed_locked_ids = set(_locked_item_ids_for_character(character_definition))
-        player_scope['hand'] = [
-            item for item in player_scope.get('hand', [])
-            if get_item(item.get('definition_id')) is not None
-            and (item.get('definition_id') != 'fons' or item.get('definition_id') in allowed_locked_ids)
-        ]
-        player_scope['discard_pile'] = [
-            item for item in player_scope.get('discard_pile', [])
-            if get_item(item.get('definition_id')) is not None
-            and (item.get('definition_id') != 'fons' or item.get('definition_id') in allowed_locked_ids)
-        ]
-        for item in player_scope.get('hand', []):
-            if item.get('definition_id') == 'fons':
-                item['amount'] = int(player_scope['player'].get('fons_amount', 0))
-        existing_item_ids = {item.get('definition_id') for item in player_scope.get('hand', [])}
-        missing_locked_items = [item_id for item_id in _locked_item_ids_for_character(character_definition) if item_id not in existing_item_ids]
-        for item_instance in build_item_instances(missing_locked_items, turn=int(normalized.get('turn', 1))):
-            if item_instance['definition_id'] == 'fons':
-                item_instance['amount'] = int(player_scope['player'].get('fons_amount', 0))
-            player_scope.setdefault('hand', []).insert(0, item_instance)
-    _project_player_scope(normalized, str(normalized['current_actor_uid']))
-    _refresh_all_fog_exploration(normalized)
-    _initialize_item_zones(normalized, emit_initial_events=False)
-    return normalized
+    except RuleValidationError:
+        if not is_reactivation:
+            standby.append(card)
+        raise
+    if not is_reactivation and not _location_has_room_after_materials(location, side, material_cards):
+        raise RuleValidationError('这个空间在消耗素材后仍然会超出上限。')
+    material_ids = [item['instance_id'] for item in material_cards]
+    _ensure_turn_undo_checkpoint(snapshot, side)
+    if not is_reactivation:
+        standby.remove(card)
+    _reserve_materials(material_cards, card['instance_id'])
+    if is_reactivation:
+        card['reactivating_turn'] = snapshot['turn']
+        _mark_side_reactivation(snapshot, side)
+    else:
+        card['played_turn'] = snapshot['turn']
+        card['location_id'] = location['id']
+        card['revealed'] = False
+        card['staged'] = True
+        card['play_sequence'] = _next_play_sequence(snapshot)
+        card['summoned_from'] = 'esper_standby'
+        location['cards'][side].append(card)
+    card['pending_material_ids'] = material_ids
+    card['paid_cost'] = 0
+    card.pop('selected_target_instance_id', None)
+    card.pop('selected_target_name', None)
+    card.pop('declared_card_instance_ids', None)
+    card.pop('declared_card_names', None)
+    verb = '准备共鸣' if is_reactivation else '唤醒'
+    _add_log(snapshot, f"{_side_name(snapshot, side)} {verb} {card['name']} 于 {location['name']}，预定消耗 {len(material_ids)} 个素材。")
+    dispatch_event(snapshot, GameEvent.CARD_PLAYED, {
+        'target_instance_id': card['instance_id'],
+        'card_instance_id': card['instance_id'],
+        'card': card,
+        'side': side,
+        'opponent_side': _opponent_side(side),
+        'location': location,
+        'location_id': location['id'],
+        'location_index': _location_index(snapshot, location['id']),
+    })
+    target_rule = _target_rule(card)
+    if target_rule:
+        snapshot['sides'][side]['pending_target'] = {
+            'source_instance_id': card['instance_id'],
+            'location_id': location['id'],
+            'scope': target_rule.get('scope', ''),
+            'prompt': target_rule.get('prompt', '请选择一个目标。'),
+        }
+        _add_log(snapshot, f"{card['name']} 等待选择目标。")
+    _recompute_scores(snapshot)
+    _persist_room_snapshot(room, snapshot)
+    return _public_state(snapshot, room, player)
 
 
-def _absorb_convertible_hand_items(player_scope: JsonDict) -> None:
-    retained_hand = []
-    fons_total = int(player_scope.setdefault('player', {}).get('fons_amount', 0))
-    for item in player_scope.get('hand', []):
-        item_definition = get_item(item.get('definition_id')) or {}
-        fons_value = int(item_definition.get('fons_value', 0) or 0)
-        if fons_value <= 0:
-            retained_hand.append(item)
+def return_staged_card(player: Player, card_instance_id: str) -> JsonDict:
+    room, snapshot, side = _load_mutable_player_run(player)
+    _ensure_playing(snapshot)
+    _ensure_not_ended(snapshot, side)
+    card, location = _find_staged_card(snapshot, side, str(card_instance_id))
+    if card.get('reserved_as_material_for'):
+        raise RuleValidationError('这张牌已被异能者预定为素材，请先收回对应异能者。')
+    _ensure_turn_undo_checkpoint(snapshot, side)
+    location['cards'][side].remove(card)
+    _refund_card_cost(snapshot, side, card)
+    _release_material_reservations(snapshot, side, card['instance_id'])
+    card['played_turn'] = None
+    card['location_id'] = None
+    card['revealed'] = False
+    card.pop('staged', None)
+    card.pop('paid_cost', None)
+    card.pop('play_sequence', None)
+    card.pop('pending_material_ids', None)
+    card.pop('selected_target_instance_id', None)
+    card.pop('selected_target_name', None)
+    card.pop('declared_card_instance_ids', None)
+    card.pop('declared_card_names', None)
+    if card.get('summoned_from') == 'esper_standby' or card.get('type') == CARD_TYPE_ESPER:
+        card.pop('summoned_from', None)
+        snapshot['sides'][side].setdefault('esper_standby', []).append(card)
+    else:
+        snapshot['sides'][side]['hand'].append(card)
+    _clear_pending_target_for_source(snapshot, side, card['instance_id'])
+    _add_log(snapshot, f"{_side_name(snapshot, side)} 收回 {card['name']}。")
+    _recompute_scores(snapshot)
+    _persist_room_snapshot(room, snapshot)
+    return _public_state(snapshot, room, player)
+
+
+def move_staged_card(player: Player, card_instance_id: str, location_id: str) -> JsonDict:
+    room, snapshot, side = _load_mutable_player_run(player)
+    _ensure_playing(snapshot)
+    _ensure_not_ended(snapshot, side)
+    card, source_location = _find_staged_card(snapshot, side, str(card_instance_id))
+    if card.get('reserved_as_material_for'):
+        raise RuleValidationError('这张牌已被异能者预定为素材，请先收回对应异能者。')
+    target_location = _find_location(snapshot, str(location_id))
+    if not _is_location_revealed(snapshot, target_location):
+        raise RuleValidationError('这个异象空间尚未显现，暂时不能移动到这里。')
+    if target_location['id'] == source_location['id']:
+        return _public_state(snapshot, room, player)
+    material_cards = []
+    if card.get('summoned_from') == 'esper_standby' or card.get('type') == CARD_TYPE_ESPER:
+        material_cards = _material_cards_for_esper(snapshot, side, target_location, card)
+        if not _location_has_room_after_materials(target_location, side, material_cards):
+            raise RuleValidationError('目标空间在消耗素材后仍然会超出上限。')
+    elif len(target_location['cards'][side]) >= LOCATION_CARD_LIMIT:
+        raise RuleValidationError('目标空间已满。')
+    _ensure_turn_undo_checkpoint(snapshot, side)
+    if card.get('summoned_from') == 'esper_standby' or card.get('type') == CARD_TYPE_ESPER:
+        _release_material_reservations(snapshot, side, card['instance_id'])
+    source_location['cards'][side].remove(card)
+    target_location['cards'][side].append(card)
+    card['location_id'] = target_location['id']
+    if card.get('summoned_from') == 'esper_standby' or card.get('type') == CARD_TYPE_ESPER:
+        material_ids = [item['instance_id'] for item in material_cards]
+        _reserve_materials(material_cards, card['instance_id'])
+        card['pending_material_ids'] = material_ids
+    pending = snapshot['sides'][side].get('pending_target')
+    if pending and pending.get('source_instance_id') == card['instance_id']:
+        pending['location_id'] = target_location['id']
+    _add_log(snapshot, f"{_side_name(snapshot, side)} 将 {card['name']} 移至 {target_location['name']}。")
+    _recompute_scores(snapshot)
+    _persist_room_snapshot(room, snapshot)
+    return _public_state(snapshot, room, player)
+
+
+def choose_target(player: Player, target_instance_id: str) -> JsonDict:
+    room, snapshot, side = _load_mutable_player_run(player)
+    _ensure_playing(snapshot)
+    _ensure_not_ended(snapshot, side)
+    pending = snapshot['sides'][side].get('pending_target')
+    if not pending:
+        raise RuleValidationError('当前没有需要指定目标的卡牌。')
+    source, source_location = _find_pending_source_card(snapshot, side, str(pending.get('source_instance_id', '')))
+    target = _find_target_card(snapshot, side, source_location, str(target_instance_id), str(pending.get('scope', '')))
+    _ensure_turn_undo_checkpoint(snapshot, side)
+    source['selected_target_instance_id'] = target['instance_id']
+    source['selected_target_name'] = target.get('name', '')
+    snapshot['sides'][side]['pending_target'] = None
+    _add_log(snapshot, f"{source['name']} 已指向 {target['name']}。")
+    if _prepare_declaration_selection(snapshot, side, source_location, source, target):
+        _add_log(snapshot, f"{source['name']} 正在检视牌库。")
+    _recompute_scores(snapshot)
+    _persist_room_snapshot(room, snapshot)
+    return _public_state(snapshot, room, player)
+
+
+def cancel_target(player: Player) -> JsonDict:
+    room, snapshot, side = _load_mutable_player_run(player)
+    pending = snapshot['sides'][side].get('pending_target')
+    if not pending:
+        return _public_state(snapshot, room, player)
+    _ensure_turn_undo_checkpoint(snapshot, side)
+    source_id = str(pending.get('source_instance_id', ''))
+    snapshot['sides'][side]['pending_target'] = None
+    source = _find_card_on_board(snapshot, source_id)
+    if source is not None and source.get('reactivating_turn') == snapshot.get('turn'):
+        _release_material_reservations(snapshot, side, source_id)
+        source.pop('pending_material_ids', None)
+        source.pop('reactivating_turn', None)
+        _persist_room_snapshot(room, snapshot)
+        return _public_state(snapshot, room, player)
+    _persist_room_snapshot(room, snapshot)
+    return return_staged_card(player, source_id)
+
+
+def undo_turn(player: Player) -> JsonDict:
+    room, snapshot, side = _load_mutable_player_run(player)
+    _ensure_playing(snapshot)
+    if snapshot.get('phase') != 'planning':
+        raise RuleValidationError('只能在部署阶段撤销本回合操作。')
+    if snapshot['sides'][side].get('ended_turn'):
+        raise RuleValidationError('已经结束回合，不能撤销本回合操作。')
+    checkpoint = _turn_undo_checkpoint(snapshot, side)
+    if checkpoint is None:
+        raise RuleValidationError('本回合没有可以撤销的操作。')
+    restored_snapshot = deepcopy(checkpoint.get('snapshot') or {})
+    if not _is_snap_snapshot(restored_snapshot):
+        raise RuleValidationError('本回合撤销点已失效。')
+    _restore_side_from_turn_undo(snapshot, side, restored_snapshot)
+    snapshot.setdefault('turn_undo_checkpoints', {}).pop(side, None)
+    snapshot['action_queue'] = []
+    _sync_planning_phase(snapshot)
+    _recompute_scores(snapshot)
+    _add_log(snapshot, f"{_side_name(snapshot, side)} 撤销了本回合全部操作。")
+    _persist_room_snapshot(room, snapshot)
+    return _public_state(snapshot, room, player)
+
+
+def choose_cards(player: Player, card_instance_ids: list[str]) -> JsonDict:
+    room, snapshot, side = _load_mutable_player_run(player)
+    _ensure_playing(snapshot)
+    selection = snapshot['sides'][side].get('selection')
+    if not selection:
+        raise RuleValidationError('当前没有需要选择的卡牌。')
+    selected_ids = [str(card_id) for card_id in card_instance_ids if str(card_id)]
+    if selection.get('kind') == 'opening':
+        _resolve_opening_selection(snapshot, side, selected_ids)
+    elif selection.get('kind') == 'draw':
+        _resolve_draw_selection(snapshot, side, selected_ids)
+    elif selection.get('kind') == 'declaration':
+        _resolve_declaration_selection(snapshot, side, selected_ids)
+    else:
+        raise RuleValidationError('未知的选牌阶段。')
+    if snapshot['mode'] == 'solo':
+        _resolve_ai_pending_choices(snapshot, SIDE_B)
+    _sync_planning_phase(snapshot)
+    _recompute_scores(snapshot)
+    _persist_room_snapshot(room, snapshot)
+    return _public_state(snapshot, room, player)
+
+
+def end_turn(player: Player) -> JsonDict:
+    room, snapshot, side = _load_mutable_player_run(player)
+    _ensure_playing(snapshot)
+    _ensure_selection_resolved(snapshot, side)
+    snapshot['sides'][side]['ended_turn'] = True
+    _add_log(snapshot, f"{_side_name(snapshot, side)} 结束回合。")
+
+    if snapshot['mode'] == 'solo':
+        _run_ai_turn(snapshot, SIDE_B)
+        snapshot['sides'][SIDE_B]['ended_turn'] = True
+
+    if all(snapshot['sides'][current_side]['ended_turn'] for current_side in SIDE_KEYS):
+        _resolve_turn(snapshot)
+    else:
+        _add_log(snapshot, '等待另一名玩家结束回合。')
+
+    _persist_room_snapshot(room, snapshot)
+    return _public_state(snapshot, room, player)
+
+
+def retreat(player: Player) -> JsonDict:
+    room, snapshot, side = _load_mutable_player_run(player)
+    if snapshot['status'] != 'playing':
+        return _public_state(snapshot, room, player)
+    snapshot['status'] = 'defeat' if side == SIDE_A else 'victory'
+    snapshot['winner_side'] = _opponent_side(side)
+    snapshot['phase'] = 'defeat'
+    _add_log(snapshot, f"{_side_name(snapshot, side)} 撤退，对局结束。")
+    snapshot.setdefault('banner_queue', []).append({
+        'kind': 'result',
+        'title': '失败' if side == SIDE_A else '胜利',
+        'subtitle': '对局结束',
+    })
+    _persist_room_snapshot(room, snapshot)
+    return _public_state(snapshot, room, player)
+
+
+def _create_initial_snapshot(room: Room, members: list[Any], options: JsonDict | None = None) -> JsonDict:
+    options = options or {}
+    host_member = next((member for member in members if member.is_host), members[0] if members else None)
+    if host_member is None:
+        raise RuleValidationError('房间缺少玩家。')
+    guest_member = next((member for member in members if member.player_id != host_member.player_id), None)
+    scenario = _normalize_scenario(options.get('scenario'))
+    player_deck_id = str(options.get('player_deck_id') or '').strip()
+    enemy_deck_id = str(options.get('enemy_deck_id') or '').strip()
+    if scenario == 'tutorial':
+        player_deck_id = player_deck_id or 'genesis_bloom'
+        enemy_deck_id = enemy_deck_id or 'murk_burn'
+    elif scenario == 'trial':
+        player_deck_id = player_deck_id or default_duel_deck_id()
+        enemy_deck_id = enemy_deck_id or player_deck_id
+    elif scenario == 'random_ai':
+        enemy_deck_id = enemy_deck_id or 'random'
+
+    host_side = _build_side(host_member.player, SIDE_A, is_ai=False, deck_id=player_deck_id)
+    if room.mode == 'solo':
+        opponent_side = _build_ai_side(enemy_deck_id)
+    elif guest_member is not None:
+        opponent_side = _build_side(guest_member.player, SIDE_B, is_ai=False, deck_id='')
+    else:
+        raise RuleValidationError('未来 1v1 房间需要两名玩家都进入后才能开始。')
+
+    snapshot: JsonDict = {
+        'schema_version': SCHEMA_VERSION,
+        'game_id': GAME_ID,
+        'mode': room.mode,
+        'scenario': scenario,
+        'scenario_label': _scenario_label(scenario),
+        'status': 'playing',
+        'phase': 'planning',
+        'turn': 1,
+        'max_turns': 4 if scenario == 'tutorial' else MAX_TURNS,
+        'locations': _initial_locations(),
+        'sides': {
+            SIDE_A: host_side,
+            SIDE_B: opponent_side,
+        },
+        'winner_side': None,
+        'log': [],
+        'action_queue': [],
+        'banner_queue': [{'kind': 'turn', 'title': '第 1 回合', 'subtitle': '双方开始置入'}],
+        'play_sequence_counter': 0,
+        'turn_undo_checkpoints': {},
+    }
+    _reveal_locations_for_turn(snapshot)
+    _sync_planning_phase(snapshot)
+    _recompute_scores(snapshot)
+    _lock_settlement_initiative(snapshot, emit_action=False)
+    _add_log(snapshot, '主战场显现，首发手牌已按构筑载入。')
+    return snapshot
+
+
+def _build_side(player: Player, side: str, *, is_ai: bool, deck_id: str = '') -> JsonDict:
+    deck_card_ids, esper_card_ids, deck_payload = _deck_card_ids_for_player(player, deck_id)
+    hand, deck = _build_hand_and_deck_instances(deck_card_ids, side, deck_payload)
+    esper_standby = _build_deck_instances(esper_card_ids, side, prefix='esper')
+    return {
+        'side': side,
+        'uid': player.player_uid,
+        'nickname': player.nickname or player.player_uid,
+        'is_ai': is_ai,
+        'deck_id': deck_payload['id'],
+        'deck_name': deck_payload['name'],
+        'deck_description': deck_payload.get('description', ''),
+        'ai_plan': deepcopy(deck_payload.get('ai_plan', {})),
+        'deck': deck,
+        'hand': hand,
+        'esper_standby': esper_standby,
+        'discard': [],
+        'selection': None,
+        'pending_target': None,
+        'combo': {},
+        'energy_used': 0,
+        'ended_turn': False,
+    }
+
+
+def _build_ai_side(deck_id: str = '') -> JsonDict:
+    deck_payload = _resolve_deck_payload(deck_id or default_duel_deck_id())
+    hand, deck = _build_hand_and_deck_instances(deck_payload['card_ids'], SIDE_B, deck_payload)
+    esper_standby = _build_deck_instances(_esper_ids_for_deck_payload(deck_payload), SIDE_B, prefix='esper')
+    return {
+        'side': SIDE_B,
+        'uid': 'ai',
+        'nickname': deck_payload.get('ai_nickname') or '幻象对手',
+        'is_ai': True,
+        'deck_id': deck_payload['id'],
+        'deck_name': deck_payload['name'],
+        'deck_description': deck_payload.get('description', ''),
+        'ai_plan': deepcopy(deck_payload.get('ai_plan', {})),
+        'deck': deck,
+        'hand': hand,
+        'esper_standby': esper_standby,
+        'discard': [],
+        'selection': None,
+        'pending_target': None,
+        'combo': {},
+        'energy_used': 0,
+        'ended_turn': False,
+    }
+
+
+def _deck_card_ids_for_player(player: Player, deck_id: str = '') -> tuple[list[str], list[str], JsonDict]:
+    if deck_id:
+        deck_payload = _resolve_deck_payload(deck_id)
+        return list(deck_payload['card_ids']), _esper_ids_for_deck_payload(deck_payload), deck_payload
+
+    build = get_build(player)
+    normalized_build = normalize_build_payload(build or {})
+    selected_ids = [
+        card_id
+        for card_id in normalized_build.get('item_ids', [])
+        if card_id in _card_by_id() and _card_type(card_id) == CARD_TYPE_ANOMALY_ITEM
+    ]
+    selected_esper_ids = [
+        card_id
+        for card_id in normalized_build.get('esper_card_ids', [])
+        if card_id in _card_by_id() and _card_type(card_id) == CARD_TYPE_ESPER
+    ]
+    default_deck = _resolve_deck_payload(default_duel_deck_id())
+    default_ids = list(default_deck['card_ids'])
+    default_esper_ids = _esper_ids_for_deck_payload(default_deck)
+    if selected_ids:
+        is_valid, _ = validate_duel_deck_card_ids(selected_ids)
+        if is_valid and len(selected_ids) >= MIN_BUILD_ITEM_COUNT:
+            return selected_ids[:MAX_BUILD_ITEM_COUNT], (selected_esper_ids or default_esper_ids)[:MAX_BUILD_ESPER_COUNT], {
+                'id': 'custom',
+                'name': '自建牌组',
+                'description': '玩家保存的异象对决构筑。',
+                'card_ids': selected_ids[:MAX_BUILD_ITEM_COUNT],
+                'esper_card_ids': (selected_esper_ids or default_esper_ids)[:MAX_BUILD_ESPER_COUNT],
+                'ai_plan': {},
+            }
+    filled = selected_ids[:]
+    for card_id in default_ids:
+        if card_id not in filled:
+            filled.append(card_id)
+        if len(filled) >= MAX_BUILD_ITEM_COUNT:
+            break
+    is_valid, _ = validate_duel_deck_card_ids(filled)
+    if not is_valid or len(filled) < MAX_BUILD_ITEM_COUNT:
+        filled = default_ids[:MAX_BUILD_ITEM_COUNT]
+    resolved_esper_ids = (selected_esper_ids or default_esper_ids)[:MAX_BUILD_ESPER_COUNT]
+    return filled[:MAX_BUILD_ITEM_COUNT], resolved_esper_ids, {
+        'id': 'custom' if selected_ids else default_deck['id'],
+        'name': '自建牌组' if selected_ids else default_deck['name'],
+        'description': '玩家保存的异象对决构筑。' if selected_ids else default_deck.get('description', ''),
+        'card_ids': filled[:MAX_BUILD_ITEM_COUNT],
+        'esper_card_ids': resolved_esper_ids,
+        'ai_plan': default_deck.get('ai_plan', {}),
+    }
+
+
+def _build_deck_instances(card_ids: list[str], side: str, *, prefix: str = 'deck') -> list[JsonDict]:
+    deck = []
+    for index, card_id in enumerate(card_ids):
+        definition = _card_by_id()[card_id]
+        deck.append(_card_instance(definition, side, f'{prefix}-{side}-{index + 1:02d}'))
+    return deck
+
+
+def _build_hand_and_deck_instances(card_ids: list[str], side: str, deck_payload: JsonDict) -> tuple[list[JsonDict], list[JsonDict]]:
+    starter_ids = _starter_card_ids(card_ids, deck_payload)
+    ordered_ids = starter_ids + _remaining_card_ids_after_consuming(card_ids, starter_ids)
+    instances = _build_deck_instances(ordered_ids[:MAX_BUILD_ITEM_COUNT], side)
+    hand = instances[:OPENING_SELECTION_SIZE]
+    deck = instances[OPENING_SELECTION_SIZE:]
+    random.shuffle(deck)
+    return hand, deck
+
+
+def _starter_card_ids(card_ids: list[str], deck_payload: JsonDict) -> list[str]:
+    planned_ids = [
+        str(card_id)
+        for card_id in [
+            *deck_payload.get('starter_card_ids', []),
+            *deck_payload.get('ai_plan', {}).get('opening_card_ids', []),
+        ]
+    ]
+    available = _card_count_bucket(card_ids)
+    starters: list[str] = []
+    for card_id in planned_ids:
+        if int(available.get(card_id, 0)) > 0:
+            starters.append(card_id)
+            available[card_id] = int(available.get(card_id, 0)) - 1
+        if len(starters) >= OPENING_SELECTION_SIZE:
+            return starters
+    for card_id in card_ids:
+        if int(available.get(card_id, 0)) > 0:
+            starters.append(card_id)
+            available[card_id] = int(available.get(card_id, 0)) - 1
+        if len(starters) >= OPENING_SELECTION_SIZE:
+            break
+    return starters
+
+
+def _card_instance(definition: JsonDict, side: str, suffix: str) -> JsonDict:
+    return {
+        'instance_id': f'{definition["id"]}-{suffix}',
+        'definition_id': definition['id'],
+        'name': definition['name'],
+        'type': definition.get('type', 'esper'),
+        'cost': int(definition['cost']),
+        'cost_modifier': 0,
+        'base_power': int(definition['power']),
+        'bonus_power': 0,
+        'computed_power': int(definition['power']),
+        'element': definition.get('element', ''),
+        'rarity': definition.get('rarity', 'n'),
+        'art': definition.get('art', CARD_BACK_IMAGE),
+        'description': definition.get('description', ''),
+        'archetype': definition.get('archetype', ''),
+        'category': definition.get('category', ''),
+        'attribute': definition.get('attribute', ''),
+        'attribute_icon': definition.get('attribute_icon', ''),
+        'material_tags': list(definition.get('material_tags', [])),
+        'material_cost': int(definition.get('material_cost') or 0),
+        'required_material_attribute': definition.get('required_material_attribute', ''),
+        'material_requirements': deepcopy(definition.get('material_requirements') or []),
+        'material_requirement_text': definition.get('material_requirement_text', ''),
+        'side': side,
+        'revealed': False,
+        'played_turn': None,
+        'location_id': None,
+        'tags': list(definition.get('tags', [])),
+    }
+
+
+def _initial_locations() -> list[JsonDict]:
+    trait = deepcopy(random.choice(BATTLEFIELD_TRAITS))
+    return [{
+        'id': 'main_battlefield',
+        'trait_id': trait['id'],
+        'name': f"主战场：{trait['name']}",
+        'short_name': '主战场',
+        'description': trait['description'],
+        'art': trait['art'],
+        'reveal_turn': 1,
+        'effect': trait['effect'],
+        'revealed': False,
+        'cards': {SIDE_A: [], SIDE_B: []},
+        'marks': {SIDE_A: {}, SIDE_B: {}},
+        'power': {SIDE_A: 0, SIDE_B: 0},
+        'winner_side': None,
+    }]
+
+
+def _normalize_scenario(value: object) -> str:
+    scenario = str(value or 'standard').strip().lower()
+    if scenario in {'tutorial', 'trial', 'standard', 'random_ai'}:
+        return scenario
+    return 'standard'
+
+
+def _scenario_label(scenario: object) -> str:
+    normalized = _normalize_scenario(scenario)
+    if normalized == 'tutorial':
+        return '新手教学关'
+    if normalized == 'trial':
+        return '套牌试用关'
+    if normalized == 'random_ai':
+        return '随机人机对局'
+    return '标准单人对局'
+
+
+def _resolve_deck_payload(deck_id: str) -> JsonDict:
+    if str(deck_id or '').strip() == 'random':
+        decks = load_duel_decks()
+        if not decks:
+            raise RuleValidationError('当前没有可用的人机套牌。')
+        return deepcopy(random.choice(decks))
+    deck = get_duel_deck(deck_id) or get_duel_deck(default_duel_deck_id())
+    if deck is None:
+        raise RuleValidationError('当前没有可用的试用套牌。')
+    card_ids = [str(card_id) for card_id in deck.get('card_ids', [])]
+    if len(card_ids) < MIN_BUILD_ITEM_COUNT or len(card_ids) > MAX_BUILD_ITEM_COUNT:
+        raise RuleValidationError(f"{deck.get('name', '套牌')} 必须配置 {MIN_BUILD_ITEM_COUNT} 到 {MAX_BUILD_ITEM_COUNT} 张牌。")
+    for card_id in card_ids:
+        if _card_type(card_id) != CARD_TYPE_ANOMALY_ITEM:
+            raise RuleValidationError(f"{deck.get('name', '套牌')} 的牌组区域只能配置异象道具。")
+    esper_ids = _esper_ids_for_deck_payload(deck)
+    is_valid, validation_error = validate_duel_deck_card_ids([*card_ids, *esper_ids])
+    if not is_valid:
+        raise RuleValidationError(f"{deck.get('name', '套牌')} 配置非法：{validation_error}")
+    return deck
+
+
+def _esper_ids_for_deck_payload(deck_payload: JsonDict) -> list[str]:
+    return [
+        card_id
+        for card_id in _unique_known_ids(deck_payload.get('esper_card_ids', []))
+        if _card_type(card_id) == CARD_TYPE_ESPER
+    ][:MAX_BUILD_ESPER_COUNT]
+
+
+def _prepare_draw_selection(snapshot: JsonDict, side: str) -> None:
+    snapshot['sides'][side]['selection'] = None
+    _draw_cards(snapshot, side, 1, reason='回合补牌')
+
+
+def _resolve_draw_selection(snapshot: JsonDict, side: str, selected_ids: list[str]) -> None:
+    _resolve_legacy_draw_selection_as_auto_draw(snapshot, side)
+
+
+def _resolve_legacy_draw_selection_as_auto_draw(snapshot: JsonDict, side: str) -> bool:
+    side_state = snapshot['sides'][side]
+    selection = side_state.get('selection') or {}
+    if selection.get('kind') != 'draw':
+        return False
+    side_state['selection'] = None
+    _draw_cards(snapshot, side, 1, reason='回合补牌')
+    return True
+
+
+def _clear_legacy_draw_selections(snapshot: JsonDict, *, auto_draw: bool = False) -> bool:
+    changed = False
+    for side in SIDE_KEYS:
+        selection = snapshot['sides'][side].get('selection') or {}
+        if selection.get('kind') != 'draw':
             continue
-        fons_total += fons_value * max(1, int(item.get('quantity', 1) or 1))
-    player_scope['player']['fons_amount'] = fons_total
-    player_scope['hand'] = retained_hand
+        if auto_draw:
+            changed = _resolve_legacy_draw_selection_as_auto_draw(snapshot, side) or changed
+        else:
+            snapshot['sides'][side]['selection'] = None
+            changed = True
+    return changed
 
 
-def _persist_room_snapshot(room: Room, state: JsonDict) -> None:
-    _capture_player_scope(state)
-    status_touches_room = state['status'] in {'playing', 'victory', 'defeat'}
-    queue_room_snapshot_persist(
-        room.id,
-        state['map']['id'],
-        state['status'],
-        state,
-        touch_room=not status_touches_room,
-        update_room_status=status_touches_room,
+def _resolve_ai_pending_choices(snapshot: JsonDict, side: str) -> None:
+    while snapshot['sides'][side].get('selection'):
+        selection = snapshot['sides'][side]['selection']
+        if selection.get('kind') == 'draw':
+            _resolve_legacy_draw_selection_as_auto_draw(snapshot, side)
+        elif selection.get('kind') == 'declaration':
+            selected_ids = _ai_selection_ids(snapshot['sides'][side], selection)
+            _resolve_declaration_selection(snapshot, side, selected_ids)
+        else:
+            selected_ids = _ai_selection_ids(snapshot['sides'][side], selection)
+            snapshot['sides'][side]['selection'] = None
+
+
+def _ai_selection_ids(side_state: JsonDict, selection: JsonDict) -> list[str]:
+    cards = list(selection.get('cards', []))
+    priority = _ai_priority(side_state)
+    cards.sort(
+        key=lambda card: (
+            priority.get(card.get('definition_id'), -99),
+            int(card.get('cost', 0)),
+            int(card.get('base_power', 0)),
+        ),
+        reverse=True,
+    )
+    pick_count = int(selection.get('pick_count', 1))
+    return [card['instance_id'] for card in cards[:pick_count]]
+
+
+def _ai_priority(side_state: JsonDict) -> dict[str, int]:
+    priority_ids = list(side_state.get('ai_plan', {}).get('priority_card_ids', []))
+    return {str(card_id): len(priority_ids) - index for index, card_id in enumerate(priority_ids)}
+
+
+def _sync_planning_phase(snapshot: JsonDict) -> None:
+    if snapshot['status'] != 'playing':
+        return
+    _clear_legacy_draw_selections(snapshot)
+    snapshot['phase'] = 'selecting' if any(snapshot['sides'][side].get('selection') for side in SIDE_KEYS) else 'planning'
+
+
+def _prepare_declaration_selection(
+    snapshot: JsonDict,
+    side: str,
+    location: JsonDict,
+    card: JsonDict,
+    selected_target: JsonDict | None = None,
+) -> bool:
+    if snapshot['sides'][side].get('selection'):
+        return False
+    candidates = _declaration_candidates(snapshot, side, card, selected_target)
+    if not candidates:
+        return False
+    card_id = str(card.get('definition_id') or '')
+    title = f"{card.get('name', '卡牌')} 检视牌库"
+    description = '宣言 1 张合法卡牌；揭示时执行。'
+    if card_id == 'genesis_urban_energy':
+        description = '宣言 1 张饮料或食物；揭示时加入手牌。'
+    elif card_id == 'genesis_chip_washer':
+        description = '若目标为食物，宣言 1 张费用 1 以下的光、灵或相属性道具；揭示时加入手牌。'
+    snapshot['sides'][side]['selection'] = {
+        'kind': 'declaration',
+        'source_instance_id': card['instance_id'],
+        'location_id': location['id'],
+        'title': title,
+        'description': description,
+        'pick_count': 1,
+        'min_count': 1,
+        'max_count': 1,
+        'cards': candidates,
+    }
+    return True
+
+
+def _declaration_candidates(
+    snapshot: JsonDict,
+    side: str,
+    card: JsonDict,
+    selected_target: JsonDict | None = None,
+) -> list[JsonDict]:
+    definition_id = str(card.get('definition_id') or '')
+    deck = list(snapshot['sides'][side].get('deck', []))
+    if definition_id == 'genesis_urban_energy':
+        return [
+            item
+            for item in deck
+            if item.get('type') == CARD_TYPE_ANOMALY_ITEM and str(item.get('category') or '') in {'饮料', '食物'}
+        ]
+    if definition_id == 'genesis_chip_washer':
+        target = selected_target or _find_card_on_board(snapshot, str(card.get('selected_target_instance_id') or ''))
+        if not target or str(target.get('category') or '') != '食物':
+            return []
+        return [
+            item
+            for item in deck
+            if (
+                item.get('type') == CARD_TYPE_ANOMALY_ITEM
+                and int(item.get('cost') or 0) <= 1
+                and str(item.get('attribute') or '') in {'光', '灵', '相'}
+            )
+        ]
+    return []
+
+
+def _resolve_declaration_selection(snapshot: JsonDict, side: str, selected_ids: list[str]) -> None:
+    selection = snapshot['sides'][side].get('selection') or {}
+    if selection.get('kind') != 'declaration':
+        raise RuleValidationError('当前没有需要宣言的卡牌。')
+    source_id = str(selection.get('source_instance_id') or '')
+    source = _find_card_on_board(snapshot, source_id)
+    if source is None:
+        snapshot['sides'][side]['selection'] = None
+        raise RuleValidationError('宣言来源已不在战场。')
+    legal_ids = {str(card.get('instance_id') or '') for card in selection.get('cards', [])}
+    pick_count = int(selection.get('pick_count') or 1)
+    chosen: list[str] = []
+    for card_id in selected_ids:
+        if card_id in legal_ids and card_id not in chosen:
+            chosen.append(card_id)
+        if len(chosen) >= pick_count:
+            break
+    min_count = int(selection.get('min_count') or pick_count)
+    if len(chosen) < min_count:
+        raise RuleValidationError('请选择合法的宣言卡牌。')
+    source['declared_card_instance_ids'] = chosen
+    names = [
+        str(card.get('name') or '卡牌')
+        for card in selection.get('cards', [])
+        if str(card.get('instance_id') or '') in set(chosen)
+    ]
+    source['declared_card_names'] = names
+    snapshot['sides'][side]['selection'] = None
+    _add_log(snapshot, f"{source['name']} 宣言了 {'、'.join(names) if names else '卡牌'}。")
+
+
+def _next_play_sequence(snapshot: JsonDict) -> int:
+    counter = int(snapshot.get('play_sequence_counter', 0)) + 1
+    snapshot['play_sequence_counter'] = counter
+    return counter
+
+
+def _lock_settlement_initiative(snapshot: JsonDict, *, emit_action: bool = True) -> None:
+    _recompute_scores(snapshot)
+    totals = {side: _stable_total_power(snapshot, side) for side in SIDE_KEYS}
+    if totals[SIDE_A] > totals[SIDE_B]:
+        first_side = SIDE_A
+        leader_side: str | None = SIDE_A
+        reason = '战力领先'
+    elif totals[SIDE_B] > totals[SIDE_A]:
+        first_side = SIDE_B
+        leader_side = SIDE_B
+        reason = '战力领先'
+    else:
+        first_side = random.choice(list(SIDE_KEYS))
+        leader_side = None
+        reason = '战力持平，随机决定'
+    snapshot['settlement'] = {
+        'turn': int(snapshot.get('turn', 1)),
+        'first_side': first_side,
+        'leader_side': leader_side,
+        'reason': reason,
+        'totals': totals,
+    }
+    snapshot['settlement_first_side'] = first_side
+    _add_log(snapshot, f"第 {snapshot.get('turn', 1)} 回合结算先手：{_side_name(snapshot, first_side)}（{reason}，{totals[SIDE_A]}-{totals[SIDE_B]}）。")
+    if not emit_action:
+        return
+    snapshot.setdefault('action_queue', []).append({
+        'kind': 'initiative_decided',
+        'side': first_side,
+        'leader_side': leader_side,
+        'title': '结算先手',
+        'subtitle': f"{_side_name(snapshot, first_side)} 先揭示（{totals[SIDE_A]}-{totals[SIDE_B]}）",
+    })
+
+
+def _stable_total_power(snapshot: JsonDict, side: str) -> int:
+    return sum(int(location.get('power', {}).get(side, 0) or 0) for location in snapshot.get('locations', []))
+
+
+def _begin_turn(snapshot: JsonDict) -> None:
+    snapshot['turn_undo_checkpoints'] = {}
+    _clear_legacy_draw_selections(snapshot)
+    _reset_turn_flags(snapshot)
+    _resolve_harmony_upkeep(snapshot)
+    _sweep_broken_cards(snapshot)
+    _recompute_scores(snapshot)
+    _lock_settlement_initiative(snapshot, emit_action=False)
+    for side in SIDE_KEYS:
+        snapshot['sides'][side]['energy_used'] = 0
+        snapshot['sides'][side]['ended_turn'] = False
+        _draw_cards(snapshot, side, 1, reason='回合补牌')
+    _sync_planning_phase(snapshot)
+
+
+def _snapshot_for_turn_undo(snapshot: JsonDict) -> JsonDict:
+    checkpoint = deepcopy(snapshot)
+    checkpoint.pop('turn_undo_checkpoints', None)
+    return checkpoint
+
+
+def _turn_undo_checkpoint(snapshot: JsonDict, side: str) -> JsonDict | None:
+    checkpoint = snapshot.get('turn_undo_checkpoints', {}).get(side)
+    if not isinstance(checkpoint, dict):
+        return None
+    if int(checkpoint.get('turn') or 0) != int(snapshot.get('turn') or 0):
+        return None
+    return checkpoint
+
+
+def _can_undo_turn(snapshot: JsonDict, side: str) -> bool:
+    if snapshot.get('status') != 'playing' or snapshot.get('phase') != 'planning':
+        return False
+    if snapshot.get('sides', {}).get(side, {}).get('ended_turn'):
+        return False
+    return _turn_undo_checkpoint(snapshot, side) is not None
+
+
+def _ensure_turn_undo_checkpoint(snapshot: JsonDict, side: str) -> None:
+    if snapshot.get('status') != 'playing' or snapshot.get('phase') != 'planning':
+        return
+    if snapshot.get('sides', {}).get(side, {}).get('ended_turn'):
+        return
+    checkpoints = snapshot.setdefault('turn_undo_checkpoints', {})
+    if _turn_undo_checkpoint(snapshot, side) is not None:
+        return
+    checkpoints[side] = {
+        'turn': int(snapshot.get('turn') or 0),
+        'snapshot': _snapshot_for_turn_undo(snapshot),
+    }
+
+
+def _restore_side_from_turn_undo(snapshot: JsonDict, side: str, restored_snapshot: JsonDict) -> None:
+    snapshot['sides'][side] = deepcopy(restored_snapshot['sides'][side])
+    restored_locations = {
+        str(location.get('id')): location
+        for location in restored_snapshot.get('locations', [])
+    }
+    for location in snapshot.get('locations', []):
+        restored_location = restored_locations.get(str(location.get('id')))
+        if restored_location is None:
+            continue
+        location.setdefault('cards', {})[side] = deepcopy(restored_location.get('cards', {}).get(side, []))
+        current_marks = location.setdefault('marks', {})
+        restored_marks = deepcopy(restored_location.get('marks', {}).get(side, {}))
+        if restored_marks:
+            current_marks[side] = restored_marks
+        else:
+            current_marks.pop(side, None)
+
+
+def _reset_turn_flags(snapshot: JsonDict) -> None:
+    for location in snapshot.get('locations', []):
+        for side in SIDE_KEYS:
+            for card in location.get('cards', {}).get(side, []):
+                card.pop('moved_this_turn', None)
+    for side in SIDE_KEYS:
+        combo = snapshot['sides'][side].setdefault('combo', {})
+        if combo.get('movement_locked_turn') != snapshot.get('turn'):
+            combo.pop('movement_locked_turn', None)
+        if combo.get('extension_tax') != snapshot.get('turn'):
+            combo.pop('extension_tax', None)
+
+
+def _location_mark_count(location: JsonDict, side: str, tag: str) -> int:
+    return int(location.get('marks', {}).get(side, {}).get(tag, 0) or 0)
+
+
+def _consume_location_mark(location: JsonDict, side: str, tag: str, amount: int = 1) -> int:
+    mark_bucket = location.setdefault('marks', {}).setdefault(side, {})
+    current = int(mark_bucket.get(tag, 0) or 0)
+    consumed = min(current, max(0, amount))
+    if consumed <= 0:
+        return 0
+    remaining = current - consumed
+    if remaining:
+        mark_bucket[tag] = remaining
+    else:
+        mark_bucket.pop(tag, None)
+    return consumed
+
+
+def _legacy_harmony_cards(location: JsonDict, side: str, tag: str) -> list[JsonDict]:
+    return [
+        card
+        for card in list(location.get('cards', {}).get(side, []))
+        if card.get('revealed') and tag in card.get('tags', []) and TAG_HARMONY in card.get('tags', [])
+    ]
+
+
+def _resolve_harmony_upkeep(snapshot: JsonDict) -> None:
+    for location in snapshot.get('locations', []):
+        for side in SIDE_KEYS:
+            _resolve_genesis_upkeep(snapshot, location, side)
+            _resolve_murk_upkeep(snapshot, location, side)
+            _resolve_darkstar_upkeep(snapshot, location, side)
+
+
+def _resolve_genesis_upkeep(snapshot: JsonDict, location: JsonDict, side: str) -> None:
+    count = _location_mark_count(location, side, TAG_GENESIS)
+    if count <= 0:
+        return
+    candidates = [
+        card
+        for card in location['cards'][side]
+        if card.get('revealed') and card.get('type') != CARD_TYPE_TOKEN
+    ]
+    if not candidates:
+        return
+    target = random.choice(candidates)
+    power_before = int(target.get('computed_power', _raw_card_power(target)) or 0)
+    _boost_card(target, count, '创生')
+    power_after = int(target.get('computed_power', _raw_card_power(target)) or 0)
+    snapshot.setdefault('action_queue', []).append({
+        'kind': 'impact_arrow',
+        'source_location_id': location['id'],
+        'target_instance_id': target['instance_id'],
+        'title': '创生',
+        'power_before': power_before,
+        'power_after': power_after,
+        'power_delta': power_after - power_before,
+        'subtitle': f'{power_before} + {count} = {power_after}',
+    })
+    _add_log(snapshot, f"{location['name']} 的创生标记使 {target['name']} +{count} 战力。")
+
+
+def _resolve_murk_upkeep(snapshot: JsonDict, location: JsonDict, side: str) -> None:
+    murk_count = _location_mark_count(location, side, TAG_MURK) + len(_legacy_harmony_cards(location, side, TAG_MURK))
+    for _ in range(murk_count):
+        candidates = [
+            card
+            for card in location['cards'][side]
+            if card.get('revealed')
+            and TAG_COLLAPSING not in card.get('tags', [])
+            and card.get('type') != 'token'
+        ]
+        if not candidates:
+            break
+        non_negative = [
+            card
+            for card in candidates
+            if int(card.get('computed_power', _raw_card_power(card))) >= 0
+        ]
+        target = max(non_negative or candidates, key=lambda item: int(item.get('computed_power', _raw_card_power(item))))
+        power_before = int(target.get('computed_power', _raw_card_power(target)) or 0)
+        _boost_card(target, -1, '浊燃')
+        power_after = int(target.get('computed_power', _raw_card_power(target)) or 0)
+        snapshot.setdefault('action_queue', []).append({
+            'kind': 'impact_arrow',
+            'source_location_id': location['id'],
+            'target_instance_id': target['instance_id'],
+            'title': '浊燃',
+            'power_before': power_before,
+            'power_after': power_after,
+            'power_delta': power_after - power_before,
+            'subtitle': f'{power_before} - 1 = {power_after}',
+        })
+        _add_log(snapshot, f"{location['name']} 的浊燃使 {target['name']} -1 战力。")
+
+
+def _resolve_darkstar_upkeep(snapshot: JsonDict, location: JsonDict, side: str) -> None:
+    darkstar_count = _location_mark_count(location, side, TAG_DARKSTAR)
+    legacy_darkstars = _legacy_harmony_cards(location, side, TAG_DARKSTAR)
+    if darkstar_count <= 0 and not legacy_darkstars:
+        return
+    _consume_location_mark(location, side, TAG_DARKSTAR, darkstar_count)
+    for darkstar in legacy_darkstars:
+        _remove_board_card(snapshot, side, location, darkstar)
+    amount = max(1, darkstar_count + len(legacy_darkstars))
+    damage = min(2, amount) if int(snapshot.get('turn') or 0) < 5 else min(6, 2 * amount)
+    targets = [
+        card
+        for card in location['cards'][side]
+        if card.get('revealed') and card.get('type') != CARD_TYPE_TOKEN
+    ]
+    for target in targets:
+        power_before = int(target.get('computed_power', _raw_card_power(target)) or 0)
+        _boost_card(target, -damage, '黯星')
+        power_after = int(target.get('computed_power', _raw_card_power(target)) or 0)
+        snapshot.setdefault('action_queue', []).append({
+            'kind': 'impact_arrow',
+            'source_location_id': location['id'],
+            'target_instance_id': target['instance_id'],
+            'title': '黯星',
+            'power_before': power_before,
+            'power_after': power_after,
+            'power_delta': power_after - power_before,
+            'subtitle': f'{power_before} - {damage} = {power_after}',
+        })
+    removed_murk = _consume_location_mark(location, side, TAG_MURK, _location_mark_count(location, side, TAG_MURK))
+    replaced = _collapse_remaining_murks(location, side)
+    _add_log(snapshot, f"{location['name']} 的黯星标记爆发，使 {len(targets)} 张牌 -{damage} 战力，并清理 {removed_murk + replaced} 个浊燃。")
+
+
+def _collapse_remaining_murks(location: JsonDict, side: str) -> int:
+    replaced = 0
+    for card in location['cards'][side]:
+        if not card.get('revealed') or TAG_MURK not in card.get('tags', []) or TAG_HARMONY not in card.get('tags', []):
+            continue
+        current_power = int(card.get('computed_power', _raw_card_power(card)))
+        card['definition_id'] = 'collapsing_card'
+        card['name'] = '倾陷中的卡牌'
+        card['type'] = 'token'
+        card['cost'] = 0
+        card['cost_modifier'] = 0
+        card['base_power'] = current_power
+        card['bonus_power'] = 0
+        card['computed_power'] = current_power
+        card['description'] = '被黯星封存后的卡牌，只保留当前战力，不再拥有持续型效果。'
+        card['tags'] = ['token', TAG_COLLAPSING]
+        replaced += 1
+    return replaced
+
+
+def _unique_ids(instance_ids: list[str]) -> list[str]:
+    unique: list[str] = []
+    for instance_id in instance_ids:
+        if instance_id not in unique:
+            unique.append(instance_id)
+    return unique
+
+
+def _unique_known_ids(card_ids: list[Any]) -> list[str]:
+    unique: list[str] = []
+    cards = _card_by_id()
+    for raw_id in card_ids:
+        card_id = str(raw_id).strip()
+        if not card_id or card_id in unique or card_id not in cards:
+            continue
+        unique.append(card_id)
+    return unique
+
+
+def _known_card_ids(card_ids: list[Any], *, card_type: str = '') -> list[str]:
+    cards = _card_by_id()
+    known: list[str] = []
+    for raw_id in card_ids:
+        card_id = str(raw_id).strip()
+        if not card_id or card_id not in cards:
+            continue
+        if card_type and _card_type(card_id) != card_type:
+            continue
+        known.append(card_id)
+    return known
+
+
+def _sort_card_ids(card_ids: list[str]) -> list[str]:
+    return sorted(card_ids, key=_card_sort_key)
+
+
+def _card_sort_key(card_id: str) -> tuple[int, int, int, str]:
+    card = _card_by_id().get(str(card_id), {})
+    attribute_order = {'灵': 0, '光': 1, '相': 2, '咒': 3, '暗': 4, '魂': 5}
+    attribute = str(card.get('attribute') or card.get('required_material_attribute') or card.get('element') or '')
+    cost = int(card.get('material_cost') or card.get('cost') or 0)
+    power = int(card.get('power') or 0)
+    return (attribute_order.get(attribute, 99), cost, power, str(card.get('name') or card_id))
+
+
+def _card_count_bucket(card_ids: list[str]) -> dict[str, int]:
+    bucket: dict[str, int] = {}
+    for card_id in card_ids:
+        bucket[card_id] = int(bucket.get(card_id, 0)) + 1
+    return bucket
+
+
+def _remaining_card_ids_after_consuming(card_ids: list[str], consumed_ids: list[str]) -> list[str]:
+    remaining_consumed = _card_count_bucket(consumed_ids)
+    rest: list[str] = []
+    for card_id in card_ids:
+        if int(remaining_consumed.get(card_id, 0)) > 0:
+            remaining_consumed[card_id] = int(remaining_consumed.get(card_id, 0)) - 1
+            continue
+        rest.append(card_id)
+    return rest
+
+
+def _card_type(card_id: str) -> str:
+    return str((_card_by_id().get(str(card_id)) or {}).get('type', ''))
+
+
+def _validate_custom_build_sections(item_ids: list[str], esper_ids: list[str]) -> None:
+    if len(item_ids) < MIN_BUILD_ITEM_COUNT or len(item_ids) > MAX_BUILD_ITEM_COUNT:
+        raise RuleValidationError(f'构筑需要选择 {MIN_BUILD_ITEM_COUNT} 到 {MAX_BUILD_ITEM_COUNT} 张异象道具。')
+    if len(esper_ids) > MAX_BUILD_ESPER_COUNT:
+        raise RuleValidationError(f'异能者最多选择 {MAX_BUILD_ESPER_COUNT} 张。')
+    copy_count = _card_count_bucket(item_ids)
+    too_many = [card_id for card_id, count in copy_count.items() if count > MAX_COPIES_PER_ITEM_CARD]
+    if too_many:
+        raise RuleValidationError(f'同名异象道具最多携带 {MAX_COPIES_PER_ITEM_CARD} 张。')
+    for card_id in item_ids:
+        if _card_type(card_id) != CARD_TYPE_ANOMALY_ITEM:
+            raise RuleValidationError('牌组区域只能放入异象道具。')
+    for card_id in esper_ids:
+        if _card_type(card_id) != CARD_TYPE_ESPER:
+            raise RuleValidationError('异能者区域只能放入异能者卡牌。')
+
+
+def _resolve_turn(snapshot: JsonDict) -> None:
+    snapshot['phase'] = 'revealing'
+    snapshot['banner_queue'] = []
+    first_side = _settlement_first_side(snapshot)
+    second_side = _opponent_side(first_side)
+    snapshot['action_queue'] = [{
+        'kind': 'reveal_phase_begin',
+        'title': '揭示阶段开始',
+        'subtitle': '双方覆盖卡牌进入结算。',
+    }]
+    _append_covered_card_messages(snapshot)
+    _resolve_pending_material_consumption(snapshot)
+    for side in (first_side, second_side):
+        snapshot.setdefault('action_queue', []).append({
+            'kind': 'reveal_side_begin',
+            'side': side,
+            'title': f"{_side_name(snapshot, side)} 揭示",
+        })
+        for location, card in _staged_cards_for_side(snapshot, side):
+            _reveal_card(snapshot, side, location, card)
+            _sweep_broken_cards(snapshot)
+    _recompute_scores(snapshot)
+
+    if snapshot['turn'] >= int(snapshot.get('max_turns', MAX_TURNS)):
+        _finish_game(snapshot)
+        return
+
+    snapshot['turn'] += 1
+    snapshot.setdefault('action_queue', []).append({
+        'kind': 'turn_begin',
+        'title': f'第 {snapshot["turn"]} 回合开始',
+        'subtitle': f'获得 {_turn_energy(snapshot)} 点能量',
+    })
+    _begin_turn(snapshot)
+    _reveal_locations_for_turn(snapshot)
+    _recompute_scores(snapshot)
+    _add_log(snapshot, f'第 {snapshot["turn"]} 回合开始，双方获得 {_turn_energy(snapshot)} 点能量。')
+
+
+def _append_covered_card_messages(snapshot: JsonDict) -> None:
+    for side in SIDE_KEYS:
+        names = [card['name'] for _, card in _staged_cards_for_side(snapshot, side)]
+        snapshot.setdefault('action_queue', []).append({
+            'kind': 'message',
+            'side': side,
+            'title': f"{_side_name(snapshot, side)} 成功覆盖",
+            'subtitle': '、'.join(names) if names else '没有覆盖新牌。',
+        })
+
+
+def _settlement_first_side(snapshot: JsonDict) -> str:
+    first_side = str(snapshot.get('settlement', {}).get('first_side') or snapshot.get('settlement_first_side') or '')
+    if first_side in SIDE_KEYS:
+        return first_side
+    _lock_settlement_initiative(snapshot, emit_action=False)
+    return str(snapshot.get('settlement', {}).get('first_side') or SIDE_A)
+
+
+def _staged_cards_for_side(snapshot: JsonDict, side: str) -> list[tuple[JsonDict, JsonDict]]:
+    staged: list[tuple[int, int, int, JsonDict, JsonDict]] = []
+    turn = int(snapshot.get('turn') or 0)
+    for location_index, location in enumerate(snapshot.get('locations', [])):
+        for card_index, card in enumerate(location.get('cards', {}).get(side, [])):
+            if not card.get('revealed') and int(card.get('played_turn') or 0) == turn:
+                sequence = int(card.get('play_sequence') or 0)
+                staged.append((sequence if sequence > 0 else 10_000 + card_index, location_index, card_index, location, card))
+    staged.sort(key=lambda item: (item[0], item[1], item[2]))
+    return [(location, card) for _, _, _, location, card in staged]
+
+
+def _resolve_pending_material_consumption(snapshot: JsonDict) -> None:
+    _sweep_broken_cards(snapshot)
+    for location in snapshot.get('locations', []):
+        for side in SIDE_KEYS:
+            espers = [
+                card
+                for card in list(location.get('cards', {}).get(side, []))
+                if (
+                    _is_pending_esper_entry(snapshot, card)
+                    or _is_pending_esper_reactivation(snapshot, card)
+                )
+            ]
+            for esper in espers:
+                is_reactivation = _is_pending_esper_reactivation(snapshot, esper)
+                material_ids = [str(card_id) for card_id in esper.get('pending_material_ids', [])]
+                materials = [
+                    card
+                    for card in list(location['cards'][side])
+                    if str(card.get('instance_id')) in material_ids and _is_valid_reserved_material(card, esper['instance_id'])
+                ]
+                required = _esper_material_cost(esper)
+                if len(materials) < required:
+                    _release_material_reservations(snapshot, side, esper['instance_id'])
+                    if is_reactivation:
+                        esper.pop('pending_material_ids', None)
+                        esper.pop('reactivating_turn', None)
+                        _add_log(snapshot, f"{esper['name']} 的共鸣素材不足，共鸣取消。")
+                    else:
+                        _add_log(snapshot, f"{esper['name']} 的素材不足，返回异能者编队。")
+                        location['cards'][side].remove(esper)
+                        _reset_esper_to_standby(snapshot, side, esper)
+                    continue
+                consumed_material_tags: list[str] = []
+                consumed_material_names: list[str] = []
+                consumed_material_attributes: list[str] = []
+                absorbed_power = 0
+                for material in materials[:required]:
+                    material_power = _material_absorb_power(material)
+                    absorbed_power += material_power
+                    consumed_material_tags.extend(_material_tags_for_card(material))
+                    consumed_material_names.append(str(material.get('name') or '素材'))
+                    if _material_attribute(material):
+                        consumed_material_attributes.append(_material_attribute(material))
+                    snapshot.setdefault('action_queue', []).append({
+                        'kind': 'consume_material',
+                        'source_instance_id': material['instance_id'],
+                        'target_instance_id': esper['instance_id'],
+                        'location_id': location['id'],
+                        'side': side,
+                        'title': f"{material['name']} -> {esper['name']}",
+                        'subtitle': f"吸收 {material_power} 战力",
+                        'material_power': material_power,
+                    })
+                    _remove_board_card(snapshot, side, location, material)
+                    _add_log(snapshot, f"{esper['name']} 消耗 {material['name']} 作为共鸣素材，吸收 {material_power} 战力。")
+                if absorbed_power:
+                    _boost_card(esper, absorbed_power, '素材吸收')
+                if consumed_material_tags:
+                    esper.setdefault('consumed_material_tags', [])
+                    esper['consumed_material_tags'].extend(consumed_material_tags)
+                if consumed_material_names:
+                    esper.setdefault('consumed_material_names', [])
+                    esper['consumed_material_names'].extend(consumed_material_names)
+                if consumed_material_attributes:
+                    esper.setdefault('consumed_material_attributes', [])
+                    esper['consumed_material_attributes'].extend(consumed_material_attributes)
+                esper['absorbed_material_power'] = int(esper.get('absorbed_material_power', 0)) + absorbed_power
+                esper.pop('pending_material_ids', None)
+                esper.pop('summoned_from', None)
+                if is_reactivation:
+                    esper.pop('reactivating_turn', None)
+                    _resolve_esper_reactivation(snapshot, side, location, esper)
+    _sweep_broken_cards(snapshot)
+
+
+def _is_valid_reserved_material(card: JsonDict, esper_instance_id: str) -> bool:
+    return _is_valid_esper_material({**card, 'reserved_as_material_for': ''}) and card.get('reserved_as_material_for') == esper_instance_id
+
+
+def _is_pending_esper_entry(snapshot: JsonDict, card: JsonDict) -> bool:
+    return bool(
+        _is_staged_card(snapshot, card)
+        and (card.get('summoned_from') == 'esper_standby' or card.get('type') == CARD_TYPE_ESPER)
     )
 
 
-def _get_room_run(room: Room) -> JsonDict | None:
-    return get_cached_room_run(room.id) or get_run(room)
+def _is_pending_esper_reactivation(snapshot: JsonDict, card: JsonDict) -> bool:
+    return bool(
+        card.get('type') == CARD_TYPE_ESPER
+        and card.get('revealed')
+        and int(card.get('reactivating_turn') or 0) == int(snapshot.get('turn', 0))
+        and card.get('pending_material_ids')
+    )
 
 
-def _require_room(player: Player) -> Room:
+def _resolve_esper_reactivation(snapshot: JsonDict, side: str, location: JsonDict, card: JsonDict) -> None:
+    opponent = _opponent_side(side)
+    logs_before_effect = list(snapshot.get('log', []))
+    target_card = _find_card_on_board(snapshot, str(card.get('selected_target_instance_id', ''))) if card.get('selected_target_instance_id') else None
+    power_before = _revealed_board_power_snapshot(snapshot)
+    snapshot.setdefault('action_queue', []).append({
+        'kind': 'esper_reactivation',
+        'source_instance_id': card['instance_id'],
+        'location_id': location['id'],
+        'side': side,
+        'title': f"{card['name']} 共鸣",
+    })
+    snapshot['_active_reveal_source_instance_id'] = card['instance_id']
+    snapshot['_active_reveal_source_name'] = card['name']
+    try:
+        dispatch_event(snapshot, GameEvent.CARD_REVEALED, {
+            'target_instance_id': card['instance_id'],
+            'card_instance_id': card['instance_id'],
+            'card': card,
+            'side': side,
+            'opponent_side': opponent,
+            'location': location,
+            'location_id': location['id'],
+            'location_index': _location_index(snapshot, location['id']),
+            'pre_location_gap': int(location['power'][side]) - int(location['power'][opponent]),
+            'losing_locations_before': sum(1 for item in snapshot['locations'] if item.get('winner_side') == opponent),
+            'selected_target_instance_id': card.get('selected_target_instance_id'),
+            'target_card': target_card,
+            'reactivated': True,
+        })
+    finally:
+        snapshot.pop('_active_reveal_source_instance_id', None)
+        snapshot.pop('_active_reveal_source_name', None)
+    changed_ids = _append_power_change_arrows(snapshot, card['instance_id'], card['name'], power_before)
+    if target_card is not None and target_card['instance_id'] not in changed_ids:
+        snapshot.setdefault('action_queue', []).append({
+            'kind': 'impact_arrow',
+            'source_instance_id': card['instance_id'],
+            'target_instance_id': target_card['instance_id'],
+            'title': card['name'],
+        })
+    effect_summary = _reveal_effect_summary(card['name'], _new_log_entries(snapshot, logs_before_effect))
+    if effect_summary:
+        snapshot.setdefault('action_queue', []).append({
+            'kind': 'effect_summary',
+            'source_instance_id': card['instance_id'],
+            'location_id': location['id'],
+            'side': side,
+            'title': card['name'],
+            'effect_summary': effect_summary,
+        })
+    card.pop('selected_target_instance_id', None)
+    card.pop('selected_target_name', None)
+
+
+def _reset_esper_to_standby(snapshot: JsonDict, side: str, card: JsonDict) -> None:
+    card['played_turn'] = None
+    card['location_id'] = None
+    card['revealed'] = False
+    card.pop('staged', None)
+    card.pop('paid_cost', None)
+    card.pop('play_sequence', None)
+    card.pop('pending_material_ids', None)
+    card.pop('selected_target_instance_id', None)
+    card.pop('selected_target_name', None)
+    card.pop('declared_card_instance_ids', None)
+    card.pop('declared_card_names', None)
+    card.pop('summoned_from', None)
+    card.pop('consumed_material_tags', None)
+    card.pop('consumed_material_names', None)
+    card.pop('consumed_material_attributes', None)
+    card.pop('absorbed_material_power', None)
+    card.pop('reactivating_turn', None)
+    card.pop('reserved_as_material_for', None)
+    _reset_card_stats_from_definition(card)
+    snapshot['sides'][side].setdefault('esper_standby', []).append(card)
+
+
+def _consume_reveal_bonus_charge(snapshot: JsonDict, location: JsonDict, side: str, *, limit: int) -> bool:
+    turn = int(snapshot.get('turn') or 0)
+    trait_uses = location.setdefault('trait_uses', {}).setdefault(side, {})
+    if int(trait_uses.get('turn') or 0) != turn:
+        trait_uses.clear()
+        trait_uses['turn'] = turn
+        trait_uses['count'] = 0
+    count = int(trait_uses.get('count') or 0)
+    if count >= limit:
+        return False
+    trait_uses['count'] = count + 1
+    return True
+
+
+def _reveal_card(snapshot: JsonDict, side: str, location: JsonDict, card: JsonDict) -> None:
+    _recompute_scores(snapshot)
+    opponent = _opponent_side(side)
+    pre_location_gap = int(location['power'][side]) - int(location['power'][opponent])
+    losing_locations_before = sum(1 for item in snapshot['locations'] if item.get('winner_side') == opponent)
+    card['revealed'] = True
+    card.pop('staged', None)
+    _recompute_scores(snapshot)
+    power_before = _revealed_board_power_snapshot(snapshot)
+    _add_log(snapshot, f"{_side_name(snapshot, side)} 揭示 {card['name']}。")
+    reveal_action = {
+        'kind': 'reveal_card',
+        'source_instance_id': card['instance_id'],
+        'location_id': location['id'],
+        'side': side,
+        'title': card['name'],
+        'card': _public_card(card, own=True),
+    }
+    snapshot.setdefault('action_queue', []).append(reveal_action)
+    logs_before_effect = list(snapshot.get('log', []))
+    target_card = _find_card_on_board(snapshot, str(card.get('selected_target_instance_id', ''))) if card.get('selected_target_instance_id') else None
+    snapshot['_active_reveal_source_instance_id'] = card['instance_id']
+    snapshot['_active_reveal_source_name'] = card['name']
+    try:
+        dispatch_event(snapshot, GameEvent.CARD_REVEALED, {
+            'target_instance_id': card['instance_id'],
+            'card_instance_id': card['instance_id'],
+            'card': card,
+            'side': side,
+            'opponent_side': opponent,
+            'location': location,
+            'location_id': location['id'],
+            'location_index': _location_index(snapshot, location['id']),
+            'pre_location_gap': pre_location_gap,
+            'losing_locations_before': losing_locations_before,
+            'selected_target_instance_id': card.get('selected_target_instance_id'),
+            'target_card': target_card,
+        })
+    finally:
+        snapshot.pop('_active_reveal_source_instance_id', None)
+        snapshot.pop('_active_reveal_source_name', None)
+    changed_ids = _append_power_change_arrows(snapshot, card['instance_id'], card['name'], power_before)
+    if target_card is not None and target_card['instance_id'] not in changed_ids:
+        snapshot.setdefault('action_queue', []).append({
+            'kind': 'impact_arrow',
+            'source_instance_id': card['instance_id'],
+            'target_instance_id': target_card['instance_id'],
+            'title': card['name'],
+        })
+    if (
+        location['effect'] == 'revealed_cards_plus_one'
+        and pre_location_gap <= 0
+        and _consume_reveal_bonus_charge(snapshot, location, side, limit=3)
+    ):
+        power_before = int(card.get('computed_power', _raw_card_power(card)) or 0)
+        card['bonus_power'] += 1
+        _add_buff_source(card, location['name'], 1)
+        _recompute_scores(snapshot)
+        power_after = int(card.get('computed_power', _raw_card_power(card)) or 0)
+        snapshot.setdefault('action_queue', []).append({
+            'kind': 'impact_arrow',
+            'source_location_id': location['id'],
+            'target_instance_id': card['instance_id'],
+            'title': location['name'],
+            'power_before': power_before,
+            'power_after': power_after,
+            'power_delta': power_after - power_before,
+            'subtitle': f'{power_before} + 1 = {power_after}',
+        })
+        _add_log(snapshot, f"{location['name']} 的潮汐让 {card['name']} +1 战力。")
+    _vanish_revealed_card_if_needed(snapshot, side, location, card)
+    effect_summary = _reveal_effect_summary(card['name'], _new_log_entries(snapshot, logs_before_effect))
+    if effect_summary:
+        reveal_action['effect_summary'] = effect_summary
+    _sweep_broken_cards(snapshot)
+    _recompute_scores(snapshot)
+
+
+def _revealed_board_power_snapshot(snapshot: JsonDict) -> dict[str, int]:
+    powers: dict[str, int] = {}
+    _recompute_scores(snapshot)
+    for location in snapshot.get('locations', []):
+        for side in SIDE_KEYS:
+            for card in location.get('cards', {}).get(side, []):
+                if card.get('revealed'):
+                    powers[str(card.get('instance_id'))] = int(card.get('computed_power', _raw_card_power(card)) or 0)
+    return powers
+
+
+def _append_power_change_arrows(
+    snapshot: JsonDict,
+    source_instance_id: str,
+    source_name: str,
+    power_before: dict[str, int],
+) -> set[str]:
+    changed_ids: set[str] = set()
+    _recompute_scores(snapshot)
+    for location in snapshot.get('locations', []):
+        for side in SIDE_KEYS:
+            for card in location.get('cards', {}).get(side, []):
+                target_id = str(card.get('instance_id') or '')
+                if not target_id or target_id == source_instance_id or not card.get('revealed'):
+                    continue
+                if target_id not in power_before:
+                    continue
+                current_power = int(card.get('computed_power', _raw_card_power(card)) or 0)
+                if current_power == power_before[target_id]:
+                    continue
+                changed_ids.add(target_id)
+                snapshot.setdefault('action_queue', []).append({
+                    'kind': 'impact_arrow',
+                    'source_instance_id': source_instance_id,
+                    'target_instance_id': target_id,
+                    'title': source_name,
+                    'power_before': power_before[target_id],
+                    'power_after': current_power,
+                    'power_delta': current_power - power_before[target_id],
+                    'subtitle': f"{power_before[target_id]} {'+' if current_power > power_before[target_id] else '-'} {abs(current_power - power_before[target_id])} = {current_power}",
+                })
+    return changed_ids
+
+
+def _run_ai_turn(snapshot: JsonDict, side: str) -> None:
+    _resolve_ai_pending_choices(snapshot, side)
+    if snapshot['sides'][side]['ended_turn']:
+        return
+    playable = True
+    while playable:
+        playable = _ai_play_one_card(snapshot, side)
+    esper_playable = True
+    while esper_playable:
+        esper_playable = _ai_play_one_esper(snapshot, side)
+    esper_reactivated = True
+    while esper_reactivated:
+        esper_reactivated = _ai_reactivate_one_esper(snapshot, side)
+    _add_log(snapshot, f"{_side_name(snapshot, side)} 完成置入。")
+
+
+def _ai_play_one_card(snapshot: JsonDict, side: str) -> bool:
+    hand = snapshot['sides'][side]['hand']
+    energy_remaining = _energy_remaining(snapshot, side)
+    open_locations = _open_locations(snapshot, side)
+    options: list[tuple[JsonDict, JsonDict, int]] = []
+    for card in hand:
+        for location in open_locations:
+            cost = _cost_to_play(snapshot, side, card, location)
+            if cost <= energy_remaining:
+                options.append((card, location, cost))
+    if not options:
+        return False
+    priority = _ai_priority(snapshot['sides'][side])
+    opponent = _opponent_side(side)
+    _recompute_scores(snapshot)
+    options.sort(
+        key=lambda option: (
+            priority.get(option[0].get('definition_id'), -99),
+            option[1]['power'][opponent] - option[1]['power'][side],
+            _raw_card_power(option[0]),
+            -int(option[2]),
+        ),
+        reverse=True,
+    )
+    card, location, cost = options[0]
+    hand.remove(card)
+    card['played_turn'] = snapshot['turn']
+    card['location_id'] = location['id']
+    card['revealed'] = False
+    card['staged'] = True
+    card['paid_cost'] = cost
+    card['play_sequence'] = _next_play_sequence(snapshot)
+    snapshot['sides'][side]['energy_used'] += cost
+    location['cards'][side].append(card)
+    if _delay_tax(snapshot, side, location):
+        _consume_delay_tax(snapshot, side, location)
+    target_rule = _target_rule(card)
+    if target_rule:
+        target = _ai_target_for_card(snapshot, side, location, card, target_rule)
+        if target is not None:
+            card['selected_target_instance_id'] = target['instance_id']
+            card['selected_target_name'] = target.get('name', '')
+            _prepare_declaration_selection(snapshot, side, location, card, target)
+            _resolve_ai_pending_choices(snapshot, side)
+    else:
+        _prepare_declaration_selection(snapshot, side, location, card)
+        _resolve_ai_pending_choices(snapshot, side)
+    _add_log(snapshot, f"{_side_name(snapshot, side)} 将一张牌置入 {location['name']}。")
+    return True
+
+
+def _ai_play_one_esper(snapshot: JsonDict, side: str) -> bool:
+    standby = snapshot['sides'][side].setdefault('esper_standby', [])
+    if not standby:
+        return False
+    open_locations = [location for location in snapshot['locations'] if _is_location_revealed(snapshot, location)]
+    options: list[tuple[JsonDict, JsonDict, list[JsonDict]]] = []
+    for card in standby:
+        for location in open_locations:
+            try:
+                material_cards = _material_cards_for_esper(snapshot, side, location, card)
+            except RuleValidationError:
+                continue
+            if _location_has_room_after_materials(location, side, material_cards):
+                options.append((card, location, material_cards))
+    if not options:
+        return False
+    priority_ids = list(snapshot['sides'][side].get('ai_plan', {}).get('esper_priority_ids', []))
+    priority = {str(card_id): len(priority_ids) - index for index, card_id in enumerate(priority_ids)}
+    opponent = _opponent_side(side)
+    _recompute_scores(snapshot)
+    options.sort(
+        key=lambda option: (
+            priority.get(option[0].get('definition_id'), -99),
+            option[1]['power'][opponent] - option[1]['power'][side],
+            _raw_card_power(option[0]),
+        ),
+        reverse=True,
+    )
+    card, location, material_cards = options[0]
+    standby.remove(card)
+    material_ids = [item['instance_id'] for item in material_cards]
+    _reserve_materials(material_cards, card['instance_id'])
+    card['played_turn'] = snapshot['turn']
+    card['location_id'] = location['id']
+    card['revealed'] = False
+    card['staged'] = True
+    card['play_sequence'] = _next_play_sequence(snapshot)
+    card['summoned_from'] = 'esper_standby'
+    card['pending_material_ids'] = material_ids
+    card['paid_cost'] = 0
+    location['cards'][side].append(card)
+    target_rule = _target_rule(card)
+    if target_rule:
+        target = _ai_target_for_card(snapshot, side, location, card, target_rule)
+        if target is not None:
+            card['selected_target_instance_id'] = target['instance_id']
+            card['selected_target_name'] = target.get('name', '')
+            _prepare_declaration_selection(snapshot, side, location, card, target)
+            _resolve_ai_pending_choices(snapshot, side)
+    else:
+        _prepare_declaration_selection(snapshot, side, location, card)
+        _resolve_ai_pending_choices(snapshot, side)
+    _add_log(snapshot, f"{_side_name(snapshot, side)} 唤醒一名异能者于 {location['name']}。")
+    return True
+
+
+def _ai_reactivate_one_esper(snapshot: JsonDict, side: str) -> bool:
+    if _side_reactivation_used(snapshot, side):
+        return False
+    revealed_espers: list[tuple[JsonDict, JsonDict, list[JsonDict]]] = []
+    for location in snapshot['locations']:
+        if not _is_location_revealed(snapshot, location):
+            continue
+        for card in location['cards'][side]:
+            if (
+                card.get('type') != CARD_TYPE_ESPER
+                or not card.get('revealed')
+                or card.get('pending_material_ids')
+                or int(card.get('reactivating_turn') or 0) == int(snapshot.get('turn') or 0)
+            ):
+                continue
+            try:
+                material_cards = _material_cards_for_esper(snapshot, side, location, card)
+            except RuleValidationError:
+                continue
+            revealed_espers.append((card, location, material_cards))
+    if not revealed_espers:
+        return False
+    priority_ids = list(snapshot['sides'][side].get('ai_plan', {}).get('esper_priority_ids', []))
+    priority = {str(card_id): len(priority_ids) - index for index, card_id in enumerate(priority_ids)}
+    opponent = _opponent_side(side)
+    _recompute_scores(snapshot)
+    revealed_espers.sort(
+        key=lambda option: (
+            priority.get(option[0].get('definition_id'), -99),
+            option[1]['power'][opponent] - option[1]['power'][side],
+            _raw_card_power(option[0]),
+        ),
+        reverse=True,
+    )
+    card, location, material_cards = revealed_espers[0]
+    material_ids = [item['instance_id'] for item in material_cards]
+    _reserve_materials(material_cards, card['instance_id'])
+    card['pending_material_ids'] = material_ids
+    card['reactivating_turn'] = snapshot['turn']
+    _mark_side_reactivation(snapshot, side)
+    target_rule = _target_rule(card)
+    if target_rule:
+        target = _ai_target_for_card(snapshot, side, location, card, target_rule)
+        if target is not None:
+            card['selected_target_instance_id'] = target['instance_id']
+            card['selected_target_name'] = target.get('name', '')
+            _prepare_declaration_selection(snapshot, side, location, card, target)
+            _resolve_ai_pending_choices(snapshot, side)
+    else:
+        _prepare_declaration_selection(snapshot, side, location, card)
+        _resolve_ai_pending_choices(snapshot, side)
+    _add_log(snapshot, f"{_side_name(snapshot, side)} 准备让 {card['name']} 再共鸣。")
+    return True
+
+
+def _side_reactivation_used(snapshot: JsonDict, side: str) -> bool:
+    combo = snapshot['sides'][side].setdefault('combo', {})
+    return int(combo.get('esper_reactivation_turn') or 0) == int(snapshot.get('turn') or 0)
+
+
+def _mark_side_reactivation(snapshot: JsonDict, side: str) -> None:
+    snapshot['sides'][side].setdefault('combo', {})['esper_reactivation_turn'] = int(snapshot.get('turn') or 0)
+
+
+def _best_ai_location(snapshot: JsonDict, side: str, card: JsonDict) -> JsonDict | None:
+    opponent = _opponent_side(side)
+    options = _open_locations(snapshot, side)
+    if not options:
+        return None
+    _recompute_scores(snapshot)
+    options.sort(
+        key=lambda location: (
+            location['power'][opponent] - location['power'][side],
+            -len(location['cards'][side]),
+            location['id'],
+        ),
+        reverse=True,
+    )
+    return options[0]
+
+
+def _ai_target_for_card(
+    snapshot: JsonDict,
+    side: str,
+    location: JsonDict,
+    card: JsonDict,
+    target_rule: JsonDict,
+) -> JsonDict | None:
+    scope = str(target_rule.get('scope', ''))
+    candidates = _target_candidates(snapshot, side, location, scope)
+    candidates = [candidate for candidate in candidates if candidate.get('instance_id') != card.get('instance_id')]
+    if not candidates:
+        return None
+    if scope.startswith('opponent'):
+        return max(candidates, key=lambda item: int(item.get('computed_power', item.get('base_power', 0)) or 0))
+    return min(candidates, key=lambda item: int(item.get('computed_power', item.get('base_power', 0)) or 0))
+
+
+def _finish_game(snapshot: JsonDict) -> None:
+    _recompute_scores(snapshot)
+    wins = {SIDE_A: 0, SIDE_B: 0}
+    total_power = {SIDE_A: 0, SIDE_B: 0}
+    for location in snapshot['locations']:
+        total_power[SIDE_A] += location['power'][SIDE_A]
+        total_power[SIDE_B] += location['power'][SIDE_B]
+        if location['winner_side'] in SIDE_KEYS:
+            wins[location['winner_side']] += 1
+    if wins[SIDE_A] > wins[SIDE_B]:
+        winner = SIDE_A
+    elif wins[SIDE_B] > wins[SIDE_A]:
+        winner = SIDE_B
+    elif total_power[SIDE_A] > total_power[SIDE_B]:
+        winner = SIDE_A
+    elif total_power[SIDE_B] > total_power[SIDE_A]:
+        winner = SIDE_B
+    else:
+        winner = None
+
+    snapshot['winner_side'] = winner
+    snapshot['phase'] = 'complete'
+    if winner is None:
+        snapshot['status'] = 'draw'
+        _add_log(snapshot, '双方空间与总战力完全持平，对局平局。')
+    elif winner == SIDE_A:
+        snapshot['status'] = 'victory'
+        _add_log(snapshot, f"{_side_name(snapshot, SIDE_A)} 赢下对局。")
+    else:
+        snapshot['status'] = 'defeat'
+        _add_log(snapshot, f"{_side_name(snapshot, SIDE_B)} 赢下对局。")
+    snapshot.setdefault('banner_queue', []).append({
+        'kind': 'result',
+        'title': '胜利' if snapshot['status'] == 'victory' else '失败' if snapshot['status'] == 'defeat' else '平局',
+        'subtitle': '对局结束',
+    })
+
+
+def _reveal_locations_for_turn(snapshot: JsonDict) -> None:
+    for location in snapshot['locations']:
+        if not location['revealed'] and int(location['reveal_turn']) <= int(snapshot['turn']):
+            location['revealed'] = True
+            _add_log(snapshot, f"{location['name']} 显现：{location['description']}")
+
+
+def _recompute_scores(snapshot: JsonDict) -> None:
+    for location in snapshot['locations']:
+        for side in SIDE_KEYS:
+            revealed_cards = [card for card in location['cards'][side] if card.get('revealed')]
+            for card in location['cards'][side]:
+                card['computed_power'] = _raw_card_power(card) + _location_power_bonus(location, side, card)
+            location['power'][side] = sum(int(card['computed_power']) for card in revealed_cards)
+        if location['power'][SIDE_A] > location['power'][SIDE_B]:
+            location['winner_side'] = SIDE_A
+        elif location['power'][SIDE_B] > location['power'][SIDE_A]:
+            location['winner_side'] = SIDE_B
+        else:
+            location['winner_side'] = None
+    snapshot['turn_energy'] = _turn_energy(snapshot)
+
+
+def _location_power_bonus(location: JsonDict, side: str, card: JsonDict) -> int:
+    if not card.get('revealed'):
+        return 0
+    if location['effect'] == 'first_card_plus_two':
+        revealed = [item for item in location['cards'][side] if item.get('revealed')]
+        if revealed and revealed[0]['instance_id'] == card['instance_id']:
+            _add_buff_source(card, location['name'], 2, replace_key=f'location:{location["id"]}')
+            return 2
+    if location['effect'] == 'solo_card_plus_four':
+        revealed = [item for item in location['cards'][side] if item.get('revealed')]
+        if len(revealed) == 1 and revealed[0]['instance_id'] == card['instance_id']:
+            _add_buff_source(card, location['name'], 4, replace_key=f'location:{location["id"]}')
+            return 4
+    return 0
+
+
+def _draw_cards(snapshot: JsonDict, side: str, count: int, *, reason: str = '抽牌') -> list[JsonDict]:
+    drawn: list[JsonDict] = []
+    for _ in range(count):
+        if not snapshot['sides'][side]['deck'] or len(snapshot['sides'][side]['hand']) >= MAX_HAND_SIZE:
+            break
+        card = snapshot['sides'][side]['deck'].pop(0)
+        snapshot['sides'][side]['hand'].append(card)
+        drawn.append(card)
+        action: JsonDict = {
+            'kind': 'draw_card',
+            'side': side,
+            'card_instance_id': card['instance_id'],
+            'title': reason,
+            'subtitle': '从牌库加入手牌',
+            'reason': reason,
+            'silent': reason == '回合补牌',
+            'card': _public_card(card, own=True),
+        }
+        source_instance_id = str(snapshot.get('_active_reveal_source_instance_id') or '')
+        if source_instance_id:
+            action['source_instance_id'] = source_instance_id
+        snapshot.setdefault('action_queue', []).append(action)
+        _add_log(snapshot, f"{_side_name(snapshot, side)} 从牌库抽取 1 张牌。")
+    return drawn
+
+
+def _public_state(snapshot: JsonDict, room: Room, viewer: Player) -> JsonDict:
+    _clear_legacy_draw_selections(snapshot, auto_draw=True)
+    _sync_planning_phase(snapshot)
+    perspective = _perspective_for_player(snapshot, viewer)
+    own = snapshot['sides'][perspective.own]
+    opponent = snapshot['sides'][perspective.opponent]
+    public_status = _public_status(snapshot, perspective.own)
+    room_payload = serialize_room(room, list_room_members(room))
+    room_payload['status'] = public_status if public_status in {'victory', 'defeat', 'draw'} else room.status
+    return {
+        'schema_version': snapshot['schema_version'],
+        'game_id': snapshot['game_id'],
+        'mode': snapshot['mode'],
+        'scenario': snapshot.get('scenario', 'standard'),
+        'scenario_label': snapshot.get('scenario_label', _scenario_label(snapshot.get('scenario'))),
+        'status': public_status,
+        'phase': _public_phase(snapshot, perspective.own),
+        'turn': snapshot['turn'],
+        'max_turns': snapshot['max_turns'],
+        'turn_energy': _turn_energy(snapshot),
+        'energy_remaining': _energy_remaining(snapshot, perspective.own),
+        'can_undo_turn': _can_undo_turn(snapshot, perspective.own),
+        'room': room_payload,
+        'player_seat': perspective.own,
+        'opponent_seat': perspective.opponent,
+        'current_actor_uid': own['uid'] if not own.get('ended_turn') else opponent['uid'],
+        'player': _public_side(own, reveal_hand=True),
+        'opponent': _public_side(opponent, reveal_hand=False),
+        'selection': _public_selection(own),
+        'pending_target': _public_pending_target(own),
+        'players_overview': [_side_overview(snapshot['sides'][side]) for side in SIDE_KEYS],
+        'locations': [_public_location(location, perspective) for location in snapshot['locations']],
+        'score': _public_score(snapshot, perspective),
+        'initiative': _public_initiative(snapshot, perspective),
+        'winner': _public_winner(snapshot, perspective),
+        'route_hint': _route_hint(snapshot, perspective.own),
+        'log': _public_log(snapshot, perspective),
+        'action_queue': list(snapshot.get('action_queue', [])),
+        'banner_queue': list(snapshot.get('banner_queue', [])),
+    }
+
+
+def _public_side(side: JsonDict, *, reveal_hand: bool) -> JsonDict:
+    return {
+        'uid': side['uid'],
+        'nickname': side['nickname'],
+        'is_ai': side['is_ai'],
+        'deck_id': side.get('deck_id', ''),
+        'deck_name': side.get('deck_name', ''),
+        'deck_description': side.get('deck_description', ''),
+        'energy_used': side['energy_used'],
+        'ended_turn': side['ended_turn'],
+        'deck_count': len(side['deck']),
+        'hand_count': len(side['hand']),
+        'discard_count': len(side.get('discard', [])),
+        'esper_standby_count': len(side.get('esper_standby', [])),
+        'combo': deepcopy(side.get('combo', {})),
+        'pending_target': _public_pending_target(side),
+        'hand': [_public_card(card, own=True) for card in side['hand']] if reveal_hand else [_public_hidden_hand_card(card) for card in side['hand']],
+        'esper_standby': [_public_card(card, own=True) for card in side.get('esper_standby', [])] if reveal_hand else [],
+        'discard': [_public_card(card, own=True) for card in side.get('discard', [])],
+    }
+
+
+def _public_hidden_hand_card(card: JsonDict) -> JsonDict:
+    return {
+        'instance_id': card['instance_id'],
+        'hidden': True,
+        'revealed': False,
+        'staged': False,
+        'name': '对手手牌',
+        'cost': None,
+        'base_cost': None,
+        'original_cost': None,
+        'power': None,
+        'base_power': None,
+        'original_power': None,
+        'art': CARD_BACK_IMAGE,
+        'description': '对手手牌，内容不可见。',
+        'type': card.get('type', CARD_TYPE_ANOMALY_ITEM),
+        'archetype': '',
+        'category': '',
+        'attribute': '',
+        'attribute_icon': '',
+        'material_cost': 0,
+        'required_material_attribute': '',
+        'material_tags': [],
+        'buff_sources': [],
+    }
+
+
+def _public_log(snapshot: JsonDict, perspective: SidePerspective) -> list[str]:
+    own_name = _side_name(snapshot, perspective.own)
+    opponent_name = _side_name(snapshot, perspective.opponent)
+    lines: list[str] = []
+    for line in snapshot.get('log', []):
+        public_line = str(line)
+        if own_name:
+            public_line = public_line.replace(own_name, '我')
+        if opponent_name:
+            public_line = public_line.replace(opponent_name, '对手')
+        lines.append(public_line)
+    return lines
+
+
+def _public_selection(side: JsonDict) -> JsonDict | None:
+    selection = side.get('selection')
+    if not selection:
+        return None
+    if selection.get('kind') == 'draw':
+        return None
+    return {
+        'kind': selection.get('kind'),
+        'title': selection.get('title', '选择卡牌'),
+        'description': selection.get('description', ''),
+        'pick_count': int(selection.get('pick_count', 1)),
+        'min_count': int(selection.get('min_count', selection.get('pick_count', 1))),
+        'max_count': int(selection.get('max_count', selection.get('pick_count', 1))),
+        'cards': [_public_card(card, own=True) for card in selection.get('cards', [])],
+    }
+
+
+def _public_pending_target(side: JsonDict) -> JsonDict | None:
+    pending = side.get('pending_target')
+    if not pending:
+        return None
+    return {
+        'source_instance_id': pending.get('source_instance_id'),
+        'location_id': pending.get('location_id'),
+        'scope': pending.get('scope', ''),
+        'prompt': pending.get('prompt', '请选择一个目标。'),
+    }
+
+
+def _public_location(location: JsonDict, perspective: SidePerspective) -> JsonDict:
+    own_cards = [_public_card(card, own=True) for card in location['cards'][perspective.own]]
+    opponent_cards = [_public_card(card, own=False) for card in location['cards'][perspective.opponent]]
+    winner_side = location.get('winner_side')
+    if winner_side == perspective.own:
+        winner = 'player'
+    elif winner_side == perspective.opponent:
+        winner = 'opponent'
+    else:
+        winner = 'tie'
+    return {
+        'id': location['id'],
+        'name': location['name'] if location['revealed'] else '未显现异象',
+        'short_name': location['short_name'] if location['revealed'] else '未知',
+        'description': location['description'] if location['revealed'] else '将在后续回合显现规则。',
+        'art': location['art'],
+        'revealed': location['revealed'],
+        'reveal_turn': location['reveal_turn'],
+        'power': {
+            'player': location['power'][perspective.own],
+            'opponent': location['power'][perspective.opponent],
+        },
+        'marks': {
+            'player': deepcopy(location.get('marks', {}).get(perspective.own, {})),
+            'opponent': deepcopy(location.get('marks', {}).get(perspective.opponent, {})),
+        },
+        'winner': winner,
+        'slots': {
+            'player': own_cards,
+            'opponent': opponent_cards,
+        },
+        'capacity': LOCATION_CARD_LIMIT,
+    }
+
+
+def _public_card(card: JsonDict, *, own: bool) -> JsonDict:
+    if not own and not card.get('revealed'):
+        return {
+            'instance_id': card['instance_id'],
+            'hidden': True,
+            'revealed': False,
+            'staged': bool(card.get('staged')),
+            'name': '未揭示',
+            'cost': None,
+            'base_cost': None,
+            'original_cost': None,
+            'power': None,
+            'base_power': None,
+            'original_power': None,
+            'art': CARD_BACK_IMAGE,
+            'description': '对手本回合置入的牌，将在回合结束时揭示。',
+            'type': card.get('type', 'esper'),
+            'archetype': card.get('archetype', ''),
+            'category': card.get('category', ''),
+            'attribute': card.get('attribute', ''),
+            'attribute_icon': card.get('attribute_icon', ''),
+            'material_cost': card.get('material_cost', 0),
+            'required_material_attribute': card.get('required_material_attribute', ''),
+            'material_requirements': deepcopy(card.get('material_requirements') or []),
+            'material_requirement_text': card.get('material_requirement_text', ''),
+            'material_tags': list(card.get('material_tags', [])),
+            'buff_sources': [],
+        }
+    target_rule = _target_rule(card)
+    return {
+        'instance_id': card['instance_id'],
+        'definition_id': card['definition_id'],
+        'hidden': False,
+        'revealed': card.get('revealed', False),
+        'staged': bool(card.get('staged')),
+        'name': card['name'],
+        'cost': _effective_cost(card),
+        'base_cost': card['cost'],
+        'original_cost': card['cost'],
+        'power': int(card.get('computed_power', _raw_card_power(card))),
+        'base_power': card['base_power'],
+        'original_power': card['base_power'],
+        'bonus_power': card['bonus_power'],
+        'element': card.get('element', ''),
+        'rarity': card.get('rarity', 'n'),
+        'art': card.get('art', CARD_BACK_IMAGE),
+        'description': card.get('description', ''),
+        'archetype': card.get('archetype', ''),
+        'category': card.get('category', ''),
+        'attribute': card.get('attribute', ''),
+        'attribute_icon': card.get('attribute_icon', ''),
+        'material_cost': int(card.get('material_cost') or 0),
+        'required_material_attribute': card.get('required_material_attribute', ''),
+        'material_requirements': deepcopy(card.get('material_requirements') or []),
+        'material_requirement_text': card.get('material_requirement_text', ''),
+        'material_tags': list(card.get('material_tags', [])),
+        'consumed_material_tags': list(card.get('consumed_material_tags', [])),
+        'consumed_material_names': list(card.get('consumed_material_names', [])),
+        'consumed_material_attributes': list(card.get('consumed_material_attributes', [])),
+        'absorbed_material_power': int(card.get('absorbed_material_power', 0)),
+        'played_turn': card.get('played_turn'),
+        'location_id': card.get('location_id'),
+        'type': card.get('type', 'esper'),
+        'tags': list(card.get('tags', [])),
+        'buff_sources': [deepcopy(source) for source in card.get('buff_sources', [])],
+        'target_rule': target_rule or None,
+        'selected_target_instance_id': card.get('selected_target_instance_id'),
+        'selected_target_name': card.get('selected_target_name', ''),
+        'declared_card_names': list(card.get('declared_card_names', [])),
+        'declared_card_instance_ids': list(card.get('declared_card_instance_ids', [])),
+        'pending_material_ids': list(card.get('pending_material_ids', [])),
+        'reserved_as_material_for': card.get('reserved_as_material_for'),
+    }
+
+
+def _public_score(snapshot: JsonDict, perspective: SidePerspective) -> JsonDict:
+    won = 0
+    lost = 0
+    tied = 0
+    total_player = 0
+    total_opponent = 0
+    for location in snapshot['locations']:
+        total_player += location['power'][perspective.own]
+        total_opponent += location['power'][perspective.opponent]
+        if location['winner_side'] == perspective.own:
+            won += 1
+        elif location['winner_side'] == perspective.opponent:
+            lost += 1
+        else:
+            tied += 1
+    if total_player > total_opponent:
+        leader = 'player'
+    elif total_opponent > total_player:
+        leader = 'opponent'
+    else:
+        leader = 'tie'
+    return {
+        'locations_won': won,
+        'locations_lost': lost,
+        'locations_tied': tied,
+        'total_power_player': total_player,
+        'total_power_opponent': total_opponent,
+        'leader': leader,
+    }
+
+
+def _public_initiative(snapshot: JsonDict, perspective: SidePerspective) -> JsonDict:
+    settlement = snapshot.get('settlement') or {}
+    totals = settlement.get('totals') or {}
+    first_side = str(settlement.get('first_side') or snapshot.get('settlement_first_side') or '')
+    leader_side = settlement.get('leader_side')
+    return {
+        'turn': int(settlement.get('turn') or snapshot.get('turn') or 1),
+        'first': _public_side_key(first_side, perspective),
+        'leader_at_turn_start': _public_side_key(str(leader_side), perspective) if leader_side in SIDE_KEYS else 'tie',
+        'reason': settlement.get('reason', ''),
+        'player_power_at_turn_start': int(totals.get(perspective.own, 0) or 0),
+        'opponent_power_at_turn_start': int(totals.get(perspective.opponent, 0) or 0),
+    }
+
+
+def _public_side_key(side: str, perspective: SidePerspective) -> str:
+    if side == perspective.own:
+        return 'player'
+    if side == perspective.opponent:
+        return 'opponent'
+    return 'tie'
+
+
+def _public_winner(snapshot: JsonDict, perspective: SidePerspective) -> str | None:
+    winner_side = snapshot.get('winner_side')
+    if winner_side is None:
+        return None
+    return 'player' if winner_side == perspective.own else 'opponent'
+
+
+def _side_overview(side: JsonDict) -> JsonDict:
+    return {
+        'side': side['side'],
+        'uid': side['uid'],
+        'nickname': side['nickname'],
+        'is_ai': side['is_ai'],
+        'deck_id': side.get('deck_id', ''),
+        'deck_name': side.get('deck_name', ''),
+        'ended_turn': side['ended_turn'],
+    }
+
+
+def _route_hint(snapshot: JsonDict, side: str) -> str:
+    if snapshot['status'] != 'playing':
+        if snapshot.get('winner_side') is None:
+            return '主战场战力持平，这局没有输家。'
+        return '你赢下了主战场。' if snapshot['winner_side'] == side else '对手赢下了主战场。'
+    selection = snapshot['sides'][side].get('selection')
+    if selection and selection.get('kind') != 'draw':
+        return str(selection.get('description') or '先完成本次卡牌选择。')
+    if snapshot.get('phase') == 'selecting':
+        return '等待对手完成卡牌选择。'
+    if snapshot['sides'][side].get('ended_turn'):
+        return '你已结束回合，等待对手完成置入。'
+    pending = snapshot['sides'][side].get('pending_target')
+    if pending:
+        return str(pending.get('prompt') or '请选择一个目标。')
+    return f'拖动手牌置入异象道具，或从待命区唤醒/共鸣异能者消耗同区域素材；剩余 {_energy_remaining(snapshot, side)} 点能量。'
+
+
+def _load_mutable_player_run(player: Player) -> tuple[Room, JsonDict, str]:
+    from app.dao import get_current_room
+
     room = get_current_room(player)
     if room is None:
-        raise RuleValidationError('当前没有房间，请先创建或加入房间。')
-    return room
+        raise RuleValidationError('当前没有对局。')
+    run = get_cached_room_run(room.id) or get_run(room)
+    if run is None or not _is_snap_snapshot(run.get('snapshot', {})):
+        raise RuleValidationError('当前没有异象对局。')
+    snapshot = deepcopy(run['snapshot'])
+    _clear_legacy_draw_selections(snapshot, auto_draw=True)
+    side = _side_for_player(snapshot, player)
+    if side is None:
+        raise RuleValidationError('当前玩家不在该对局中。')
+    return room, snapshot, side
 
 
-def add_log(state: JsonDict, message: str) -> None:
-    state['log'].insert(0, message)
-    del state['log'][LOG_LIMIT:]
-    logger.info(message)
-
-
-def begin_action_queue(state: JsonDict) -> None:
-    state[ACTION_QUEUE_KEY] = []
-
-
-def add_action_step(state: JsonDict, step: JsonDict) -> None:
-    state.setdefault(ACTION_QUEUE_KEY, []).append(step)
-
-
-def pop_action_steps_since(state: JsonDict, start_index: int) -> list[JsonDict]:
-    queue = state.setdefault(ACTION_QUEUE_KEY, [])
-    deferred_steps = queue[start_index:]
-    del queue[start_index:]
-    return deferred_steps
-
-
-def add_action_steps(state: JsonDict, steps: list[JsonDict]) -> None:
-    for step in steps:
-        add_action_step(state, step)
-
-
-def take_post_battle_action_steps(state: JsonDict) -> list[JsonDict]:
-    return list(state.pop(POST_BATTLE_ACTION_QUEUE_KEY, []))
-
-
-def take_action_queue(state: JsonDict) -> list[JsonDict]:
-    return list(state.pop(ACTION_QUEUE_KEY, []))
-
-
-def step_position(x: int, y: int, direction: str) -> tuple[int, int]:
-    dx, dy = DIRECTIONS[direction]
-    return x + dx, y + dy
-
-
-def tile_at(state: JsonDict, x: int, y: int) -> JsonDict | None:
-    for tile in reversed(state['map']['tiles']):
-        if _is_on_current_layer(state, tile) and tile_contains_cell(tile, x, y):
-            return tile
-    return None
-
-
-def tile_contains_cell(tile: JsonDict, x: int, y: int) -> bool:
-    tile_x = int(tile.get('x', 0))
-    tile_y = int(tile.get('y', 0))
-    width = max(1, int(tile.get('width', 1) or 1))
-    height = max(1, int(tile.get('height', 1) or 1))
-    return tile_x <= int(x) < tile_x + width and tile_y <= int(y) < tile_y + height
-
-
-def monster_at(state: JsonDict, x: int, y: int) -> JsonDict | None:
-    for monster in state['map']['monsters']:
-        if _is_on_current_layer(state, monster) and monster['hp'] > 0 and not monster.get('captured') and monster['x'] == x and monster['y'] == y:
-            return monster
-    return None
-
-
-def boss_on_tile(state: JsonDict, x: int, y: int) -> bool:
-    boss = state['map']['boss']
-    return boss['hp'] > 0 and any(_is_on_current_layer(state, pos) and pos['x'] == x and pos['y'] == y for pos in boss['positions'])
-
-
-def current_map_layer(state: JsonDict) -> int:
-    return int(state['map'].get('current_layer', 1))
-
-
-def map_entry_point(game_map: JsonDict) -> JsonDict:
-    entries = game_map.get('entries', [])
-    if isinstance(entries, list) and entries:
-        entry = entries[0]
-        return {
-            'layer': int(entry.get('layer', 1)),
-            'x': int(entry.get('x', 0)),
-            'y': int(entry.get('y', 0)),
-        }
-    start = game_map.get('start', {})
-    return {
-        'layer': int(start.get('layer', game_map.get('current_layer', 1))),
-        'x': int(start.get('x', 0)),
-        'y': int(start.get('y', 0)),
-    }
-
-
-def map_layer_dimensions(game_map: JsonDict, layer: int) -> tuple[int, int]:
-    for layer_meta in game_map.get('layers', []):
-        if int(layer_meta.get('layer', 1)) == int(layer):
-            return int(layer_meta.get('width', 0)), int(layer_meta.get('height', 0))
-    return int(game_map.get('width', 0)), int(game_map.get('height', 0))
-
-
-def map_layer_background_image(game_map: JsonDict, layer: int) -> str:
-    fallback = str(game_map.get('background_image', ''))
-    for layer_meta in game_map.get('layers', []):
-        if int(layer_meta.get('layer', 1)) == int(layer):
-            return str(layer_meta.get('background_image') or fallback)
-    return fallback
-
-
-def current_map_dimensions(state: JsonDict) -> tuple[int, int]:
-    return map_layer_dimensions(state['map'], current_map_layer(state))
-
-
-def fog_radius_for_layer(game_map: JsonDict, layer: int) -> int | None:
-    fog_config = game_map.get('fog_of_war')
-    if not isinstance(fog_config, dict) or fog_config.get('enabled') is False:
-        return None
-    layer_values = fog_config.get('layers', {})
-    raw_radius = None
-    if isinstance(layer_values, dict):
-        raw_radius = layer_values.get(str(layer), layer_values.get(layer))
-    if raw_radius is None:
-        raw_radius = fog_config.get('default_radius')
-    if raw_radius is None:
-        return None
-    try:
-        radius = int(raw_radius)
-    except (TypeError, ValueError):
-        return None
-    return None if radius < 0 else max(MIN_FOG_RADIUS, radius)
-
-
-def _fog_disabled_for_layer(state: JsonDict, layer: int) -> bool:
-    radius = fog_radius_for_layer(state['map'], layer)
-    if radius is None:
-        return True
-    width, height = map_layer_dimensions(state['map'], layer)
-    return radius >= max(width, height)
-
-
-def _fog_cell_key(layer: int, x: int, y: int) -> str:
-    return f'{int(layer)}:{int(x)}:{int(y)}'
-
-
-def _explored_cell_keys(player_state: JsonDict) -> set[str]:
-    keys = set()
-    for cell in player_state.get('explored_cells', []):
-        try:
-            keys.add(_fog_cell_key(int(cell.get('layer', 1)), int(cell['x']), int(cell['y'])))
-        except (KeyError, TypeError, ValueError):
-            continue
-    return keys
-
-
-def reveal_fog_around_player(state: JsonDict) -> None:
-    layer = current_map_layer(state)
-    radius = fog_radius_for_layer(state['map'], layer)
-    if radius is None or _fog_disabled_for_layer(state, layer):
+def _persist_room_snapshot(room: Room, snapshot: JsonDict) -> None:
+    if snapshot['status'] != 'playing':
+        discard_cached_room_run(room.id)
+        with atomic_transaction():
+            upsert_run(room, GAME_ID, snapshot['status'], snapshot)
+            update_room_status(room, snapshot['status'])
         return
-    width, height = current_map_dimensions(state)
-    actor = state['player']
-    origin_x = int(actor['x'])
-    origin_y = int(actor['y'])
-    explored_keys = _explored_cell_keys(actor)
-    for y in range(max(0, origin_y - radius), min(height, origin_y + radius + 1)):
-        for x in range(max(0, origin_x - radius), min(width, origin_x + radius + 1)):
-            explored_keys.add(_fog_cell_key(layer, x, y))
-    actor['explored_cells'] = [
-        {'layer': int(cell_layer), 'x': int(cell_x), 'y': int(cell_y)}
-        for cell_layer, cell_x, cell_y in sorted(key.split(':') for key in explored_keys)
+    queue_room_snapshot_persist(
+        room.id,
+        GAME_ID,
+        snapshot['status'],
+        deepcopy(snapshot),
+        touch_room=True,
+        update_room_status=snapshot['status'] != 'playing',
+    )
+
+
+def _perspective_for_player(snapshot: JsonDict, player: Player) -> SidePerspective:
+    side = _side_for_player(snapshot, player) or SIDE_A
+    return SidePerspective(own=side, opponent=_opponent_side(side))
+
+
+def _side_for_player(snapshot: JsonDict, player: Player) -> str | None:
+    for side in SIDE_KEYS:
+        if snapshot['sides'][side]['uid'] == player.player_uid:
+            return side
+    return None
+
+
+def _opponent_side(side: str) -> str:
+    return SIDE_B if side == SIDE_A else SIDE_A
+
+
+def _public_status(snapshot: JsonDict, viewer_side: str) -> str:
+    status = snapshot['status']
+    if status == 'playing' or status == 'draw':
+        return status
+    if viewer_side == SIDE_A:
+        return status
+    if status == 'victory':
+        return 'defeat'
+    if status == 'defeat':
+        return 'victory'
+    return status
+
+
+def _public_phase(snapshot: JsonDict, side: str) -> str:
+    if snapshot['status'] != 'playing':
+        return _public_status(snapshot, side)
+    selection = snapshot['sides'][side].get('selection')
+    if selection and selection.get('kind') != 'draw':
+        return 'selecting'
+    if snapshot.get('phase') == 'selecting':
+        return 'waiting'
+    if snapshot['sides'][side].get('ended_turn'):
+        return 'waiting'
+    return snapshot.get('phase', 'planning')
+
+
+def _is_snap_snapshot(snapshot: JsonDict) -> bool:
+    return snapshot.get('game_id') == GAME_ID
+
+
+def _ensure_playing(snapshot: JsonDict) -> None:
+    if snapshot['status'] != 'playing':
+        raise RuleValidationError('对局已经结束。')
+
+
+def _ensure_selection_resolved(snapshot: JsonDict, side: str) -> None:
+    selection = snapshot['sides'][side].get('selection')
+    if selection and selection.get('kind') == 'draw':
+        _resolve_legacy_draw_selection_as_auto_draw(snapshot, side)
+    elif selection:
+        raise RuleValidationError('请先完成当前卡牌选择。')
+    if snapshot['sides'][side].get('pending_target'):
+        raise RuleValidationError('请先为本次置入选择目标，或取消这张牌。')
+
+
+def _ensure_not_ended(snapshot: JsonDict, side: str) -> None:
+    if snapshot['sides'][side].get('ended_turn'):
+        raise RuleValidationError('你已经结束本回合。')
+
+
+def _find_location(snapshot: JsonDict, location_id: str) -> JsonDict:
+    for location in snapshot['locations']:
+        if location['id'] == location_id:
+            return location
+    raise RuleValidationError('未知的异象空间。')
+
+
+def _is_location_revealed(snapshot: JsonDict, location: JsonDict) -> bool:
+    return bool(location.get('revealed')) and int(location.get('reveal_turn', 1)) <= int(snapshot['turn'])
+
+
+def _open_locations(snapshot: JsonDict, side: str) -> list[JsonDict]:
+    return [
+        location
+        for location in snapshot['locations']
+        if _is_location_revealed(snapshot, location) and len(location['cards'][side]) < LOCATION_CARD_LIMIT
     ]
 
 
-def _refresh_all_fog_exploration(state: JsonDict) -> None:
-    original_actor_uid = str(state['current_actor_uid'])
-    for actor_uid in state.get('players', {}):
-        _project_player_scope(state, actor_uid)
-        state['player'].setdefault('explored_cells', [])
-        reveal_fog_around_player(state)
-        _capture_player_scope(state)
-    _project_player_scope(state, original_actor_uid)
+def _esper_material_cost(card: JsonDict) -> int:
+    requirements = _esper_material_requirements(card)
+    if requirements:
+        return sum(int(requirement.get('count') or 1) for requirement in requirements)
+    return max(2, min(3, int(card.get('material_cost') or 2)))
 
 
-def is_fog_hidden_for_current_player(state: JsonDict, x: int, y: int, layer: int | None = None) -> bool:
-    resolved_layer = current_map_layer(state) if layer is None else int(layer)
-    if _fog_disabled_for_layer(state, resolved_layer):
+def _material_cards_for_esper(
+    snapshot: JsonDict,
+    side: str,
+    location: JsonDict,
+    esper_card: JsonDict,
+    material_instance_ids: list[str] | None = None,
+) -> list[JsonDict]:
+    required = _esper_material_cost(esper_card)
+    requirements = _esper_material_requirements(esper_card)
+    candidates = [
+        card
+        for card in location.get('cards', {}).get(side, [])
+        if card.get('instance_id') != esper_card.get('instance_id')
+        and _is_valid_esper_material(card, current_turn=int(snapshot.get('turn') or 0))
+        and (
+            _material_matches_esper_requirement(card, esper_card)
+            if not requirements
+            else _material_matches_any_requirement(card, requirements)
+        )
+    ]
+    if material_instance_ids is not None:
+        selected_ids = _unique_ids(material_instance_ids)
+        if len(selected_ids) != required:
+            raise RuleValidationError(f"{esper_card.get('name', '异能者')} 需要指定 {_esper_material_requirement_text(esper_card)}。")
+        candidates_by_id = {str(card.get('instance_id')): card for card in candidates}
+        selected_cards = [candidates_by_id.get(instance_id) for instance_id in selected_ids]
+        if any(card is None for card in selected_cards):
+            raise RuleValidationError(f"只能选择{_esper_material_filter_text(esper_card)}。")
+        if requirements and not _materials_satisfy_requirements([card for card in selected_cards if card is not None], requirements):
+            raise RuleValidationError(f"{esper_card.get('name', '异能者')} 需要{_esper_material_requirement_text(esper_card)}。")
+        return [card for card in selected_cards if card is not None]
+    candidates.sort(key=lambda card: (
+        0 if card.get('type') == CARD_TYPE_TOKEN else 1,
+        int(card.get('computed_power', card.get('base_power', 0)) or 0),
+        str(card.get('name', '')),
+    ))
+    if requirements:
+        selected = _select_materials_for_requirements(candidates, requirements)
+        if len(selected) < required:
+            raise RuleValidationError(f"{esper_card.get('name', '异能者')} 需要同区域 {_esper_material_requirement_text(esper_card)}。")
+        return selected
+    if len(candidates) < required:
+        raise RuleValidationError(f"{esper_card.get('name', '异能者')} 需要同区域 {_esper_material_requirement_text(esper_card)}。")
+    return candidates[:required]
+
+
+def _is_valid_esper_material(card: JsonDict, *, current_turn: int | None = None) -> bool:
+    tags = set(card.get('tags', []))
+    if TAG_MATERIAL not in tags:
         return False
-    width, height = map_layer_dimensions(state['map'], resolved_layer)
-    if x < 0 or y < 0 or x >= width or y >= height:
+    if TAG_HARMONY in tags:
         return False
-    return _fog_cell_key(resolved_layer, x, y) not in _explored_cell_keys(state['player'])
+    if not card.get('revealed'):
+        return False
+    if card.get('staged'):
+        return False
+    if current_turn is not None and int(card.get('played_turn') or -1) == current_turn:
+        return False
+    if card.get('type') == CARD_TYPE_ESPER:
+        return False
+    if card.get('reserved_as_material_for'):
+        return False
+    if int(card.get('computed_power', _raw_card_power(card)) or 0) <= 0:
+        return False
+    return card.get('type') == CARD_TYPE_ANOMALY_ITEM
 
 
-def _tile_has_fog_visible_cell(state: JsonDict, tile: JsonDict) -> bool:
-    layer = int(tile.get('layer', current_map_layer(state)))
-    for offset_y in range(max(1, int(tile.get('height', 1) or 1))):
-        for offset_x in range(max(1, int(tile.get('width', 1) or 1))):
-            if not is_fog_hidden_for_current_player(
-                state,
-                int(tile.get('x', 0)) + offset_x,
-                int(tile.get('y', 0)) + offset_y,
-                layer,
-            ):
-                return True
-    return False
+def _material_tags_for_card(card: JsonDict) -> list[str]:
+    material_tags = [str(tag) for tag in card.get('material_tags', []) if str(tag).startswith('mat_')]
+    if material_tags:
+        return material_tags
+    return [str(tag) for tag in card.get('tags', []) if str(tag).startswith('mat_')]
 
 
-def fog_hidden_cells(state: JsonDict) -> list[JsonDict]:
-    layer = current_map_layer(state)
-    if _fog_disabled_for_layer(state, layer):
+def _esper_required_material_attribute(card: JsonDict) -> str:
+    return str(card.get('required_material_attribute') or card.get('attribute') or card.get('element') or '指定')
+
+
+def _is_wildcard_material_attribute(attribute: str) -> bool:
+    return attribute in {'', '任意', '指定'}
+
+
+def _esper_material_requirement_text(card: JsonDict) -> str:
+    if card.get('material_requirement_text'):
+        return str(card.get('material_requirement_text'))
+    requirements = _esper_material_requirements(card)
+    if requirements:
+        return '+'.join(_material_requirement_fragment(requirement) for requirement in requirements)
+    required = _esper_material_cost(card)
+    attribute = _esper_required_material_attribute(card)
+    return f"{required} 个{attribute + '属性' if not _is_wildcard_material_attribute(attribute) else ''}素材"
+
+
+def _esper_material_filter_text(card: JsonDict) -> str:
+    requirements = _esper_material_requirements(card)
+    if requirements:
+        return f"同区域、已揭示、未被预定、战力为正且满足{_esper_material_requirement_text(card)}的异象道具素材"
+    attribute = _esper_required_material_attribute(card)
+    attribute_text = '' if _is_wildcard_material_attribute(attribute) else f"{attribute}属性、"
+    return f"同区域、已揭示、未被预定、{attribute_text}战力为正的异象道具素材"
+
+
+def _esper_material_requirements(card: JsonDict) -> list[JsonDict]:
+    requirements = card.get('material_requirements') or []
+    if not isinstance(requirements, list):
         return []
-    width, height = current_map_dimensions(state)
-    cells = []
-    for y in range(height):
-        for x in range(width):
-            if is_fog_hidden_for_current_player(state, x, y, layer):
-                cells.append({'layer': layer, 'x': x, 'y': y})
-    return cells
+    return [requirement for requirement in requirements if isinstance(requirement, dict)]
 
 
-def _apply_fog_to_payload(state: JsonDict, payload: JsonDict) -> None:
-    payload.setdefault('map', {})['fog_cells'] = fog_hidden_cells(state)
-    payload['map']['tiles'] = [
-        tile for tile in payload.get('map', {}).get('tiles', [])
-        if _tile_has_fog_visible_cell(state, tile)
-    ]
-    payload['map']['monsters'] = [
-        monster for monster in payload.get('map', {}).get('monsters', [])
-        if not is_fog_hidden_for_current_player(
-            state,
-            int(monster.get('x', 0)),
-            int(monster.get('y', 0)),
-            int(monster.get('layer', current_map_layer(state))),
-        )
-    ]
-    boss_payload = payload.get('map', {}).get('boss')
-    if isinstance(boss_payload, dict):
-        boss_payload['positions'] = [
-            position for position in boss_payload.get('positions', [])
-            if not is_fog_hidden_for_current_player(
-                state,
-                int(position.get('x', 0)),
-                int(position.get('y', 0)),
-                int(position.get('layer', current_map_layer(state))),
-            )
-        ]
+def _material_requirement_fragment(requirement: JsonDict) -> str:
+    count = int(requirement.get('count') or 1)
+    if requirement.get('attribute'):
+        return f"{requirement.get('attribute')}属性素材*{count}"
+    attributes = requirement.get('attributes')
+    if isinstance(attributes, list):
+        options = [str(attribute) for attribute in attributes if str(attribute)]
+        if options:
+            return f"{'/'.join(options)}属性素材*{count}"
+    if requirement.get('category'):
+        return f"{requirement.get('category')}素材*{count}"
+    if requirement.get('name'):
+        return f"「{requirement.get('name')}」*{count}"
+    return f"素材*{count}"
 
 
-def in_current_layer_bounds(state: JsonDict, x: int, y: int) -> bool:
-    width, height = current_map_dimensions(state)
-    return 0 <= x < width and 0 <= y < height
+def _material_matches_any_requirement(material: JsonDict, requirements: list[JsonDict]) -> bool:
+    return any(_material_matches_requirement(material, requirement) for requirement in requirements)
 
 
-def _is_on_current_layer(state: JsonDict, entity: JsonDict) -> bool:
-    return int(entity.get('layer', 1)) == current_map_layer(state)
-
-
-def is_hidden_from_player(state: JsonDict, tile: JsonDict) -> bool:
-    return bool(tile.get('hidden_zone')) and not state['map'].get('hidden_room_revealed') and tile.get('object_id') != 'hidden_door'
-
-
-def is_hidden_entity(state: JsonDict, entity: JsonDict) -> bool:
-    return bool(entity.get('hidden_zone')) and not state['map'].get('hidden_room_revealed')
-
-
-def should_identify_on_pass_through(map_object: JsonDict, block_type: object) -> bool:
-    return str(block_type) == '可通过' and bool(map_object.get('identify_on_pass'))
-
-
-def identify_tile(state: JsonDict, tile: JsonDict, source: str) -> JsonDict:
-    object_id = resolve_map_object_id(tile)
-    map_object = get_map_object(object_id) or {}
-    return dispatch_event(state, GameEvent.IDENTIFY, {
-        'tile_type': tile['type'],
-        'tile': tile,
-        'object_id': object_id,
-        'x': tile['x'],
-        'y': tile['y'],
-        'source': source,
-        'identification_level': current_identification_level(state),
-        'block_type': map_object.get('block_type', '可通过'),
-    })
-
-
-def identify_tiles_in_range(state: JsonDict, source: str, show_effect: bool = False) -> None:
-    cells = identification_range_cells(state)
-    if show_effect:
-        add_action_step(state, {
-            'type': 'identify_range',
-            'level': current_identification_level(state),
-            'cells': cells,
-            'x': state['player']['x'],
-            'y': state['player']['y'],
-            'layer': current_map_layer(state),
-        })
-    for cell in cells:
-        tile = tile_at(state, int(cell['x']), int(cell['y']))
-        if tile is None or is_hidden_from_player(state, tile):
-            continue
-        identify_tile(state, tile, source=source)
-
-
-def turn_belt_direction_for_tile(tile: JsonDict | None) -> str | None:
-    if tile is None:
-        return None
-    object_id = resolve_map_object_id(tile)
-    if object_id in TURN_BELT_DIRECTIONS:
-        return TURN_BELT_DIRECTIONS[object_id]
-    if object_id == 'turn_belt':
-        direction = str(tile.get('direction', ''))
-        return direction if direction in DIRECTIONS else None
-    return None
-
-
-def is_turn_belt_tile(tile: JsonDict | None) -> bool:
-    return turn_belt_direction_for_tile(tile) is not None
-
-
-def get_block_reason(state: JsonDict, x: int, y: int) -> str | None:
-    if not in_current_layer_bounds(state, x, y):
-        return '超出地图边界'
-    if is_fog_hidden_for_current_player(state, x, y):
-        return '迷雾遮挡了道路'
-    tile = tile_at(state, x, y)
-    if monster_at(state, x, y):
-        return '怪物阻挡了道路'
-    if boss_on_tile(state, x, y):
-        return 'Boss 本体占据该格子'
-    if tile:
-        object_id = resolve_map_object_id(tile)
-        map_object = get_map_object(object_id) or {}
-        block_payload = dispatch_event(state, GameEvent.MOVE_BLOCK_CHECK, {
-            'tile_type': tile['type'],
-            'tile': tile,
-            'object_id': object_id,
-            'x': x,
-            'y': y,
-            'block_type': map_object.get('block_type', '可通过'),
-            'blocked_reason': None,
-        })
-        block_type = str(block_payload.get('block_type', map_object.get('block_type', '可通过')))
-        if block_type == '阻挡':
-            blocked_reason = block_payload.get('blocked_reason')
-            if blocked_reason:
-                return str(blocked_reason)
-            return get_map_object_tooltip(tile)
-    return None
-
-
-def _can_enemy_attack_player(state: JsonDict, enemy: JsonDict, target_x: int, target_y: int) -> bool:
-    attack_range = int(enemy.get('range', 1))
-    if manhattan(enemy['x'], enemy['y'], target_x, target_y) > attack_range:
+def _material_matches_requirement(material: JsonDict, requirement: JsonDict) -> bool:
+    attribute = str(requirement.get('attribute') or '')
+    attributes = requirement.get('attributes')
+    category = str(requirement.get('category') or '')
+    name = str(requirement.get('name') or '')
+    if attribute and _material_attribute(material) != attribute:
         return False
-    queue = [(enemy['x'], enemy['y'], 0)]
-    seen = {f"{enemy['x']}:{enemy['y']}"}
-    while queue:
-        x, y, distance = queue.pop(0)
-        if distance >= attack_range:
-            continue
-        for dx, dy in DIRECTIONS.values():
-            next_x = x + dx
-            next_y = y + dy
-            key = f'{next_x}:{next_y}'
-            if (
-                key in seen
-                or next_x < 0
-                or next_y < 0
-                or not in_current_layer_bounds(state, next_x, next_y)
-            ):
+    if isinstance(attributes, list):
+        options = {str(option) for option in attributes if str(option)}
+        if options and _material_attribute(material) not in options:
+            return False
+    if category and str(material.get('category') or '') != category:
+        return False
+    if name and str(material.get('name') or '') != name:
+        return False
+    return True
+
+
+def _select_materials_for_requirements(candidates: list[JsonDict], requirements: list[JsonDict]) -> list[JsonDict]:
+    selected: list[JsonDict] = []
+    used_ids: set[str] = set()
+    for requirement in requirements:
+        needed = int(requirement.get('count') or 1)
+        for card in candidates:
+            if needed <= 0:
+                break
+            instance_id = str(card.get('instance_id') or '')
+            if instance_id in used_ids or not _material_matches_requirement(card, requirement):
                 continue
-            if next_x == target_x and next_y == target_y:
-                return True
-            seen.add(key)
-            if _is_attack_range_blocked(state, next_x, next_y):
+            selected.append(card)
+            used_ids.add(instance_id)
+            needed -= 1
+        if needed > 0:
+            return []
+    return selected
+
+
+def _materials_satisfy_requirements(materials: list[JsonDict], requirements: list[JsonDict]) -> bool:
+    expected_count = sum(int(requirement.get('count') or 1) for requirement in requirements)
+    return len(_select_materials_for_requirements(materials, requirements)) == expected_count
+
+
+def _material_attribute(card: JsonDict) -> str:
+    return str(card.get('attribute') or card.get('element') or '')
+
+
+def _material_matches_esper_requirement(material: JsonDict, esper_card: JsonDict) -> bool:
+    required_attribute = _esper_required_material_attribute(esper_card)
+    return _is_wildcard_material_attribute(required_attribute) or _material_attribute(material) == required_attribute
+
+
+def _material_absorb_power(card: JsonDict) -> int:
+    return int(card.get('computed_power', _raw_card_power(card)) or 0)
+
+
+def _location_has_room_after_materials(location: JsonDict, side: str, material_cards: list[JsonDict]) -> bool:
+    future_count = len(location.get('cards', {}).get(side, [])) - len(material_cards) + 1
+    return future_count <= LOCATION_CARD_LIMIT
+
+
+def _reserve_materials(material_cards: list[JsonDict], esper_instance_id: str) -> None:
+    for card in material_cards:
+        card['reserved_as_material_for'] = esper_instance_id
+
+
+def _release_material_reservations(snapshot: JsonDict, side: str, esper_instance_id: str) -> None:
+    for location in snapshot.get('locations', []):
+        for card in location.get('cards', {}).get(side, []):
+            if card.get('reserved_as_material_for') == esper_instance_id:
+                card.pop('reserved_as_material_for', None)
+
+
+def _cards_by_instance_ids(snapshot: JsonDict, side: str, instance_ids: list[str]) -> list[JsonDict]:
+    ids = set(str(instance_id) for instance_id in instance_ids)
+    cards: list[JsonDict] = []
+    for location in snapshot.get('locations', []):
+        for card in location.get('cards', {}).get(side, []):
+            if card.get('instance_id') in ids:
+                cards.append(card)
+    return cards
+
+
+def _find_staged_card(snapshot: JsonDict, side: str, instance_id: str) -> tuple[JsonDict, JsonDict]:
+    for location in snapshot['locations']:
+        for card in location['cards'][side]:
+            if card['instance_id'] != instance_id:
                 continue
-            queue.append((next_x, next_y, distance + 1))
-    return False
+            if not _is_staged_card(snapshot, card):
+                raise RuleValidationError('只有本回合尚未揭示的临时置入牌可以调整。')
+            return card, location
+    raise RuleValidationError('战场上没有这张可调整的临时牌。')
 
 
-def _is_attack_range_blocked(state: JsonDict, x: int, y: int) -> bool:
-    tile = tile_at(state, x, y)
-    if tile is None:
-        return False
-    object_id = resolve_map_object_id(tile)
-    if object_id in {'door', 'keycard_door'} and not tile.get('locked', True):
-        return False
-    if object_id in {'safe', 'large_safe'} and tile.get('opened'):
-        return False
-    map_object = get_map_object(object_id) or {}
-    return str(map_object.get('block_type', '可通过')) == '阻挡'
+def _find_pending_source_card(snapshot: JsonDict, side: str, instance_id: str) -> tuple[JsonDict, JsonDict]:
+    for location in snapshot['locations']:
+        for card in location['cards'][side]:
+            if card['instance_id'] != instance_id:
+                continue
+            if _is_staged_card(snapshot, card) or _is_pending_esper_reactivation(snapshot, card):
+                return card, location
+    raise RuleValidationError('战场上没有这张等待选择目标的牌。')
 
 
-def resolve_start_tile_redirect(state: JsonDict, active_direction: str, steps_remaining: int) -> str:
-    actor = state['player']
-    tile = tile_at(state, actor['x'], actor['y'])
-    if tile is None or steps_remaining <= 0:
-        return active_direction
-    object_id = resolve_map_object_id(tile)
-    if not is_turn_belt_tile(tile):
-        return active_direction
-    map_object = get_map_object(object_id) or {}
-    through_payload = dispatch_event(state, GameEvent.MOVE_THROUGH, {
-        'tile_type': tile['type'],
-        'tile': tile,
-        'object_id': object_id,
-        'x': actor['x'],
-        'y': actor['y'],
-        'steps_remaining': steps_remaining,
-        'block_type': map_object.get('block_type', '可通过'),
-        'next_direction': active_direction,
-    })
-    return str(through_payload.get('next_direction', active_direction))
-
-
-def _direction_turn_count(path_directions: list[str]) -> int:
-    turns = 0
-    previous = path_directions[0] if path_directions else ''
-    for direction in path_directions[1:]:
-        if direction != previous:
-            turns += 1
-            previous = direction
-    return turns
-
-
-def _path_axis_steps(path_directions: list[str]) -> tuple[int, int]:
-    horizontal_steps = 0
-    vertical_steps = 0
-    for direction in path_directions:
-        dx, dy = DIRECTIONS[direction]
-        if dx:
-            horizontal_steps += 1
-        if dy:
-            vertical_steps += 1
-    return horizontal_steps, vertical_steps
-
-
-def _axis_steps_within_dice_limits(horizontal_steps: int, vertical_steps: int, die_a: int, die_b: int) -> bool:
-    return (
-        (vertical_steps <= die_a and horizontal_steps <= die_b)
-        or (vertical_steps <= die_b and horizontal_steps <= die_a)
+def _is_staged_card(snapshot: JsonDict, card: JsonDict) -> bool:
+    return bool(
+        card.get('staged')
+        and not card.get('revealed')
+        and int(card.get('played_turn') or 0) == int(snapshot.get('turn', 0))
     )
 
 
-def resolve_tile_entry(state: JsonDict, active_direction: str, steps_remaining: int) -> tuple[str, bool]:
-    actor = state['player']
-    tile = tile_at(state, actor['x'], actor['y'])
-    if tile is None:
-        return active_direction, False
-    tile_type = tile['type']
-    object_id = resolve_map_object_id(tile)
-    map_object = get_map_object(object_id) or {}
-    block_type = map_object.get('block_type', '可通过')
-    # 移动途径是最通用的进入格子事件，拾取、转向、事件格等都应优先挂在这里。
-    through_payload = dispatch_event(state, GameEvent.MOVE_THROUGH, {
-        'tile_type': tile_type,
-        'tile': tile,
-        'object_id': object_id,
-        'x': actor['x'],
-        'y': actor['y'],
-        'steps_remaining': steps_remaining,
-        'block_type': block_type,
-        'next_direction': active_direction,
-    })
-    next_direction = through_payload.get('next_direction', active_direction)
-    if should_identify_on_pass_through(map_object, block_type):
-        identify_tile(state, tile, source='pass_through')
-    # “移动停留”用于本次移动最终停在该格，或该格本身属于拦截型地块。
-    if block_type == '拦截' or steps_remaining == 0:
-        dispatch_event(state, GameEvent.MOVE_STOP, {
-            'tile_type': tile_type,
-            'tile': tile,
-            'object_id': object_id,
-            'x': actor['x'],
-            'y': actor['y'],
-            'steps_remaining': steps_remaining,
-            'block_type': block_type,
-            'next_direction': next_direction,
-        })
-    return next_direction, block_type == '拦截'
+def _refund_card_cost(snapshot: JsonDict, side: str, card: JsonDict) -> None:
+    refund = int(card.get('paid_cost', _effective_cost(card)))
+    snapshot['sides'][side]['energy_used'] = max(0, int(snapshot['sides'][side].get('energy_used', 0)) - refund)
 
 
-def resolve_battle(state: JsonDict) -> None:
-    actor = state['player']
-    # 战斗阶段先发开始事件，供内容层提前增减攻防、挂标记或记录战斗态。
-    dispatch_event(state, GameEvent.BATTLE_PHASE_BEGIN, {
-        'x': actor['x'],
-        'y': actor['y'],
-    })
-    battle_end_payload = {'status': state['status']}
-    fought = False
-    if is_adjacent_to_boss(state, actor['x'], actor['y']):
-        battle_end_payload = dispatch_event(
-            state,
-            GameEvent.DIRECT_ATTACK,
-            _build_direct_attack_payload(state['map']['boss'], attack_kind='反击'),
-            default_handler=build_scoped_default_handler(state, _default_direct_attack),
-        )
-        fought = True
-        if state['map']['boss']['hp'] <= 0:
-            state['status'] = 'victory'
-            state['phase'] = 'victory'
-            battle_end_payload['status'] = state['status']
-            add_log(state, f"{state['map']['boss']['name']} 被击破，获得胜利。")
-            dispatch_event(state, GameEvent.RUN_VICTORY, {'target': 'boss'})
-
-    adjacent = []
-    ranged = []
-    if state['status'] == 'playing' and state['player']['hp'] > 0:
-        for monster in state['map']['monsters']:
-            if monster['hp'] <= 0 or monster.get('captured') or not _is_on_current_layer(state, monster):
-                continue
-            distance = manhattan(actor['x'], actor['y'], monster['x'], monster['y'])
-            if distance == 1:
-                adjacent.append(monster)
-            elif _can_enemy_attack_player(state, monster, actor['x'], actor['y']):
-                ranged.append(monster)
-
-    for target in sorted(adjacent, key=lambda m: (m['hp'], m['id'])):
-        if state['status'] != 'playing' or state['player']['hp'] <= 0 or target['hp'] <= 0:
-            break
-        battle_end_payload = dispatch_event(
-            state,
-            GameEvent.DIRECT_ATTACK,
-            _build_direct_attack_payload(target, attack_kind='反击'),
-            default_handler=build_scoped_default_handler(state, _default_direct_attack),
-        )
-        fought = True
-
-    if not fought and state['status'] == 'playing' and state['player']['hp'] > 0:
-        if ranged:
-            target = sorted(ranged, key=lambda m: (manhattan(actor['x'], actor['y'], m['x'], m['y']), m['id']))[0]
-            battle_end_payload = dispatch_event(
-                state,
-                GameEvent.RANGED_ATTACK,
-                _build_enemy_attack_payload(target),
-                default_handler=build_scoped_default_handler(state, _default_ranged_attack),
-            )
-            fought = True
-        else:
-            add_log(state, '战斗阶段没有可结算目标。')
-    if state['player']['hp'] <= 0:
-        state['player']['hp'] = 0
-        _capture_player_scope(state)
-        if _all_players_defeated(state):
-            state['status'] = 'defeat'
-            state['phase'] = 'defeat'
-            battle_end_payload['status'] = state['status']
-            add_log(state, '所有角色都已倒下，对局失败。')
-            dispatch_event(state, GameEvent.RUN_DEFEAT, {'reason': 'battle'})
-        else:
-            add_log(state, '当前角色已倒下，本回合后将由其他玩家继续行动。')
-    # 不论有没有目标，战斗阶段结束时都统一派发收尾事件，便于后续扩展“战后结算”效果。
-    dispatch_event(state, GameEvent.BATTLE_PHASE_END, battle_end_payload)
+def _cost_to_play(snapshot: JsonDict, side: str, card: JsonDict, location: JsonDict) -> int:
+    return _effective_cost(card) + _delay_tax(snapshot, side, location)
 
 
-def _build_direct_attack_payload(enemy: JsonDict, attack_kind: str) -> JsonDict:
-    return {
-        'enemy_id': enemy['id'],
-        'enemy_name': enemy['name'],
-        'attack_kind': attack_kind,
-        'status': 'playing',
-    }
+def _delay_tax(snapshot: JsonDict, side: str, location: JsonDict) -> int:
+    return 1 if (
+        _location_mark_count(location, side, TAG_DELAY) > 0
+        or _location_mark_count(location, side, TAG_SURPLUS) > 0
+        or _first_delay_in_location(location, side) is not None
+    ) else 0
 
 
-def _build_enemy_attack_payload(enemy: JsonDict) -> JsonDict:
-    return {
-        'enemy_id': enemy['id'],
-        'enemy_name': enemy['name'],
-        'attack_kind': '远程攻击',
-        'status': 'playing',
-    }
-
-
-def _default_direct_attack(context: EventContext, state: JsonDict) -> None:
-    enemy = _find_enemy_by_id(state, str(context.payload['enemy_id']))
-    _ensure(enemy is not None, f"未找到战斗目标：{context.payload['enemy_id']}")
-    actor_profile = state['players'][str(state['current_actor_uid'])]['profile']
-    mark_battle_step(state)
-    outgoing = max(1, current_attack(state) - effective_enemy_defense(state, enemy))
-    damage_result = resolve_damage_package(state, build_damage_package(
-        source_name=str(actor_profile.get('nickname', '玩家')),
-        source_id=PLAYER_TARGET_ID,
-        source_type='player',
-        target_type='enemy',
-        target_id=str(enemy['id']),
-        target_name=str(enemy['name']),
-        amount=outgoing,
-        attack_kind='直接攻击',
-        allow_block=False,
-    ))
-    context.payload['outgoing_damage'] = damage_result['final_damage']
-    dispatch_event(state, GameEvent.DIRECT_ATTACK_RESOLVED, {
-        'enemy_id': enemy['id'],
-        'enemy_name': enemy['name'],
-        'outgoing_damage': damage_result['final_damage'],
-    })
-    if damage_result['target_defeated']:
-        context.payload['status'] = 'enemy_defeated'
-        add_log(state, f"{enemy['name']} 已被击败。")
-        spawn_enemy_drop(state, enemy)
-        add_action_step(state, {
-            'type': 'battle',
-            'enemy_name': enemy['name'],
-            'enemy_hp': enemy['hp'],
-            'enemy_max_hp': enemy['max_hp'],
-            'enemy_lost_hp': damage_result['final_damage'],
-            'player_lost_hp': 0,
-        })
-        return
-    queue_start = len(state.get(ACTION_QUEUE_KEY, []))
-    incoming_result = resolve_damage_package(state, build_damage_package(
-        source_name=str(enemy['name']),
-        source_id=str(enemy['id']),
-        source_type='enemy',
-        target_type='player',
-        target_id=PLAYER_TARGET_ID,
-        target_name=str(actor_profile.get('nickname', '玩家')),
-        target_player_uid=str(state['current_actor_uid']),
-        amount=max(0, enemy['attack'] - current_defense(state)),
-        attack_kind=str(context.payload.get('attack_kind', '反击')),
-        allow_block=True,
-    ))
-    post_damage_steps = pop_action_steps_since(state, queue_start)
-    post_damage_steps.extend(take_post_battle_action_steps(state))
-    mamen_tax_step = _apply_mamen_fons_tax(state, enemy, incoming_result)
-    context.payload['incoming_damage'] = incoming_result['final_damage']
-    add_action_step(state, {
-        'type': 'battle',
-        'enemy_name': enemy['name'],
-        'enemy_hp': enemy['hp'],
-        'enemy_max_hp': enemy['max_hp'],
-        'enemy_lost_hp': damage_result['final_damage'],
-        'player_lost_hp': incoming_result['final_damage'],
-    })
-    add_action_steps(state, post_damage_steps)
-    if mamen_tax_step is not None:
-        add_action_step(state, mamen_tax_step)
-    dispatch_event(state, GameEvent.DIRECT_ATTACK_RESOLVED, {
-        'enemy_id': enemy['id'],
-        'enemy_name': enemy['name'],
-        'incoming_damage': incoming_result['final_damage'],
-    })
-
-
-def _default_ranged_attack(context: EventContext, state: JsonDict) -> None:
-    enemy = _find_enemy_by_id(state, str(context.payload['enemy_id']))
-    _ensure(enemy is not None, f"未找到远程目标：{context.payload['enemy_id']}")
-    actor_profile = state['players'][str(state['current_actor_uid'])]['profile']
-    mark_battle_step(state)
-    queue_start = len(state.get(ACTION_QUEUE_KEY, []))
-    damage_result = resolve_damage_package(state, build_damage_package(
-        source_name=str(enemy['name']),
-        source_id=str(enemy['id']),
-        source_type='enemy',
-        target_type='player',
-        target_id=PLAYER_TARGET_ID,
-        target_name=str(actor_profile.get('nickname', '玩家')),
-        target_player_uid=str(state['current_actor_uid']),
-        amount=max(0, enemy['attack'] - current_defense(state)),
-        attack_kind=str(context.payload.get('attack_kind', '远程攻击')),
-        allow_block=True,
-    ))
-    post_damage_steps = pop_action_steps_since(state, queue_start)
-    post_damage_steps.extend(take_post_battle_action_steps(state))
-    mamen_tax_step = _apply_mamen_fons_tax(state, enemy, damage_result)
-    context.payload['incoming_damage'] = damage_result['final_damage']
-    add_action_step(state, {
-        'type': 'battle',
-        'enemy_name': enemy['name'],
-        'enemy_hp': enemy['hp'],
-        'enemy_max_hp': enemy['max_hp'],
-        'enemy_lost_hp': 0,
-        'player_lost_hp': damage_result['final_damage'],
-    })
-    add_action_steps(state, post_damage_steps)
-    if mamen_tax_step is not None:
-        add_action_step(state, mamen_tax_step)
-    dispatch_event(state, GameEvent.RANGED_ATTACK_RESOLVED, {
-        'enemy_id': enemy['id'],
-        'enemy_name': enemy['name'],
-        'incoming_damage': damage_result['final_damage'],
-    })
-
-
-def _find_enemy_by_id(state: JsonDict, enemy_id: str) -> JsonDict | None:
-    boss = state['map']['boss']
-    if boss['id'] == enemy_id:
-        return boss
-    for monster in state['map']['monsters']:
-        if monster['id'] == enemy_id:
-            return monster
+def _first_delay_in_location(location: JsonDict, side: str) -> JsonDict | None:
+    for card in location['cards'][side]:
+        if card.get('revealed') and TAG_DELAY in card.get('tags', []) and TAG_HARMONY in card.get('tags', []):
+            return card
     return None
 
 
-def effective_enemy_defense(state: JsonDict, enemy: JsonDict) -> int:
-    defense = int(enemy.get('defense', 0) or 0)
-    if enemy.get('id') != 'mamen':
-        return defense
-    return max(0, defense - (fons_amount(state) // MAMEN_FONS_DEFENSE_STEP))
-
-
-def _apply_mamen_fons_tax(state: JsonDict, enemy: JsonDict, damage_result: JsonDict) -> JsonDict | None:
-    if enemy.get('id') != 'mamen' or int(damage_result.get('final_damage', 0) or 0) <= 0:
-        return None
-    current_fons = fons_amount(state)
-    if current_fons <= 0:
-        return None
-    consumed = max(1, current_fons * MAMEN_FONS_DAMAGE_TAX_PERCENT // 100)
-    set_fons_amount(state, max(0, current_fons - consumed))
-    add_log(state, f"玛门吞噬了 {consumed} 方斯。")
-    return {
-        'type': 'popup',
-        'icon': _boss_icon(enemy),
-        'title': '玛门',
-        'message': f'玛门对富有者更加疯狂，造成伤害后吞噬了 {consumed} 方斯。',
-    }
-
-
-def current_attack(state: JsonDict) -> int:
-    _project_player_scope(state, str(state['current_actor_uid']))
-    return state['player']['attack'] + sum_runtime_effect_bonus(state, 'attack_bonus') + xiaozhi_fons_attack_bonus(state)
-
-
-def xiaozhi_fons_attack_bonus(state: JsonDict) -> int:
-    character_instance = state.get('character_instance', {})
-    if character_instance.get('definition_id') != 'xiaozhi':
-        return 0
-    return min(XIAOZHI_FONS_ATTACK_CAP, fons_amount(state) // XIAOZHI_FONS_ATTACK_STEP)
-
-
-def fons_amount(state: JsonDict) -> int:
-    for item_instance in state.get('hand', []):
-        if item_instance.get('definition_id') == 'fons':
-            return int(item_instance.get('amount', 0))
-    return int(state.get('player', {}).get('fons_amount', 0))
-
-
-def set_fons_amount(state: JsonDict, amount: int) -> None:
-    state.setdefault('player', {})['fons_amount'] = max(0, int(amount))
-    for item_instance in state.get('hand', []):
-        if item_instance.get('definition_id') == 'fons':
-            item_instance['amount'] = int(state['player']['fons_amount'])
-            break
-
-
-def current_defense(state: JsonDict) -> int:
-    _project_player_scope(state, str(state['current_actor_uid']))
-    return state['player']['defense'] + sum_runtime_effect_bonus(state, 'defense_bonus')
-
-
-def current_identification_level(state: JsonDict) -> int:
-    _project_player_scope(state, str(state['current_actor_uid']))
-    base_level = int(state['player'].get('identification_level', state['character_instance'].get('identification_level', 1)))
-    bonus_level = sum_runtime_effect_bonus(state, 'identification_level_bonus')
-    return max(MIN_IDENTIFICATION_LEVEL, min(MAX_IDENTIFICATION_LEVEL, base_level + bonus_level))
-
-
-def identification_range_cells(state: JsonDict, x: int | None = None, y: int | None = None) -> list[JsonDict]:
-    actor = state['player']
-    origin_x = int(actor['x'] if x is None else x)
-    origin_y = int(actor['y'] if y is None else y)
-    level = current_identification_level(state)
-    cells = []
-    for dx, dy in IDENTIFICATION_OFFSETS[level]:
-        cell_x = origin_x + dx
-        cell_y = origin_y + dy
-        if not in_current_layer_bounds(state, cell_x, cell_y):
-            continue
-        cells.append({
-            'x': cell_x,
-            'y': cell_y,
-            'layer': current_map_layer(state),
-        })
-    return cells
-
-
-def is_adjacent_to_boss(state: JsonDict, x: int, y: int) -> bool:
-    return any(
-        _is_on_current_layer(state, pos) and manhattan(x, y, pos['x'], pos['y']) == 1
-        for pos in state['map']['boss']['positions']
-        if state['map']['boss']['hp'] > 0
-    )
-
-
-def manhattan(x1: int, y1: int, x2: int, y2: int) -> int:
-    return abs(x1 - x2) + abs(y1 - y2)
-
-
-def roll_blue_dice() -> JsonDict:
-    return {
-        'a': random.randint(1, 6),
-        'b': random.randint(1, 6),
-    }
-
-
-def pending_dice_values(state: JsonDict) -> tuple[int, int] | None:
-    pending_dice = state.get('pending_dice')
-    if isinstance(pending_dice, dict):
-        try:
-            return (
-                max(0, int(pending_dice.get('a', pending_dice.get('vertical', 0)))),
-                max(0, int(pending_dice.get('b', pending_dice.get('horizontal', 0)))),
-            )
-        except (TypeError, ValueError):
-            return None
-    if isinstance(pending_dice, (list, tuple)) and len(pending_dice) >= 2:
-        try:
-            return max(0, int(pending_dice[0])), max(0, int(pending_dice[1]))
-        except (TypeError, ValueError):
-            return None
-    return _dice_pair_from_legacy_die(state.get('pending_die'))
-
-
-def set_pending_dice(state: JsonDict, die_a: int | None, die_b: int | None) -> None:
-    if die_a is None or die_b is None:
-        state['pending_dice'] = None
-        state['pending_die'] = None
-        return
-    dice = {
-        'a': max(0, int(die_a)),
-        'b': max(0, int(die_b)),
-    }
-    state['pending_dice'] = dice
-    state['pending_die'] = max(dice['a'], dice['b'])
-
-
-def _dice_pair_from_legacy_die(value: object) -> tuple[int, int] | None:
-    if value is None:
-        return None
-    try:
-        die = max(0, int(value))
-    except (TypeError, ValueError):
-        return None
-    return die, die
-
-
-def _finish_player_turn(state: JsonDict) -> None:
-    state['phase'] = 'completed'
-    state['acted_this_turn'] = True
-    _capture_player_scope(state)
-    if _all_active_players_completed(state):
-        _advance_shared_turn(state)
-
-
-def _advance_shared_turn(state: JsonDict) -> None:
-    # 共享回合只在所有存活玩家都完成行动后统一推进。
-    current_actor_uid = str(state['current_actor_uid'])
-    _project_player_scope(state, current_actor_uid)
-    run_phase_sequence(state, TURN_CLOSING_SEQUENCE, lambda event_name: {
-        'turn': state['turn'],
-        'phase': state['phase'],
-        'event': event_name.value,
-    })
-    _capture_player_scope(state)
-    _settle_identification_combos(state)
-    state['turn'] += 1
-    _start_shared_turn(state, reason='turn_end')
-
-
-def _start_shared_turn(state: JsonDict, reason: str) -> None:
-    # 共享回合开始时，为每个仍存活的玩家分别重置并自动掷骰。
-    _ensure(state['status'] == 'playing', '只有进行中的对局可以自动掷骰。')
-    original_actor_uid = str(state['current_actor_uid'])
-    for actor_uid, player_scope in state['players'].items():
-        if player_scope.get('defeated', False) or player_scope['player']['hp'] <= 0:
-            player_scope['acted_this_turn'] = True
-            player_scope['phase'] = 'defeat'
-            player_scope['pending_die'] = None
-            player_scope['pending_dice'] = None
-            continue
-        _project_player_scope(state, actor_uid)
-        set_pending_dice(state, None, None)
-        state['phase'] = 'dice'
-        state['has_played_item'] = False
-        state['route_hint'] = DEFAULT_ROUTE_HINT
-        state['acted_this_turn'] = False
-        reset_turn_flags(state['player'])
-        run_phase_sequence(
-            state,
-            TURN_OPENING_SEQUENCE,
-            lambda event_name: _build_turn_opening_payload(state, event_name, reason),
-            lambda event_name: _build_turn_opening_default_handler(state, event_name),
-        )
-        _capture_player_scope(state)
-    _project_player_scope(state, original_actor_uid if original_actor_uid in state['players'] else state['room']['member_order'][0])
-
-
-def _build_turn_opening_payload(state: JsonDict, event_name: GameEvent, reason: str) -> JsonDict:
-    # 阶段事件的基础入参由引擎统一组装，默认行为则由 default handler 承担。
-    payload = {
-        'turn': state['turn'],
-        'reason': reason,
-        'die': state['pending_die'],
-        'dice': state.get('pending_dice'),
-    }
-    if event_name == GameEvent.TURN_BEGIN:
-        payload.pop('die')
-        payload.pop('dice')
-    return payload
-
-
-def _settle_identification_combos(state: JsonDict) -> None:
-    for player_scope in state.get('players', {}).values():
-        settle_combo_for_turn(player_scope.setdefault('player', {}))
-
-
-def _build_turn_opening_default_handler(state: JsonDict, event_name: GameEvent) -> EventHook | None:
-    if event_name == GameEvent.TURN_BEGIN:
-        return build_scoped_default_handler(state, _default_turn_begin)
-    if event_name == GameEvent.DICE_ROLLED:
-        return build_scoped_default_handler(state, _default_dice_rolled)
-    if event_name == GameEvent.ACTION_PHASE_BEGIN:
-        return build_scoped_default_handler(state, _default_action_phase_begin)
-    return None
-
-
-def build_scoped_default_handler(
-    state: JsonDict,
-    handler: Callable[[EventContext, JsonDict], None],
-) -> EventHook:
-    def scoped_handler(context: EventContext) -> None:
-        handler(context, state)
-
-    return scoped_handler
-
-
-def _default_dice_rolled(context: EventContext, state: JsonDict) -> None:
-    # 掷骰是引擎默认行为；若未来存在 replace hook，可由内容层显式改写。
-    dice = roll_blue_dice()
-    set_pending_dice(state, dice['a'], dice['b'])
-    add_log(state, f"第 {state['turn']} 回合自动掷出蓝骰 {dice['a']} / {dice['b']}。")
-    context.payload['die'] = state['pending_die']
-    context.payload['dice'] = state['pending_dice']
-
-
-def _default_action_phase_begin(context: EventContext, state: JsonDict) -> None:
-    # 行动阶段默认会切换 phase 并重置本回合道具使用标记。
-    state['phase'] = 'action'
-    state['has_played_item'] = False
-    context.payload['die'] = state['pending_die']
-    context.payload['dice'] = state.get('pending_dice')
-
-
-def _default_turn_begin(context: EventContext, state: JsonDict) -> None:
-    context.payload['turn'] = state['turn']
-    add_log(state, f"第 {state['turn']} 回合开始。")
-
-
-def _default_move_phase_begin(context: EventContext, state: JsonDict) -> None:
-    state['phase'] = 'movement'
-    direction = str(context.payload.get('direction', 'unknown'))
-    add_log(state, f"开始向 {DIRECTION_LABELS.get(direction, direction)} 移动，共 {context.payload.get('steps', 0)} 步。")
-
-
-def build_board_overlay(state: JsonDict) -> JsonDict:
-    width, height = current_map_dimensions(state)
-    overlays = []
-    for tile in state['map']['tiles']:
-        if not _is_on_current_layer(state, tile):
-            continue
-        if not _tile_has_fog_visible_cell(state, tile):
-            continue
-        if tile.get('hidden_zone') and not state['map'].get('hidden_room_revealed') and tile.get('object_id') != 'hidden_door':
-            continue
-        object_id = resolve_map_object_id(tile)
-        display_type = tile['type']
-        if tile['type'] == 'chest' and tile.get('opened'):
-            display_type = 'floor'
-        if tile['type'] == 'event' and tile.get('resolved'):
-            display_type = 'floor'
-        if object_id in {'safe', 'large_safe'} and tile.get('opened'):
-            display_type = 'floor'
-        if tile['type'] == 'loot_item' and tile.get('collected'):
-            display_type = 'floor'
-        if tile['type'] in {'wall', 'boss_tile'}:
-            display_type = 'floor'
-        if display_type != 'floor':
-            map_object = get_map_object(object_id) or {}
-            if map_object.get('hidden_overlay'):
-                continue
-            entity_type = 'turn_belt' if is_turn_belt_tile(tile) else tile['type']
-            overlay = _tile_overlay(tile, width, height, _tile_overlay_icon(tile, map_object), get_map_object_tooltip(tile), entity_type, current_map_layer(state))
-            direction = turn_belt_direction_for_tile(tile) or map_object.get('direction') or tile.get('direction')
-            if direction:
-                overlay['direction'] = direction
-            overlay['object_id'] = object_id
-            overlay['tags'] = map_object_tags(map_object)
-            overlays.append(overlay)
-    for monster in state['map']['monsters']:
-        if (
-            _is_on_current_layer(state, monster)
-            and monster['hp'] > 0
-            and not monster.get('captured')
-            and not is_hidden_entity(state, monster)
-            and not is_fog_hidden_for_current_player(state, int(monster['x']), int(monster['y']))
-        ):
-            overlays.append(_overlay(monster['x'], monster['y'], width, height, _monster_icon(monster), f"{monster['name']}：HP {monster['hp']}/{monster['max_hp']}，攻击 {monster['attack']}，防御 {monster['defense']}，射程 {monster['range']}", 'monster', current_map_layer(state)))
-    boss = state['map']['boss']
-    boss_positions = [
-        pos
-        for pos in boss['positions']
-        if (
-            _is_on_current_layer(state, pos)
-            and not is_hidden_entity(state, pos)
-            and not is_fog_hidden_for_current_player(state, int(pos['x']), int(pos['y']))
-        )
-    ]
-    if boss['hp'] > 0 and boss_positions:
-        overlays.append(_area_overlay(
-            boss_positions,
-            width,
-            height,
-            _boss_icon(boss),
-            f"{boss['name']}：HP {boss['hp']}/{boss['max_hp']}，攻击 {boss['attack']}，防御 {boss['defense']}",
-            'boss',
-        ))
-    for player_scope in state['players'].values():
-        profile = player_scope['profile']
-        player_state = player_scope['player']
-        if (
-            profile['player_uid'] != state['current_actor_uid']
-            and is_fog_hidden_for_current_player(state, int(player_state['x']), int(player_state['y']))
-        ):
-            continue
-        character_instance = player_scope.get('character_instance', {})
-        player_overlay = _overlay(
-            player_state['x'],
-            player_state['y'],
-            width,
-            height,
-            character_instance.get('avatar_image') or ICONS['player'],
-            f"{profile['nickname']}：第 {current_map_layer(state)} 层 ({player_state['x']}, {player_state['y']})，HP {player_state['hp']}/{player_state['max_hp']}",
-            'player',
-            current_map_layer(state),
-        )
-        player_overlay['player_uid'] = profile['player_uid']
-        player_overlay['is_current_player'] = profile['player_uid'] == state['current_actor_uid']
-        player_overlay['identification_level'] = int(player_state.get('identification_level', 1))
-        overlays.append(player_overlay)
-    return {
-        'width': width,
-        'height': height,
-        'current_layer': current_map_layer(state),
-        'total_layers': int(state['map'].get('total_layers', 1)),
-        'layers': state['map'].get('layers', []),
-        'background_image': map_layer_background_image(state['map'], current_map_layer(state)),
-        'icons': overlays,
-    }
-
-
-def _tile_overlay_icon(tile: JsonDict, map_object: JsonDict) -> str:
-    if tile.get('type') == 'loot_item':
-        return str(tile.get('loot', {}).get('icon', 'event'))
-    return str(map_object.get('icon', ICONS.get(tile.get('type'), 'event')))
-
-
-def _overlay(x: int, y: int, width: int, height: int, icon: str, tooltip: str, entity_type: str, layer: int = 1) -> JsonDict:
-    return {
-        'x': x,
-        'y': y,
-        'layer': layer,
-        'left_percent': ((x + 0.5) / width) * 100,
-        'top_percent': ((y + 0.5) / height) * 100,
-        'width_percent': (1 / width) * 100,
-        'height_percent': (1 / height) * 100,
-        'icon': icon,
-        'tooltip': tooltip,
-        'entity_type': entity_type,
-    }
-
-
-def _tile_overlay(tile: JsonDict, width: int, height: int, icon: str, tooltip: str, entity_type: str, layer: int = 1) -> JsonDict:
-    tile_width = max(1, int(tile.get('width', 1) or 1))
-    tile_height = max(1, int(tile.get('height', 1) or 1))
-    return {
-        'x': tile['x'],
-        'y': tile['y'],
-        'layer': layer,
-        'left_percent': ((tile['x'] + (tile_width / 2)) / width) * 100,
-        'top_percent': ((tile['y'] + (tile_height / 2)) / height) * 100,
-        'width_percent': (tile_width / width) * 100,
-        'height_percent': (tile_height / height) * 100,
-        'icon': icon,
-        'tooltip': tooltip,
-        'entity_type': entity_type,
-    }
-
-
-def map_object_tags(map_object: JsonDict) -> list[str]:
-    tags = [str(tag) for tag in map_object.get('tags', []) if str(tag)]
-    if (
-        map_object.get('identify_on_pass')
-        or GameEvent.IDENTIFY.value in map_object.get('event_hooks', {})
-    ) and '可鉴别' not in tags:
-        tags.append('可鉴别')
-    return tags
-
-
-def _area_overlay(positions: list[JsonDict], width: int, height: int, icon: str, tooltip: str, entity_type: str) -> JsonDict:
-    min_x = min(pos['x'] for pos in positions)
-    max_x = max(pos['x'] for pos in positions)
-    min_y = min(pos['y'] for pos in positions)
-    max_y = max(pos['y'] for pos in positions)
-    return {
-        'x': min_x,
-        'y': min_y,
-        'layer': int(positions[0].get('layer', 1)),
-        'left_percent': ((min_x + max_x + 1) / 2 / width) * 100,
-        'top_percent': ((min_y + max_y + 1) / 2 / height) * 100,
-        'width_percent': ((max_x - min_x + 1) / width) * 100,
-        'height_percent': ((max_y - min_y + 1) / height) * 100,
-        'icon': icon,
-        'tooltip': tooltip,
-        'entity_type': entity_type,
-    }
-
-
-def _find_item_instance(collection: list[JsonDict], instance_id: str) -> JsonDict | None:
-    for item_instance in collection:
-        if item_instance['instance_id'] == instance_id:
-            return item_instance
-    return None
-
-
-def _remove_item_instance(collection: list[JsonDict], instance_id: str) -> JsonDict | None:
-    for index, item_instance in enumerate(collection):
-        if item_instance['instance_id'] == instance_id:
-            return collection.pop(index)
-    return None
-
-
-def _set_item_zone(state: JsonDict, item_instance: JsonDict, zone_name: str, reason: str, emit_event: bool = True) -> None:
-    previous_zone = item_instance.get('zone')
-    item_instance['zone'] = zone_name
-    _reconcile_item_zone_effects(state, item_instance)
-    if emit_event and previous_zone != zone_name:
-        dispatch_event(state, GameEvent.ITEM_ZONE_CHANGED, {
-            'item_instance_id': item_instance['instance_id'],
-            'definition_id': item_instance['definition_id'],
-            'from_zone': previous_zone,
-            'to_zone': zone_name,
-            'reason': reason,
-            'target_instance_id': item_instance['instance_id'],
-        })
-
-
-def _initialize_item_zones(state: JsonDict, emit_initial_events: bool) -> None:
-    original_actor_uid = str(state['current_actor_uid'])
-    for actor_uid in state['players']:
-        _project_player_scope(state, actor_uid)
-        for item_instance in state.get('hand', []):
-            _set_item_zone(state, item_instance, 'hand', reason='initial_place', emit_event=emit_initial_events)
-        for item_instance in state.get('discard_pile', []):
-            _set_item_zone(state, item_instance, 'discard_pile', reason='restore_zone', emit_event=False)
-        _capture_player_scope(state)
-    _project_player_scope(state, original_actor_uid)
-
-
-def _reconcile_item_zone_effects(state: JsonDict, item_instance: JsonDict) -> None:
-    item_definition = get_item(item_instance['definition_id']) or {}
-    zone_effects = item_definition.get('zone_effects', {})
-    if not zone_effects:
-        _refresh_zone_derived_state(state)
-        return
-    current_zone = item_instance.get('zone')
-    active_effect_ids = set(zone_effects.get(current_zone, []))
-    all_effect_ids = {effect_id for effect_ids in zone_effects.values() for effect_id in effect_ids}
-    for effect_id in all_effect_ids:
-        if effect_id in active_effect_ids:
-            _ensure_item_zone_effect_registered(state, item_instance, item_definition, effect_id)
-            continue
-        remove_runtime_effect_by_source(
-            state,
-            definition_type='item',
-            definition_id=item_definition['id'],
-            effect_id=effect_id,
-            source_instance_id=item_instance['instance_id'],
-        )
-    _refresh_zone_derived_state(state)
-
-
-def _ensure_item_zone_effect_registered(
-    state: JsonDict,
-    item_instance: JsonDict,
-    item_definition: JsonDict,
-    effect_id: str,
-) -> None:
-    existing_effect = find_runtime_effect_by_source(
-        state,
-        definition_type='item',
-        definition_id=item_definition['id'],
-        effect_id=effect_id,
-        source_instance_id=item_instance['instance_id'],
-    )
-    if existing_effect is not None:
-        return
-    runtime_effect = item_definition.get('runtime_effects', {}).get(effect_id, {})
-    register_runtime_effect(state, build_runtime_effect(
-        definition_type='item',
-        definition_id=item_definition['id'],
-        effect_id=effect_id,
-        source_instance_id=item_instance['instance_id'],
-        data=runtime_effect.get('initial_data', {}),
-    ))
-
-
-def _refresh_zone_derived_state(state: JsonDict) -> None:
-    # 某些区域效果会驱动 UI 提示等派生状态；这些值应由当前激活效果统一回推。
-    state['route_hint'] = DEFAULT_ROUTE_HINT
-    for effect in reversed(state.get('active_effects', [])):
-        route_hint = effect.get('data', {}).get('route_hint')
-        if route_hint:
-            state['route_hint'] = str(route_hint)
-            _capture_player_scope(state)
+def _consume_delay_tax(snapshot: JsonDict, side: str, location: JsonDict) -> None:
+    delay_card = _first_delay_in_location(location, side)
+    consumed_mark = _consume_location_mark(location, side, TAG_DELAY, 1)
+    consumed_surplus = 0
+    if delay_card is None and consumed_mark <= 0:
+        consumed_surplus = _consume_location_mark(location, side, TAG_SURPLUS, 1)
+    if delay_card is None and consumed_mark <= 0:
+        if consumed_surplus <= 0:
             return
-    _capture_player_scope(state)
+    if delay_card is not None and consumed_mark <= 0:
+        _remove_board_card(snapshot, side, location, delay_card)
+    opponent = _opponent_side(side)
+    owner_of_delay = opponent
+    snapshot['sides'][owner_of_delay].setdefault('combo', {})['delay_consumed_by_opponent'] = (
+        int(snapshot['sides'][owner_of_delay].setdefault('combo', {}).get('delay_consumed_by_opponent', 0)) + 1
+    )
+    mark_name = '盈蓄' if consumed_surplus else '延滞'
+    _add_log(snapshot, f"{location['name']} 的{mark_name}被触发，{_side_name(snapshot, side)} 本次置入额外消耗 1 点能量。")
+    if (
+        not consumed_surplus
+        and _has_revealed_tag(location, opponent, TAG_GENESIS)
+        and _add_generated_card_to_hand(snapshot, opponent, 'surplus_charge') is not None
+    ):
+        _add_log(snapshot, f"{location['name']} 的创生接住延滞反冲，{_side_name(snapshot, opponent)} 获得 1 张盈蓄。")
 
 
-def _build_start_log(state: JsonDict) -> str:
-    member_names = [player_scope['character_instance']['name'] for player_scope in state['players'].values()]
-    if len(member_names) == 1:
-        return f'已使用 {member_names[0]} 开始新对局。'
-    return f"房间对局开始，出战角色：{' / '.join(member_names)}。"
+def _has_revealed_tag(location: JsonDict, side: str, tag: str) -> bool:
+    return _location_mark_count(location, side, tag) > 0 or any(card.get('revealed') and tag in card.get('tags', []) for card in location['cards'][side])
 
 
-def _serialize_player_overview(player_scope: JsonDict) -> JsonDict:
-    profile = player_scope['profile']
-    player = player_scope['player']
-    return {
-        'player_uid': profile['player_uid'],
-        'nickname': profile['nickname'],
-        'seat': profile['seat'],
-        'is_host': profile['is_host'],
-        'hp': player['hp'],
-        'max_hp': player['max_hp'],
-        'identification_level': int(player.get('identification_level', 1)),
-        'x': player['x'],
-        'y': player['y'],
-        'phase': player_scope['phase'],
-        'acted_this_turn': player_scope['acted_this_turn'],
-        'defeated': player_scope.get('defeated', False),
+def _remove_board_card(snapshot: JsonDict, side: str, location: JsonDict, card: JsonDict) -> None:
+    try:
+        location['cards'][side].remove(card)
+    except ValueError:
+        return
+    card['location_id'] = None
+    card.pop('staged', None)
+    card.pop('paid_cost', None)
+    card.pop('play_sequence', None)
+    card.pop('reserved_as_material_for', None)
+    card.pop('pending_material_ids', None)
+    card.pop('selected_target_name', None)
+    card.pop('declared_card_instance_ids', None)
+    card.pop('declared_card_names', None)
+    snapshot['sides'][side].setdefault('discard', []).append(card)
+
+
+def _sweep_broken_cards(snapshot: JsonDict) -> None:
+    for location in snapshot.get('locations', []):
+        for side in SIDE_KEYS:
+            for card in list(location.get('cards', {}).get(side, [])):
+                if not card.get('revealed'):
+                    continue
+                card['computed_power'] = _raw_card_power(card) + _location_power_bonus(location, side, card)
+                if card.get('type') == CARD_TYPE_ANOMALY_ITEM and int(card.get('computed_power', 0)) <= 0:
+                    _release_material_reservations(snapshot, side, card['instance_id'])
+                    _remove_board_card(snapshot, side, location, card)
+                    _add_log(snapshot, f"{card['name']} 战力归零，破碎进入墓地。")
+                elif card.get('type') == CARD_TYPE_ESPER and int(card.get('computed_power', 0)) <= 0:
+                    if card.pop('survive_non_positive_once', None):
+                        _boost_card(card, 1 - int(card.get('computed_power', 0)), card['name'])
+                        card['computed_power'] = 1
+                        _add_log(snapshot, f"{card['name']} 抵住致命压制，保留 1 战力。")
+                        continue
+                    location['cards'][side].remove(card)
+                    _release_material_reservations(snapshot, side, card['instance_id'])
+                    _reset_esper_to_standby(snapshot, side, card)
+                    _add_log(snapshot, f"{card['name']} 战力归零，返回异能者编队。")
+
+
+def _vanish_revealed_card_if_needed(snapshot: JsonDict, side: str, location: JsonDict, card: JsonDict) -> None:
+    if not card.get('vanish_after_reveal') and 'vanish_on_reveal' not in card.get('tags', []):
+        return
+    if card not in location['cards'][side]:
+        return
+    snapshot.setdefault('action_queue', []).append({
+        'kind': 'discard_card',
+        'source_instance_id': card['instance_id'],
+        'location_id': location['id'],
+        'side': side,
+        'title': f"{card['name']} 进入消耗区",
+        'subtitle': '揭示后离开战场。',
+        'card': _public_card(card, own=True),
+    })
+    _remove_board_card(snapshot, side, location, card)
+    _add_log(snapshot, f"{card['name']} 离开战场。")
+
+
+def _add_generated_card_to_hand(snapshot: JsonDict, side: str, card_id: str) -> JsonDict | None:
+    side_state = snapshot['sides'][side]
+    if len(side_state.get('hand', [])) >= MAX_HAND_SIZE:
+        return None
+    definition = get_duel_card(card_id)
+    if definition is None:
+        return None
+    token_index = int(snapshot.setdefault('token_counter', 0)) + 1
+    snapshot['token_counter'] = token_index
+    card = _card_instance(definition, side, f'generated-{side}-{snapshot.get("turn", 0)}-{token_index}')
+    side_state['hand'].append(card)
+    return card
+
+
+def _target_rule(card: JsonDict) -> JsonDict:
+    definition = get_duel_card(str(card.get('definition_id', ''))) or {}
+    return deepcopy(definition.get('target_rule') or SPECIAL_TARGET_RULES.get(str(card.get('definition_id', '')), {}) or {})
+
+
+def _clear_pending_target_for_source(snapshot: JsonDict, side: str, source_instance_id: str) -> None:
+    pending = snapshot['sides'][side].get('pending_target')
+    if pending and pending.get('source_instance_id') == source_instance_id:
+        snapshot['sides'][side]['pending_target'] = None
+
+
+def _find_target_card(
+    snapshot: JsonDict,
+    side: str,
+    source_location: JsonDict,
+    target_instance_id: str,
+    scope: str,
+) -> JsonDict:
+    candidates = _target_candidates(snapshot, side, source_location, scope)
+    for card in candidates:
+        if card['instance_id'] == target_instance_id:
+            return card
+    raise RuleValidationError('请选择合法的战场目标。')
+
+
+def _target_candidates(snapshot: JsonDict, side: str, source_location: JsonDict, scope: str) -> list[JsonDict]:
+    opponent = _opponent_side(side)
+    if scope == 'opponent_same_location':
+        return [card for card in source_location['cards'][opponent] if card.get('revealed')]
+    if scope == 'opponent_any':
+        return [
+            card
+            for location in snapshot['locations']
+            for card in location['cards'][opponent]
+            if card.get('revealed')
+        ]
+    if scope == 'ally_any':
+        return [
+            card
+            for location in snapshot['locations']
+            for card in location['cards'][side]
+            if card.get('revealed')
+        ]
+    if scope == 'ally_same_location':
+        return [card for card in source_location['cards'][side] if card.get('revealed')]
+    if scope == 'ally_item_same_location':
+        return [
+            card
+            for card in source_location['cards'][side]
+            if card.get('revealed') and card.get('type') == CARD_TYPE_ANOMALY_ITEM
+        ]
+    raise RuleValidationError('这张牌的目标规则无效。')
+
+
+def _find_card_on_board(snapshot: JsonDict, instance_id: str) -> JsonDict | None:
+    for location in snapshot['locations']:
+        for side in SIDE_KEYS:
+            for card in location['cards'][side]:
+                if card['instance_id'] == instance_id:
+                    return card
+    return None
+
+
+def _find_card_in_zone(zone: list[JsonDict], instance_id: str, error_message: str) -> JsonDict:
+    card = _find_card_in_zone_or_none(zone, instance_id)
+    if card is None:
+        raise RuleValidationError(error_message)
+    return card
+
+
+def _find_card_in_zone_or_none(zone: list[JsonDict], instance_id: str) -> JsonDict | None:
+    for card in zone:
+        if card['instance_id'] == instance_id:
+            return card
+    return None
+
+
+def _pop_card_from_zone(zone: list[JsonDict], instance_id: str, error_message: str) -> JsonDict:
+    for index, card in enumerate(zone):
+        if card['instance_id'] == instance_id:
+            return zone.pop(index)
+    raise RuleValidationError(error_message)
+
+
+def _pop_card_from_zone_or_none(zone: list[JsonDict], instance_id: str) -> JsonDict | None:
+    for index, card in enumerate(zone):
+        if card['instance_id'] == instance_id:
+            return zone.pop(index)
+    return None
+
+
+def _find_revealed_esper_on_board(snapshot: JsonDict, side: str, instance_id: str) -> tuple[JsonDict, JsonDict]:
+    for location in snapshot['locations']:
+        for card in location['cards'][side]:
+            if card['instance_id'] == instance_id and card.get('type') == CARD_TYPE_ESPER and card.get('revealed'):
+                return card, location
+    raise RuleValidationError('异能者编队或战场上没有这名可共鸣的异能者。')
+
+
+def _turn_energy(snapshot: JsonDict) -> int:
+    return min(MAX_ENERGY, int(snapshot.get('turn', 1)))
+
+
+def _energy_remaining(snapshot: JsonDict, side: str) -> int:
+    return max(0, _turn_energy(snapshot) - int(snapshot['sides'][side].get('energy_used', 0)))
+
+
+def _effective_cost(card: JsonDict) -> int:
+    return int(card.get('cost', 0)) + int(card.get('cost_modifier', 0))
+
+
+def _raw_card_power(card: JsonDict) -> int:
+    return int(card.get('base_power', 0)) + int(card.get('bonus_power', 0))
+
+
+def _reset_card_stats_from_definition(card: JsonDict) -> None:
+    definition = get_duel_card(str(card.get('definition_id', ''))) or {}
+    card['base_power'] = int(definition.get('power', card.get('base_power', 0)) or 0)
+    card['bonus_power'] = 0
+    card['computed_power'] = int(card['base_power'])
+    card['buff_sources'] = []
+
+
+def _boost_card(card: JsonDict, amount: int, source_name: str = '效果') -> None:
+    card['bonus_power'] = int(card.get('bonus_power', 0)) + int(amount)
+    card['computed_power'] = _raw_card_power(card)
+    _add_buff_source(card, source_name, int(amount))
+
+
+def _add_buff_source(card: JsonDict, source_name: str, amount: int, *, replace_key: str = '') -> None:
+    if amount == 0:
+        return
+    sources = card.setdefault('buff_sources', [])
+    normalized = {
+        'name': str(source_name or '效果'),
+        'amount': int(amount),
+        'key': str(replace_key or ''),
     }
+    if replace_key:
+        for index, source in enumerate(sources):
+            if source.get('key') == replace_key:
+                sources[index] = normalized
+                return
+    sources.append(normalized)
+    del sources[8:]
 
 
-def _project_player_scope(state: JsonDict, player_uid: str) -> None:
-    player_scope = state['players'][player_uid]
-    state['current_actor_uid'] = player_uid
-    state['character_instance'] = player_scope['character_instance']
-    state['player'] = player_scope['player']
-    state['discard_pile'] = player_scope['discard_pile']
-    state['hand'] = player_scope['hand']
-    state['active_effects'] = player_scope['active_effects']
-    state['pending_die'] = player_scope['pending_die']
-    state['pending_dice'] = player_scope.get('pending_dice')
-    state['phase'] = player_scope['phase']
-    state['has_played_item'] = player_scope['has_played_item']
-    state['route_hint'] = player_scope['route_hint']
-    state['acted_this_turn'] = player_scope['acted_this_turn']
+def _location_index(snapshot: JsonDict, location_id: str) -> int:
+    for index, location in enumerate(snapshot['locations']):
+        if location['id'] == location_id:
+            return index
+    return -1
 
 
-def _capture_player_scope(state: JsonDict) -> None:
-    player_scope = state['players'][str(state['current_actor_uid'])]
-    player_scope['pending_die'] = state['pending_die']
-    player_scope['pending_dice'] = state.get('pending_dice')
-    player_scope['phase'] = state['phase']
-    player_scope['has_played_item'] = state['has_played_item']
-    player_scope['route_hint'] = state['route_hint']
-    player_scope['acted_this_turn'] = state.get('acted_this_turn', False)
-    player_scope['active_effects'] = state.get('active_effects', [])
-    player_scope['defeated'] = state['player']['hp'] <= 0
+def _adjacent_locations(snapshot: JsonDict, index: int) -> list[JsonDict]:
+    return [
+        location
+        for current_index, location in enumerate(snapshot['locations'])
+        if abs(current_index - index) == 1
+    ]
 
 
-def _all_active_players_completed(state: JsonDict) -> bool:
-    for player_scope in state['players'].values():
-        if player_scope.get('defeated', False) or player_scope['player']['hp'] <= 0:
+def _side_name(snapshot: JsonDict, side: str) -> str:
+    return str(snapshot['sides'][side].get('nickname') or side)
+
+
+def _add_log(snapshot: JsonDict, message: str) -> None:
+    snapshot.setdefault('log', [])
+    snapshot['log'].insert(0, message)
+    del snapshot['log'][LOG_LIMIT:]
+
+
+def _new_log_entries(snapshot: JsonDict, previous_logs: list[str]) -> list[str]:
+    current_logs = list(snapshot.get('log', []))
+    if not previous_logs:
+        return current_logs
+    for index in range(len(current_logs)):
+        comparable = min(len(current_logs) - index, len(previous_logs))
+        if comparable > 0 and current_logs[index:index + comparable] == previous_logs[:comparable]:
+            return current_logs[:index]
+    return current_logs[:max(0, len(current_logs) - len(previous_logs))]
+
+
+def _reveal_effect_summary(card_name: str, log_entries: list[str]) -> str:
+    fragments: list[str] = []
+    for entry in reversed(log_entries):
+        text = str(entry or '').strip()
+        if not text:
             continue
-        if not player_scope.get('acted_this_turn', False):
-            return False
-    return True
+        for prefix in (f'{card_name} ', card_name):
+            if text.startswith(prefix):
+                text = text[len(prefix):].lstrip()
+                break
+        text = text.rstrip('。')
+        if text:
+            fragments.append(text)
+    return '；'.join(fragments)[:96]
 
 
-def _all_players_defeated(state: JsonDict) -> bool:
-    for player_scope in state['players'].values():
-        if player_scope['player']['hp'] > 0 and not player_scope.get('defeated', False):
-            return False
-    return True
+def _card_by_id() -> dict[str, JsonDict]:
+    return {card['id']: card for card in CARD_LIBRARY}
 
 
-def _ensure(condition: bool, message: str) -> None:
-    if not condition:
-        raise RuleValidationError(message)
+def _card_catalog() -> list[JsonDict]:
+    return [
+        {
+            'id': card['id'],
+            'name': card['name'],
+            'cost': card['cost'],
+            'power': card['power'],
+            'type': card.get('type', 'esper'),
+            'element': card['element'],
+            'rarity': card['rarity'],
+            'icon': card['art'],
+            'art': card['art'],
+            'description': card['description'],
+            'tags': list(card.get('tags', [])),
+            'archetype': card.get('archetype', ''),
+            'category': card.get('category', ''),
+            'attribute': card.get('attribute', ''),
+            'attribute_icon': card.get('attribute_icon', ''),
+            'material_tags': list(card.get('material_tags', [])),
+            'material_cost': int(card.get('material_cost') or 0),
+            'required_material_attribute': card.get('required_material_attribute', ''),
+            'material_requirements': deepcopy(card.get('material_requirements') or []),
+            'material_requirement_text': card.get('material_requirement_text', ''),
+            'target_rule': deepcopy(card.get('target_rule') or {}),
+        }
+        for card in CARD_LIBRARY
+    ]
+
+
+def _deck_catalog() -> list[JsonDict]:
+    return [
+        {
+            'id': deck['id'],
+            'name': deck['name'],
+            'short_name': deck.get('short_name', deck['name']),
+            'description': deck.get('description', ''),
+            'difficulty': deck.get('difficulty', ''),
+            'card_ids': list(deck.get('card_ids', [])),
+            'esper_card_ids': list(deck.get('esper_card_ids', [])),
+            'esper_count': len(deck.get('esper_card_ids', [])),
+        }
+        for deck in load_duel_decks()
+    ]
+
+
+def _leader_catalog(cards: list[JsonDict]) -> list[JsonDict]:
+    character_payloads = {character['id']: character for character in load_characters()}
+    leaders = []
+    for card in cards:
+        if card.get('type') != 'esper':
+            continue
+        character = character_payloads.get(card['id'], {})
+        leaders.append({
+            'id': card['id'],
+            'name': card['name'],
+            'max_hp': 0,
+            'attack': card['power'],
+            'defense': card.get('material_cost') or 1,
+            'identification_level': 0,
+            'portrait_image': character.get('portrait_image') or card['art'],
+            'avatar_image': character.get('avatar_image') or card['art'],
+            'passive': f"素材需求 {_esper_material_requirement_text(card)} / {card['power']} 战力。{card['description']}",
+            'exclusive_item_ids': [],
+        })
+    return leaders

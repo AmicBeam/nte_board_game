@@ -10,6 +10,10 @@ class GameEvent(str, Enum):
     ACTION_PHASE_BEGIN = 'action_phase_begin'
     ACTION_PHASE_END = 'action_phase_end'
     # 玩家主动行动
+    CARD_PLAYED = 'card_played'
+    CARD_REVEALED = 'card_revealed'
+    LOCATION_REVEALED = 'location_revealed'
+    LOCATION_SCORED = 'location_scored'
     ITEM_PLAYED = 'item_played'
     ITEM_ZONE_CHANGED = 'item_zone_changed'
     MOVE_PHASE_BEGIN = 'move_phase_begin'

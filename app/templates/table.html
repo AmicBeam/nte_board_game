@@ -1,142 +1,107 @@
 {% extends 'base.html' %}
-{% block title %}牌桌{% endblock %}
+{% block title %}异象对决{% endblock %}
 {% block body %}
-<main class="table-page">
-    <section class="glass-card table-topbar combat-topbar">
-        <div>
-            <h1>异象作战桌</h1>
-            <div class="combat-hud" id="combat-hud">
-                <span>回合 -</span>
-                <span>坐标 -/-</span>
-                <span>层数 -/-</span>
-                <span class="hud-dice">
-                    <img src="{{ url_for('static', filename='images/dice.webp') }}" alt="蓝骰A"><b>-</b>
-                    <img src="{{ url_for('static', filename='images/dice.webp') }}" alt="蓝骰B"><b>-</b>
-                </span>
+<main class="duel-page">
+    <div class="duel-round-info" id="duel-round-info" aria-label="回合信息">
+        <strong id="round-counter">第 1 回合</strong>
+        <span class="phase-chip" id="phase-chip">加载中</span>
+        <button class="secondary-btn table-log-btn" type="button" data-right-panel-view="log">日志</button>
+    </div>
+    <div class="top-action-controls" aria-label="牌桌操作">
+        <button class="secondary-btn undo-turn-btn" id="undo-turn-btn" type="button">全部撤销</button>
+        <button class="primary-btn danger-btn" id="reset-run-btn" type="button">撤退</button>
+    </div>
+    <section class="duel-layout">
+        <aside class="duel-side-panel">
+            <div class="section-title-row esper-title-row">
+                <h2>异能者编队</h2>
+                <button class="icon-btn tutorial-help-btn" data-tutorial-open="table" type="button" aria-label="打开对战手册" title="打开手册">
+                    <span aria-hidden="true">?</span>
+                    <span class="sr-only">打开对战手册</span>
+                </button>
             </div>
-        </div>
-        <div class="header-actions">
-            <button class="secondary-btn immersive-btn" id="immersive-btn" type="button" hidden>全屏横屏</button>
-            <button class="icon-btn tutorial-help-btn" data-tutorial-open="table" type="button" aria-label="打开对战手册" title="打开手册">
-                <span aria-hidden="true">?</span>
-                <span class="sr-only">打开对战手册</span>
-            </button>
-            <button class="secondary-btn" id="logout-run-btn" type="button">退出登录</button>
-            <button class="primary-btn danger-btn" id="reset-run-btn" type="button">撤退</button>
-        </div>
-    </section>
-    <section class="table-layout">
-        <div class="glass-card state-panel">
-            <div class="section-title-row">
-                <h2>战局状态</h2>
-                <span class="phase-chip" id="phase-chip">未开始</span>
-            </div>
-            <div class="stats-grid" id="stats-grid"></div>
-            <div class="cta-stack">
-                <div class="note-box">
-                    <strong>回合提示</strong>
-                    <p>每回合开始时会自动掷骰，当前点数会直接显示在状态面板中。</p>
+            <div class="esper-standby-copy" id="esper-standby-copy">拖动异能者到已有素材的区域。</div>
+            <div class="esper-standby-list" id="esper-standby-list" aria-label="异能者待命区"></div>
+        </aside>
+
+        <section class="duel-board-panel">
+            <div class="opponent-command-row">
+                <div class="opponent-nameplate">
+                    <span>对手</span>
+                    <strong id="opponent-top-name">对手</strong>
                 </div>
-                <div class="identification-panel" id="identification-panel">
-                    <div class="combo-readout" id="identification-combo">Combo 0</div>
-                    <div class="identification-exp">
-                        <div class="identification-exp-head">
-                            <span id="identification-level-label">鉴别 Lv.1</span>
-                            <span id="identification-bonus-label">经验效率 +0%</span>
-                        </div>
-                        <div class="identification-exp-bar" aria-label="鉴别经验">
-                            <i id="identification-exp-fill"></i>
-                        </div>
+                <button class="deck-zone discard-zone opponent-discard-zone deck-empty" id="opponent-discard-btn" type="button" data-discard-side="opponent" aria-label="对方消耗区"></button>
+                <div class="opponent-hand-panel">
+                    <div class="mini-section-title">
+                        <span>对手手牌</span>
+                        <strong id="opponent-hand-count">0</strong>
                     </div>
+                    <div class="opponent-hand-list" id="opponent-hand-list" aria-label="对手手牌"></div>
                 </div>
-                <label class="map-zoom-control">
-                    <span>地图缩放</span>
-                    <input id="map-zoom-slider" type="range" min="1" max="8" step="0.01" value="1">
-                </label>
-                <div class="buff-panel" id="buff-panel" aria-label="当前 Buff"></div>
+                <div class="deck-zone opponent-deck-zone deck-empty" id="opponent-deck-zone" data-public-side="opponent" aria-label="对手牌库"></div>
             </div>
-            <div class="hint-box">
-                <strong>路线提示</strong>
-                <p id="route-hint">等待加载</p>
-            </div>
-        </div>
-        <div class="glass-card board-panel">
-            <div class="section-title-row board-title-row">
-                <h2>地图</h2>
-                <p id="map-name">未加载</p>
-            </div>
-            <div class="map-stage" id="map-stage">
-                <div class="boss-hud" id="boss-hud" aria-hidden="true"></div>
-                <div class="map-stage-inner">
-                    <img id="map-background" alt="map background">
-                    <div class="map-grid-layer" id="map-grid-layer" aria-hidden="true"></div>
-                    <div class="map-range-layer" id="map-range-layer" aria-hidden="true"></div>
-                    <div class="map-preview-layer" id="map-preview-layer" aria-hidden="true"></div>
-                    <div class="map-fx-layer" id="map-fx-layer" aria-hidden="true"></div>
-                    <div class="map-overlay" id="map-overlay"></div>
+            <div class="locations-board" id="locations-board" aria-label="异象空间"></div>
+            <div class="board-action-ring">
+                <div class="initiative-sidecar" id="initiative-sidecar" aria-label="结算先手">
+                    <span>结算先手</span>
+                    <strong>待定</strong>
+                </div>
+                <div class="end-turn-stack">
+                    <span class="final-round-label" id="final-round-label" hidden>决胜回合</span>
+                    <button class="primary-btn end-turn-btn" id="end-turn-btn" type="button">结束回合</button>
+                </div>
+                <div class="energy-sidecar" id="energy-sidecar" aria-label="能量信息">
+                    <span>能量</span>
+                    <strong>0 / 0</strong>
                 </div>
             </div>
-        </div>
-        <div class="glass-card side-panel">
-            <div class="section-title-row side-title-row">
+        </section>
+
+        <aside class="duel-right-panel" id="duel-right-panel" aria-label="战况抽屉">
+            <div class="section-title-row right-panel-title-row">
                 <div>
-                    <h2 id="side-panel-title">道具</h2>
-                    <p id="side-panel-subtitle">行动阶段可用 1 个</p>
+                    <h2 id="right-panel-title">战况</h2>
+                    <p id="right-panel-subtitle">行动与资源</p>
                 </div>
-                <div class="side-toggle" aria-label="右侧面板">
-                    <button class="active" data-side-view="items" type="button">道具</button>
-                    <button data-side-view="log" type="button">日志</button>
-                </div>
+                <button class="secondary-btn copy-log-btn" id="copy-log-btn" type="button" hidden>复制</button>
             </div>
-            <div class="side-view active" id="items-side-view">
-                <div class="hand-list" id="hand-list"></div>
+            <div class="right-panel-view right-info-view" id="right-info-view">
+                <div class="right-resource-grid" id="right-resource-grid"></div>
             </div>
-            <div class="side-view" id="log-side-view">
-                <button class="secondary-btn copy-log-btn" id="copy-log-btn" type="button">复制日志</button>
+            <div class="right-panel-view right-log-view" id="right-log-view" aria-hidden="true">
                 <div class="log-list" id="log-list"></div>
             </div>
+            <div class="right-panel-view right-discard-view" id="right-discard-view" aria-hidden="true">
+                <div class="discard-list" id="discard-list"></div>
+            </div>
+        </aside>
+    </section>
+
+    <section class="hand-dock" aria-label="手牌">
+        <div class="discard-dock" aria-label="我方消耗区">
+            <button class="deck-zone discard-zone player-discard-zone deck-empty" id="player-discard-btn" type="button" data-discard-side="player" aria-label="我方消耗区"></button>
+        </div>
+        <div class="hand-rail" id="hand-list"></div>
+        <div class="deck-zone player-deck-zone deck-empty deck-count-only" id="player-deck-zone" data-public-side="player" aria-label="我方牌库"></div>
+    </section>
+
+    <section class="selection-overlay" id="selection-overlay" aria-hidden="true"></section>
+    <section class="discard-modal" id="discard-modal" aria-hidden="true">
+        <div class="discard-modal-dialog" role="dialog" aria-modal="true" aria-labelledby="discard-modal-title">
+            <div class="section-title-row right-panel-title-row">
+                <div>
+                    <h2 id="discard-modal-title">消耗区</h2>
+                    <p id="discard-modal-subtitle">已消耗卡牌</p>
+                </div>
+            </div>
+            <div class="discard-list" id="discard-modal-list"></div>
         </div>
     </section>
-    <div class="item-floating-tooltip" id="item-floating-tooltip" aria-hidden="true"></div>
-    <div class="map-floating-tooltip" id="map-floating-tooltip" aria-hidden="true"></div>
-    <div class="event-modal" id="event-modal" aria-hidden="true">
-        <div class="event-dialog" role="dialog" aria-modal="true" aria-labelledby="event-modal-title">
-            <div class="event-icon" id="event-modal-icon"></div>
-            <div class="event-copy">
-                <p class="eyebrow">事件</p>
-                <h2 id="event-modal-title">事件</h2>
-                <p id="event-modal-message">事件已触发。</p>
-            </div>
-            <button class="primary-btn" id="event-close-btn" type="button">确认</button>
-        </div>
-    </div>
-    <div class="battle-modal" id="battle-modal" aria-hidden="true">
-        <div class="battle-dialog" role="dialog" aria-modal="true" aria-labelledby="battle-modal-title">
-            <div class="battle-scene">
-                <div class="combatant hero-combatant" id="battle-player-combatant">
-                    <span class="combat-label">角色</span>
-                    <strong id="battle-player-name">当前角色</strong>
-                    <div class="battle-hp"><i id="battle-player-hp"></i></div>
-                    <small id="battle-player-detail">HP -</small>
-                    <span class="damage-pop" id="battle-player-damage"></span>
-                </div>
-                <div class="versus-mark">VS</div>
-                <div class="combatant enemy-combatant" id="battle-enemy-combatant">
-                    <span class="combat-label">敌方</span>
-                    <strong id="battle-enemy-name">敌人</strong>
-                    <div class="battle-hp enemy"><i id="battle-enemy-hp"></i></div>
-                    <small id="battle-enemy-detail">HP -</small>
-                    <span class="damage-pop enemy" id="battle-enemy-damage"></span>
-                </div>
-            </div>
-            <div class="battle-summary">
-                <p class="eyebrow">战斗结果</p>
-                <h2 id="battle-modal-title">遭遇战结算</h2>
-                <p id="battle-summary-text">战斗已结算。</p>
-            </div>
-            <button class="primary-btn" id="battle-close-btn">确认</button>
-        </div>
-    </div>
+    <div class="duel-title-banner" id="duel-title-banner" aria-hidden="true"></div>
+    <div class="effect-arrow-layer" id="effect-arrow-layer" aria-hidden="true"></div>
+    <aside class="duel-card-preview" id="card-preview" aria-hidden="true"></aside>
+    <div class="card-drag-ghost" id="card-drag-ghost" aria-hidden="true"></div>
+    <div class="duel-toast" id="duel-toast" aria-hidden="true"></div>
 </main>
 <script src="{{ url_for('static', filename='js/common.js') }}"></script>
 <script src="{{ url_for('static', filename='js/table.js') }}"></script>

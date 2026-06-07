@@ -1,0 +1,111 @@
+.codex-shell {
+    padding: 22px;
+    display: grid;
+    grid-template-rows: minmax(0, 1fr);
+    gap: 18px;
+}
+
+.codex-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 14px;
+}
+
+.codex-card {
+    position: relative;
+    min-height: 142px;
+    display: grid;
+    grid-template-columns: 86px minmax(0, 1fr);
+    gap: 14px;
+    align-items: center;
+    padding: 22px 16px 16px;
+    border-radius: var(--radius-md);
+    background: rgba(255,255,255,0.055);
+    border: 1px solid rgba(255,255,255,0.12);
+}
+
+.codex-badges {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    display: flex;
+    justify-content: flex-end;
+    flex-wrap: wrap;
+    gap: 6px;
+    max-width: calc(100% - 20px);
+    pointer-events: none;
+}
+
+.codex-badges span {
+    padding: 4px 8px;
+    border-radius: var(--radius-xs);
+    background: rgba(88,216,210,0.18);
+    border: 1px solid rgba(88,216,210,0.42);
+    color: var(--text);
+    font-size: 12px;
+    font-weight: 900;
+    line-height: 1;
+}
+
+.codex-icon {
+    width: 78px;
+    aspect-ratio: 1;
+    display: grid;
+    place-items: center;
+    border-radius: var(--radius-md);
+    background: rgba(6, 12, 20, 0.72);
+    border: 1px solid rgba(255,255,255,0.12);
+}
+
+.codex-card.rarity-n .codex-icon {
+    border-color: rgba(119, 227, 111, 0.82);
+    box-shadow: inset 0 0 0 1px rgba(119, 227, 111, 0.2), 0 0 18px rgba(119, 227, 111, 0.14);
+}
+
+.codex-card.rarity-r .codex-icon {
+    border-color: rgba(111, 168, 255, 0.86);
+    box-shadow: inset 0 0 0 1px rgba(111, 168, 255, 0.24), 0 0 18px rgba(111, 168, 255, 0.16);
+}
+
+.codex-card.rarity-sr .codex-icon {
+    border-color: rgba(184, 119, 255, 0.9);
+    box-shadow: inset 0 0 0 1px rgba(184, 119, 255, 0.28), 0 0 20px rgba(184, 119, 255, 0.2);
+}
+
+.codex-card.rarity-ur .codex-icon {
+    border-color: rgba(255, 191, 87, 0.95);
+    box-shadow: inset 0 0 0 1px rgba(255, 191, 87, 0.34), 0 0 22px rgba(255, 191, 87, 0.24);
+}
+
+.codex-icon img {
+    width: 58px;
+    height: 58px;
+    object-fit: contain;
+}
+
+.codex-icon .map-icon {
+    transform: scale(1.9);
+}
+
+.codex-copy {
+    display: grid;
+    gap: 7px;
+    min-width: 0;
+}
+
+.codex-copy .codex-type {
+    color: var(--primary);
+    font-size: 13px;
+    font-weight: 900;
+}
+
+.codex-copy h2 {
+    font-size: 24px;
+    line-height: 1.08;
+}
+
+.codex-copy p {
+    color: var(--muted);
+    font-size: 15px;
+    line-height: 1.45;
+}
