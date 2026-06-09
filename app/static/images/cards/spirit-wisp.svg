@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 448" role="img" aria-label="spirit wisp">
+  <defs>
+    <radialGradient id="glow" cx="50%" cy="42%" r="54%">
+      <stop offset="0" stop-color="#efffff"/>
+      <stop offset=".42" stop-color="#7fffe6"/>
+      <stop offset="1" stop-color="#123142"/>
+    </radialGradient>
+    <linearGradient id="bg" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0" stop-color="#0b1520"/>
+      <stop offset="1" stop-color="#142b30"/>
+    </linearGradient>
+  </defs>
+  <rect width="320" height="448" rx="28" fill="url(#bg)"/>
+  <path d="M50 356c48-28 47-86 76-116 24-25 48-28 66-65 10 38 52 62 58 108 8 65-38 107-95 107-38 0-74-14-105-34Z" fill="url(#glow)" opacity=".95"/>
+  <path d="M151 129c26 41 13 80-20 110 43-13 82-51 84-104 22 25 36 56 33 91" fill="none" stroke="#cffff8" stroke-width="8" stroke-linecap="round"/>
+  <circle cx="157" cy="279" r="28" fill="#f4fffd"/>
+  <circle cx="157" cy="279" r="76" fill="none" stroke="rgba(127,255,230,.34)" stroke-width="14"/>
+</svg>

@@ -6,7 +6,7 @@
         <div>
             <p class="eyebrow">图鉴</p>
             <h1>粉爪档案库</h1>
-            <p class="subtle" id="codex-map-summary">正在读取地图资料。</p>
+            <p class="subtle" id="codex-map-summary">正在读取异象资料。</p>
         </div>
         <div class="header-actions">
             <a class="secondary-btn" href="{{ url_for('main.home') }}">返回主界面</a>
@@ -14,12 +14,6 @@
         </div>
     </section>
     <section class="glass-card codex-shell">
-        <div class="codex-tabs" aria-label="图鉴分类">
-            <button class="active" data-codex-tab="objects" type="button">地图道具</button>
-            <button data-codex-tab="items" type="button">道具</button>
-            <button data-codex-tab="loot" type="button">粉爪大劫案</button>
-            <button data-codex-tab="enemies" type="button">敌人</button>
-        </div>
         <div class="codex-grid" id="codex-grid"></div>
     </section>
 </main>

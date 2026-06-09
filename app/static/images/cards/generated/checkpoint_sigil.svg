@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 448" role="img">
+  <title>checkpoint_sigil</title>
+  <defs>
+    <linearGradient id="g2" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#071719"/>
+      <stop offset="0.52" stop-color="#143b45"/>
+      <stop offset="1" stop-color="#070912"/>
+    </linearGradient>
+    <pattern id="p2" width="20" height="20" patternUnits="userSpaceOnUse">
+      <path d="M0 20L20 0" stroke="#7de2d1" stroke-width="1.4" opacity="0.24"/>
+      <circle cx="8" cy="11" r="1.7" fill="#b5e48c" opacity="0.42"/>
+    </pattern>
+    <filter id="f2" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="7" result="blur"/>
+      <feColorMatrix in="blur" type="matrix" values="0 0 0 0 0.4 0 0 0 0 0.95 0 0 0 0 0.9 0 0 0 0.8 0"/>
+      <feBlend in="SourceGraphic"/>
+    </filter>
+  </defs>
+  <rect width="320" height="448" rx="22" fill="url(#g2)"/>
+  <rect x="12" y="12" width="296" height="424" rx="20" fill="#07111d" opacity="0.72" stroke="#7de2d1" stroke-width="3"/>
+  <rect x="28" y="30" width="264" height="286" rx="18" fill="url(#p2)" opacity="0.88"/>
+  <path d="M38 344c42-24 76-24 118 0s82 24 126 0" fill="none" stroke="#b5e48c" stroke-width="6" opacity="0.72" stroke-linecap="round"/>
+  <path d="M52 366c32-14 64-14 96 0s72 14 118 0" fill="none" stroke="#7de2d1" stroke-width="4" opacity="0.72" stroke-linecap="round"/>
+  <g filter="url(#f2)">
+  <g transform="rotate(199 160 204)" opacity="0.82">
+    <path d="M160 76l116 70v116l-116 70-116-70V146z" fill="#143b45" stroke="#7de2d1" stroke-width="10"/>
+    <path d="M160 76v256M44 146l232 116M276 146L44 262" stroke="#b5e48c" stroke-width="8" opacity="0.85"/>
+    <circle cx="160" cy="204" r="44" fill="#b5e48c" opacity="0.9"/>
+  </g>
+  </g>
+  <rect x="50" y="382" width="220" height="38" rx="12" fill="#070b13" opacity="0.74" stroke="#7de2d1" stroke-width="2"/>
+  <text x="160" y="407" fill="#f6fbff" font-family="Arial, sans-serif" font-size="15" font-weight="700" text-anchor="middle">checkpoint_sigil</text>
+</svg>

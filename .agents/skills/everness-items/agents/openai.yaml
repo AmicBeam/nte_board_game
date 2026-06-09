@@ -1,0 +1,3 @@
+display_name: Everness Items
+short_description: Fetch Everness item data, lore links, and icons.
+default_prompt: 查询 Everness 道具资料并找出可用于卡牌展开链的世界观关联。
