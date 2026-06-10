@@ -2,7 +2,22 @@ from flask import Blueprint, g, jsonify, redirect, render_template, request, url
 
 from app.auth import login_with_code, token_required
 from app.dao import is_tutorial_completed, mark_tutorial_completed, update_player_nickname, update_player_password
-from app.engine.game_service import get_catalog_payload, get_encyclopedia_payload, move_player, play_item, roll_dice, save_build
+from app.engine.game_service import (
+    cancel_target,
+    choose_cards,
+    choose_target,
+    end_turn,
+    get_catalog_payload,
+    get_encyclopedia_payload,
+    move_staged_card,
+    play_card,
+    play_esper,
+    return_staged_card,
+    retreat,
+    save_build,
+    save_build_with_starters,
+    undo_turn,
+)
 from app.errors import AppError
 from app.room_service import (
     create_or_resume_solo_room,
@@ -54,6 +69,11 @@ PRETEAM_TEAMMATES: list[dict[str, object]] = [
 @main_bp.get('/')
 def default_page():
     return redirect(url_for('main.login_page'))
+
+
+@main_bp.get('/favicon.ico')
+def favicon():
+    return redirect(url_for('static', filename='images/favicon.svg'))
 
 
 @main_bp.get('/home')
@@ -204,7 +224,18 @@ def api_encyclopedia():
 def api_save_build():
     payload = request.get_json(silent=True) or {}
     try:
-        result = save_build(g.current_player, payload.get('character_id', ''), payload.get('item_ids', []))
+        starter_ids = payload.get('starter_item_ids')
+        reserve_ids = payload.get('reserve_item_ids')
+        if starter_ids is not None or reserve_ids is not None:
+            result = save_build_with_starters(
+                g.current_player,
+                payload.get('character_id', ''),
+                starter_ids or [],
+                reserve_ids if reserve_ids is not None else payload.get('item_ids', []),
+                payload.get('esper_card_ids', []),
+            )
+        else:
+            result = save_build(g.current_player, payload.get('character_id', ''), payload.get('item_ids', []))
         return jsonify(result)
     except AppError as exc:
         return jsonify({'error': str(exc)}), 400
@@ -216,8 +247,9 @@ def api_save_build():
 @main_bp.post('/api/game/start')
 @token_required
 def api_start_game():
+    payload = request.get_json(silent=True) or {}
     try:
-        return jsonify(create_or_resume_solo_room(g.current_player))
+        return jsonify(create_or_resume_solo_room(g.current_player, payload))
     except AppError as exc:
         return jsonify({'error': str(exc)}), 400
     except Exception:
@@ -231,6 +263,8 @@ def api_game_state():
     try:
         state = get_current_room_run_state(g.current_player)
         if state is None:
+            if request.args.get('optional') == '1':
+                return jsonify({'status': 'none', 'has_active_run': False})
             return jsonify({'error': '当前没有对局，请先开始。'}), 404
         return jsonify(state)
     except AppError as exc:
@@ -240,43 +274,155 @@ def api_game_state():
         return jsonify({'error': '读取对局状态时发生异常，请稍后重试。'}), 500
 
 
-@main_bp.post('/api/game/roll')
+@main_bp.post('/api/game/play-card')
 @token_required
-def api_roll():
-    try:
-        return jsonify(roll_dice(g.current_player))
-    except AppError as exc:
-        return jsonify({'error': str(exc)}), 400
-    except Exception:
-        logger.exception('api_roll failed')
-        return jsonify({'error': '掷骰时发生异常，请稍后重试。'}), 500
-
-
-@main_bp.post('/api/game/play-item')
-@token_required
-def api_play_item():
+def api_play_card():
     payload = request.get_json(silent=True) or {}
     try:
-        declared_value = payload.get('declared_value')
-        return jsonify(play_item(g.current_player, payload.get('item_instance_id', ''), declared_value))
+        return jsonify(play_card(
+            g.current_player,
+            str(payload.get('card_instance_id', '')),
+            str(payload.get('location_id', '')),
+        ))
     except AppError as exc:
         return jsonify({'error': str(exc)}), 400
     except Exception:
-        logger.exception('api_play_item failed')
-        return jsonify({'error': '使用道具时发生异常，请稍后重试。'}), 500
+        logger.exception('api_play_card failed')
+        return jsonify({'error': '出牌时发生异常，请稍后重试。'}), 500
 
 
-@main_bp.post('/api/game/move')
+@main_bp.post('/api/game/play-esper')
 @token_required
-def api_move():
+def api_play_esper():
+    payload = request.get_json(silent=True) or {}
+    material_instance_ids = payload.get('material_instance_ids')
+    if material_instance_ids is not None and not isinstance(material_instance_ids, list):
+        material_instance_ids = []
+    try:
+        return jsonify(play_esper(
+            g.current_player,
+            str(payload.get('card_instance_id', '')),
+            str(payload.get('location_id', '')),
+            material_instance_ids,
+        ))
+    except AppError as exc:
+        return jsonify({'error': str(exc)}), 400
+    except Exception:
+        logger.exception('api_play_esper failed')
+        return jsonify({'error': '唤醒异能者时发生异常，请稍后重试。'}), 500
+
+
+@main_bp.post('/api/game/return-card')
+@token_required
+def api_return_card():
     payload = request.get_json(silent=True) or {}
     try:
-        return jsonify(move_player(g.current_player, payload.get('direction', ''), payload.get('path')))
+        return jsonify(return_staged_card(
+            g.current_player,
+            str(payload.get('card_instance_id', '')),
+        ))
     except AppError as exc:
         return jsonify({'error': str(exc)}), 400
     except Exception:
-        logger.exception('api_move failed')
-        return jsonify({'error': '移动时发生异常，请稍后重试。'}), 500
+        logger.exception('api_return_card failed')
+        return jsonify({'error': '收回卡牌时发生异常，请稍后重试。'}), 500
+
+
+@main_bp.post('/api/game/move-card')
+@token_required
+def api_move_card():
+    payload = request.get_json(silent=True) or {}
+    try:
+        return jsonify(move_staged_card(
+            g.current_player,
+            str(payload.get('card_instance_id', '')),
+            str(payload.get('location_id', '')),
+        ))
+    except AppError as exc:
+        return jsonify({'error': str(exc)}), 400
+    except Exception:
+        logger.exception('api_move_card failed')
+        return jsonify({'error': '移动卡牌时发生异常，请稍后重试。'}), 500
+
+
+@main_bp.post('/api/game/choose-target')
+@token_required
+def api_choose_target():
+    payload = request.get_json(silent=True) or {}
+    try:
+        return jsonify(choose_target(
+            g.current_player,
+            str(payload.get('target_instance_id', '')),
+        ))
+    except AppError as exc:
+        return jsonify({'error': str(exc)}), 400
+    except Exception:
+        logger.exception('api_choose_target failed')
+        return jsonify({'error': '选择目标时发生异常，请稍后重试。'}), 500
+
+
+@main_bp.post('/api/game/cancel-target')
+@token_required
+def api_cancel_target():
+    try:
+        return jsonify(cancel_target(g.current_player))
+    except AppError as exc:
+        return jsonify({'error': str(exc)}), 400
+    except Exception:
+        logger.exception('api_cancel_target failed')
+        return jsonify({'error': '取消目标时发生异常，请稍后重试。'}), 500
+
+
+@main_bp.post('/api/game/choose-cards')
+@token_required
+def api_choose_cards():
+    payload = request.get_json(silent=True) or {}
+    try:
+        return jsonify(choose_cards(
+            g.current_player,
+            payload.get('card_instance_ids', []),
+        ))
+    except AppError as exc:
+        return jsonify({'error': str(exc)}), 400
+    except Exception:
+        logger.exception('api_choose_cards failed')
+        return jsonify({'error': '选择卡牌时发生异常，请稍后重试。'}), 500
+
+
+@main_bp.post('/api/game/end-turn')
+@token_required
+def api_end_turn():
+    try:
+        return jsonify(end_turn(g.current_player))
+    except AppError as exc:
+        return jsonify({'error': str(exc)}), 400
+    except Exception:
+        logger.exception('api_end_turn failed')
+        return jsonify({'error': '结束回合时发生异常，请稍后重试。'}), 500
+
+
+@main_bp.post('/api/game/retreat')
+@token_required
+def api_retreat():
+    try:
+        return jsonify(retreat(g.current_player))
+    except AppError as exc:
+        return jsonify({'error': str(exc)}), 400
+    except Exception:
+        logger.exception('api_retreat failed')
+        return jsonify({'error': '撤退时发生异常，请稍后重试。'}), 500
+
+
+@main_bp.post('/api/game/undo-turn')
+@token_required
+def api_undo_turn():
+    try:
+        return jsonify(undo_turn(g.current_player))
+    except AppError as exc:
+        return jsonify({'error': str(exc)}), 400
+    except Exception:
+        logger.exception('api_undo_turn failed')
+        return jsonify({'error': '撤销本回合操作时发生异常，请稍后重试。'}), 500
 
 
 @main_bp.post('/api/game/reset')

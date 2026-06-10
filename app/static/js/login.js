@@ -24,7 +24,7 @@ async function login(event) {
     window.localStorage.setItem('nte_token', payload.token);
     loginFeedback.textContent = `登录成功，欢迎 ${payload.player.nickname}。`;
     try {
-      const stateResponse = await fetch('/api/game/state', {
+      const stateResponse = await fetch('/api/game/state?optional=1', {
         headers: { Authorization: `Bearer ${payload.token}`, 'X-Log-Id': nextLogId() },
       });
       const statePayload = await stateResponse.json();

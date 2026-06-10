@@ -89,6 +89,7 @@ def grant_identification_success(
 def mark_battle_step(state: 'JsonDict') -> None:
     player_state = state.setdefault('player', {})
     initialize_identification_state(player_state, int(player_state.get('identification_level', 1) or 1))
+    player_state['identification_combo'] = max(0, int(player_state.get('identification_combo', 0) or 0)) + 1
     player_state['identification_battled_this_turn'] = True
 
 

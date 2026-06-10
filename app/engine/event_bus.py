@@ -1,6 +1,6 @@
 from collections.abc import Callable
 
-from app.content.loader import get_character, get_item, get_map_object, resolve_map_object_id
+from app.content.loader import get_character, get_duel_card, get_item, get_map_object, resolve_map_object_id
 from app.engine.event_context import EventContext, EventHook, JsonDict
 from app.engine.events import REPLACEABLE_EVENTS
 from app.utils.logger import get_logger
@@ -114,6 +114,18 @@ def _collect_listeners(state: JsonDict, event_name: str, payload: JsonDict) -> l
                 'origin': 'active_effect',
                 'instance_id': effect_instance.get('instance_id'),
             })
+    for card_instance in _iter_duel_card_instances(state):
+        if target_instance_id is not None and card_instance.get('instance_id') != target_instance_id:
+            continue
+        card_definition = get_duel_card(str(card_instance.get('definition_id', ''))) or {}
+        hook_id = card_definition.get('event_hooks', {}).get(event_name)
+        if hook_id:
+            listeners.append({
+                'hook_id': _resolve_hook_payload(hook_id, 'handler'),
+                'mode': _resolve_hook_payload(hook_id, 'mode') or 'append',
+                'origin': 'duel_card',
+                'instance_id': card_instance.get('instance_id'),
+            })
     tile = payload.get('tile')
     if tile:
         object_id = payload.get('object_id') or resolve_map_object_id(tile)
@@ -127,6 +139,23 @@ def _collect_listeners(state: JsonDict, event_name: str, payload: JsonDict) -> l
                 'instance_id': object_id,
             })
     return listeners
+
+
+def _iter_duel_card_instances(state: JsonDict) -> list[JsonDict]:
+    instances: list[JsonDict] = []
+    for side_state in state.get('sides', {}).values():
+        for zone_name in ('hand', 'deck', 'discard'):
+            zone = side_state.get(zone_name, [])
+            if isinstance(zone, list):
+                instances.extend(card for card in zone if isinstance(card, dict))
+    for location in state.get('locations', []):
+        cards_by_side = location.get('cards', {})
+        if not isinstance(cards_by_side, dict):
+            continue
+        for zone in cards_by_side.values():
+            if isinstance(zone, list):
+                instances.extend(card for card in zone if isinstance(card, dict))
+    return instances
 
 
 def _run_default_handler(

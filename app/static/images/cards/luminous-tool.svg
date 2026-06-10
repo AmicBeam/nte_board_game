@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 448" role="img" aria-label="luminous anomaly tool">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#10231d"/>
+      <stop offset="0.52" stop-color="#16344a"/>
+      <stop offset="1" stop-color="#3c244e"/>
+    </linearGradient>
+    <radialGradient id="core" cx="50%" cy="42%" r="46%">
+      <stop offset="0" stop-color="#eaffbd"/>
+      <stop offset="0.45" stop-color="#58d8d2"/>
+      <stop offset="1" stop-color="#58d8d2" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="320" height="448" rx="28" fill="url(#bg)"/>
+  <path d="M40 58h240v332H40z" fill="none" stroke="#c9ffef" stroke-opacity=".24" stroke-width="3"/>
+  <circle cx="160" cy="188" r="116" fill="url(#core)"/>
+  <path d="M160 82l34 78 84 8-63 56 18 83-73-43-73 43 18-83-63-56 84-8z" fill="#fff8b0" fill-opacity=".82"/>
+  <path d="M72 348c48-28 128-28 176 0" fill="none" stroke="#58d8d2" stroke-width="12" stroke-linecap="round"/>
+  <path d="M92 372h136" stroke="#ffbf57" stroke-width="8" stroke-linecap="round"/>
+</svg>

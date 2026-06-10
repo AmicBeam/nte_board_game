@@ -105,9 +105,10 @@ def start_room_game(player: Player) -> dict:
         return start_or_resume_run_for_room(room, player)
 
 
-def create_or_resume_solo_room(player: Player) -> dict:
+def create_or_resume_solo_room(player: Player, options: dict | None = None) -> dict:
+    options = options or {}
     with atomic_transaction():
-        room = get_current_room(player, ROOM_OPEN_STATUSES | frozenset({'victory', 'defeat'}))
+        room = get_current_room(player, ROOM_OPEN_STATUSES | frozenset({'victory', 'defeat', 'draw'}))
         if room is None:
             room = create_room(player, 'solo')
             add_room_member(room, player, seat='host', is_host=True, is_ready=True)
@@ -118,7 +119,7 @@ def create_or_resume_solo_room(player: Player) -> dict:
             set_room_member_ready(room, player, True)
             if room.status == 'waiting':
                 update_room_status(room, 'ready')
-        return start_or_resume_run_for_room(room, player)
+        return start_or_resume_run_for_room(room, player, options)
 
 
 def reset_current_room_run(player: Player) -> dict:

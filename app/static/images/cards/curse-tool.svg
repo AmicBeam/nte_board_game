@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 448" role="img" aria-label="curse anomaly tool">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#190d1e"/>
+      <stop offset="0.5" stop-color="#30143c"/>
+      <stop offset="1" stop-color="#3e1928"/>
+    </linearGradient>
+  </defs>
+  <rect width="320" height="448" rx="28" fill="url(#bg)"/>
+  <path d="M160 72c58 0 106 47 106 106 0 92-106 198-106 198S54 270 54 178C54 119 102 72 160 72z" fill="#ff5aa5" fill-opacity=".14" stroke="#ff8cc5" stroke-opacity=".56" stroke-width="5"/>
+  <path d="M160 112v154M100 160c34 22 86 22 120 0M104 228c32-24 80-24 112 0" stroke="#ffd1e7" stroke-width="12" stroke-linecap="round"/>
+  <path d="M90 326l140-196M230 326L90 130" stroke="#ffbf57" stroke-opacity=".74" stroke-width="9" stroke-linecap="round"/>
+  <circle cx="160" cy="214" r="34" fill="#0a0910" stroke="#ff5aa5" stroke-width="9"/>
+</svg>

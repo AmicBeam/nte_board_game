@@ -15,7 +15,7 @@ PERMANENT_PASSWORD_EXPIRES_AT = datetime(2999, 12, 31, 23, 59, 59)
 MAX_NICKNAME_LENGTH = 8
 MAX_PASSWORD_LENGTH = 16
 ROOM_OPEN_STATUSES = frozenset({'waiting', 'ready', 'playing'})
-ROOM_VISIBLE_STATUSES = ROOM_OPEN_STATUSES | frozenset({'victory', 'defeat'})
+ROOM_VISIBLE_STATUSES = ROOM_OPEN_STATUSES | frozenset({'victory', 'defeat', 'draw'})
 TUTORIAL_SCOPES = frozenset({'home', 'build', 'table'})
 
 
@@ -134,7 +134,7 @@ def get_player_by_token(token: str) -> Player | None:
     return record.player
 
 
-def upsert_build(player: Player, character_id: str, item_ids: list[str]) -> DeckBuild:
+def upsert_build(player: Player, character_id: str, item_ids: list[str] | dict[str, Any]) -> DeckBuild:
     payload = json.dumps(item_ids, ensure_ascii=False)
     build, _ = DeckBuild.get_or_create(player=player)
     build.character_id = character_id
@@ -149,9 +149,16 @@ def get_build(player: Player) -> dict[str, Any] | None:
     build = DeckBuild.select().where(DeckBuild.player == player).first()
     if build is None:
         return None
+    raw_payload = json.loads(build.item_ids)
+    if isinstance(raw_payload, list):
+        payload: dict[str, Any] = {'item_ids': raw_payload}
+    elif isinstance(raw_payload, dict):
+        payload = raw_payload
+    else:
+        payload = {'item_ids': []}
     return {
         'character_id': build.character_id,
-        'item_ids': json.loads(build.item_ids),
+        **payload,
         'updated_at': build.updated_at.isoformat(),
     }
 

@@ -5,6 +5,17 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="icon" href="{{ url_for('static', filename='preteam/单位.jpg') }}">
     <title>异环预配队</title>
+    <script>
+        (function () {
+            try {
+                if (!window.localStorage.getItem('nte_token')) {
+                    window.location.replace("{{ url_for('main.login_page') }}");
+                }
+            } catch (error) {
+                window.location.replace("{{ url_for('main.login_page') }}");
+            }
+        }());
+    </script>
     <style>
         :root {
             color-scheme: light;
@@ -1041,10 +1052,17 @@
             return allIds.some((id) => id !== providerId && cardMeta[id]?.elem === elem);
         }
 
+        function canTriggerYiFreeDelay(allIds) {
+            const hasYi = allIds.some((id) => getCharacterKey(id) === "yi");
+            const hasLight = allIds.some((id) => cardMeta[id]?.elem === "光");
+            return hasYi && hasLight;
+        }
+
         function buildProviderReactionOptions(providerId, count, allIds) {
             if (!providerId || count <= 0) return [{ counts: {} }];
             const elem = cardMeta[providerId]?.elem;
             const charKey = getCharacterKey(providerId);
+            const yiFreeDelay = canTriggerYiFreeDelay(allIds);
             const options = [];
             const seen = new Set();
 
@@ -1058,20 +1076,27 @@
 
             if (elem === "光") {
                 if (otherHasElem(allIds, providerId, "灵")) pushCounts({ [getCreationCountField(providerId)]: count });
-                if (otherHasElem(allIds, providerId, "相")) pushCounts({ delayCount: count });
+                if (!yiFreeDelay && otherHasElem(allIds, providerId, "相")) pushCounts({ delayCount: count });
             } else if (elem === "灵") {
                 if (otherHasElem(allIds, providerId, "光")) pushCounts({ [getCreationCountField(providerId)]: count });
                 if (otherHasElem(allIds, providerId, "咒")) pushCounts({ fuwenCount: count });
             } else if (elem === "咒") {
-                if (otherHasElem(allIds, providerId, "灵")) pushCounts({ fuwenCount: count });
-                if (otherHasElem(allIds, providerId, "暗")) {
-                    pushCounts({ zhuoranCount: charKey === "baicang" ? Math.max(count, 1) : count });
+                const canTriggerFuwen = otherHasElem(allIds, providerId, "灵");
+                const canTriggerZhuoran = otherHasElem(allIds, providerId, "暗");
+                if (charKey === "baicang" && canTriggerZhuoran) {
+                    pushCounts({
+                        ...(canTriggerFuwen ? { fuwenCount: count } : {}),
+                        zhuoranCount: 1,
+                    });
+                } else {
+                    if (canTriggerFuwen) pushCounts({ fuwenCount: count });
+                    if (canTriggerZhuoran) pushCounts({ zhuoranCount: count });
                 }
             } else if (elem === "魂") {
                 if (otherHasElem(allIds, providerId, "相")) pushCounts({ jinranCount: count });
                 if (otherHasElem(allIds, providerId, "暗")) pushCounts({ anxingCount: count });
             } else if (elem === "相") {
-                if (otherHasElem(allIds, providerId, "光")) pushCounts({ delayCount: count });
+                if (!yiFreeDelay && otherHasElem(allIds, providerId, "光")) pushCounts({ delayCount: count });
                 if (otherHasElem(allIds, providerId, "魂")) pushCounts({ jinranCount: count });
             } else if (elem === "暗") {
                 if (otherHasElem(allIds, providerId, "咒")) pushCounts({ zhuoranCount: count });
@@ -1238,9 +1263,11 @@
                 }
                 qingxianDamage *= (1 + finalShixieCount * 0.3);
 
+                const hpLossDamage = hasId("fatiya", allIds) && anxingCount > 0 ? 0.3 : 0;
                 let total = personalSum + creationDamage + zhuoranDamage + anxingDamage + qingxianDamage;
                 if (mainId === "baicang") total *= (targetMode === "aoe" ? 1.10 : 1.05);
                 if (targetMode === "aoe" && hasId("zaowu", allIds)) total *= 1.05;
+                total += hpLossDamage;
                 const reactions = [];
                 if (delayCount > 0) reactions.push(`延滞 ${delayCount.toFixed(1)}次`);
                 if (creationCount > 0) reactions.push(`创生 ${creationDamage.toFixed(1)}分`);
@@ -1250,6 +1277,7 @@
                 if (anxingCount > 0) reactions.push(`黯星 ${anxingDamage.toFixed(1)}分`);
                 if (yingxuCount > 0) reactions.push(`触发${yingxuCount.toFixed(1)}次盈蓄`);
                 if (finalShixieCount > 0) reactions.push(`触发${finalShixieCount.toFixed(1)}次失谐`);
+                if (hpLossDamage > 0) reactions.push(`减血 ${hpLossDamage.toFixed(1)}分`);
                 reactions.push(`倾陷 ${qingxianDamage.toFixed(1)}分`);
 
                 const candidate = {
@@ -1258,6 +1286,7 @@
                     creationDamage,
                     zhuoranDamage,
                     anxingDamage,
+                    hpLossDamage,
                     qingxianDamage,
                     reactions,
                     buildById: loadout.buildById,
@@ -1294,8 +1323,9 @@
 
             function walkProviders(index, mergedCounts) {
                 if (index >= providerOptions.length) {
+                    const yiFreeDelay = canTriggerYiFreeDelay(allIds) ? 1 : 0;
                     const normalized = {
-                        delayCount: mergedCounts.delayCount || 0,
+                        delayCount: Math.max(mergedCounts.delayCount || 0, yiFreeDelay),
                         creationCountBase: mergedCounts.creationCountBase || 0,
                         creationCountNoMasteryDouble: mergedCounts.creationCountNoMasteryDouble || 0,
                         fuwenCount: mergedCounts.fuwenCount || 0,

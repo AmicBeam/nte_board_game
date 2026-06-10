@@ -10,6 +10,13 @@ function clearToken() {
   window.localStorage.removeItem('nte_token');
 }
 
+function redirectToLogin() {
+  clearToken();
+  if (window.location.pathname !== '/login') {
+    window.location.replace('/login');
+  }
+}
+
 function nextLogId() {
   const previous = Number(window.localStorage.getItem('nte_log_id_counter') || '0');
   const next = previous + 1;
@@ -25,9 +32,21 @@ async function apiRequest(url, options = {}) {
   }
   headers['X-Log-Id'] = nextLogId();
   const response = await fetch(url, Object.assign({}, options, { headers }));
-  const payload = await response.json();
+  let payload = {};
+  try {
+    payload = await response.json();
+  } catch (error) {
+    payload = {};
+  }
+  if (response.status === 401) {
+    redirectToLogin();
+    throw new Error('未登录或登录态已失效。');
+  }
   if (!response.ok || payload.error) {
     const logId = response.headers.get('X-Log-Id') || headers['X-Log-Id'];
+    if (String(payload.error || '').includes('token') || String(payload.error || '').includes('未登录')) {
+      redirectToLogin();
+    }
     throw new Error(`${payload.error || '请求失败'}（logId: ${logId}）`);
   }
   return payload;
@@ -35,7 +54,7 @@ async function apiRequest(url, options = {}) {
 
 function ensureLogin() {
   if (!getToken()) {
-    window.location.href = '/login';
+    redirectToLogin();
     return false;
   }
   return true;
@@ -47,10 +66,10 @@ const TUTORIAL_DEFINITIONS = {
     eyebrow: '主界面',
     pages: [
       {
-        title: '试试开启一把单人模式吧！',
+        title: '先试一把教学关',
         body: [
-          '在主界面确认当前构筑后，点击“开始对局”即可进入单人探索。',
-          '如果还没有构筑，请先进入构筑页选择角色和道具。',
+          '主界面可以直接进入新手教学关，学习构筑页起始手牌、回合自动抽牌和揭示结算顺序。',
+          '想验证套路时，选择套牌试用关，分别指定我方套牌和敌方 AI 套牌。',
         ],
       },
       {
@@ -73,15 +92,15 @@ const TUTORIAL_DEFINITIONS = {
         title: '先选择角色',
         body: [
           '欢迎游玩，本项目还没有正式的名字，可以帮忙起一个。',
-          '请在左侧角色轮盘滑动或点击，操作调整角色，先选择角色小吱吧。',
+          '请在左侧轮盘滑动或点击，先选择一位领队。',
         ],
         image: { src: '/static/images/characters/portrait/小吱.png', alt: '小吱角色立绘' },
       },
       {
-        title: '携带道具',
+        title: '携带卡牌',
         body: [
-          '右侧战术道具卡片可以点击装配或取下。',
-          '每套构筑至多携带 6 个道具，角色专属道具会自动携带。',
+          '右侧卡牌包含异能者与异象道具，可以点击装配或取下。',
+          '每套牌组携带 20 张异象道具，并单独选择最多 4 名异能者。',
         ],
       },
     ],
@@ -168,7 +187,10 @@ function ensureTutorialModal() {
           <p class="eyebrow" id="tutorial-eyebrow">手册</p>
           <h2 id="tutorial-title">教学手册</h2>
         </div>
-        <p class="tutorial-progress" id="tutorial-progress">1 / 1</p>
+        <div class="tutorial-header-actions">
+          <p class="tutorial-progress" id="tutorial-progress">1 / 1</p>
+          <button class="icon-btn tutorial-close-btn" id="tutorial-close-btn" type="button" aria-label="关闭手册" title="关闭手册">×</button>
+        </div>
       </div>
       <div class="tutorial-body" id="tutorial-body"></div>
       <div class="tutorial-footer">
@@ -186,6 +208,7 @@ function ensureTutorialModal() {
     renderTutorialModal();
   });
   modal.querySelector('#tutorial-next-btn').addEventListener('click', finishOrAdvanceTutorial);
+  modal.querySelector('#tutorial-close-btn').addEventListener('click', closeTutorialModal);
   return modal;
 }
 
@@ -253,6 +276,13 @@ async function finishOrAdvanceTutorial() {
     modal.setAttribute('aria-hidden', 'true');
     tutorialModalState = null;
   }
+}
+
+function closeTutorialModal() {
+  const modal = ensureTutorialModal();
+  modal.classList.remove('open');
+  modal.setAttribute('aria-hidden', 'true');
+  tutorialModalState = null;
 }
 
 async function initTutorialManual(scope, options = {}) {

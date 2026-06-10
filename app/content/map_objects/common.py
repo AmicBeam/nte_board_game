@@ -215,7 +215,7 @@ def _is_collectible_loot(definition_id: str) -> bool:
     from app.content.loader import get_item
 
     item_definition = get_item(definition_id) or {}
-    return str(item_definition.get('type', '')) in {'key'}
+    return bool(item_definition) and str(item_definition.get('type', '')) != 'loot'
 
 
 def add_item_to_hand(state: dict, definition_id: str, quantity: int = 1) -> dict | None:

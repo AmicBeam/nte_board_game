@@ -1,22 +1,7 @@
 const codexGrid = document.getElementById('codex-grid');
 const codexMapSummary = document.getElementById('codex-map-summary');
-const codexTabs = Array.from(document.querySelectorAll('[data-codex-tab]'));
-
-const CODEX_TYPE_LABELS = {
-  attack: '攻击',
-  currency: '货币',
-  defense: '防御',
-  dice: '骰子',
-  intel: '侦察',
-  key: '钥匙',
-  loot: '鉴别物',
-  mobility: '移动',
-  recovery: '恢复',
-  utility: '功能',
-};
 
 let codexData = null;
-let activeCodexTab = 'objects';
 
 if (ensureLogin()) {
   loadCodex();
@@ -25,8 +10,8 @@ if (ensureLogin()) {
 async function loadCodex() {
   try {
     codexData = await apiRequest('/api/encyclopedia');
-    const map = codexData.map || {};
-    codexMapSummary.textContent = `${map.name || '地图'} · 共 ${map.total_layers || 1} 层`;
+    const game = codexData.game || {};
+    codexMapSummary.textContent = game.description || '三空间异象对决资料。';
     renderCodex();
   } catch (error) {
     codexGrid.innerHTML = `<div class="empty-state">${error.message}</div>`;
@@ -37,9 +22,6 @@ function renderCodex() {
   if (!codexData) {
     return;
   }
-  codexTabs.forEach((button) => {
-    button.classList.toggle('active', button.dataset.codexTab === activeCodexTab);
-  });
   const entries = resolveCodexEntries();
   if (!entries.length) {
     codexGrid.innerHTML = '<div class="empty-state">暂无资料</div>';
@@ -59,40 +41,11 @@ function renderCodex() {
 }
 
 function resolveCodexEntries() {
-  if (activeCodexTab === 'objects') {
-    return (codexData.map_objects || []).map((entry) => ({
-      name: entry.name,
-      icon: entry.icon,
-      tag: entry.block_type || '地图物件',
-      badges: entry.tags || [],
-      description: entry.description,
-    }));
-  }
-  if (activeCodexTab === 'items') {
-    return (codexData.items || []).map((entry) => ({
-      name: entry.name,
-      icon: entry.icon,
-      tag: CODEX_TYPE_LABELS[entry.type] || '道具',
-      badges: entry.tags || [],
-      rarity: entry.rarity,
-      description: entry.description,
-    }));
-  }
-  if (activeCodexTab === 'loot') {
-    return (codexData.loot_items || []).map((entry) => ({
-      name: entry.name,
-      icon: entry.icon,
-      tag: CODEX_TYPE_LABELS[entry.type] || '道具',
-      badges: entry.tags || [],
-      rarity: entry.rarity,
-      description: entry.description,
-    }));
-  }
-  return (codexData.enemies || []).map((entry) => ({
+  return (codexData.locations || []).map((entry) => ({
     name: entry.name,
-    icon: entry.icon,
-    tag: entry.kind === 'boss' ? 'Boss' : '敌人',
-    badges: [],
+    icon: entry.art,
+    tag: `第 ${entry.reveal_turn} 回合`,
+    badges: ['异象空间'],
     description: entry.description,
   }));
 }
@@ -120,10 +73,3 @@ function isImageIcon(value) {
 function classToken(value) {
   return String(value || 'unknown').toLowerCase().replace(/[^a-z0-9_-]+/g, '-');
 }
-
-codexTabs.forEach((button) => {
-  button.addEventListener('click', () => {
-    activeCodexTab = button.dataset.codexTab;
-    renderCodex();
-  });
-});

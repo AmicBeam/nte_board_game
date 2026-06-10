@@ -6,7 +6,7 @@ from pathlib import Path
 from types import ModuleType
 from typing import Any
 
-from app.content import characters, items, map_objects, maps
+from app.content import characters, duel_cards, items, map_objects, maps
 
 
 def _load_from_package(package: ModuleType, attribute_name: str) -> list[dict[str, Any]]:
@@ -25,6 +25,30 @@ def load_characters() -> list[dict[str, Any]]:
 
 def load_items() -> list[dict[str, Any]]:
     return sorted(_load_from_package(items, 'ITEM'), key=lambda item: item['id'])
+
+
+def load_duel_cards() -> list[dict[str, Any]]:
+    return duel_cards.load_duel_cards()
+
+
+def get_duel_card(card_id: str) -> dict[str, Any] | None:
+    return duel_cards.get_duel_card(card_id)
+
+
+def load_duel_decks() -> list[dict[str, Any]]:
+    return duel_cards.load_duel_decks()
+
+
+def get_duel_deck(deck_id: str) -> dict[str, Any] | None:
+    return duel_cards.get_duel_deck(deck_id)
+
+
+def default_duel_deck_id() -> str:
+    return duel_cards.default_duel_deck_id()
+
+
+def validate_duel_deck_card_ids(card_ids: list[str]) -> tuple[bool, str]:
+    return duel_cards.validate_deck_card_ids(card_ids)
 
 
 def load_maps() -> list[dict[str, Any]]:

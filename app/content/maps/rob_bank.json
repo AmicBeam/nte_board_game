@@ -1,7 +1,7 @@
 {
   "id": "rob_bank",
   "english_name": "RobBank",
-  "version": 20,
+  "version": 21,
   "name": "粉爪大劫案",
   "background_image": "/static/images/maps/rob_bank_abandoned_city.png",
   "layer_background_images": {
@@ -16,6 +16,24 @@
       "1": 8,
       "2": 99
     }
+  },
+  "map_phase": {
+    "name": "地图阶段",
+    "current": 0,
+    "progress": 0,
+    "phase_size": 50,
+    "progress_per_turn": 1,
+    "safe_progress": 8,
+    "large_safe_progress": 18,
+    "max_phase": 4,
+    "phase_names": {
+      "0": "静默潜入",
+      "1": "警戒拉起",
+      "2": "增援入场",
+      "3": "金库封锁",
+      "4": "全面围捕"
+    },
+    "spawned_phases": []
   },
   "loot_tables": {
     "desk": [
@@ -154,6 +172,62 @@
       },
       {
         "item_id": "chips",
+        "weight": 1
+      }
+    ],
+    "enemy_phase_1": [
+      {
+        "item_id": "cash",
+        "weight": 5
+      },
+      {
+        "item_id": "phone",
+        "weight": 2
+      },
+      {
+        "item_id": "special_coin",
+        "weight": 1
+      }
+    ],
+    "enemy_phase_2": [
+      {
+        "item_id": "cash",
+        "weight": 4
+      },
+      {
+        "item_id": "gold_bar",
+        "weight": 3
+      },
+      {
+        "item_id": "special_coin",
+        "weight": 2
+      }
+    ],
+    "enemy_phase_3": [
+      {
+        "item_id": "gold_bar",
+        "weight": 4
+      },
+      {
+        "item_id": "special_coin",
+        "weight": 3
+      },
+      {
+        "item_id": "gold_bundle",
+        "weight": 2
+      }
+    ],
+    "enemy_phase_4": [
+      {
+        "item_id": "special_coin",
+        "weight": 4
+      },
+      {
+        "item_id": "gold_bundle",
+        "weight": 4
+      },
+      {
+        "item_id": "gold_chequer",
         "weight": 1
       }
     ],
@@ -302,6 +376,113 @@
       "kind": "boss"
     }
   },
+  "phase_enemy_spawns": [
+    {
+      "phase": 1,
+      "id": "phase_guard_1_left",
+      "name": "警戒摄像头",
+      "layer": 1,
+      "x": 35,
+      "y": 37,
+      "max_hp": 18,
+      "attack": 7,
+      "defense": 1,
+      "range": 3,
+      "kind": "camera",
+      "quality": "phase_1",
+      "drop_table_id": "enemy_phase_1"
+    },
+    {
+      "phase": 1,
+      "id": "phase_guard_1_right",
+      "name": "警戒摄像头",
+      "layer": 1,
+      "x": 41,
+      "y": 37,
+      "max_hp": 18,
+      "attack": 7,
+      "defense": 1,
+      "range": 3,
+      "kind": "camera",
+      "quality": "phase_1",
+      "drop_table_id": "enemy_phase_1"
+    },
+    {
+      "phase": 2,
+      "id": "phase_guard_2_left",
+      "name": "增援监控车",
+      "layer": 1,
+      "x": 31,
+      "y": 35,
+      "max_hp": 24,
+      "attack": 9,
+      "defense": 2,
+      "range": 3,
+      "kind": "camera",
+      "quality": "phase_2",
+      "drop_table_id": "enemy_phase_2"
+    },
+    {
+      "phase": 2,
+      "id": "phase_guard_2_right",
+      "name": "增援监控车",
+      "layer": 1,
+      "x": 45,
+      "y": 35,
+      "max_hp": 24,
+      "attack": 9,
+      "defense": 2,
+      "range": 3,
+      "kind": "camera",
+      "quality": "phase_2",
+      "drop_table_id": "enemy_phase_2"
+    },
+    {
+      "phase": 3,
+      "id": "phase_guard_3_left",
+      "name": "封锁巡逻机",
+      "layer": 1,
+      "x": 31,
+      "y": 40,
+      "max_hp": 32,
+      "attack": 11,
+      "defense": 3,
+      "range": 4,
+      "kind": "camera",
+      "quality": "phase_3",
+      "drop_table_id": "enemy_phase_3"
+    },
+    {
+      "phase": 3,
+      "id": "phase_guard_3_right",
+      "name": "封锁巡逻机",
+      "layer": 1,
+      "x": 45,
+      "y": 40,
+      "max_hp": 32,
+      "attack": 11,
+      "defense": 3,
+      "range": 4,
+      "kind": "camera",
+      "quality": "phase_3",
+      "drop_table_id": "enemy_phase_3"
+    },
+    {
+      "phase": 4,
+      "id": "phase_guard_4_gate",
+      "name": "围捕核心机",
+      "layer": 1,
+      "x": 38,
+      "y": 32,
+      "max_hp": 42,
+      "attack": 14,
+      "defense": 4,
+      "range": 4,
+      "kind": "camera",
+      "quality": "phase_4",
+      "drop_table_id": "enemy_phase_4"
+    }
+  ],
   "monsters": [
     {
       "id": "surveillance_camera",
