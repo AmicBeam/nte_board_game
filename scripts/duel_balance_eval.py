@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 import argparse
-import importlib
 import json
+import logging
 import random
 import sys
 from copy import deepcopy
@@ -15,6 +15,11 @@ JsonDict = dict[str, Any]
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
+
+from app.engine.flow import turn_flow
+from app.engine.rules import board_state, declarations
+from app.engine.setup import snapshot_factory
+from app.content.effects import cards as card_effects
 
 
 PAIRINGS = [
@@ -44,11 +49,17 @@ DECK_LABELS = {
 }
 
 
-def build_eval_side(game_service: Any, deck_id: str, side: str) -> JsonDict:
-    deck_payload = game_service._resolve_deck_payload(deck_id)
-    hand, deck = game_service._build_hand_and_deck_instances(deck_payload['card_ids'], side, deck_payload)
-    esper_standby = game_service._build_deck_instances(
-        game_service._esper_ids_for_deck_payload(deck_payload),
+def configure_eval_runtime() -> None:
+    logging.getLogger('nte.event_bus').setLevel(logging.WARNING)
+    for module in (turn_flow, board_state, declarations, card_effects):
+        module.LOG_LIMIT = 1000
+
+
+def build_eval_side(deck_id: str, side: str) -> JsonDict:
+    deck_payload = snapshot_factory._resolve_deck_payload(deck_id)
+    hand, deck = snapshot_factory._build_hand_and_deck_instances(deck_payload['card_ids'], side, deck_payload)
+    esper_standby = snapshot_factory._build_deck_instances(
+        snapshot_factory._esper_ids_for_deck_payload(deck_payload),
         side,
         prefix='esper',
     )
@@ -73,22 +84,22 @@ def build_eval_side(game_service: Any, deck_id: str, side: str) -> JsonDict:
     }
 
 
-def build_snapshot(game_service: Any, player_deck_id: str, opponent_deck_id: str, seed: int) -> JsonDict:
+def build_snapshot(player_deck_id: str, opponent_deck_id: str, seed: int) -> JsonDict:
     random.seed(seed)
     snapshot = {
-        'schema_version': game_service.SCHEMA_VERSION,
-        'game_id': game_service.GAME_ID,
+        'schema_version': snapshot_factory.SCHEMA_VERSION,
+        'game_id': snapshot_factory.GAME_ID,
         'mode': 'eval',
         'scenario': 'trial',
         'scenario_label': '平衡评估',
         'status': 'playing',
         'phase': 'planning',
         'turn': 1,
-        'max_turns': game_service.MAX_TURNS,
-        'locations': game_service._initial_locations(),
+        'max_turns': snapshot_factory.MAX_TURNS,
+        'locations': snapshot_factory._initial_locations(),
         'sides': {
-            game_service.SIDE_A: build_eval_side(game_service, player_deck_id, game_service.SIDE_A),
-            game_service.SIDE_B: build_eval_side(game_service, opponent_deck_id, game_service.SIDE_B),
+            turn_flow.SIDE_A: build_eval_side(player_deck_id, turn_flow.SIDE_A),
+            turn_flow.SIDE_B: build_eval_side(opponent_deck_id, turn_flow.SIDE_B),
         },
         'winner_side': None,
         'log': [],
@@ -96,38 +107,37 @@ def build_snapshot(game_service: Any, player_deck_id: str, opponent_deck_id: str
         'banner_queue': [],
         'play_sequence_counter': 0,
     }
-    game_service._reveal_locations_for_turn(snapshot)
-    game_service._sync_planning_phase(snapshot)
-    game_service._recompute_scores(snapshot)
-    game_service._lock_settlement_initiative(snapshot, emit_action=False)
-    game_service._add_log(snapshot, '平衡评估对局开始。')
+    turn_flow._reveal_locations_for_turn(snapshot)
+    turn_flow._sync_planning_phase(snapshot)
+    turn_flow._recompute_scores(snapshot)
+    turn_flow._lock_settlement_initiative(snapshot, emit_action=False)
+    turn_flow._add_log(snapshot, '平衡评估对局开始。')
     return snapshot
 
 
-def resolve_choices(game_service: Any, snapshot: JsonDict) -> None:
-    for side in game_service.SIDE_KEYS:
-        game_service._resolve_ai_pending_choices(snapshot, side)
-    game_service._sync_planning_phase(snapshot)
+def resolve_choices(snapshot: JsonDict) -> None:
+    for side in turn_flow.SIDE_KEYS:
+        turn_flow._resolve_ai_pending_choices(snapshot, side)
+    turn_flow._sync_planning_phase(snapshot)
 
 
-def run_match(game_service: Any, player_deck_id: str, opponent_deck_id: str, seed: int) -> JsonDict:
-    snapshot = build_snapshot(game_service, player_deck_id, opponent_deck_id, seed)
+def run_match(player_deck_id: str, opponent_deck_id: str, seed: int) -> JsonDict:
+    snapshot = build_snapshot(player_deck_id, opponent_deck_id, seed)
     turn_summaries: list[JsonDict] = []
     while snapshot['status'] == 'playing':
-        resolve_choices(game_service, snapshot)
+        resolve_choices(snapshot)
         turn_before = snapshot['turn']
-        log_start = len(snapshot.get('log', []))
-        for side in game_service.SIDE_KEYS:
-            game_service._run_ai_turn(snapshot, side)
+        previous_logs = list(snapshot.get('log', []))
+        for side in turn_flow.SIDE_KEYS:
+            turn_flow._run_ai_turn(snapshot, side)
             snapshot['sides'][side]['ended_turn'] = True
-        game_service._resolve_turn(snapshot)
-        new_count = max(0, len(snapshot.get('log', [])) - log_start)
-        new_logs = snapshot.get('log', [])[:new_count]
+        turn_flow._resolve_turn(snapshot)
+        new_logs = turn_flow._new_log_entries(snapshot, previous_logs)
         turn_summaries.append({
             'turn': turn_before,
             'logs': new_logs,
-            'player_power': snapshot['locations'][0]['power'][game_service.SIDE_A],
-            'opponent_power': snapshot['locations'][0]['power'][game_service.SIDE_B],
+            'player_power': snapshot['locations'][0]['power'][turn_flow.SIDE_A],
+            'opponent_power': snapshot['locations'][0]['power'][turn_flow.SIDE_B],
         })
     return {
         'player_deck_id': player_deck_id,
@@ -136,20 +146,22 @@ def run_match(game_service: Any, player_deck_id: str, opponent_deck_id: str, see
         'status': snapshot.get('status'),
         'battlefield': snapshot['locations'][0].get('name', ''),
         'final_power': {
-            'player': snapshot['locations'][0]['power'][game_service.SIDE_A],
-            'opponent': snapshot['locations'][0]['power'][game_service.SIDE_B],
+            'player': snapshot['locations'][0]['power'][turn_flow.SIDE_A],
+            'opponent': snapshot['locations'][0]['power'][turn_flow.SIDE_B],
         },
-        'metrics': collect_metrics(game_service, snapshot, turn_summaries),
+        'metrics': collect_metrics(snapshot, turn_summaries),
         'turns': turn_summaries,
         'log_tail': snapshot.get('log', [])[-20:],
     }
 
 
-def collect_metrics(game_service: Any, snapshot: JsonDict, turn_summaries: list[JsonDict]) -> JsonDict:
-    all_logs = snapshot.get('log', [])
+def collect_metrics(snapshot: JsonDict, turn_summaries: list[JsonDict]) -> JsonDict:
+    all_logs = [line for turn in turn_summaries for line in turn.get('logs', [])]
+    if not all_logs:
+        all_logs = snapshot.get('log', [])
     joined = '\n'.join(all_logs)
     side_metrics = {}
-    for side in game_service.SIDE_KEYS:
+    for side in turn_flow.SIDE_KEYS:
         side_state = snapshot['sides'][side]
         nickname = side_state['nickname']
         board_cards = [
@@ -158,7 +170,7 @@ def collect_metrics(game_service: Any, snapshot: JsonDict, turn_summaries: list[
             for card in location['cards'][side]
         ]
         revealed_cards = [card for card in board_cards if card.get('revealed')]
-        revealed_espers = [card for card in revealed_cards if card.get('type') == game_service.CARD_TYPE_ESPER]
+        revealed_espers = [card for card in revealed_cards if card.get('type') == turn_flow.CARD_TYPE_ESPER]
         esper_names = {
             str(card.get('name'))
             for card in [
@@ -166,7 +178,7 @@ def collect_metrics(game_service: Any, snapshot: JsonDict, turn_summaries: list[
                 *side_state.get('esper_standby', []),
                 *side_state.get('discard', []),
             ]
-            if card.get('type') == game_service.CARD_TYPE_ESPER and card.get('name')
+            if card.get('type') == turn_flow.CARD_TYPE_ESPER and card.get('name')
         }
         side_logs = [line for line in all_logs if nickname in line]
         successful_esper_reveals = sum(
@@ -253,13 +265,10 @@ def main() -> None:
     parser.add_argument('--json', action='store_true')
     parser.add_argument('--basic', action='store_true')
     args = parser.parse_args()
-    game_service = importlib.import_module('app.engine.game_service')
-    duel_cards = importlib.import_module('app.content.duel_cards')
-    game_service.LOG_LIMIT = 1000
-    duel_cards.LOG_LIMIT = 1000
+    configure_eval_runtime()
     pairings = BASIC_PAIRINGS if args.basic else PAIRINGS
     matches = [
-        run_match(game_service, player_deck_id, opponent_deck_id, args.seed + index)
+        run_match(player_deck_id, opponent_deck_id, args.seed + index)
         for index, (player_deck_id, opponent_deck_id) in enumerate(pairings)
     ]
     result = summarize(matches)

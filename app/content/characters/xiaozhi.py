@@ -1,37 +1,41 @@
 from typing import TYPE_CHECKING
 
-from app.content.characters.common import add_character_log
-from app.content.items.common import add_fons
+from app.content.effects import *
 from app.engine.events import GameEvent
 
 if TYPE_CHECKING:
     from app.engine.event_context import EventContext
 
 
-def xiaozhi_damage_applied(context: 'EventContext') -> None:
-    if context.payload.get('source_type') != 'player':
-        return
-    if context.payload.get('target_type') != 'enemy':
-        return
-    final_damage = int(context.payload.get('final_damage', 0))
-    if final_damage <= 0:
-        return
-    gained = final_damage * 100
-    total = add_fons(context.state, gained)
-    add_character_log(context, f'小吱造成 {final_damage} 点伤害，获得 {gained} 方斯。当前方斯：{total}。')
+def xiaozhi_surplus_link(context: 'EventContext') -> None:
+    side = str(context.payload['side'])
+    count = 2 if _count_hand_tag(context.state, side, TAG_SURPLUS) > 0 else 1
+    added = _add_generated_card_to_hand(context, 'surplus_fons', count=count)
+    _add_log(context.state, f"{context.payload['card']['name']} 生成 {added} 张「方斯」加入手牌。")
 
 
-CHARACTER = {
-    'id': 'xiaozhi',
-    'name': '小吱',
-    'max_hp': 38,
-    'attack': 10,
-    'defense': 4,
-    'portrait_image': '/static/images/characters/portrait/小吱.png',
-    'avatar_image': '/static/images/characters/avatar/小吱.png',
-    'passive': '每次造成伤害都会获得方斯，每点伤害获得 100 方斯；每 1000 方斯获得 1 点攻击力，最多 +5。',
-    'exclusive_item_ids': ['fons'],
-    'passive_events': {
-        GameEvent.DAMAGE_APPLIED.value: xiaozhi_damage_applied,
-    },
-}
+CHARACTER = {'id': 'xiaozhi',
+ 'name': '小吱',
+ 'cost': 0,
+ 'power': 3,
+ 'type': 'esper',
+ 'element': '光',
+ 'rarity': 'r',
+ 'art': '/static/images/characters/portrait/小吱.png',
+ 'description': '共鸣：生成 1 张「方斯」加入手牌；若手牌中有盈蓄，改为生成 2 张。',
+ 'effect_key': 'xiaozhi_surplus_link',
+ 'tags': ['esper', 'surplus'],
+ 'archetype': '',
+ 'category': '',
+ 'attribute': '光',
+ 'attribute_icon': '/static/images/elements/光.png',
+ 'material_tags': [],
+ 'material_cost': 2,
+ 'required_material_attribute': '光',
+ 'material_requirements': [{'attribute': '光', 'count': 1}, {'category': '货币', 'count': 1}],
+ 'material_requirement_text': '',
+ 'target_rule': {},
+ 'portrait_image': '/static/images/characters/portrait/小吱.png',
+ 'avatar_image': '/static/images/characters/portrait/小吱.png'}
+
+CHARACTER['event_hooks'] = {GameEvent.CARD_REVEALED.value: xiaozhi_surplus_link}

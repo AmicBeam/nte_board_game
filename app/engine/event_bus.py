@@ -1,6 +1,6 @@
 from collections.abc import Callable
 
-from app.content.loader import get_character, get_duel_card, get_item, get_map_object, resolve_map_object_id
+from app.content.loader import get_duel_card
 from app.engine.event_context import EventContext, EventHook, JsonDict
 from app.engine.events import REPLACEABLE_EVENTS
 from app.utils.logger import get_logger
@@ -73,47 +73,9 @@ def _dispatch_single_event(
 
 
 def _collect_listeners(state: JsonDict, event_name: str, payload: JsonDict) -> list[dict[str, object]]:
-    # 当前会收集角色实例、道具实例、运行时效果，以及 payload 中指向的地图物件 hook。
+    # 当前只收集新版异象对决卡牌 hook。
     listeners = []
-    character_instance = state.get('character_instance', {})
-    character_definition = get_character(character_instance.get('definition_id', '')) or {}
-    hook_id = character_definition.get('passive_events', {}).get(event_name)
-    if hook_id:
-        listeners.append({
-            'hook_id': _resolve_hook_payload(hook_id, 'handler'),
-            'mode': _resolve_hook_payload(hook_id, 'mode') or 'append',
-            'origin': 'character',
-            'instance_id': character_instance.get('instance_id'),
-        })
     target_instance_id = payload.get('target_instance_id')
-    for zone_name in ('hand', 'discard_pile'):
-        for item_instance in state.get(zone_name, []):
-            if target_instance_id is not None and item_instance.get('instance_id') != target_instance_id:
-                continue
-            item_definition = get_item(item_instance['definition_id']) or {}
-            hook_id = item_definition.get('event_hooks', {}).get(event_name)
-            if hook_id:
-                listeners.append({
-                    'hook_id': _resolve_hook_payload(hook_id, 'handler'),
-                    'mode': _resolve_hook_payload(hook_id, 'mode') or 'append',
-                    'origin': f'item:{zone_name}',
-                    'instance_id': item_instance.get('instance_id'),
-                })
-    for effect_instance in state.get('active_effects', []):
-        definition_type = effect_instance.get('definition_type', 'item')
-        if definition_type == 'character':
-            effect_definition = get_character(effect_instance.get('definition_id', '')) or {}
-        else:
-            effect_definition = get_item(effect_instance.get('definition_id', '')) or {}
-        runtime_effect = effect_definition.get('runtime_effects', {}).get(effect_instance.get('effect_id'), {})
-        hook_id = runtime_effect.get('event_hooks', {}).get(event_name)
-        if hook_id:
-            listeners.append({
-                'hook_id': _resolve_hook_payload(hook_id, 'handler'),
-                'mode': _resolve_hook_payload(hook_id, 'mode') or 'append',
-                'origin': 'active_effect',
-                'instance_id': effect_instance.get('instance_id'),
-            })
     for card_instance in _iter_duel_card_instances(state):
         if target_instance_id is not None and card_instance.get('instance_id') != target_instance_id:
             continue
@@ -125,18 +87,6 @@ def _collect_listeners(state: JsonDict, event_name: str, payload: JsonDict) -> l
                 'mode': _resolve_hook_payload(hook_id, 'mode') or 'append',
                 'origin': 'duel_card',
                 'instance_id': card_instance.get('instance_id'),
-            })
-    tile = payload.get('tile')
-    if tile:
-        object_id = payload.get('object_id') or resolve_map_object_id(tile)
-        map_object = get_map_object(object_id) or {}
-        hook_id = map_object.get('event_hooks', {}).get(event_name)
-        if hook_id:
-            listeners.append({
-                'hook_id': _resolve_hook_payload(hook_id, 'handler'),
-                'mode': _resolve_hook_payload(hook_id, 'mode') or 'append',
-                'origin': 'map_object',
-                'instance_id': object_id,
             })
     return listeners
 

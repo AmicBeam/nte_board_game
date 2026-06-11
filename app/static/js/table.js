@@ -76,10 +76,13 @@ const LOCATION_MARK_LABELS = {
   delay: '延滞',
   darkstar: '黯星',
   discord: '失谐',
+  zhue_huchi: '诛恶护持',
+  nightmare: '噩梦',
+  panyu_qiu: '判予秋',
   collapsing: '倾陷',
 };
 
-const LOCATION_MARK_ORDER = ['genesis', 'murk', 'delay', 'darkstar', 'discord', 'collapsing'];
+const LOCATION_MARK_ORDER = ['genesis', 'murk', 'delay', 'darkstar', 'zhue_huchi', 'nightmare', 'panyu_qiu', 'discord', 'collapsing'];
 
 const PHASE_LABELS = {
   selecting: '选牌阶段',
@@ -243,6 +246,9 @@ function renderLocations(state, previousState = null) {
     const revealText = location.revealed ? '' : unrevealedRevealText(location, state.turn);
     const revealBadge = revealText ? `<span>${escapeHtml(revealText)}</span>` : '';
     const description = location.revealed ? location.description : `${revealText}，显现后揭示空间规则。`;
+    const initiativeFirst = state.initiative?.first || '';
+    const opponentInitiativeClass = initiativeFirst === 'opponent' ? ' initiative-first-row' : '';
+    const playerInitiativeClass = initiativeFirst === 'player' ? ' initiative-first-row' : '';
     node.className = `duel-location winner-${classToken(location.winner)}${location.revealed ? '' : ' unrevealed'}${canDrop ? ' can-drop' : ''}${justRevealed ? ' location-revealed' : ''}`;
     node.dataset.locationId = location.id;
     node.innerHTML = `
@@ -255,13 +261,13 @@ function renderLocations(state, previousState = null) {
           <strong>${escapeHtml(location.name)}</strong>
           <small>${escapeHtml(description)}</small>
         </div>
-        <div class="location-power-row opponent">
-          <span>对手</span>
+        <div class="location-power-row opponent${opponentInitiativeClass}">
+          <span>对方</span>
           <strong>${escapeHtml(location.power.opponent)}</strong>
           ${locationMarksHtml(location, 'opponent')}
         </div>
         <div class="location-leader">${escapeHtml(location.winner === 'opponent' ? '对手领先' : location.winner === 'player' ? '我方领先' : '持平')}</div>
-        <div class="location-power-row player">
+        <div class="location-power-row player${playerInitiativeClass}">
           <span>我方</span>
           <strong>${escapeHtml(location.power.player)}</strong>
           ${locationMarksHtml(location, 'player')}
@@ -366,21 +372,43 @@ function renderHandCards(hand, state) {
   hand.forEach((card) => {
     registerPreviewCard(card);
     const node = document.createElement('article');
-    const playable = canPlayCard(card);
-    node.className = `duel-card hand-card rarity-${classToken(card.rarity)}${playable ? ' playable' : ' disabled'}`;
+    node.className = `duel-card hand-card rarity-${classToken(card.rarity)}`;
     node.dataset.cardInstanceId = card.instance_id;
+    applyHandCardState(node, card);
     node.innerHTML = cardHtml(card, { compact: false, showCurrentStats: false, mode: 'hand' });
-    node.addEventListener('pointerdown', (event) => beginCardDrag(event, card, node));
-    node.addEventListener('mousedown', (event) => beginCardDrag(event, card, node));
-    node.addEventListener('keydown', (event) => {
-      if (event.key !== 'Enter' && event.key !== ' ') {
-        return;
-      }
-      event.preventDefault();
-      quickPlayCard(card);
-    });
-    node.tabIndex = playable ? 0 : -1;
+    attachHandCardHandlers(node, card);
     handList.appendChild(node);
+  });
+}
+
+function applyHandCardState(node, card) {
+  const playable = canPlayCard(card);
+  node.classList.toggle('playable', playable);
+  node.classList.toggle('disabled', !playable);
+  delete node.dataset.disabledReason;
+  node.removeAttribute('title');
+  node.removeAttribute('aria-label');
+  if (!playable) {
+    const blockedReason = canPlayCardReason(card);
+    if (blockedReason) {
+      node.dataset.disabledReason = blockedReason;
+      node.title = blockedReason;
+      node.setAttribute('aria-label', `${card.name}：${blockedReason}`);
+    }
+  }
+  node.tabIndex = playable ? 0 : -1;
+  return playable;
+}
+
+function attachHandCardHandlers(node, card) {
+  node.addEventListener('pointerdown', (event) => beginCardDrag(event, card, node));
+  node.addEventListener('mousedown', (event) => beginCardDrag(event, card, node));
+  node.addEventListener('keydown', (event) => {
+    if (event.key !== 'Enter' && event.key !== ' ') {
+      return;
+    }
+    event.preventDefault();
+    quickPlayCard(card);
   });
 }
 
@@ -430,6 +458,13 @@ function renderSelection(selection) {
     registerPreviewCard(card);
     const shell = document.createElement('div');
     shell.className = 'selection-card-shell';
+    const sourceLabel = String(card.selection_source_label || '').trim();
+    if (sourceLabel) {
+      const sourceBadge = document.createElement('span');
+      sourceBadge.className = `selection-source-badge source-${classToken(card.selection_source_zone || sourceLabel)}`;
+      sourceBadge.textContent = sourceLabel;
+      shell.appendChild(sourceBadge);
+    }
     const node = document.createElement('button');
     const selected = selectedChoiceIds.includes(card.instance_id);
     const drawChoice = selection.kind === 'draw';
@@ -444,19 +479,7 @@ function renderSelection(selection) {
     });
     node.addEventListener('click', () => toggleSelectionCard(card.instance_id, selection));
     bindSelectionCardPreview(node, card);
-    const previewBtn = document.createElement('button');
-    previewBtn.className = 'selection-preview-btn';
-    previewBtn.type = 'button';
-    previewBtn.textContent = 'i';
-    previewBtn.title = '查看大图';
-    previewBtn.setAttribute('aria-label', `查看 ${card.name || '卡牌'} 大图`);
-    previewBtn.addEventListener('click', (event) => {
-      event.preventDefault();
-      event.stopPropagation();
-      showCardPreview(card, node, { pinned: true, pointerType: event.pointerType || 'mouse' });
-    });
     shell.appendChild(node);
-    shell.appendChild(previewBtn);
     rail.appendChild(shell);
   });
   panel.appendChild(rail);
@@ -488,22 +511,7 @@ function closeSelectionOverlay() {
 }
 
 function selectionCardsForDisplay(selection) {
-  const cards = selection.cards || [];
-  if (selection.kind !== 'declaration') {
-    return cards;
-  }
-  const byCard = new Map();
-  cards.forEach((card) => {
-    const key = declarationChoiceKey(card);
-    if (!byCard.has(key)) {
-      byCard.set(key, card);
-    }
-  });
-  return Array.from(byCard.values());
-}
-
-function declarationChoiceKey(card) {
-  return String(card.definition_id || card.name || card.instance_id || '');
+  return selection.cards || [];
 }
 
 function bindSelectionCardPreview(node, card) {
@@ -651,8 +659,8 @@ function sidePublicLabel(value) {
 function renderDiscard(state) {
   const cards = state.player.discard || [];
   const opponentCards = state.opponent.discard || [];
-  renderDeckZone(opponentDiscardBtn, 'opponent', opponentCards.length || state.opponent.discard_count || 0, '消耗', { countOnly: true, extraClass: 'discard-zone opponent-discard-zone' });
-  renderDeckZone(playerDiscardBtn, 'player', cards.length, '消耗', { countOnly: true, extraClass: 'discard-zone player-discard-zone' });
+  renderDeckZone(opponentDiscardBtn, 'opponent', opponentCards.length || state.opponent.discard_count || 0, '墓地', { countOnly: true, extraClass: 'discard-zone opponent-discard-zone' });
+  renderDeckZone(playerDiscardBtn, 'player', cards.length, '墓地', { countOnly: true, extraClass: 'discard-zone player-discard-zone' });
   if (playerDiscardCount) {
     playerDiscardCount.textContent = String(cards.length);
   }
@@ -662,7 +670,7 @@ function renderDiscard(state) {
   if (discardList) {
     discardList.innerHTML = cards.length
     ? cards.slice().reverse().map(discardCardHtml).join('')
-    : '<div class="empty-state">消耗区暂无卡牌</div>';
+    : '<div class="empty-state">墓地暂无卡牌</div>';
   }
   if (activeDiscardSide) {
     renderDiscardModal(activeDiscardSide);
@@ -676,7 +684,7 @@ function discardCardHtml(card) {
     <article class="discard-card rarity-${classToken(card.rarity)}">
       <span class="discard-card-art" style="background-image: url('${escapeAttr(card.art)}')" aria-hidden="true"></span>
       <div>
-        <strong>${escapeHtml(card.name || '已消耗卡牌')}</strong>
+        <strong>${escapeHtml(card.name || '墓地卡牌')}</strong>
         <small>${escapeHtml(card.type === 'esper' ? `${materialRequirementText(card)} / ${power} 战` : `${cost} 费 / ${power} 战`)}</small>
       </div>
     </article>
@@ -704,14 +712,14 @@ function renderDiscardModal(side) {
   const sideState = currentState[publicSide] || {};
   const cards = sideState.discard || [];
   if (discardModalTitle) {
-    discardModalTitle.textContent = publicSide === 'opponent' ? '对方消耗区' : '我方消耗区';
+    discardModalTitle.textContent = publicSide === 'opponent' ? '对方墓地' : '我方墓地';
   }
   if (discardModalSubtitle) {
-    discardModalSubtitle.textContent = `${cards.length} 张已消耗卡牌`;
+    discardModalSubtitle.textContent = `${cards.length} 张墓地卡牌`;
   }
   discardModalList.innerHTML = cards.length
     ? cards.slice().reverse().map(discardCardHtml).join('')
-    : '<div class="empty-state">消耗区暂无卡牌</div>';
+    : '<div class="empty-state">墓地暂无卡牌</div>';
 }
 
 function syncRightPanel() {
@@ -724,7 +732,7 @@ function syncRightPanel() {
     button.setAttribute('aria-pressed', active ? 'true' : 'false');
   });
   rightPanelTitle.textContent = '右侧面板';
-  rightPanelSubtitle.textContent = view === 'log' ? '战况日志' : view === 'discard' ? '已消耗卡牌' : '行动与资源';
+  rightPanelSubtitle.textContent = view === 'log' ? '战况日志' : view === 'discard' ? '墓地卡牌' : '行动与资源';
   [
     ['info', rightInfoView],
     ['log', rightLogView],
@@ -748,6 +756,8 @@ function syncControls(state) {
   const isFinalRound = playing && Number(state.turn || 0) >= Number(state.max_turns || 0);
   endTurnBtn.disabled = actionLocked || presentationLocked || Boolean(materialSelection) || !playing || state.phase !== 'planning' || Boolean(state.selection) || hasPendingTarget;
   endTurnBtn.textContent = hasPendingTarget ? '选择目标' : state.phase === 'waiting' ? '等待对手' : '结束回合';
+  endTurnBtn.classList.remove('initiative-first', 'initiative-second');
+  endTurnBtn.title = '结束当前部署';
   if (finalRoundLabel) {
     finalRoundLabel.hidden = !isFinalRound;
   }
@@ -755,17 +765,111 @@ function syncControls(state) {
 }
 
 function canPlayCard(card) {
-  return Boolean(
-    currentState
-    && !actionLocked
-    && currentState.status === 'playing'
-    && currentState.phase === 'planning'
-    && !currentState.selection
-    && !currentState.pending_target
-    && !materialSelection
-    && !presentationLocked
-    && Number(card.cost) <= Number(currentState.energy_remaining)
-  );
+  return canPlayCardReason(card) === '';
+}
+
+function canPlayCardReason(card, targetLocation = null) {
+  if (!currentState) {
+    return '对局状态尚未加载';
+  }
+  if (actionLocked || presentationLocked) {
+    return '正在结算动画，暂时不能部署';
+  }
+  if (currentState.status !== 'playing') {
+    return '对局已经结束';
+  }
+  if (currentState.phase !== 'planning') {
+    return '当前阶段不能部署';
+  }
+  if (currentState.selection) {
+    return '请先完成当前选牌';
+  }
+  if (currentState.pending_target) {
+    return '请先完成目标选择';
+  }
+  if (materialSelection) {
+    return '请先完成素材选择';
+  }
+  if (Number(card.cost) > Number(currentState.energy_remaining)) {
+    return `需要 ${Number(card.cost)} 点能量`;
+  }
+  const candidateLocations = targetLocation ? [targetLocation] : (currentState.locations || []);
+  const openLocations = candidateLocations.filter((location) => canPlayToLocation(location));
+  if (!openLocations.length) {
+    return '没有可出牌空间';
+  }
+  if (requiresTargetBeforePlay(card) && !openLocations.some((location) => cardTargetCandidates(location, card).length > 0)) {
+    return '需要可选择的己方道具';
+  }
+  if (!openLocations.some((location) => canPlayCardToLocation(location, card))) {
+    return '当前不能部署';
+  }
+  return '';
+}
+
+function canPlayCardToLocation(location, card) {
+  if (!location || !canPlayToLocation(location)) {
+    return false;
+  }
+  if (
+    !currentState
+    || actionLocked
+    || currentState.status !== 'playing'
+    || currentState.phase !== 'planning'
+    || currentState.selection
+    || currentState.pending_target
+    || materialSelection
+    || presentationLocked
+    || Number(card.cost) > Number(currentState.energy_remaining)
+  ) {
+    return false;
+  }
+  if (requiresTargetBeforePlay(card) && !cardTargetCandidates(location, card).length) {
+    return false;
+  }
+  return true;
+}
+
+function requiresTargetBeforePlay(card) {
+  return Boolean(card?.target_rule?.required_before_play);
+}
+
+function cardTargetCandidates(location, card) {
+  const scope = String(card?.target_rule?.scope || (requiresTargetBeforePlay(card) ? 'ally_item_same_location' : ''));
+  if (!scope || !location) {
+    return [];
+  }
+  const locations = scope.endsWith('_same_location') ? [location] : (currentState?.locations || []);
+  const sideKey = scope.startsWith('opponent') ? 'opponent' : 'player';
+  const itemOnly = scope.includes('_item_');
+  return locations.flatMap((candidateLocation) => candidateLocation?.slots?.[sideKey] || [])
+    .filter((target) => (
+      targetCandidateMatchesScope(target, card, scope, itemOnly)
+    ));
+}
+
+function targetCandidateMatchesScope(target, sourceCard, scope, itemOnly = String(scope || '').includes('_item_')) {
+  if (
+    !target
+    || target.instance_id === sourceCard?.instance_id
+    || !target.revealed
+    || target.hidden
+    || (itemOnly && target.type !== 'anomaly_item')
+  ) {
+    return false;
+  }
+  if (scope === 'opponent_power_lte_3_same_location') {
+    return Number(target.power || 0) <= 3;
+  }
+  if (scope === 'ally_damaged_food_same_location') {
+    return target.type === 'anomaly_item'
+      && target.category === '食物'
+      && Number(target.power || 0) < Number(target.base_power || 0);
+  }
+  if (scope === 'ally_xiang_item_same_location') {
+    return target.type === 'anomaly_item' && target.attribute === '相';
+  }
+  return true;
 }
 
 function canPlayEsper(card) {
@@ -783,7 +887,7 @@ function canPlayEsper(card) {
 }
 
 function canReactivateEsper(card) {
-  if (!currentState || card?.type !== 'esper' || !card.revealed || card.staged || card.pending_material_ids) {
+  if (!currentState || card?.type !== 'esper' || !card.revealed || card.staged || (card.pending_material_ids || []).length) {
     return false;
   }
   if (Number(card.reactivating_turn || 0) === Number(currentState.turn || 0)) {
@@ -841,7 +945,7 @@ function canPlayToLocation(location) {
     && !materialSelection
     && !presentationLocked
     && location.revealed
-    && location.slots.player.length < location.capacity
+    && locationOccupiedCount(location, 'player') < Number(location.capacity || 10)
   );
 }
 
@@ -863,8 +967,16 @@ function canPlayEsperToLocation(location, card = null) {
 function hasRoomForEsperAfterMaterials(location, card = null, materialCount = null) {
   const consumed = Number(materialCount ?? esperMaterialCost(card));
   const addsCard = !(card?.revealed && card.location_id === location.id);
-  const futureCount = Number(location.slots?.player?.length || 0) - Math.max(0, consumed) + (addsCard ? 1 : 0);
+  const futureCount = locationOccupiedCount(location, 'player') - Math.max(0, consumed) + (addsCard ? 1 : 0);
   return futureCount <= Number(location.capacity || 10);
+}
+
+function locationOccupiedCount(location, owner = 'player') {
+  const serverCount = Number(location?.occupied?.[owner]);
+  if (Number.isFinite(serverCount)) {
+    return serverCount;
+  }
+  return (location?.slots?.[owner] || []).filter((card) => !card.reserved_as_material_for).length;
 }
 
 function materialCandidates(location, esperCard = null) {
@@ -902,28 +1014,48 @@ function materialCandidates(location, esperCard = null) {
 }
 
 function canSatisfyMaterialRequirements(materials, esperCard) {
-  const requirements = materialRequirements(esperCard);
+  const requirements = expandedMaterialRequirements(materialRequirements(esperCard));
   if (!requirements.length) {
     return true;
   }
-  const used = new Set();
-  for (const requirement of requirements) {
-    let needed = Number(requirement.count || 1);
-    for (const card of materials) {
-      if (needed <= 0) {
-        break;
-      }
-      if (used.has(card.instance_id) || !materialMatchesRequirement(card, requirement)) {
+  const matchesByRequirement = requirements.map((requirement) =>
+    materials
+      .map((card, index) => ({ card, index }))
+      .filter(({ card }) => materialMatchesRequirement(card, requirement))
+      .map(({ index }) => index),
+  );
+  if (matchesByRequirement.some((matches) => !matches.length)) {
+    return false;
+  }
+  const requirementOrder = requirements
+    .map((_, index) => index)
+    .sort((a, b) => matchesByRequirement[a].length - matchesByRequirement[b].length || a - b);
+  const usedMaterialIndexes = new Set();
+  const assignNext = (orderIndex) => {
+    if (orderIndex >= requirementOrder.length) {
+      return true;
+    }
+    const requirementIndex = requirementOrder[orderIndex];
+    for (const materialIndex of matchesByRequirement[requirementIndex]) {
+      if (usedMaterialIndexes.has(materialIndex)) {
         continue;
       }
-      used.add(card.instance_id);
-      needed -= 1;
+      usedMaterialIndexes.add(materialIndex);
+      if (assignNext(orderIndex + 1)) {
+        return true;
+      }
+      usedMaterialIndexes.delete(materialIndex);
     }
-    if (needed > 0) {
-      return false;
-    }
-  }
-  return true;
+    return false;
+  };
+  return assignNext(0);
+}
+
+function expandedMaterialRequirements(requirements) {
+  return requirements.flatMap((requirement) => {
+    const count = Math.max(1, Number(requirement.count || 1));
+    return Array.from({ length: count }, () => requirement);
+  });
 }
 
 function materialMatchesRequirement(card, requirement) {
@@ -1279,6 +1411,11 @@ async function dragEnd(event) {
     }
     return;
   }
+  const location = (currentState?.locations || []).find((candidate) => candidate.id === locationId);
+  if (!canPlayCardToLocation(location, state.card)) {
+    showToast(canPlayCardReason(state.card, location));
+    return;
+  }
   await submitPlayCard(state.card.instance_id, locationId);
 }
 
@@ -1308,7 +1445,9 @@ function cleanupDrag() {
 }
 
 function moveGhost(x, y) {
-  dragGhost.style.transform = `translate(${x - 58}px, ${y - 86}px) rotate(-2deg)`;
+  const width = dragGhost.offsetWidth || 124;
+  const height = dragGhost.offsetHeight || 176;
+  dragGhost.style.transform = `translate(${x - width / 2}px, ${y - height / 2}px) rotate(-2deg)`;
 }
 
 function highlightDropTarget(x, y) {
@@ -1370,11 +1509,12 @@ function canMoveStagedCard(card, sourceNode) {
 
 async function quickPlayCard(card) {
   if (!canPlayCard(card)) {
+    showToast(canPlayCardReason(card));
     return;
   }
-  const location = (currentState.locations || []).find(canPlayToLocation);
+  const location = (currentState.locations || []).find((candidate) => canPlayCardToLocation(candidate, card));
   if (!location) {
-    showToast('没有可出牌空间');
+    showToast(canPlayCardReason(card));
     return;
   }
   await submitPlayCard(card.instance_id, location.id);
@@ -1637,13 +1777,14 @@ function descriptionWithAttributeIcon(card) {
   return `<p class="${descriptionDensityClass(card.description)}"><span>${escapeHtml(card.description || '')}</span></p>`;
 }
 
-function itemMetaMarkup(card) {
+function itemMetaMarkup(card, options = {}) {
   if (card.type !== 'anomaly_item' && card.type !== 'token') {
     return '';
   }
+  const attributeLabel = options.attributeLabel !== false;
   const chips = [];
   if (card.attribute) {
-    chips.push(`<span class="card-meta-chip attribute-chip">${attributeIconMarkup(card, 'element-icon')}<b>${escapeHtml(card.attribute)}属性</b></span>`);
+    chips.push(`<span class="card-meta-chip attribute-chip${attributeLabel ? '' : ' icon-only'}" title="${escapeAttr(`${card.attribute}属性`)}">${attributeIconMarkup(card, 'element-icon')}${attributeLabel ? `<b>${escapeHtml(card.attribute)}属性</b>` : ''}</span>`);
   }
   if (card.category) {
     chips.push(`<span class="card-meta-chip">${escapeHtml(card.category)}</span>`);
@@ -1722,7 +1863,7 @@ function cardHtml(card, { compact, showCurrentStats = true, mode = 'default' }) 
   const isHandMode = mode === 'hand';
   const description = compact || isHandMode ? '' : descriptionWithAttributeIcon(card);
   const typeLabel = card.type === 'anomaly_item' ? '异象道具' : card.type === 'token' ? '临时牌' : '异能者';
-  const itemMeta = itemMetaMarkup(card);
+  const itemMeta = itemMetaMarkup(card, { attributeLabel: !isHandMode });
   const typeLine = isHandMode
     ? ''
     : `<div class="card-type-row"><span class="card-type">${escapeHtml(typeLabel)}</span>${itemMeta ? `<div class="card-item-meta">${itemMeta}</div>` : ''}</div>`;
@@ -1992,24 +2133,36 @@ function legalTargetIds(state) {
   if (!pending) {
     return [];
   }
+  if (Array.isArray(pending.target_instance_ids)) {
+    return pending.target_instance_ids;
+  }
   const sourceLocation = (state.locations || []).find((location) => location.id === pending.location_id);
   const locations = pending.scope?.endsWith('_same_location') && sourceLocation ? [sourceLocation] : state.locations || [];
   const sideKey = pending.scope?.startsWith('opponent') ? 'opponent' : 'player';
+  const sourceCard = findCardByInstanceId(state, pending.source_instance_id);
   const ids = [];
   locations.forEach((location) => {
     (location.slots?.[sideKey] || []).forEach((card) => {
       const itemOnly = String(pending.scope || '').includes('_item_');
-      if (
-        card.instance_id !== pending.source_instance_id
-        && card.revealed
-        && !card.hidden
-        && (!itemOnly || card.type === 'anomaly_item')
-      ) {
+      if (targetCandidateMatchesScope(card, sourceCard, pending.scope || '', itemOnly)) {
         ids.push(card.instance_id);
       }
     });
   });
   return ids;
+}
+
+function findCardByInstanceId(state, instanceId) {
+  const wanted = String(instanceId || '');
+  for (const location of state.locations || []) {
+    for (const owner of ['player', 'opponent']) {
+      const card = (location.slots?.[owner] || []).find((candidate) => String(candidate.instance_id || '') === wanted);
+      if (card) {
+        return card;
+      }
+    }
+  }
+  return null;
 }
 
 async function handleTargetClick(event) {
@@ -2164,7 +2317,7 @@ function buildTableTutorialPages() {
     {
       title: '有限资源选牌',
       body: [
-        '开局手牌来自构筑页固定的 4 张起始手牌。',
+        '开局从主牌组随机抽取 4 张手牌。',
         '之后每回合开始，双方各从自己的牌库抽 1 张。',
       ],
     },
@@ -2263,7 +2416,7 @@ async function playActionQueue(actions) {
     document.querySelector(`.board-card[data-card-instance-id="${cssEscape(action.source_instance_id)}"]`)?.classList.add('pre-flip-back');
   });
   spawnActions.forEach((action) => {
-    document.querySelector(`.board-card[data-card-instance-id="${cssEscape(action.target_instance_id)}"]`)?.classList.add('effect-pending-card');
+    ensureSpawnPresentationCard(action)?.classList.add('effect-pending-card');
   });
   try {
     for (let index = 0; index < actions.length; index += 1) {
@@ -2284,7 +2437,16 @@ async function playActionQueue(actions) {
       } else if (action.kind === 'reveal_side_begin') {
         continue;
       } else if (action.kind === 'draw_card') {
-        await playDrawCard(action);
+        const drawGroup = [action];
+        while (index + 1 < actions.length && actions[index + 1].kind === 'draw_card') {
+          index += 1;
+          drawGroup.push(actions[index]);
+        }
+        if (drawGroup.length > 1) {
+          await playDrawCardGroup(drawGroup);
+        } else {
+          await playDrawCard(action);
+        }
       } else if (action.kind === 'reveal_card') {
         showRevealActionBanner(action);
         const node = revealPresentationCard(action);
@@ -2292,6 +2454,7 @@ async function playActionQueue(actions) {
         locationNode?.classList.add('revealing-card');
         node?.classList.remove('pre-flip-back');
         node?.classList.add('flip-reveal-now');
+        syncVisibleBoardTotals();
         await sleep(ACTION_ANIMATION_MS);
         node?.classList.remove('flip-reveal-now');
         locationNode?.classList.remove('revealing-card');
@@ -2301,21 +2464,27 @@ async function playActionQueue(actions) {
           index += 1;
           materialGroup.push(actions[index]);
         }
+        effectArrowLayer.replaceChildren();
         showTitleBanner('素材消耗', `共 ${materialGroup.length} 张素材转化为战力。`, { sticky: true, kind: 'action' });
         materialGroup.forEach((materialAction) => playMaterialConsume(materialAction));
         await sleep(ACTION_ANIMATION_MS);
+        syncVisibleBoardTotals();
+        effectArrowLayer.replaceChildren();
       } else if (action.kind === 'spawn_card') {
         playSpawnCard(action);
         await sleep(ACTION_ANIMATION_MS);
+        syncVisibleBoardTotals();
       } else if (action.kind === 'spawn_mark') {
         playSpawnMark(action);
         await sleep(ACTION_ANIMATION_MS);
       } else if (action.kind === 'discard_card') {
         playDiscardCard(action);
         await sleep(ACTION_ANIMATION_MS);
+        syncVisibleBoardTotals();
       } else if (action.kind === 'impact_arrow') {
         showImpactActionBanner(action);
         playImpactArrow(action);
+        syncVisibleBoardTotals();
         await sleep(ACTION_ANIMATION_MS);
       } else if (action.kind === 'effect_summary') {
         showTitleBanner(action.title || '效果结算', action.effect_summary || action.subtitle || '', { sticky: true, kind: 'action' });
@@ -2397,6 +2566,41 @@ function revealPresentationCard(action) {
   return nextNode;
 }
 
+function ensureSpawnPresentationCard(action) {
+  const instanceId = String(action.target_instance_id || '');
+  if (!instanceId) {
+    return null;
+  }
+  let node = document.querySelector(`.board-card[data-card-instance-id="${cssEscape(instanceId)}"]`);
+  if (node) {
+    return node;
+  }
+  const locationNode = document.querySelector(`.duel-location[data-location-id="${cssEscape(action.location_id || '')}"]`);
+  const publicSide = actionSideToPublic(action.side);
+  const slots = locationNode?.querySelector(`.${publicSide}-slots`);
+  if (!slots) {
+    return null;
+  }
+  const card = {
+    ...(action.card || {}),
+    instance_id: instanceId,
+    hidden: true,
+    revealed: false,
+    staged: true,
+    name: '未揭示',
+    art: CARD_BACK_IMAGE,
+    type: action.card?.type || 'anomaly_item',
+  };
+  const wrapper = document.createElement('template');
+  wrapper.innerHTML = boardCardHtml(card, publicSide);
+  node = wrapper.content.firstElementChild;
+  node?.classList.add('presentation-covered-card', 'effect-pending-card', 'pre-flip-back');
+  if (node) {
+    slots.appendChild(node);
+  }
+  return node;
+}
+
 function showRevealActionBanner(action) {
   const summary = action.effect_summary || action.subtitle || '';
   if (!summary) {
@@ -2423,26 +2627,37 @@ function showActionCardPreview(action) {
 }
 
 function playMaterialConsume(action) {
-  const sourceNode = document.querySelector(`.board-card[data-card-instance-id="${cssEscape(action.source_instance_id)}"]`)
-    || document.querySelector(`.duel-location[data-location-id="${cssEscape(action.location_id || '')}"]`);
+  const publicSide = actionSideToPublic(action.side);
+  const sourceCardNode = document.querySelector(`.board-card[data-card-instance-id="${cssEscape(action.source_instance_id)}"]`);
+  const sourceNode = sourceCardNode
+    || (publicSide === 'opponent'
+      ? document.querySelector(`.duel-location[data-location-id="${cssEscape(action.location_id || '')}"]`)
+      : null);
   const targetNode = document.querySelector(`.board-card[data-card-instance-id="${cssEscape(action.target_instance_id)}"]`);
   const sourceRect = sourceNode?.getBoundingClientRect?.();
   const targetRect = targetNode?.getBoundingClientRect?.();
-  if (!sourceRect || !targetRect) {
+  if (!targetRect) {
     return;
   }
-  playMaterialMoveToDiscard(sourceNode, action);
-  removeBoardCardNodeToDiscard(sourceNode, actionSideToPublic(action.side));
+  if (sourceRect) {
+    playMaterialMoveToDiscard(sourceNode, action);
+    removeBoardCardNodeToDiscard(sourceNode, publicSide);
+  } else {
+    playHiddenMaterialMoveToDiscard(action);
+    incrementDiscardCount(publicSide);
+  }
   targetNode.classList.add('material-fed');
   showPowerFloat(targetNode, Number(action.material_power || 0), null, null, { kind: 'buff' });
   applyIncrementalBoardPower(targetNode, Number(action.material_power || 0));
-  effectArrowLayer.replaceChildren(buildArrowElement(
-    sourceRect.left + sourceRect.width / 2,
-    sourceRect.top + sourceRect.height / 2,
-    targetRect.left + targetRect.width / 2,
-    targetRect.top + targetRect.height / 2,
-    'material-consume',
-  ));
+  if (sourceRect) {
+    effectArrowLayer.appendChild(buildArrowElement(
+      sourceRect.left + sourceRect.width / 2,
+      sourceRect.top + sourceRect.height / 2,
+      targetRect.left + targetRect.width / 2,
+      targetRect.top + targetRect.height / 2,
+      'material-consume',
+    ));
+  }
   window.setTimeout(() => targetNode.classList.remove('material-fed'), ACTION_ANIMATION_MS);
 }
 
@@ -2452,7 +2667,7 @@ function playDiscardCard(action) {
     incrementDiscardCount(actionSideToPublic(action.side));
     return;
   }
-  showTitleBanner(action.title || '进入消耗区', action.subtitle || '', { sticky: true, kind: 'action' });
+  showTitleBanner(action.title || '进入墓地', action.subtitle || '', { sticky: true, kind: 'action' });
   playMaterialMoveToDiscard(sourceNode, action);
   removeBoardCardNodeToDiscard(sourceNode, actionSideToPublic(action.side));
 }
@@ -2494,6 +2709,46 @@ function playMaterialMoveToDiscard(sourceNode, action) {
   ]).finally(() => ghost.remove());
   sourceNode.classList.add('material-consuming');
   window.setTimeout(() => sourceNode.classList.remove('material-consuming'), ACTION_ANIMATION_MS);
+}
+
+function playHiddenMaterialMoveToDiscard(action) {
+  if (!effectArrowLayer) {
+    return;
+  }
+  const publicSide = actionSideToPublic(action.side);
+  const discardNode = publicSide === 'opponent' ? opponentDiscardBtn : playerDiscardBtn;
+  const targetRect = discardNode?.getBoundingClientRect?.();
+  if (!targetRect) {
+    return;
+  }
+  const ghost = document.createElement('div');
+  ghost.className = 'material-card-ghost floating-material-ghost';
+  ghost.style.backgroundImage = `url('${escapeAttr(action.card?.art || CARD_BACK_IMAGE)}')`;
+  const width = 52;
+  const height = 73;
+  ghost.style.width = `${width}px`;
+  ghost.style.height = `${height}px`;
+  const ghostIndex = effectArrowLayer.querySelectorAll('.floating-material-ghost').length;
+  const spread = (ghostIndex % 5) - 2;
+  effectArrowLayer.appendChild(ghost);
+  const fromX = targetRect.left + targetRect.width / 2 - width / 2 + spread * 16;
+  const fromY = targetRect.top - height - 16 - Math.floor(ghostIndex / 5) * 10;
+  const toX = targetRect.left + targetRect.width / 2 - width / 2;
+  const toY = targetRect.top + targetRect.height / 2 - height / 2;
+  const animation = ghost.animate([
+    { opacity: 0, transform: `translate(${fromX}px, ${fromY - 12}px) scale(0.76)` },
+    { opacity: 0.96, offset: 0.28, transform: `translate(${fromX}px, ${fromY}px) scale(1)` },
+    { opacity: 0.78, offset: 0.58, transform: `translate(${fromX}px, ${fromY}px) scale(0.9)` },
+    { opacity: 0, transform: `translate(${toX}px, ${toY}px) scale(0.42)` },
+  ], {
+    duration: ACTION_ANIMATION_MS,
+    easing: 'cubic-bezier(0.18, 0.82, 0.24, 1)',
+    fill: 'forwards',
+  });
+  Promise.race([
+    animation.finished.catch(() => null),
+    sleep(ACTION_ANIMATION_MS + 140),
+  ]).finally(() => ghost.remove());
 }
 
 function removeBoardCardNodeToDiscard(sourceNode, publicSide) {
@@ -2554,8 +2809,87 @@ function updateBoardCardPower(targetNode, powerAfter) {
   window.setTimeout(() => targetNode.classList.remove('power-changed'), ACTION_ANIMATION_MS);
 }
 
+function syncVisibleBoardTotals() {
+  if (!locationsBoard) {
+    return;
+  }
+  const totals = { player: 0, opponent: 0 };
+  locationsBoard.querySelectorAll('.duel-location').forEach((locationNode) => {
+    if (locationNode.classList.contains('unrevealed')) {
+      return;
+    }
+    const playerPower = visibleLocationPower(locationNode, 'player');
+    const opponentPower = visibleLocationPower(locationNode, 'opponent');
+    totals.player += playerPower;
+    totals.opponent += opponentPower;
+    updateLocationPowerRows(locationNode, playerPower, opponentPower);
+  });
+  updateVisibleScoreReadouts(totals);
+}
+
+function visibleLocationPower(locationNode, owner) {
+  return Array.from(locationNode.querySelectorAll(`.${owner}-slots .board-card:not(.hidden-card):not(.staged-card)`))
+    .filter((node) => node.dataset.discardAnimated !== 'true')
+    .reduce((total, node) => total + boardCardPowerFromNode(node), 0);
+}
+
+function boardCardPowerFromNode(node) {
+  const value = Number(node.querySelector('.board-card-stats .build-stat-power strong')?.textContent);
+  return Number.isFinite(value) ? value : 0;
+}
+
+function updateLocationPowerRows(locationNode, playerPower, opponentPower) {
+  setPowerRowValue(locationNode.querySelector('.location-power-row.player > strong'), playerPower);
+  setPowerRowValue(locationNode.querySelector('.location-power-row.opponent > strong'), opponentPower);
+  const winner = playerPower > opponentPower ? 'player' : opponentPower > playerPower ? 'opponent' : 'tie';
+  locationNode.classList.remove('winner-player', 'winner-opponent', 'winner-tie', 'winner-unknown');
+  locationNode.classList.add(`winner-${winner}`);
+  const leaderNode = locationNode.querySelector('.location-leader');
+  if (leaderNode) {
+    leaderNode.textContent = winner === 'player' ? '我方领先' : winner === 'opponent' ? '对手领先' : '持平';
+  }
+}
+
+function setPowerRowValue(valueNode, nextValue) {
+  if (!valueNode) {
+    return;
+  }
+  const currentValue = Number(valueNode.textContent || 0);
+  if (Number.isFinite(currentValue) && currentValue === Number(nextValue)) {
+    return;
+  }
+  valueNode.textContent = String(nextValue);
+  const rowNode = valueNode.closest('.location-power-row');
+  rowNode?.classList.add('power-changed');
+  window.setTimeout(() => rowNode?.classList.remove('power-changed'), ACTION_ANIMATION_MS);
+}
+
+function updateVisibleScoreReadouts(totals) {
+  const totalText = `${totals.player} - ${totals.opponent}`;
+  const compactTotalText = `${totals.player}-${totals.opponent}`;
+  const leaderText = totals.player > totals.opponent ? '我方' : totals.opponent > totals.player ? '对手' : '持平';
+  const hudScore = duelHud?.querySelectorAll('span')?.[2];
+  if (hudScore) {
+    hudScore.textContent = `主战场 ${compactTotalText}`;
+  }
+  const statusCards = leftStatusGrid?.querySelectorAll('.side-status-card') || [];
+  const powerCard = statusCards[1];
+  const powerValue = powerCard?.querySelector('strong');
+  const powerHint = powerCard?.querySelector('small');
+  if (powerValue) {
+    powerValue.textContent = totalText;
+  }
+  if (powerHint) {
+    powerHint.textContent = `实时领先：${leaderText}`;
+  }
+  const opponentPowerValue = rightResourceGrid?.querySelectorAll('.right-resource-card')?.[2]?.querySelector('strong');
+  if (opponentPowerValue) {
+    opponentPowerValue.textContent = String(totals.opponent);
+  }
+}
+
 function playSpawnCard(action) {
-  const targetNode = document.querySelector(`.board-card[data-card-instance-id="${cssEscape(action.target_instance_id)}"]`);
+  const targetNode = ensureSpawnPresentationCard(action);
   if (!targetNode) {
     return;
   }
@@ -2688,12 +3022,20 @@ function showPowerFloat(targetNode, amount, before = null, after = null, options
   window.setTimeout(() => marker.remove(), 1120);
 }
 
-async function playDrawCard(action) {
+async function playDrawCardGroup(actions) {
+  const visible = actions.find((action) => !action.silent);
+  if (visible) {
+    showTitleBanner(visible.title || '抽牌', visible.subtitle || '从牌库加入手牌', { sticky: true, kind: 'action' });
+  }
+  await Promise.all(actions.map((action) => playDrawCard(action, { suppressBanner: true })));
+}
+
+async function playDrawCard(action, options = {}) {
   const publicSide = actionSideToPublic(action.side);
   const deckNode = publicSide === 'opponent' ? opponentDeckZone : playerDeckZone;
   const targetNode = drawTargetNode(publicSide, action.card_instance_id) || createDrawPlaceholder(publicSide, action.card_instance_id);
   const label = publicSide === 'opponent' ? '对手' : '我方';
-  if (!action.silent) {
+  if (!action.silent && !options.suppressBanner) {
     showTitleBanner(action.title || '抽牌', `${label}${action.subtitle || '从牌库加入手牌'}`, { sticky: true, kind: 'action' });
   }
   deckNode?.classList.add('deck-draw-pulse');
@@ -2786,10 +3128,11 @@ function commitDrawnCardToHand(publicSide, action, targetNode) {
   }
   registerPreviewCard(card);
   const node = document.createElement('article');
-  const playable = canPlayCard(card);
-  node.className = `duel-card hand-card rarity-${classToken(card.rarity)}${playable ? ' playable' : ' disabled'}`;
+  node.className = `duel-card hand-card rarity-${classToken(card.rarity)}`;
   node.dataset.cardInstanceId = card.instance_id || action.card_instance_id || '';
+  applyHandCardState(node, card);
   node.innerHTML = cardHtml(card, { compact: false, showCurrentStats: false, mode: 'hand' });
+  attachHandCardHandlers(node, card);
   targetNode.replaceWith(node);
 }
 

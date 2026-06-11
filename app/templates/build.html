@@ -7,7 +7,7 @@
             <p class="eyebrow">构筑设置</p>
             <h1>出战构筑</h1>
         </div>
-        <p class="subtle build-command-copy">选择 10 到 20 张异象道具：前 4 张作为起始手牌，其余进入预留牌库；并单独选择最多 4 名异能者作为待命区。</p>
+        <p class="subtle build-command-copy">选择 10 到 20 张异象道具组成主牌组；并单独选择最多 4 名异能者作为待命区。</p>
         <div class="header-actions">
             <button class="icon-btn tutorial-help-btn" data-tutorial-open="build" type="button" aria-label="打开构筑手册" title="打开手册">
                 <span aria-hidden="true">?</span>
@@ -98,17 +98,10 @@
                 <div class="deck-slots esper-slots" id="esper-list" data-zone="esper"></div>
             </section>
             <div class="deck-zones">
-                <section class="deck-zone" data-zone="starter">
-                    <div class="deck-zone-title">
-                        <h3>起始手牌</h3>
-                        <span id="starter-count">0 / 4</span>
-                    </div>
-                    <div class="deck-slots" id="starter-list" data-zone="starter"></div>
-                </section>
                 <section class="deck-zone" data-zone="reserve">
                     <div class="deck-zone-title">
-                        <h3>预留牌库</h3>
-                        <span id="reserve-count">0 / 16</span>
+                        <h3>主牌组</h3>
+                        <span id="reserve-count">0 / 20</span>
                     </div>
                     <div class="deck-slots" id="reserve-list" data-zone="reserve"></div>
                 </section>

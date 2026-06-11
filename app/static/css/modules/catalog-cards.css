@@ -258,17 +258,6 @@
 }
 .item-icon-dash::after { display: none; }
 
-.item-icon-dice::before {
-    border-radius: 8px;
-}
-.item-icon-dice::after {
-    inset: 13px;
-    border: 0;
-    border-radius: 999px;
-    background: currentColor;
-    box-shadow: -8px -8px 0 currentColor, 8px 8px 0 currentColor;
-}
-
 .item-icon-guard::before {
     inset: 4px 8px;
     border-radius: 12px 12px 18px 18px;
@@ -331,10 +320,6 @@
     transform-origin: left center;
     transform: rotate(35deg);
 }
-.type-attack .item-sigil { color: var(--danger); }
-.type-defense .item-sigil { color: var(--blue); }
-.type-utility .item-sigil { color: var(--amber); }
-.type-movement .item-sigil { color: var(--green); }
 .rarity-epic { border-color: rgba(255,90,165,0.34); }
 .rarity-rare { border-color: rgba(111,168,255,0.34); }
 .rarity-r { border-color: rgba(111,168,255,0.34); }

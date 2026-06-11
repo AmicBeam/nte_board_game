@@ -28,6 +28,54 @@
     .hero, .auth-card, .panel-header, .character-panel, .card-panel, .table-topbar, .state-panel, .board-panel, .side-panel { padding: 16px; }
     .account-panel, .mode-panel { padding: 16px; }
     .panel-header, .table-topbar, .section-title-row { flex-direction: column; align-items: flex-start; }
+    .build-page:not(.profile-page) .build-command {
+        min-height: 0;
+        grid-template-columns: 1fr;
+        align-items: start;
+        justify-items: stretch;
+        gap: 10px;
+    }
+    .build-page:not(.profile-page) .build-command-copy {
+        max-width: none;
+        justify-self: stretch;
+        text-align: left;
+    }
+    .build-page:not(.profile-page) .build-command .header-actions {
+        width: 100%;
+        justify-content: flex-start;
+    }
+    .build-page:not(.profile-page) .build-command::after {
+        right: -120px;
+        bottom: -42px;
+        opacity: 0.42;
+    }
+    .build-page:not(.profile-page) .deck-slots,
+    .build-page:not(.profile-page) .build-deck-esper-zone .esper-slots {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        overflow: auto;
+    }
+    .build-page:not(.profile-page) .deck-zone[data-zone="starter"] .deck-slots {
+        grid-template-rows: repeat(2, 64px);
+    }
+    .build-page:not(.profile-page) .deck-zone[data-zone="reserve"] .deck-slots {
+        grid-template-rows: repeat(10, 64px);
+    }
+    .build-page:not(.profile-page) .deck-card {
+        grid-template-columns: 40px minmax(0, 1fr);
+    }
+    .build-page:not(.profile-page) .deck-card .deck-inline-stats {
+        max-width: 100%;
+        flex-wrap: wrap;
+    }
+    .home-brand-block {
+        width: 100%;
+        grid-template-columns: 1fr;
+        gap: 10px;
+    }
+    .home-brand-logo {
+        width: min(100%, 380px);
+        justify-self: center;
+    }
     .character-carousel { grid-auto-columns: minmax(250px, 84vw); }
     .account-grid { grid-template-columns: 1fr; }
     .stats-grid { grid-template-columns: 1fr 1fr; }
@@ -49,6 +97,73 @@
 }
 
 @media (orientation: landscape) and (max-height: 680px) {
+    body:has(.profile-page),
+    body:has(.auth-page) {
+        overflow: auto;
+    }
+
+    body:has(.profile-page) .shell,
+    body:has(.auth-page) .shell {
+        width: calc(100vw - 20px);
+        height: auto;
+        min-height: 100vh;
+        padding: 10px 0;
+        overflow: visible;
+    }
+
+    .profile-page {
+        height: auto;
+        min-height: calc(100vh - 20px);
+        overflow: visible;
+        gap: 8px;
+    }
+
+    .profile-page .panel-header,
+    .profile-page .account-panel {
+        padding: 14px;
+    }
+
+    .profile-page .account-grid {
+        gap: 10px;
+    }
+
+    .profile-page .field-label input {
+        padding: 10px 12px;
+    }
+
+    .auth-page {
+        min-height: calc(100vh - 20px);
+        align-content: start;
+    }
+
+    .auth-card {
+        max-width: min(760px, calc(100vw - 48px));
+        padding: 18px;
+        gap: 10px;
+    }
+
+    .auth-card h1 {
+        font-size: clamp(34px, 5vw, 44px);
+    }
+
+    .auth-card .subtle {
+        font-size: 15px;
+        line-height: 1.35;
+    }
+
+    .auth-form {
+        gap: 10px;
+    }
+
+    .auth-form .field-label {
+        gap: 5px;
+    }
+
+    .auth-form .field-label input {
+        min-height: 38px;
+        padding: 9px 12px;
+    }
+
     body:has(.table-page) {
         overflow: hidden;
     }
@@ -84,19 +199,6 @@
 
     body:has(.table-page) .table-topbar h1 {
         font-size: 22px;
-    }
-
-    .combat-hud {
-        position: static;
-        transform: none;
-        margin-top: 0;
-        justify-content: flex-start;
-    }
-
-    .combat-hud span {
-        min-height: 28px;
-        padding: 5px 8px;
-        font-size: 13px;
     }
 
     .header-actions {
@@ -161,12 +263,6 @@
         margin-top: 8px;
     }
 
-    .dice-readout {
-        min-height: 34px;
-        min-width: 78px;
-        padding: 5px 8px;
-    }
-
     .board-panel {
         grid-template-rows: auto auto;
         align-content: start;
@@ -188,10 +284,6 @@
     .side-toggle button {
         min-height: 28px;
         padding: 0 6px;
-    }
-
-    .map-zoom-control {
-        padding: 7px 8px;
     }
 
     .hand-list {
@@ -247,27 +339,6 @@
 
     body:has(.table-page) .table-topbar h1 {
         display: none;
-    }
-
-    body:has(.table-page) .combat-hud {
-        position: static;
-        width: auto;
-        transform: none;
-        gap: 4px;
-        justify-content: flex-start;
-    }
-
-    body:has(.table-page) .combat-hud span {
-        min-height: 24px;
-        padding: 3px 6px;
-        border-radius: 8px;
-        font-size: 11px;
-        gap: 4px;
-    }
-
-    body:has(.table-page) .hud-dice img {
-        width: 15px;
-        height: 15px;
     }
 
     body:has(.table-page) .header-actions {
@@ -356,41 +427,6 @@
     body:has(.table-page) .cta-stack {
         gap: 5px;
         margin-top: 6px;
-    }
-
-    body:has(.table-page) .identification-panel,
-    body:has(.table-page) .map-zoom-control,
-    body:has(.table-page) .buff-panel {
-        padding: 5px 6px;
-        gap: 4px;
-        border-radius: 8px;
-    }
-
-    body:has(.table-page) .combo-readout {
-        min-height: 22px;
-        padding: 3px 7px;
-        border-radius: 7px;
-        font-size: 11px;
-    }
-
-    body:has(.table-page) .identification-exp {
-        gap: 4px;
-    }
-
-    body:has(.table-page) .identification-exp-head,
-    body:has(.table-page) .map-zoom-control span,
-    body:has(.table-page) .buff-panel span {
-        font-size: 9px;
-        gap: 4px;
-    }
-
-    body:has(.table-page) .identification-exp-bar {
-        height: 5px;
-    }
-
-    body:has(.table-page) .buff-panel strong {
-        font-size: 10px;
-        line-height: 1.18;
     }
 
     body:has(.table-page) .board-panel {
@@ -542,5 +578,212 @@
         min-width: 18px;
         height: 18px;
         font-size: 10px;
+    }
+}
+
+@media (max-width: 720px) {
+    .build-page:not(.profile-page) .build-deck-panel {
+        max-height: min(62vh, 560px);
+        overflow: auto;
+        overscroll-behavior: contain;
+    }
+
+    .build-page:not(.profile-page) .deck-zones {
+        max-height: none;
+        overflow: visible;
+    }
+
+    .build-page:not(.profile-page) .deck-slots,
+    .build-page:not(.profile-page) .build-deck-esper-zone .esper-slots,
+    .build-page:not(.profile-page) .deck-zone[data-zone="starter"] .deck-slots,
+    .build-page:not(.profile-page) .deck-zone[data-zone="reserve"] .deck-slots {
+        grid-template-columns: 1fr;
+        grid-template-rows: none;
+        grid-auto-rows: 54px;
+        gap: 6px;
+        overflow: visible;
+    }
+
+    .build-page:not(.profile-page) .build-deck-esper-zone .esper-slots {
+        grid-auto-rows: 56px;
+    }
+
+    .build-page:not(.profile-page) .deck-slot,
+    .build-page:not(.profile-page) .deck-zone[data-zone="starter"] .deck-slot,
+    .build-page:not(.profile-page) .build-deck-esper-zone .deck-slot {
+        min-height: 0;
+    }
+
+    .build-page:not(.profile-page) .deck-card,
+    .build-page:not(.profile-page) .esper-slots .deck-card,
+    .build-page:not(.profile-page) .deck-zone[data-zone="reserve"] .deck-card {
+        height: 100%;
+        min-height: 0;
+        grid-template-columns: 44px minmax(104px, 0.72fr) minmax(0, 1fr);
+        grid-template-rows: 1fr;
+        align-items: center;
+        gap: 6px;
+        padding: 4px 8px 4px 4px;
+    }
+
+    .build-page:not(.profile-page) .esper-slots .deck-card {
+        grid-template-columns: 46px minmax(104px, 0.72fr) minmax(0, 1fr);
+    }
+
+    .build-page:not(.profile-page) .deck-card .item-art,
+    .build-page:not(.profile-page) .esper-slots .deck-card .item-art,
+    .build-page:not(.profile-page) .deck-zone[data-zone="reserve"] .deck-card .item-art {
+        grid-row: 1;
+        width: 44px;
+        height: 46px;
+    }
+
+    .build-page:not(.profile-page) .esper-slots .deck-card .item-art {
+        width: 46px;
+        height: 48px;
+    }
+
+    .build-page:not(.profile-page) .deck-card .item-art.small .item-icon,
+    .build-page:not(.profile-page) .deck-card .item-art.small .item-icon-img {
+        width: 112% !important;
+        height: 112% !important;
+        max-width: none;
+        max-height: none;
+        object-fit: contain;
+    }
+
+    .build-page:not(.profile-page) .deck-card .card-headline {
+        min-width: 0;
+        grid-column: 2;
+    }
+
+    .build-page:not(.profile-page) .deck-card .card-headline h2 {
+        min-width: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 3px;
+        font-size: 12px;
+        line-height: 1.05;
+    }
+
+    .build-page:not(.profile-page) .deck-card .deck-inline-stats {
+        max-width: 100%;
+        gap: 2px;
+        flex-wrap: nowrap;
+    }
+
+    .build-page:not(.profile-page) .deck-card .deck-inline-stats .build-stat-badge {
+        min-width: 20px;
+        height: 18px;
+        padding: 0 4px;
+        font-size: 9px;
+    }
+
+    .build-page:not(.profile-page) .deck-card .deck-card-name,
+    .build-page:not(.profile-page) .deck-card .deck-row-meta {
+        max-width: 100%;
+    }
+
+    .build-page:not(.profile-page) .deck-card .deck-row-meta {
+        font-size: 9px;
+        line-height: 1.1;
+    }
+
+    .build-page:not(.profile-page) .deck-card .card-meta {
+        grid-column: 3;
+        display: -webkit-box;
+        min-height: 0;
+        max-height: 40px;
+        overflow: hidden;
+        color: #d5deef;
+        font-size: 10px;
+        line-height: 1.28;
+        -webkit-box-orient: vertical;
+        -webkit-line-clamp: 2;
+    }
+
+    .build-page:not(.profile-page) .deck-card .card-meta span {
+        display: block;
+    }
+}
+
+@media (orientation: landscape) and (max-height: 680px) and (pointer: coarse) {
+    .build-page:not(.profile-page) .build-deck-panel {
+        max-height: none;
+        overflow: auto;
+    }
+
+    .build-page:not(.profile-page) .deck-slots,
+    .build-page:not(.profile-page) .build-deck-esper-zone .esper-slots,
+    .build-page:not(.profile-page) .deck-zone[data-zone="starter"] .deck-slots,
+    .build-page:not(.profile-page) .deck-zone[data-zone="reserve"] .deck-slots {
+        grid-template-columns: 1fr;
+        grid-template-rows: none;
+        grid-auto-rows: 44px;
+        overflow: visible;
+    }
+
+    .build-page:not(.profile-page) .build-deck-esper-zone .esper-slots {
+        grid-auto-rows: 46px;
+    }
+
+    .build-page:not(.profile-page) .deck-card,
+    .build-page:not(.profile-page) .esper-slots .deck-card,
+    .build-page:not(.profile-page) .deck-zone[data-zone="reserve"] .deck-card {
+        grid-template-columns: 38px minmax(96px, 0.68fr) minmax(0, 1fr);
+        grid-template-rows: 1fr;
+        align-items: center;
+        gap: 5px;
+        padding: 3px 7px 3px 3px;
+    }
+
+    .build-page:not(.profile-page) .esper-slots .deck-card {
+        grid-template-columns: 40px minmax(96px, 0.68fr) minmax(0, 1fr);
+    }
+
+    .build-page:not(.profile-page) .deck-card .item-art,
+    .build-page:not(.profile-page) .esper-slots .deck-card .item-art,
+    .build-page:not(.profile-page) .deck-zone[data-zone="reserve"] .deck-card .item-art {
+        width: 38px;
+        height: 38px;
+    }
+
+    .build-page:not(.profile-page) .esper-slots .deck-card .item-art {
+        width: 40px;
+        height: 40px;
+    }
+
+    .build-page:not(.profile-page) .deck-card .item-art.small .item-icon,
+    .build-page:not(.profile-page) .deck-card .item-art.small .item-icon-img {
+        width: 112% !important;
+        height: 112% !important;
+        max-width: none;
+        max-height: none;
+        object-fit: contain;
+    }
+
+    .build-page:not(.profile-page) .deck-card .card-headline h2 {
+        flex-direction: row;
+        align-items: center;
+        gap: 4px;
+        font-size: 11px;
+    }
+
+    .build-page:not(.profile-page) .deck-card .deck-row-meta {
+        flex: 0 1 84px;
+    }
+
+    .build-page:not(.profile-page) .deck-card .card-meta {
+        grid-column: 3;
+        display: -webkit-box;
+        min-height: 0;
+        max-height: 32px;
+        overflow: hidden;
+        color: #d5deef;
+        font-size: 9px;
+        line-height: 1.22;
+        -webkit-box-orient: vertical;
+        -webkit-line-clamp: 2;
     }
 }

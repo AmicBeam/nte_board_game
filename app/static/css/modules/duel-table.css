@@ -318,7 +318,6 @@ body:has(.duel-page) {
 }
 
 .duel-location::after,
-.location-art,
 .location-head {
     display: none;
 }
@@ -2286,7 +2285,9 @@ body.duel-scene-hollow-stage .duel-page {
 }
 
 .esper-card.disabled:hover::after,
-.esper-card.disabled:focus-visible::after {
+.esper-card.disabled:focus-visible::after,
+.hand-card.disabled:hover::after,
+.hand-card.disabled:focus-visible::after {
     content: attr(data-disabled-reason);
     position: absolute;
     left: 6px;
@@ -2375,26 +2376,12 @@ body.duel-scene-hollow-stage .duel-page {
     animation: locationReveal 0.72s cubic-bezier(0.2, 0.8, 0.2, 1) both;
 }
 
-.duel-location.location-revealed .location-art {
-    animation: locationArtReveal 0.82s ease both;
-}
-
 .duel-location.mark-pulse {
     box-shadow: inset 0 0 0 2px rgba(226,185,95,0.64), 0 0 28px rgba(226,185,95,0.18);
 }
 
 .duel-location.unrevealed {
     filter: saturate(0.72);
-}
-
-.location-art {
-    position: absolute;
-    inset: 0;
-    z-index: 0;
-    background-position: center;
-    background-size: cover;
-    opacity: 0.34;
-    filter: saturate(1.05) contrast(1.08);
 }
 
 .duel-location::after {
@@ -2482,6 +2469,11 @@ body.duel-scene-hollow-stage .duel-page {
 
 .location-power-row.player > strong {
     color: #c7fffb;
+}
+
+.location-power-row.power-changed > strong {
+    animation: powerPulse 0.72s ease both;
+    text-shadow: 0 0 18px rgba(255, 237, 200, 0.62);
 }
 
 .location-leader {
@@ -2688,7 +2680,6 @@ body.selecting-materials .board-card.material-selected {
     box-shadow: inset 0 0 0 2px rgba(255,191,87,0.48), 0 0 34px rgba(255,191,87,0.28);
 }
 
-.board-card.reserved-material-card::after,
 body.selecting-materials .board-card.material-selected::after {
     content: '待消耗';
     position: absolute;
@@ -3827,19 +3818,6 @@ body.presentation-locked .esper-card {
     }
 }
 
-@keyframes locationArtReveal {
-    from {
-        opacity: 0.08;
-        filter: blur(8px) saturate(0.7);
-        transform: scale(1.05);
-    }
-    to {
-        opacity: 0.34;
-        filter: blur(0) saturate(1.05) contrast(1.08);
-        transform: scale(1);
-    }
-}
-
 @keyframes cardReveal {
     0% {
         opacity: 0.82;
@@ -4740,7 +4718,6 @@ body:has(.duel-page) {
 }
 
 .duel-location::after,
-.location-art,
 .location-head {
     display: none;
 }

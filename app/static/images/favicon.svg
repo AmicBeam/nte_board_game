@@ -1,6 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="NTE">
-  <rect width="64" height="64" rx="14" fill="#070b12"/>
-  <path d="M13 43 32 9l19 34H13Z" fill="#58d8d2"/>
-  <path d="M20 43h24l-12 12-12-12Z" fill="#ffbf57"/>
-  <path d="M32 17 44 43H20L32 17Z" fill="#f3f7ff" opacity=".82"/>
-</svg>

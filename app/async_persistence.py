@@ -21,7 +21,6 @@ logger = get_logger('nte.async_persistence')
 class RunPersistEvent:
     room_id: int
     sequence: int
-    map_id: str
     status: str
     snapshot: dict[str, Any]
     touch_room: bool
@@ -33,7 +32,6 @@ class RunPersistEvent:
 class CachedRun:
     sequence: int
     status: str
-    map_id: str
     snapshot: dict[str, Any]
     updated_at: datetime
 
@@ -49,7 +47,6 @@ _MAX_RETRY_ATTEMPTS = 3
 
 def queue_room_snapshot_persist(
     room_id: int,
-    map_id: str,
     status: str,
     snapshot: dict[str, Any],
     *,
@@ -63,14 +60,12 @@ def queue_room_snapshot_persist(
         _cached_runs[room_id] = CachedRun(
             sequence=sequence,
             status=status,
-            map_id=map_id,
             snapshot=snapshot,
             updated_at=datetime.utcnow(),
         )
     _queue.put(RunPersistEvent(
         room_id=room_id,
         sequence=sequence,
-        map_id=map_id,
         status=status,
         snapshot=snapshot,
         touch_room=touch_room,
@@ -85,7 +80,6 @@ def get_cached_room_run(room_id: int) -> dict[str, Any] | None:
             return None
         return {
             'status': cached.status,
-            'map_id': cached.map_id,
             'snapshot': deepcopy(cached.snapshot),
             'updated_at': cached.updated_at.isoformat(),
         }
@@ -128,7 +122,6 @@ def _worker_loop() -> None:
                 _queue.put(RunPersistEvent(
                     room_id=event.room_id,
                     sequence=event.sequence,
-                    map_id=event.map_id,
                     status=event.status,
                     snapshot=event.snapshot,
                     touch_room=event.touch_room,
@@ -154,7 +147,6 @@ def _persist_event(event: RunPersistEvent) -> None:
                 return
             upsert_run(
                 room,
-                event.map_id,
                 event.status,
                 event.snapshot,
                 touch_room=event.touch_room and not event.update_room_status,
