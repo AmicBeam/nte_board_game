@@ -80,8 +80,7 @@ class RoomFlowTestCase(unittest.TestCase):
     def _save_default_build(self, token: str) -> None:
         self._post('/api/build/save', {
             'character_id': 'nanali',
-            'starter_item_ids': DEFAULT_ITEMS[:4],
-            'reserve_item_ids': DEFAULT_ITEMS[4:],
+            'item_ids': DEFAULT_ITEMS,
             'esper_card_ids': DEFAULT_ESPERS,
         }, token=token)
 
@@ -137,11 +136,68 @@ class RoomFlowTestCase(unittest.TestCase):
 
     def _solo_test_run_context(self) -> ExitStack:
         stack = ExitStack()
-        stack.enter_context(patch('app.engine.game_service.random.shuffle', side_effect=lambda value: None))
+        stack.enter_context(patch('app.engine.setup.snapshot_factory.random.shuffle', side_effect=lambda value: None))
         return stack
 
 
 class SoloRoomFlowTest(RoomFlowTestCase):
+    def test_legacy_starter_fields_are_saved_as_plain_deck(self) -> None:
+        token = self._issue_login_and_get_token('legacy-starter-build')
+
+        self._post('/api/build/save', {
+            'character_id': 'nanali',
+            'starter_item_ids': DEFAULT_ITEMS[:4],
+            'reserve_item_ids': DEFAULT_ITEMS[4:],
+            'esper_card_ids': DEFAULT_ESPERS,
+        }, token=token)
+
+        catalog = self._get('/api/catalog', token=token)
+        saved_build = catalog['saved_build']
+        self.assertEqual(catalog['min_build_size'], 10)
+        self.assertEqual(catalog['build_size'], 20)
+        self.assertFalse(catalog['fixed_opening_hand_enabled'])
+        self.assertEqual(saved_build['item_ids'], DEFAULT_ITEMS)
+        self.assertEqual(saved_build['starter_item_ids'], [])
+        self.assertEqual(saved_build['reserve_item_ids'], DEFAULT_ITEMS)
+        self.assertEqual(saved_build['esper_card_ids'], DEFAULT_ESPERS)
+
+    def test_legacy_starter_fields_do_not_fix_opening_hand(self) -> None:
+        token = self._issue_login_and_get_token('legacy-starter-random')
+        self._post('/api/build/save', {
+            'character_id': 'nanali',
+            'starter_item_ids': DEFAULT_ITEMS[:4],
+            'reserve_item_ids': DEFAULT_ITEMS[4:],
+            'esper_card_ids': DEFAULT_ESPERS,
+        }, token=token)
+        self._post('/api/room/create', {'mode': 'solo'}, token=token)
+
+        def reverse_shuffle(value: list) -> None:
+            value.reverse()
+
+        with patch('app.engine.setup.snapshot_factory.random.shuffle', side_effect=reverse_shuffle):
+            state = self._post('/api/room/start', token=token)
+
+        hand_ids = [card['definition_id'] for card in state['player']['hand']]
+        self.assertEqual(len(hand_ids), 4)
+        self.assertEqual(hand_ids, list(reversed(DEFAULT_ITEMS[-4:])))
+        self.assertNotEqual(hand_ids, DEFAULT_ITEMS[:4])
+
+    def test_ten_card_build_starts_with_random_opening_hand(self) -> None:
+        token = self._issue_login_and_get_token('ten-card-build')
+        ten_card_items = DEFAULT_ITEMS[:10]
+        self._post('/api/build/save', {
+            'character_id': 'nanali',
+            'item_ids': ten_card_items,
+            'esper_card_ids': DEFAULT_ESPERS,
+        }, token=token)
+        self._post('/api/room/create', {'mode': 'solo'}, token=token)
+
+        with self._solo_test_run_context():
+            state = self._post('/api/room/start', token=token)
+
+        self.assertEqual(len(state['player']['hand']), 4)
+        self.assertEqual(state['player']['deck_count'], 6)
+
     def test_create_solo_room_and_start_run(self) -> None:
         token = self._issue_login_and_get_token('solo-room-start')
         self._save_default_build(token)
@@ -180,6 +236,38 @@ class SoloRoomFlowTest(RoomFlowTestCase):
         self.assertEqual(room_state['status'], 'playing')
         self.assertEqual(room_state['run_status'], 'playing')
 
+    def test_chip_washer_requires_ally_item_target_before_deploying(self) -> None:
+        token = self._issue_login_and_get_token('solo-chip-washer-target')
+        self._post('/api/build/save', {
+            'character_id': 'nanali',
+            'item_ids': DEFAULT_ITEMS,
+            'esper_card_ids': DEFAULT_ESPERS,
+        }, token=token)
+        self._post('/api/room/create', {'mode': 'solo'}, token=token)
+
+        def chip_washer_first(value: list) -> None:
+            value.sort(key=lambda card: 0 if card.get('definition_id') == 'genesis_chip_washer' else 1)
+
+        with patch('app.engine.setup.snapshot_factory.random.shuffle', side_effect=chip_washer_first):
+            self._post('/api/room/start', token=token)
+            state = self._post('/api/game/end-turn', token=token)
+
+        washer = next(
+            card for card in state['player']['hand']
+            if card.get('definition_id') == 'genesis_chip_washer'
+        )
+        error = self._post_error('/api/game/play-card', {
+            'card_instance_id': washer['instance_id'],
+            'location_id': state['locations'][0]['id'],
+        }, token=token)
+
+        self.assertIn('需要可选择的己方道具', error['error'])
+        state_after = self._get('/api/game/state', token=token)
+        self.assertTrue(any(card['instance_id'] == washer['instance_id'] for card in state_after['player']['hand']))
+        self.assertEqual(state_after['energy_remaining'], 2)
+        self.assertFalse(state_after['locations'][0]['slots']['player'])
+        self.assertIsNone(state_after.get('pending_target'))
+
     def test_solo_room_can_finish_run_and_reset(self) -> None:
         token = self._issue_login_and_get_token('solo-room-victory')
         self._save_default_build(token)
@@ -190,7 +278,7 @@ class SoloRoomFlowTest(RoomFlowTestCase):
             self.assertEqual(state['status'], 'playing')
             self.assertEqual(state['phase'], 'planning')
             self.assertEqual(len(state['player']['hand']), 4)
-            first_card = state['player']['hand'][0]
+            first_card = next(card for card in state['player']['hand'] if card['definition_id'] == 'genesis_refresh_charge')
             first_location = state['locations'][0]
             state = self._post('/api/game/play-card', {
                 'card_instance_id': first_card['instance_id'],
@@ -205,6 +293,9 @@ class SoloRoomFlowTest(RoomFlowTestCase):
             self.assertTrue(any('标记' in line or '战力' in line for line in state['log']))
             self.assertTrue(any(action['kind'] == 'reveal_phase_begin' for action in state['action_queue']))
             self.assertTrue(any(action['kind'] == 'draw_card' for action in state['action_queue']))
+            refreshed_state = self._get('/api/game/state', token=token)
+            self.assertEqual(refreshed_state['action_queue'], [])
+            self.assertEqual(refreshed_state['banner_queue'], [])
 
             for _ in range(5):
                 state = self._post('/api/game/end-turn', token=token)
@@ -235,7 +326,7 @@ class SoloRoomFlowTest(RoomFlowTestCase):
 
         with self._solo_test_run_context():
             state = self._post('/api/room/start', token=token)
-            first_card = state['player']['hand'][0]
+            first_card = next(card for card in state['player']['hand'] if card['definition_id'] == 'genesis_refresh_charge')
             first_location = state['locations'][0]
             self.assertFalse(state['can_undo_turn'])
 
@@ -260,21 +351,63 @@ class SoloRoomFlowTest(RoomFlowTestCase):
             self.assertIn('本回合没有可以撤销的操作', error_payload['error'])
 
 
+class _RuleModules:
+    def __init__(self) -> None:
+        self.runtime = importlib.import_module('app.engine.flow.turn_flow')
+        self.board = importlib.import_module('app.engine.rules.board_state')
+        self.declarations = importlib.import_module('app.engine.rules.declarations')
+        self.harmony = importlib.import_module('app.engine.rules.harmony')
+        self.materials = importlib.import_module('app.engine.rules.materials')
+        self.reveal = importlib.import_module('app.engine.flow.reveal_flow')
+        self.build = importlib.import_module('app.engine.application.build_service')
+        self.run_state = importlib.import_module('app.engine.application.run_state')
+        self.factory = importlib.import_module('app.engine.setup.snapshot_factory')
+        self.projection = importlib.import_module('app.engine.projection.public_state')
+        self.errors = importlib.import_module('app.errors')
+
+    def __getattr__(self, name: str):
+        mapping = {
+            '_card_by_id': self.build.card_by_id,
+            '_card_instance': self.factory.card_instance,
+            '_prepare_declaration_selection': self.declarations.prepare_declaration_selection,
+            '_prepare_declaration_target': self.declarations.prepare_declaration_target,
+            '_public_pending_target': self.run_state.public_pending_target,
+            '_public_location': self.run_state.public_location,
+            '_reveal_card': self.reveal.reveal_card,
+            '_resolve_pending_material_consumption': self.reveal.resolve_pending_material_consumption,
+            '_recompute_scores': self.board.recompute_scores,
+            '_location_occupied_card_count': self.board.location_occupied_card_count,
+            '_open_locations': self.board.open_locations,
+            '_location_has_room_after_materials': self.materials.location_has_room_after_materials,
+            '_material_cards_for_esper': self.materials.material_cards_for_esper,
+            '_decay_harmony_layers_at_turn_start': self.harmony.decay_harmony_layers_at_turn_start,
+            '_resolve_harmony_end_of_turn': self.harmony.resolve_harmony_end_of_turn,
+            'SidePerspective': self.projection.SidePerspective,
+            'RuleValidationError': self.errors.RuleValidationError,
+        }
+        if name in mapping:
+            return mapping[name]
+        return getattr(self.runtime, name)
+
+
 class DuelRuleTimingTest(RoomFlowTestCase):
+    def _rules(self) -> _RuleModules:
+        return _RuleModules()
+
     def _card_instance(self, definition_id: str, suffix: str, *, revealed: bool = True, turn: int = 1) -> dict:
-        game_service = importlib.import_module('app.engine.game_service')
-        definition = game_service._card_by_id()[definition_id]
-        card = game_service._card_instance(definition, game_service.SIDE_A, suffix)
+        rules = self._rules()
+        definition = rules._card_by_id()[definition_id]
+        card = rules._card_instance(definition, rules.SIDE_A, suffix)
         card['revealed'] = revealed
         card['played_turn'] = turn
         card['location_id'] = 'mirror_archive'
         return card
 
     def _snapshot_with_cards(self, cards: list[dict]) -> dict:
-        game_service = importlib.import_module('app.engine.game_service')
+        rules = self._rules()
         return {
-            'schema_version': game_service.SCHEMA_VERSION,
-            'game_id': game_service.GAME_ID,
+            'schema_version': rules.SCHEMA_VERSION,
+            'game_id': rules.GAME_ID,
             'mode': 'solo',
             'scenario': 'standard',
             'status': 'playing',
@@ -290,13 +423,13 @@ class DuelRuleTimingTest(RoomFlowTestCase):
                 'art': '',
                 'description': '',
                 'effect': '',
-                'cards': {game_service.SIDE_A: cards, game_service.SIDE_B: []},
-                'power': {game_service.SIDE_A: 0, game_service.SIDE_B: 0},
+                'cards': {rules.SIDE_A: cards, rules.SIDE_B: []},
+                'power': {rules.SIDE_A: 0, rules.SIDE_B: 0},
                 'winner_side': None,
             }],
             'sides': {
-                game_service.SIDE_A: {
-                    'side': game_service.SIDE_A,
+                rules.SIDE_A: {
+                    'side': rules.SIDE_A,
                     'uid': 'rules-a',
                     'nickname': 'A',
                     'is_ai': False,
@@ -310,8 +443,8 @@ class DuelRuleTimingTest(RoomFlowTestCase):
                     'energy_used': 0,
                     'ended_turn': False,
                 },
-                game_service.SIDE_B: {
-                    'side': game_service.SIDE_B,
+                rules.SIDE_B: {
+                    'side': rules.SIDE_B,
                     'uid': 'rules-b',
                     'nickname': 'B',
                     'is_ai': True,
@@ -332,8 +465,100 @@ class DuelRuleTimingTest(RoomFlowTestCase):
             'banner_queue': [],
         }
 
+    def test_declaration_config_can_select_hand_cards(self) -> None:
+        rules = self._rules()
+        source = self._card_instance('delay_commute_bag', 'source', revealed=False, turn=2)
+        source['staged'] = True
+        material = self._card_instance('delay_first_wish', 'material')
+        non_material = self._card_instance('genesis_urban_energy', 'non-material')
+        snapshot = self._snapshot_with_cards([source])
+        snapshot['phase'] = 'planning'
+        snapshot['sides'][rules.SIDE_A]['hand'] = [non_material, material]
+
+        prepared = rules._prepare_declaration_selection(
+            snapshot,
+            rules.SIDE_A,
+            snapshot['locations'][0],
+            source,
+        )
+
+        self.assertTrue(prepared)
+        selection = snapshot['sides'][rules.SIDE_A]['selection']
+        self.assertEqual(selection['kind'], 'declaration')
+        self.assertEqual([card['instance_id'] for card in selection['cards']], [material['instance_id']])
+
+    def test_commute_bag_reveal_uses_declared_hand_card(self) -> None:
+        rules = self._rules()
+        source = self._card_instance('delay_commute_bag', 'source', revealed=False, turn=2)
+        source['staged'] = True
+        material = self._card_instance('delay_first_wish', 'material')
+        drawn = self._card_instance('genesis_urban_energy', 'drawn')
+        source['declared_card_instance_ids'] = [material['instance_id']]
+        source['declared_card_names'] = [material['name']]
+        snapshot = self._snapshot_with_cards([source])
+        snapshot['sides'][rules.SIDE_A]['hand'] = [material]
+        snapshot['sides'][rules.SIDE_A]['deck'] = [drawn]
+
+        rules._reveal_card(snapshot, rules.SIDE_A, snapshot['locations'][0], source)
+
+        self.assertEqual([card['definition_id'] for card in snapshot['sides'][rules.SIDE_A]['hand']], ['genesis_urban_energy'])
+        self.assertEqual([card['definition_id'] for card in snapshot['sides'][rules.SIDE_A]['deck']], ['delay_first_wish'])
+        self.assertNotIn('declared_card_instance_ids', source)
+
+    def test_declaration_config_sorts_and_dedupes_deck_and_discard_cards(self) -> None:
+        rules = self._rules()
+        source = self._card_instance('genesis_eborn_cake', 'source', revealed=False, turn=2)
+        source['staged'] = True
+        urban_deck = self._card_instance('genesis_urban_energy', 'urban-deck')
+        cake_deck = self._card_instance('genesis_eborn_cake', 'cake-deck')
+        urban_discard = self._card_instance('genesis_urban_energy', 'urban-discard')
+        soda_discard = self._card_instance('genesis_marble_soda', 'soda-discard')
+        snapshot = self._snapshot_with_cards([source])
+        snapshot['phase'] = 'planning'
+        snapshot['sides'][rules.SIDE_A]['deck'] = [urban_deck, cake_deck]
+        snapshot['sides'][rules.SIDE_A]['discard'] = [urban_discard, soda_discard]
+
+        prepared = rules._prepare_declaration_selection(
+            snapshot,
+            rules.SIDE_A,
+            snapshot['locations'][0],
+            source,
+        )
+
+        self.assertTrue(prepared)
+        selection = snapshot['sides'][rules.SIDE_A]['selection']
+        self.assertEqual(
+            [card['definition_id'] for card in selection['cards']],
+            ['genesis_eborn_cake', 'genesis_urban_energy', 'genesis_marble_soda'],
+        )
+        self.assertEqual(
+            len({card['definition_id'] for card in selection['cards']}),
+            len(selection['cards']),
+        )
+
+    def test_board_declaration_uses_card_predicate_for_legal_targets(self) -> None:
+        rules = self._rules()
+        source = self._card_instance('genesis_marble_soda', 'source', revealed=False, turn=2)
+        source['staged'] = True
+        legal = self._card_instance('genesis_urban_energy', 'legal')
+        illegal = self._card_instance('genesis_eborn_cake', 'illegal')
+        illegal['computed_power'] = 4
+        snapshot = self._snapshot_with_cards([source, legal, illegal])
+        snapshot['phase'] = 'planning'
+
+        prepared = rules._prepare_declaration_target(
+            snapshot,
+            rules.SIDE_A,
+            snapshot['locations'][0],
+            source,
+        )
+
+        self.assertTrue(prepared)
+        pending = rules._public_pending_target(snapshot['sides'][rules.SIDE_A], snapshot)
+        self.assertEqual(pending['target_instance_ids'], [legal['instance_id']])
+
     def test_broken_material_blocks_esper_entry_before_reveal(self) -> None:
-        game_service = importlib.import_module('app.engine.game_service')
+        rules = self._rules()
         material_a = self._card_instance('genesis_refresh_charge', 'material-a')
         material_b = self._card_instance('genesis_marble_soda', 'material-b')
         material_a['bonus_power'] = -2
@@ -346,15 +571,15 @@ class DuelRuleTimingTest(RoomFlowTestCase):
         material_b['reserved_as_material_for'] = esper['instance_id']
         snapshot = self._snapshot_with_cards([material_a, material_b, esper])
 
-        game_service._resolve_pending_material_consumption(snapshot)
+        rules._resolve_pending_material_consumption(snapshot)
 
-        side = snapshot['sides'][game_service.SIDE_A]
+        side = snapshot['sides'][rules.SIDE_A]
         self.assertEqual([card['definition_id'] for card in side['discard']], ['genesis_refresh_charge'])
         self.assertEqual([card['definition_id'] for card in side['esper_standby']], ['nanali'])
-        self.assertEqual([card['definition_id'] for card in snapshot['locations'][0]['cards'][game_service.SIDE_A]], ['genesis_marble_soda'])
+        self.assertEqual([card['definition_id'] for card in snapshot['locations'][0]['cards'][rules.SIDE_A]], ['genesis_marble_soda'])
 
     def test_material_consumption_happens_before_new_cards_reveal(self) -> None:
-        game_service = importlib.import_module('app.engine.game_service')
+        rules = self._rules()
         material_a = self._card_instance('genesis_refresh_charge', 'material-a')
         material_b = self._card_instance('genesis_marble_soda', 'material-b')
         esper = self._card_instance('nanali', 'esper-a', revealed=False, turn=2)
@@ -367,32 +592,189 @@ class DuelRuleTimingTest(RoomFlowTestCase):
         new_card['staged'] = True
         snapshot = self._snapshot_with_cards([material_a, material_b, esper, new_card])
 
-        game_service._resolve_pending_material_consumption(snapshot)
+        rules._resolve_pending_material_consumption(snapshot)
 
-        remaining = [card['definition_id'] for card in snapshot['locations'][0]['cards'][game_service.SIDE_A]]
+        remaining = [card['definition_id'] for card in snapshot['locations'][0]['cards'][rules.SIDE_A]]
         self.assertEqual(remaining, ['nanali', 'genesis_breakfast_bag'])
-        self.assertTrue(snapshot['locations'][0]['cards'][game_service.SIDE_A][0]['staged'])
-        self.assertFalse(snapshot['locations'][0]['cards'][game_service.SIDE_A][1]['revealed'])
+        self.assertTrue(snapshot['locations'][0]['cards'][rules.SIDE_A][0]['staged'])
+        self.assertFalse(snapshot['locations'][0]['cards'][rules.SIDE_A][1]['revealed'])
+        consume_actions = [action for action in snapshot['action_queue'] if action['kind'] == 'consume_material']
+        self.assertEqual([action['card']['definition_id'] for action in consume_actions], ['genesis_refresh_charge', 'genesis_marble_soda'])
+
+    def test_reserved_materials_do_not_occupy_slots_or_score(self) -> None:
+        rules = self._rules()
+        materials = [
+            self._card_instance('genesis_refresh_charge', f'material-{index}')
+            for index in range(rules.LOCATION_CARD_LIMIT)
+        ]
+        esper = self._card_instance('nanali', 'esper-a', revealed=False, turn=2)
+        esper['staged'] = True
+        esper['summoned_from'] = 'esper_standby'
+        esper['pending_material_ids'] = [materials[0]['instance_id'], materials[1]['instance_id']]
+        materials[0]['reserved_as_material_for'] = esper['instance_id']
+        materials[1]['reserved_as_material_for'] = esper['instance_id']
+        snapshot = self._snapshot_with_cards([*materials, esper])
+
+        rules._recompute_scores(snapshot)
+        location = snapshot['locations'][0]
+        public_location = rules._public_location(
+            location,
+            rules.SidePerspective(own=rules.SIDE_A, opponent=rules.SIDE_B),
+        )
+
+        self.assertEqual(rules._location_occupied_card_count(location, rules.SIDE_A), rules.LOCATION_CARD_LIMIT - 1)
+        self.assertEqual(len(public_location['slots']['player']), rules.LOCATION_CARD_LIMIT - 1)
+        self.assertEqual(public_location['occupied']['player'], rules.LOCATION_CARD_LIMIT - 1)
+        self.assertNotIn(materials[0]['instance_id'], [card['instance_id'] for card in public_location['slots']['player']])
+        self.assertTrue(rules._location_has_room_after_materials(location, rules.SIDE_A, materials[:2]))
+        self.assertIn(location, rules._open_locations(snapshot, rules.SIDE_A))
+        expected_power = sum(int(card['computed_power']) for card in materials[2:])
+        self.assertEqual(location['power'][rules.SIDE_A], expected_power)
 
     def test_multi_requirement_esper_material_accepts_matching_anomaly_items(self) -> None:
-        game_service = importlib.import_module('app.engine.game_service')
+        rules = self._rules()
         material_a = self._card_instance('genesis_urban_energy', 'material-a')
-        material_b = self._card_instance('genesis_refresh_charge', 'material-b')
+        material_b = self._card_instance('surplus_fons', 'material-b')
         esper = self._card_instance('xiaozhi', 'esper-a', revealed=False, turn=2)
         snapshot = self._snapshot_with_cards([material_a, material_b])
 
-        selected = game_service._material_cards_for_esper(
+        selected = rules._material_cards_for_esper(
             snapshot,
-            game_service.SIDE_A,
+            rules.SIDE_A,
             snapshot['locations'][0],
             esper,
             [material_a['instance_id'], material_b['instance_id']],
         )
 
-        self.assertEqual([card['definition_id'] for card in selected], ['genesis_urban_energy', 'genesis_refresh_charge'])
+        self.assertEqual([card['definition_id'] for card in selected], ['genesis_urban_energy', 'surplus_fons'])
+
+    def test_material_matching_accepts_any_valid_assignment_order(self) -> None:
+        rules = self._rules()
+        flexible_material = self._card_instance('genesis_refresh_charge', 'material-a')
+        attribute_material = self._card_instance('genesis_breakfast_bag', 'material-b')
+        esper = self._card_instance('nanali', 'esper-a', revealed=False, turn=2)
+        snapshot = self._snapshot_with_cards([flexible_material, attribute_material])
+
+        selected = rules._material_cards_for_esper(
+            snapshot,
+            rules.SIDE_A,
+            snapshot['locations'][0],
+            esper,
+            [flexible_material['instance_id'], attribute_material['instance_id']],
+        )
+        auto_selected = rules._material_cards_for_esper(
+            snapshot,
+            rules.SIDE_A,
+            snapshot['locations'][0],
+            esper,
+        )
+
+        self.assertEqual([card['definition_id'] for card in selected], ['genesis_refresh_charge', 'genesis_breakfast_bag'])
+        self.assertEqual([card['definition_id'] for card in auto_selected], ['genesis_refresh_charge', 'genesis_breakfast_bag'])
+
+    def test_continuous_damage_marks_decay_at_turn_start(self) -> None:
+        rules = self._rules()
+        snapshot = self._snapshot_with_cards([])
+        location = snapshot['locations'][0]
+        location['marks'] = {
+            rules.SIDE_A: {
+                rules.TAG_NIGHTMARE: 2,
+                rules.TAG_ZHUE_HUCHI: 1,
+            },
+            rules.SIDE_B: {},
+        }
+
+        rules._decay_harmony_layers_at_turn_start(snapshot)
+
+        self.assertEqual(location['marks'][rules.SIDE_A][rules.TAG_NIGHTMARE], 1)
+        self.assertNotIn(rules.TAG_ZHUE_HUCHI, location['marks'][rules.SIDE_A])
+
+    def test_nightmare_and_panyu_qiu_resolve_at_end_of_turn(self) -> None:
+        rules = self._rules()
+        high_enemy = self._card_instance('genesis_muscle_faith', 'enemy-high')
+        low_enemy = self._card_instance('genesis_urban_energy', 'enemy-low')
+        for card in (high_enemy, low_enemy):
+            card['side'] = rules.SIDE_B
+        snapshot = self._snapshot_with_cards([])
+        location = snapshot['locations'][0]
+        location['cards'][rules.SIDE_B] = [high_enemy, low_enemy]
+        location['marks'] = {
+            rules.SIDE_A: {
+                rules.TAG_NIGHTMARE: 3,
+                rules.TAG_PANYU_QIU: 3,
+            },
+            rules.SIDE_B: {},
+        }
+
+        rules._resolve_harmony_end_of_turn(snapshot)
+
+        self.assertEqual(high_enemy['computed_power'], 6)
+        self.assertEqual([card['definition_id'] for card in location['cards'][rules.SIDE_B]], ['genesis_muscle_faith'])
+        self.assertEqual([card['definition_id'] for card in snapshot['sides'][rules.SIDE_B]['discard']], ['genesis_urban_energy'])
+        self.assertTrue(any(action['title'] == '噩梦' for action in snapshot['action_queue']))
+        self.assertTrue(any(action['title'] == '判予秋' for action in snapshot['action_queue']))
+
+    def test_xun_copies_highest_harmony_prioritizing_genesis_and_triggers_it(self) -> None:
+        rules = self._rules()
+        xun = self._card_instance('xun', 'xun-a', revealed=False, turn=2)
+        snapshot = self._snapshot_with_cards([xun])
+        location = snapshot['locations'][0]
+        location['marks'] = {
+            rules.SIDE_A: {
+                rules.TAG_GENESIS: 2,
+                rules.TAG_DELAY: 2,
+            },
+            rules.SIDE_B: {},
+        }
+
+        with patch('app.content.effects.cards.random.choice', side_effect=lambda cards: cards[0]):
+            rules._reveal_card(snapshot, rules.SIDE_A, location, xun)
+
+        self.assertEqual(location['marks'][rules.SIDE_A][rules.TAG_GENESIS], 3)
+        self.assertEqual(location['marks'][rules.SIDE_A][rules.TAG_DELAY], 2)
+        self.assertEqual(xun['computed_power'], 10)
+        self.assertTrue(any('令创生花在时停中生效' in line for line in snapshot['log']))
+
+    def test_xun_requires_light_drink_and_eborn_cake_materials(self) -> None:
+        rules = self._rules()
+        light = self._card_instance('genesis_urban_energy', 'light-a')
+        drink = self._card_instance('genesis_refresh_charge', 'drink-a')
+        cake = self._card_instance('genesis_eborn_cake', 'cake-a')
+        xun = self._card_instance('xun', 'xun-a', revealed=False, turn=2)
+        snapshot = self._snapshot_with_cards([light, drink, cake])
+
+        selected = rules._material_cards_for_esper(
+            snapshot,
+            rules.SIDE_A,
+            snapshot['locations'][0],
+            xun,
+        )
+
+        self.assertCountEqual(
+            [card['definition_id'] for card in selected],
+            ['genesis_urban_energy', 'genesis_refresh_charge', 'genesis_eborn_cake'],
+        )
+
+    def test_murk_item_pressure_does_not_create_murk_mark(self) -> None:
+        rules = self._rules()
+        murk_item = self._card_instance('murk_lost_whisper', 'murk-a', revealed=False, turn=2)
+        target_definition = rules._card_by_id()['genesis_muscle_faith']
+        target = rules._card_instance(target_definition, rules.SIDE_B, 'target-b')
+        target['revealed'] = True
+        target['played_turn'] = 1
+        target['location_id'] = 'mirror_archive'
+        snapshot = self._snapshot_with_cards([murk_item])
+        location = snapshot['locations'][0]
+        location['cards'][rules.SIDE_B].append(target)
+
+        rules._reveal_card(snapshot, rules.SIDE_A, location, murk_item)
+
+        self.assertEqual(location.get('marks', {}).get(rules.SIDE_B, {}).get(rules.TAG_MURK, 0), 0)
+        self.assertEqual(target['bonus_power'], -1)
+        self.assertFalse(any(action.get('kind') == 'spawn_mark' and action.get('mark') == rules.TAG_MURK for action in snapshot['action_queue']))
 
     def test_non_positive_anomaly_item_is_not_valid_esper_material(self) -> None:
-        game_service = importlib.import_module('app.engine.game_service')
+        rules = self._rules()
         material_a = self._card_instance('genesis_refresh_charge', 'material-a')
         material_b = self._card_instance('genesis_marble_soda', 'material-b')
         material_a['bonus_power'] = -2
@@ -400,10 +782,10 @@ class DuelRuleTimingTest(RoomFlowTestCase):
         esper = self._card_instance('nanali', 'esper-a', revealed=False, turn=2)
         snapshot = self._snapshot_with_cards([material_a, material_b])
 
-        with self.assertRaisesRegex(game_service.RuleValidationError, '战力为正'):
-            game_service._material_cards_for_esper(
+        with self.assertRaisesRegex(rules.RuleValidationError, '战力为正'):
+            rules._material_cards_for_esper(
                 snapshot,
-                game_service.SIDE_A,
+                rules.SIDE_A,
                 snapshot['locations'][0],
                 esper,
                 [material_a['instance_id'], material_b['instance_id']],
@@ -503,7 +885,7 @@ class DuoRoomFlowTest(RoomFlowTestCase):
 
     def _duo_test_run_context(self) -> ExitStack:
         stack = ExitStack()
-        stack.enter_context(patch('app.engine.game_service.random.shuffle', side_effect=lambda value: None))
+        stack.enter_context(patch('app.engine.setup.snapshot_factory.random.shuffle', side_effect=lambda value: None))
         return stack
 
 

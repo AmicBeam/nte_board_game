@@ -15,20 +15,22 @@
 {% endblock %}
 {% block body %}
 <main class="main-page">
-    <section class="glass-card panel-header">
-        <div>
-            <p class="eyebrow">NTE Home</p>
-            <h1>主界面</h1>
-            <p class="subtle">先跟机器人“Fairy”发送注册命令，你的 QQ 号就是账号，机器人回传一个验证码作为密码；登录后可以在资料页修改用户名和密码。</p>
+    <section class="glass-card panel-header home-header">
+        <div class="home-brand-block">
+            <img class="home-brand-logo" src="{{ url_for('static', filename='images/brand/duel-logo.webp') }}" alt="异象对决" width="858" height="282">
+            <div class="home-brand-copy">
+                <p class="eyebrow">NTE Home</p>
+                <h1>主界面</h1>
+            </div>
         </div>
         <div class="header-actions">
             <button class="icon-btn tutorial-help-btn" data-tutorial-open="home" type="button" aria-label="打开主界面手册" title="打开手册">
                 <span aria-hidden="true">?</span>
                 <span class="sr-only">打开主界面手册</span>
             </button>
-            <a class="secondary-btn" href="{{ url_for('main.profile_page') }}">资料页</a>
+            <a class="secondary-btn" href="{{ url_for('main.profile_page') }}">账号设置</a>
             <a class="secondary-btn" href="{{ url_for('main.build_page') }}">查看构筑</a>
-            <a class="secondary-btn" href="{{ url_for('main.codex_page') }}">图鉴页</a>
+            <a class="secondary-btn" href="{{ url_for('main.codex_page') }}">空间档案</a>
             <button class="primary-btn" id="logout-btn" type="button">退出登录</button>
         </div>
     </section>

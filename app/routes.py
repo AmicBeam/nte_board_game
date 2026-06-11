@@ -15,7 +15,6 @@ from app.engine.game_service import (
     return_staged_card,
     retreat,
     save_build,
-    save_build_with_starters,
     undo_turn,
 )
 from app.errors import AppError
@@ -73,7 +72,7 @@ def default_page():
 
 @main_bp.get('/favicon.ico')
 def favicon():
-    return redirect(url_for('static', filename='images/favicon.svg'))
+    return redirect(url_for('static', filename='images/brand/duel-icon.webp'))
 
 
 @main_bp.get('/home')
@@ -224,18 +223,18 @@ def api_encyclopedia():
 def api_save_build():
     payload = request.get_json(silent=True) or {}
     try:
-        starter_ids = payload.get('starter_item_ids')
-        reserve_ids = payload.get('reserve_item_ids')
-        if starter_ids is not None or reserve_ids is not None:
-            result = save_build_with_starters(
-                g.current_player,
-                payload.get('character_id', ''),
-                starter_ids or [],
-                reserve_ids if reserve_ids is not None else payload.get('item_ids', []),
-                payload.get('esper_card_ids', []),
-            )
-        else:
-            result = save_build(g.current_player, payload.get('character_id', ''), payload.get('item_ids', []))
+        item_ids = payload.get('item_ids')
+        if item_ids is None:
+            item_ids = [
+                *(payload.get('starter_item_ids') or []),
+                *(payload.get('reserve_item_ids') or []),
+            ]
+        result = save_build(
+            g.current_player,
+            payload.get('character_id', ''),
+            item_ids,
+            payload.get('esper_card_ids', []),
+        )
         return jsonify(result)
     except AppError as exc:
         return jsonify({'error': str(exc)}), 400

@@ -89,6 +89,5 @@ class GameRun(BaseModel):
     id = AutoField()
     room = ForeignKeyField(Room, backref='run', on_delete='CASCADE', unique=True)
     status = CharField(default='idle')
-    map_id = CharField(default='')
     snapshot = TextField(default='{}')
     updated_at = DateTimeField(default=datetime.utcnow)

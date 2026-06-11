@@ -6,16 +6,6 @@ const ITEM_TYPE_LABELS = {
   esper: '异能者',
   anomaly_item: '异象道具',
   token: '临时牌',
-  attack: '攻击',
-  defense: '防御',
-  utility: '功能',
-  mobility: '移动',
-  recovery: '恢复',
-  dice: '骰子',
-  intel: '侦察',
-  currency: '货币',
-  loot: '鉴别物',
-  key: '钥匙',
 };
 
 const ELEMENT_ICON_BASE = '/static/images/elements';
@@ -40,18 +30,20 @@ async function bootstrap() {
   }
 
   const data = catalogResult.data;
-  const starterSize = Math.min(Number(data.opening_hand_size || 4), Number(data.build_size || 20));
+  const buildSize = Number(data.build_size || 20);
+  const savedItemIds = data.saved_build
+    ? (data.saved_build.item_ids || [
+        ...(data.saved_build.starter_item_ids || []),
+        ...(data.saved_build.reserve_item_ids || []),
+      ])
+    : [];
   const selected = {
     itemIds: [],
-    starterIds: data.saved_build
-      ? (data.saved_build.starter_item_ids || data.saved_build.item_ids || []).slice(0, starterSize)
-      : [],
-    reserveIds: data.saved_build
-      ? (data.saved_build.reserve_item_ids || (data.saved_build.item_ids || []).slice(starterSize)).slice()
-      : [],
-    buildSize: data.build_size,
+    starterIds: [],
+    reserveIds: savedItemIds.slice(0, buildSize),
+    buildSize,
     minBuildSize: Number(data.min_build_size || 10),
-    starterSize,
+    starterSize: 0,
     maxEsperCards: data.max_esper_cards || 4,
     filter: 'all',
     costFilter: 'all',
@@ -71,7 +63,7 @@ async function bootstrap() {
     .slice(0, selected.starterSize);
   selected.reserveIds = knownIds(selected.reserveIds)
     .filter((itemId) => itemById.has(itemId))
-    .slice(0, selected.buildSize - selected.starterSize);
+    .slice(0, selected.buildSize);
   selected.esperIds = uniqueIds(selected.esperIds)
     .filter((itemId) => itemById.get(itemId)?.type === 'esper')
     .slice(0, selected.maxEsperCards);
@@ -104,6 +96,7 @@ async function bootstrap() {
   let suppressNextClick = false;
   let buildPreviewPinned = false;
   let buildPreviewPressTimer = null;
+  let buildPreviewIgnoreUntil = 0;
 
   function syncItemIds() {
     selected.itemIds = [...selected.starterIds, ...selected.reserveIds];
@@ -126,11 +119,11 @@ async function bootstrap() {
     if (zone === 'esper') {
       return selected.maxEsperCards;
     }
-    return zone === 'starter' ? selected.starterSize : selected.buildSize - selected.starterSize;
+    return zone === 'starter' ? 0 : selected.buildSize;
   }
 
   function autoZone() {
-    return selected.starterIds.length < selected.starterSize ? 'starter' : 'reserve';
+    return 'reserve';
   }
 
   function selectedCounts() {
@@ -234,7 +227,7 @@ async function bootstrap() {
       zone = autoZone();
     }
     const item = itemById.get(itemId);
-    const targetZone = item?.type === 'esper' ? 'esper' : zone === 'starter' ? 'starter' : zone === 'reserve' ? 'reserve' : autoZone();
+    const targetZone = item?.type === 'esper' ? 'esper' : 'reserve';
     const allowed = canAddCard(item, targetZone);
     if (!allowed.ok) {
       showBuildToast(allowed.reason);
@@ -242,14 +235,14 @@ async function bootstrap() {
     }
     const ids = zoneIds(targetZone);
     if (ids.length >= zoneLimit(targetZone)) {
-      showBuildToast(targetZone === 'esper' ? '异能者待命区已满。' : targetZone === 'starter' ? '起始手牌已满。' : '预留牌库已满。');
+      showBuildToast(targetZone === 'esper' ? '异能者待命区已满。' : '主牌组已满。');
       return false;
     }
     ids.push(itemId);
     sortSelectedZones();
     syncItemIds();
     renderAll();
-    showBuildToast(`${item.name} 已加入${targetZone === 'esper' ? '异能者待命区' : targetZone === 'starter' ? '起始手牌' : '预留牌库'}`);
+    showBuildToast(`${item.name} 已加入${targetZone === 'esper' ? '异能者待命区' : '主牌组'}`);
     return true;
   }
 
@@ -284,7 +277,7 @@ async function bootstrap() {
       return false;
     }
     const item = itemById.get(itemId);
-    const targetZone = zone === 'esper' ? 'esper' : zone === 'starter' ? 'starter' : 'reserve';
+    const targetZone = zone === 'esper' ? 'esper' : 'reserve';
     const allowed = item?.type === 'esper'
       ? (targetZone === 'esper' ? { ok: true } : { ok: false, reason: '异能者只能放在待命区。' })
       : (targetZone === 'esper' ? { ok: false, reason: '异象道具不能加入待命区。' } : { ok: true });
@@ -296,7 +289,7 @@ async function bootstrap() {
     const targetIds = zoneIds(targetZone);
     const currentIndex = hintedIds === sourceIds && hintedIndex >= 0 ? hintedIndex : sourceIds.indexOf(itemId);
     if (sourceZone !== targetZone && targetIds.length >= zoneLimit(targetZone)) {
-      showBuildToast(targetZone === 'esper' ? '异能者待命区已满。' : targetZone === 'starter' ? '起始手牌已满。' : '预留牌库已满。');
+      showBuildToast(targetZone === 'esper' ? '异能者待命区已满。' : '主牌组已满。');
       return false;
     }
     const [movingId] = sourceIds.splice(currentIndex, 1);
@@ -342,6 +335,7 @@ async function bootstrap() {
       });
       card.addEventListener('dragstart', (event) => startCardDrag(event, 'catalog', item.id));
       card.addEventListener('dragend', finishCardDrag);
+      bindCardReadPreview(card, item);
       fragment.appendChild(card);
     });
     catalogGrid.replaceChildren(fragment);
@@ -350,8 +344,10 @@ async function bootstrap() {
 
   function renderDeck() {
     renderDeckZone(esperList, 'esper', selected.esperIds, selected.maxEsperCards);
-    renderDeckZone(starterList, 'starter', selected.starterIds, selected.starterSize);
-    renderDeckZone(reserveList, 'reserve', selected.reserveIds, selected.buildSize - selected.starterSize);
+    if (starterList) {
+      renderDeckZone(starterList, 'starter', selected.starterIds, selected.starterSize);
+    }
+    renderDeckZone(reserveList, 'reserve', selected.reserveIds, selected.buildSize);
   }
 
   function renderDeckZone(container, zone, itemIds, size) {
@@ -368,7 +364,7 @@ async function bootstrap() {
       slot.addEventListener('dragleave', unmarkDropSlot);
       slot.addEventListener('drop', (event) => handleDeckDrop(event, zone, index));
       if (!item) {
-        slot.innerHTML = `<span>${zone === 'esper' ? '待命空位' : zone === 'starter' ? '起手空位' : '预留空位'}</span>`;
+        slot.innerHTML = `<span>${zone === 'esper' ? '待命空位' : '牌组空位'}</span>`;
         fragment.appendChild(slot);
         continue;
       }
@@ -409,8 +405,10 @@ async function bootstrap() {
     const missingMin = Math.max(0, selected.minBuildSize - count);
     const remainingMax = Math.max(0, selected.buildSize - count);
     const esperTotal = esperCount();
-    starterCount.textContent = `${selected.starterIds.length} / ${selected.starterSize}`;
-    reserveCount.textContent = `${selected.reserveIds.length} / ${selected.buildSize - selected.starterSize}`;
+    if (starterCount) {
+      starterCount.textContent = `${selected.starterIds.length} / ${selected.starterSize}`;
+    }
+    reserveCount.textContent = `${selected.reserveIds.length} / ${selected.buildSize}`;
     esperCountLabel.textContent = `${esperTotal} / ${selected.maxEsperCards}`;
     deckCount.textContent = missingMin
       ? `异象道具 ${count} / ${selected.minBuildSize}-${selected.buildSize} · 异能者 ${esperTotal} / ${selected.maxEsperCards} · 至少还需 ${missingMin} 张`
@@ -490,6 +488,9 @@ async function bootstrap() {
     const materialLine = !compact && item.type === 'esper'
       ? `<div class="build-material-line"><span>素材</span><strong>${escapeHtml(materialRequirementText(item))}</strong></div>`
       : '';
+    const compactMeta = compact
+      ? `<span class="deck-row-meta">${escapeHtml(item.type === 'esper' ? materialRequirementText(item) : item.category || itemTypeLabel(item.type))}</span>`
+      : '';
     const statAriaLabel = item.type === 'esper'
       ? `素材需求 ${materialRequirementText(item)}，战力 ${item.power}`
       : `费用 ${item.cost}，战力 ${item.power}`;
@@ -500,7 +501,7 @@ async function bootstrap() {
       </div>
       <div class="card-headline">
         ${typeTag}
-        <h2>${inlineStats}<span class="deck-card-name">${escapeHtml(item.name)}</span></h2>
+        <h2>${inlineStats}<span class="deck-card-name">${escapeHtml(item.name)}</span>${compactMeta}</h2>
       </div>
       <div class="sr-only">${escapeHtml(statAriaLabel)}</div>
       ${materialLine}
@@ -813,7 +814,7 @@ async function bootstrap() {
     const targetZone = event.target.closest?.('.deck-zone')?.dataset.zone;
     const payload = readCardDrag(event);
     const item = itemById.get(payload?.itemId || '');
-    const resolvedZone = zone === 'starter' || zone === 'reserve' || zone === 'esper'
+    const resolvedZone = zone === 'reserve' || zone === 'esper'
       ? zone
       : targetZone || (item?.type === 'esper' ? 'esper' : 'reserve');
     deckDropZone.classList.remove('drop-target');
@@ -861,8 +862,6 @@ async function bootstrap() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           character_id: leaderId,
-          starter_item_ids: selected.starterIds,
-          reserve_item_ids: selected.reserveIds,
           esper_card_ids: selected.esperIds,
           item_ids: selected.itemIds,
         }),
@@ -917,7 +916,11 @@ async function bootstrap() {
       clearBuildPreviewPressTimer();
       buildPreviewPressTimer = window.setTimeout(() => {
         suppressNextClick = true;
+        buildPreviewIgnoreUntil = Date.now() + 360;
         showBuildCardPreview(item, cardNode, { pinned: true, pointerType: 'touch' });
+        window.setTimeout(() => {
+          suppressNextClick = false;
+        }, 720);
       }, 420);
     });
   }
@@ -1013,11 +1016,17 @@ async function bootstrap() {
   });
   saveBuildBtn.addEventListener('click', saveBuild);
   buildCardPreview.addEventListener('click', (event) => {
-    if (event.target.closest('[data-build-preview-close]')) {
+    if (Date.now() < buildPreviewIgnoreUntil) {
+      return;
+    }
+    if (event.target.closest('[data-build-preview-close]') || buildCardPreview.classList.contains('touch-preview')) {
       hideBuildCardPreview({ force: true });
     }
   });
   document.addEventListener('pointerdown', (event) => {
+    if (Date.now() < buildPreviewIgnoreUntil) {
+      return;
+    }
     if (
       !buildCardPreview.classList.contains('open')
       || event.target.closest('#build-card-preview')

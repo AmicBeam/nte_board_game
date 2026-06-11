@@ -36,6 +36,10 @@
     font-size: 11px;
 }
 
+.duel-round-info .round-help-btn {
+    display: none;
+}
+
 .top-action-controls {
     position: fixed;
     right: 16px;
@@ -144,12 +148,12 @@
 
 .board-action-ring {
     right: -128px;
-    width: 226px;
+    width: 96px;
     top: calc(50% + 76px);
-    grid-template-columns: minmax(112px, 1fr) 96px;
+    grid-template-columns: 96px;
     grid-template-areas:
-        "initiative end"
-        ". energy";
+        "end"
+        "energy";
     align-items: center;
     justify-items: center;
 }
@@ -202,6 +206,7 @@
 .initiative-sidecar {
     grid-area: initiative;
     justify-self: end;
+    display: none;
 }
 
 .energy-sidecar {
@@ -589,6 +594,13 @@
     pointer-events: none;
 }
 
+.material-card-ghost.floating-material-ghost {
+    background-size: contain;
+    background-repeat: no-repeat;
+    background-color: rgba(7, 12, 20, 0.92);
+    box-shadow: 0 18px 38px rgba(0,0,0,0.46), 0 0 26px rgba(88,216,210,0.28);
+}
+
 .effect-arrow {
     height: 8px;
     border: 1px solid rgba(255,255,255,0.28);
@@ -619,10 +631,13 @@
     }
 
     .board-action-ring {
-        right: -110px;
-        width: 198px;
+        right: -96px;
+        width: 82px;
         top: calc(50% + 64px);
-        grid-template-columns: minmax(92px, 1fr) 82px;
+        grid-template-columns: 82px;
+        grid-template-areas:
+            "end"
+            "energy";
     }
 
     .initiative-sidecar,
@@ -679,9 +694,12 @@
 
     .board-action-ring {
         right: -82px;
-        width: 164px;
+        width: 72px;
         top: calc(50% + 50px);
-        grid-template-columns: 86px 72px;
+        grid-template-columns: 72px;
+        grid-template-areas:
+            "end"
+            "energy";
     }
 
     .initiative-sidecar,
@@ -707,7 +725,7 @@
     }
 
     .opponent-command-row {
-        top: 42px;
+        top: 36px;
         width: min(780px, calc(100vw - 218px));
         grid-template-columns: 56px minmax(0, 1fr) 56px;
         gap: 5px;
@@ -765,6 +783,27 @@
     grid-template-columns: auto auto minmax(0, 1fr);
 }
 
+.location-slots .board-card {
+    aspect-ratio: 5 / 7;
+    align-self: center;
+}
+
+.location-power-row.initiative-first-row > span {
+    color: #fff5d6;
+    -webkit-text-stroke: 0.35px rgba(255,255,255,0.72);
+    text-shadow:
+        0 0 4px rgba(255,255,255,0.62),
+        0 0 12px rgba(255,191,87,0.58),
+        0 0 20px rgba(88,216,210,0.34);
+}
+
+.location-power-row.opponent.initiative-first-row > span {
+    text-shadow:
+        0 0 4px rgba(255,255,255,0.58),
+        0 0 12px rgba(255,90,165,0.52),
+        0 0 20px rgba(255,191,87,0.28);
+}
+
 .card-type-row {
     min-width: 0;
     display: flex;
@@ -789,6 +828,17 @@
     justify-content: flex-start;
 }
 
+.hand-card .card-copy,
+.selection-overlay.selection-declaration .selection-card .card-copy {
+    grid-template-rows: minmax(0, 1fr) auto;
+    align-content: stretch;
+}
+
+.hand-card .hand-item-meta,
+.selection-overlay.selection-declaration .selection-card .hand-item-meta {
+    align-self: end;
+}
+
 .card-meta-chip {
     min-height: 20px;
     display: inline-flex;
@@ -807,6 +857,17 @@
 
 .card-meta-chip b {
     font: inherit;
+}
+
+.hand-item-meta .attribute-chip b,
+.selection-overlay.selection-declaration .selection-card .hand-item-meta .attribute-chip b {
+    display: none;
+}
+
+.card-meta-chip.attribute-chip.icon-only {
+    min-width: 24px;
+    justify-content: center;
+    padding-inline: 4px;
 }
 
 .card-meta-chip .element-icon {
@@ -838,6 +899,16 @@
 .esper-card .card-copy {
     gap: 3px;
     padding: 7px;
+}
+
+.selection-card .card-copy h3 {
+    min-height: 2.14em;
+    display: -webkit-box;
+    overflow: hidden;
+    color: #f5fbff;
+    text-shadow: 0 1px 4px rgba(0,0,0,0.72), 0 0 12px rgba(8,12,18,0.5);
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
 }
 
 .card-material-line {
@@ -999,10 +1070,33 @@
     position: relative;
     min-width: 0;
     width: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
 }
 
 .selection-card-shell .selection-card {
     width: 100%;
+}
+
+.selection-source-badge {
+    min-height: 22px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 3px 10px;
+    border-radius: 999px;
+    border: 1px solid rgba(116, 224, 213, 0.44);
+    background: rgba(8, 19, 28, 0.9);
+    color: #dffdf9;
+    box-shadow: 0 8px 18px rgba(0,0,0,0.32), 0 0 16px rgba(116, 224, 213, 0.14);
+    font-size: 11px;
+    line-height: 1;
+    font-weight: 1000;
+    letter-spacing: 0;
+    pointer-events: none;
+    white-space: nowrap;
 }
 
 .selection-preview-btn {
@@ -1097,5 +1191,385 @@
         width: 24px;
         height: 24px;
         font-size: 11px;
+    }
+}
+
+@media (orientation: landscape) and (max-height: 720px) {
+    .duel-page {
+        --hand-card-width: clamp(102px, 10.4vw, 112px);
+        --board-card-min: clamp(48px, 5vw, 56px);
+        --board-card-max: clamp(60px, 6.4vw, 70px);
+        --mobile-board-card-width: clamp(54px, 5.5vw, 58px);
+        --mobile-board-card-height: calc(var(--mobile-board-card-width) * 1.38);
+        --mobile-location-rule-width: clamp(132px, 15vw, 150px);
+        padding-bottom: 154px;
+    }
+
+    .duel-round-info {
+        top: 6px;
+        grid-template-columns: auto auto;
+        grid-template-areas:
+            "round round"
+            "log help";
+        align-items: center;
+        gap: 5px 7px;
+        padding: 7px 8px;
+    }
+
+    .duel-round-info strong {
+        grid-area: round;
+        font-size: 14px;
+    }
+
+    .duel-round-info .phase-chip {
+        display: none;
+    }
+
+    .duel-round-info .table-log-btn {
+        grid-area: log;
+        min-height: 30px;
+        padding: 4px 12px;
+        font-size: 12px;
+    }
+
+    .duel-round-info .round-help-btn {
+        grid-area: help;
+        display: grid;
+        width: 30px;
+        min-width: 30px;
+        height: 30px;
+        min-height: 30px;
+        padding: 0;
+        place-items: center;
+        border-radius: 999px;
+        font-size: 18px;
+        line-height: 1;
+    }
+
+    .duel-side-panel .esper-title-row {
+        display: none;
+    }
+
+    .duel-side-panel .esper-standby-list {
+        margin-top: 46px;
+    }
+
+    .opponent-command-row {
+        top: 34px;
+        width: min(760px, calc(100vw - 294px));
+        grid-template-columns: 58px minmax(0, 1fr) 58px;
+        gap: 6px;
+    }
+
+    .opponent-command-row .opponent-hand-panel {
+        padding: 4px 8px 5px;
+    }
+
+    .opponent-command-row .opponent-hand-list {
+        min-height: 44px;
+        gap: 4px;
+    }
+
+    .opponent-hand-card {
+        width: clamp(34px, 4vw, 42px);
+        height: clamp(46px, 5.5vw, 56px);
+    }
+
+    .opponent-command-row .opponent-deck-zone,
+    .opponent-command-row .discard-zone {
+        min-height: 54px;
+        padding: 4px;
+    }
+
+    .opponent-command-row .deck-stack {
+        width: 32px;
+        height: 44px;
+    }
+
+    .duel-board-panel {
+        padding-top: 70px;
+        padding-bottom: 14px;
+    }
+
+    .duel-location {
+        grid-template-rows: 78px minmax(20px, auto) 78px;
+        gap: 4px;
+        padding-bottom: 0;
+    }
+
+    .location-slots {
+        grid-template-columns: repeat(auto-fit, var(--mobile-board-card-width));
+        grid-auto-rows: var(--mobile-board-card-height);
+        align-content: center;
+        align-items: center;
+        justify-content: center;
+        gap: 5px;
+    }
+
+    .location-slots .board-card {
+        width: var(--mobile-board-card-width);
+        height: var(--mobile-board-card-height);
+        align-self: center;
+        justify-self: center;
+    }
+
+    .opponent-slots,
+    .player-slots {
+        align-content: center;
+    }
+
+    .location-contest {
+        position: static;
+        width: min(470px, 64%);
+        grid-template-columns: minmax(84px, 1fr) auto minmax(84px, 1fr);
+        gap: 5px;
+        padding: 0;
+        border-color: transparent;
+        background: transparent;
+        box-shadow: none;
+        backdrop-filter: none;
+    }
+
+    .location-contest .drop-lane,
+    .initiative-sidecar {
+        display: none;
+    }
+
+    .location-rule-line {
+        position: fixed;
+        left: max(8px, calc(var(--duel-left-gutter) + var(--duel-side-rail) - var(--mobile-location-rule-width) - 8px));
+        bottom: 10px;
+        z-index: 84;
+        width: var(--mobile-location-rule-width);
+        max-width: var(--mobile-location-rule-width);
+        min-height: 74px;
+        display: grid;
+        grid-template-columns: 1fr;
+        align-content: center;
+        align-items: start;
+        gap: 3px;
+        padding: 8px 9px;
+        border: 1px solid rgba(226,185,95,0.28);
+        border-radius: var(--radius-sm);
+        background: rgba(5, 8, 14, 0.76);
+        box-shadow: 0 12px 24px rgba(0,0,0,0.28);
+        backdrop-filter: blur(8px);
+    }
+
+    .location-rule-line strong {
+        font-size: 11px;
+        line-height: 1.18;
+        white-space: normal;
+    }
+
+    .location-rule-line small {
+        display: block;
+        min-width: 0;
+        overflow: visible;
+        text-overflow: clip;
+        white-space: normal;
+        font-size: 9px;
+        line-height: 1.26;
+    }
+
+    .location-rule-line span {
+        width: fit-content;
+        font-size: 9px;
+    }
+
+    .board-action-ring {
+        top: calc(50% + 48px);
+        right: -86px;
+        width: 78px;
+        grid-template-columns: 76px;
+        grid-template-areas:
+            "end"
+            "energy";
+        gap: 6px;
+    }
+
+    .board-action-ring .end-turn-btn {
+        width: 76px;
+        min-height: 76px;
+        font-size: 14px;
+    }
+
+    .energy-sidecar {
+        min-width: 76px;
+        padding: 6px;
+    }
+
+    .energy-sidecar strong {
+        font-size: 16px;
+    }
+
+    .hand-dock {
+        bottom: 10px;
+    }
+
+    .hand-dock .hand-rail {
+        min-height: calc(var(--hand-card-width) * 1.34);
+        padding: 0 8px;
+    }
+
+    .hand-rail .duel-card {
+        height: calc(var(--hand-card-width) * 1.34);
+        margin-left: -10px;
+    }
+
+    .hand-card .card-copy {
+        grid-template-rows: minmax(0, 1fr) auto;
+        align-content: stretch;
+        padding: 7px;
+        gap: 4px;
+    }
+
+    .hand-card .card-copy h3 {
+        max-height: 28px;
+        display: -webkit-box;
+        overflow: hidden;
+        -webkit-box-orient: vertical;
+        -webkit-line-clamp: 2;
+        font-size: 12px;
+        line-height: 1.12;
+    }
+
+    .hand-item-meta {
+        align-self: end;
+        gap: 3px;
+        max-height: 42px;
+        overflow: hidden;
+    }
+
+    .hand-item-meta .card-meta-chip {
+        min-height: 19px;
+        padding: 2px 4px;
+        font-size: 9px;
+    }
+
+    .hand-card .hand-item-meta .element-icon {
+        width: 12px;
+        height: 12px;
+    }
+
+    .card-drag-ghost {
+        width: 92px;
+        min-height: 130px;
+    }
+
+    .card-drag-ghost .duel-card {
+        width: 92px;
+    }
+
+    .card-drag-ghost .card-art {
+        height: 64px;
+    }
+
+    .card-drag-ghost .card-copy {
+        padding: 5px;
+        gap: 3px;
+    }
+
+    .card-drag-ghost .card-copy h3 {
+        font-size: 10px;
+        line-height: 1.08;
+    }
+
+    .duel-title-banner,
+    .duel-title-banner[data-kind="action"],
+    .duel-title-banner[data-kind="material"] {
+        top: 3px;
+        width: min(520px, calc(100vw - 430px));
+        min-width: 0;
+        min-height: 27px;
+        gap: 2px;
+        padding: 4px 10px;
+        border-radius: 999px;
+        transform: translate(-50%, 0) scale(0.98);
+    }
+
+    .duel-title-banner.open,
+    .duel-title-banner[data-kind="action"].open,
+    .duel-title-banner[data-kind="material"].open {
+        transform: translate(-50%, 0) scale(1);
+    }
+
+    .duel-title-banner strong,
+    .duel-title-banner[data-kind="action"] strong,
+    .duel-title-banner[data-kind="material"] strong {
+        overflow: hidden;
+        max-width: 100%;
+        font-size: 15px;
+        line-height: 1.05;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .duel-title-banner span,
+    .duel-title-banner[data-kind="action"] span,
+    .duel-title-banner[data-kind="material"] span {
+        display: none;
+    }
+
+    .selection-overlay,
+    .selection-overlay.selection-declaration {
+        padding: 18px 22px 12px;
+    }
+
+    .selection-overlay .selection-panel,
+    .selection-overlay.selection-declaration .selection-panel {
+        height: 100%;
+        grid-template-rows: auto minmax(0, 1fr) auto;
+        gap: 8px;
+    }
+
+    .selection-copy {
+        max-width: 620px;
+        gap: 4px 12px;
+    }
+
+    .selection-copy .eyebrow {
+        font-size: 10px;
+    }
+
+    .selection-copy strong {
+        font-size: 18px;
+        line-height: 1.12;
+    }
+
+    .selection-copy span {
+        font-size: 11px;
+        line-height: 1.24;
+    }
+
+    .selection-copy b {
+        min-width: 64px;
+        min-height: 36px;
+        font-size: 18px;
+    }
+
+    .selection-card-grid,
+    .selection-overlay.selection-declaration .selection-card-grid {
+        --selection-card-width: clamp(118px, 12vw, 136px);
+        grid-template-columns: repeat(auto-fit, minmax(var(--selection-card-width), var(--selection-card-width)));
+        align-content: start;
+        gap: 10px;
+        padding: 0 8px 4px;
+    }
+
+    .selection-overlay.selection-declaration .selection-card {
+        width: var(--selection-card-width);
+        flex-basis: var(--selection-card-width);
+    }
+
+    .selection-card .card-copy h3 {
+        font-size: 13px;
+    }
+
+    .selection-actions .primary-btn,
+    .selection-actions .secondary-btn {
+        min-height: 38px;
+        padding: 8px 16px;
+        font-size: 13px;
     }
 }

@@ -1,11 +1,5 @@
 const MODES = [
   {
-    id: 'tutorial',
-    name: '新手教学关',
-    description: '固定创生套对浊燃套，较短流程，学习起始手牌、自动抽牌与环合反应。',
-    scenario: 'tutorial',
-  },
-  {
     id: 'trial',
     name: '套牌试用关',
     description: '选择我方和敌方套路，对战对应人机，验证展开、干扰和王牌终结。',

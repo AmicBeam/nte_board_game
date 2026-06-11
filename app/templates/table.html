@@ -6,6 +6,10 @@
         <strong id="round-counter">第 1 回合</strong>
         <span class="phase-chip" id="phase-chip">加载中</span>
         <button class="secondary-btn table-log-btn" type="button" data-right-panel-view="log">日志</button>
+        <button class="icon-btn tutorial-help-btn round-help-btn" data-tutorial-open="table" type="button" aria-label="打开对战手册" title="打开手册">
+            <span aria-hidden="true">?</span>
+            <span class="sr-only">打开对战手册</span>
+        </button>
     </div>
     <div class="top-action-controls" aria-label="牌桌操作">
         <button class="secondary-btn undo-turn-btn" id="undo-turn-btn" type="button">全部撤销</button>
@@ -30,7 +34,7 @@
                     <span>对手</span>
                     <strong id="opponent-top-name">对手</strong>
                 </div>
-                <button class="deck-zone discard-zone opponent-discard-zone deck-empty" id="opponent-discard-btn" type="button" data-discard-side="opponent" aria-label="对方消耗区"></button>
+                <button class="deck-zone discard-zone opponent-discard-zone deck-empty" id="opponent-discard-btn" type="button" data-discard-side="opponent" aria-label="对方墓地"></button>
                 <div class="opponent-hand-panel">
                     <div class="mini-section-title">
                         <span>对手手牌</span>
@@ -42,10 +46,6 @@
             </div>
             <div class="locations-board" id="locations-board" aria-label="异象空间"></div>
             <div class="board-action-ring">
-                <div class="initiative-sidecar" id="initiative-sidecar" aria-label="结算先手">
-                    <span>结算先手</span>
-                    <strong>待定</strong>
-                </div>
                 <div class="end-turn-stack">
                     <span class="final-round-label" id="final-round-label" hidden>决胜回合</span>
                     <button class="primary-btn end-turn-btn" id="end-turn-btn" type="button">结束回合</button>
@@ -78,8 +78,8 @@
     </section>
 
     <section class="hand-dock" aria-label="手牌">
-        <div class="discard-dock" aria-label="我方消耗区">
-            <button class="deck-zone discard-zone player-discard-zone deck-empty" id="player-discard-btn" type="button" data-discard-side="player" aria-label="我方消耗区"></button>
+        <div class="discard-dock" aria-label="我方墓地">
+            <button class="deck-zone discard-zone player-discard-zone deck-empty" id="player-discard-btn" type="button" data-discard-side="player" aria-label="我方墓地"></button>
         </div>
         <div class="hand-rail" id="hand-list"></div>
         <div class="deck-zone player-deck-zone deck-empty deck-count-only" id="player-deck-zone" data-public-side="player" aria-label="我方牌库"></div>
@@ -90,8 +90,8 @@
         <div class="discard-modal-dialog" role="dialog" aria-modal="true" aria-labelledby="discard-modal-title">
             <div class="section-title-row right-panel-title-row">
                 <div>
-                    <h2 id="discard-modal-title">消耗区</h2>
-                    <p id="discard-modal-subtitle">已消耗卡牌</p>
+                    <h2 id="discard-modal-title">墓地</h2>
+                    <p id="discard-modal-subtitle">墓地卡牌</p>
                 </div>
             </div>
             <div class="discard-list" id="discard-modal-list"></div>

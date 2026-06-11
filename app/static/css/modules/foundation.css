@@ -155,6 +155,34 @@ body:has(.build-page) .glass-card {
     gap: 16px;
 }
 
+.home-header {
+    align-items: flex-start;
+    overflow: hidden;
+}
+
+.home-brand-block {
+    min-width: 0;
+    display: grid;
+    grid-template-columns: clamp(220px, 32vw, 390px) minmax(240px, 1fr);
+    align-items: center;
+    gap: 18px;
+}
+
+.home-brand-logo {
+    width: 100%;
+    height: auto;
+    max-width: 390px;
+    aspect-ratio: 858 / 282;
+    object-fit: contain;
+    filter: drop-shadow(0 16px 26px rgba(0, 0, 0, 0.38));
+}
+
+.home-brand-copy {
+    min-width: 0;
+    display: grid;
+    gap: 6px;
+}
+
 .combat-topbar,
 .build-command {
     overflow: hidden;
@@ -211,45 +239,6 @@ body:has(.build-page) .glass-card {
         align-items: center;
         justify-content: center;
     }
-}
-
-.combat-hud {
-    position: absolute;
-    left: 50%;
-    top: 50%;
-    transform: translate(-50%, -50%);
-    display: flex;
-    flex-wrap: wrap;
-    justify-content: center;
-    gap: 8px;
-    margin-top: 0;
-    width: min(760px, 58vw);
-}
-
-.combat-hud span {
-    min-height: 42px;
-    display: inline-flex;
-    align-items: center;
-    gap: 7px;
-    padding: 8px 14px;
-    border-radius: var(--radius-sm);
-    background: rgba(255,255,255,0.06);
-    border: 1px solid rgba(255,255,255,0.1);
-    color: var(--text);
-    font-size: 16px;
-    font-weight: 900;
-}
-
-.hud-die img,
-.hud-dice img {
-    width: 20px;
-    height: 20px;
-    object-fit: contain;
-}
-
-.hud-dice b {
-    min-width: 1ch;
-    text-align: center;
 }
 
 .primary-btn,

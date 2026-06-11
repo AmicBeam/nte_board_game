@@ -288,17 +288,16 @@ def update_room_status(room: Room, status: str) -> Room:
     return room
 
 
-def upsert_run(room: Room, map_id: str, status: str, snapshot: dict[str, Any], *, touch_room: bool = True) -> GameRun:
+def upsert_run(room: Room, status: str, snapshot: dict[str, Any], *, touch_room: bool = True) -> GameRun:
     run, _ = GameRun.get_or_create(room=room)
-    run.map_id = map_id
     run.status = status
     run.snapshot = json.dumps(snapshot, ensure_ascii=False)
     run.updated_at = datetime.utcnow()
-    run.save(only=[GameRun.map_id, GameRun.status, GameRun.snapshot, GameRun.updated_at])
+    run.save(only=[GameRun.status, GameRun.snapshot, GameRun.updated_at])
     if touch_room:
         room.updated_at = datetime.utcnow()
         room.save(only=[Room.updated_at])
-    logger.info('upsert_run room_code=%s status=%s map_id=%s', room.room_code, status, map_id)
+    logger.info('upsert_run room_code=%s status=%s', room.room_code, status)
     return run
 
 
@@ -308,7 +307,6 @@ def get_run(room: Room) -> dict[str, Any] | None:
         return None
     return {
         'status': run.status,
-        'map_id': run.map_id,
         'snapshot': json.loads(run.snapshot or '{}'),
         'updated_at': run.updated_at.isoformat(),
     }

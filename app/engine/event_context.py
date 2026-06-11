@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Callable, TypeAlias
+from typing import Callable, TypeAlias
 
-JsonDict: TypeAlias = dict[str, Any]
+from app.engine.state.types import JsonDict
+
 EventQueue: TypeAlias = list[tuple[str, JsonDict]]
 EventHook: TypeAlias = Callable[['EventContext'], None]
 

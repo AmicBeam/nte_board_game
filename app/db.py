@@ -16,7 +16,20 @@ db = SqliteDatabase(DATABASE_PATH, pragmas={
 def init_db(models: list[type[Model]]) -> None:
     if db.is_closed():
         db.connect(reuse_if_open=True)
+    _reset_incompatible_snapshot_tables(models)
     db.create_tables(models)
+
+
+def _reset_incompatible_snapshot_tables(models: list[type[Model]]) -> None:
+    for model in models:
+        if model._meta.table_name != 'gamerun':
+            continue
+        if not db.table_exists(model._meta.table_name):
+            continue
+        existing_columns = {column.name for column in db.get_columns(model._meta.table_name)}
+        expected_columns = {field.column_name for field in model._meta.sorted_fields}
+        if existing_columns != expected_columns:
+            db.drop_tables([model], safe=True)
 
 
 @contextmanager
