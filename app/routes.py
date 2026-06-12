@@ -6,6 +6,7 @@ from app.engine.game_service import (
     cancel_target,
     choose_cards,
     choose_target,
+    declaration_previews,
     end_turn,
     get_catalog_payload,
     get_encyclopedia_payload,
@@ -271,6 +272,18 @@ def api_game_state():
     except Exception:
         logger.exception('api_game_state failed')
         return jsonify({'error': '读取对局状态时发生异常，请稍后重试。'}), 500
+
+
+@main_bp.get('/api/game/declaration-previews')
+@token_required
+def api_declaration_previews():
+    try:
+        return jsonify(declaration_previews(g.current_player))
+    except AppError as exc:
+        return jsonify({'error': str(exc)}), 400
+    except Exception:
+        logger.exception('api_declaration_previews failed')
+        return jsonify({'error': '预读取检视候选时发生异常，请稍后重试。'}), 500
 
 
 @main_bp.post('/api/game/play-card')

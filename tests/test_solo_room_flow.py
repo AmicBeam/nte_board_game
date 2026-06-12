@@ -271,6 +271,35 @@ class SoloRoomFlowTest(RoomFlowTestCase):
         self.assertFalse(state_after['locations'][0]['slots']['player'])
         self.assertIsNone(state_after.get('pending_target'))
 
+    def test_declaration_previews_are_prefetched_only_during_planning(self) -> None:
+        token = self._issue_login_and_get_token('solo-declaration-preview')
+        self._save_default_build(token)
+        self._post('/api/room/create', {'mode': 'solo'}, token=token)
+
+        with self._solo_test_run_context():
+            state = self._post('/api/room/start', token=token)
+
+        location_id = state['locations'][0]['id']
+        source = next(card for card in state['player']['hand'] if card['definition_id'] == 'genesis_urban_energy')
+        preview_payload = self._get('/api/game/declaration-previews', token=token)
+        preview_key = f"{source['instance_id']}:{location_id}"
+
+        self.assertEqual(preview_payload['phase'], 'planning')
+        self.assertIn(preview_key, preview_payload['previews'])
+        preview = preview_payload['previews'][preview_key]
+        self.assertEqual(preview['kind'], 'declaration')
+        self.assertTrue(preview['cards'])
+
+        selection_state = self._post('/api/game/play-card', {
+            'card_instance_id': source['instance_id'],
+            'location_id': location_id,
+        }, token=token)
+        self.assertEqual(selection_state['phase'], 'selecting')
+        self.assertIsNotNone(selection_state['selection'])
+
+        blocked_payload = self._get('/api/game/declaration-previews', token=token)
+        self.assertEqual(blocked_payload['previews'], {})
+
     def test_solo_room_can_finish_run_and_reset(self) -> None:
         token = self._issue_login_and_get_token('solo-room-victory')
         self._save_default_build(token)
@@ -372,6 +401,7 @@ class _RuleModules:
         mapping = {
             '_card_by_id': self.build.card_by_id,
             '_card_instance': self.factory.card_instance,
+            '_declaration_selection_preview': self.declarations.declaration_selection_preview,
             '_prepare_declaration_selection': self.declarations.prepare_declaration_selection,
             '_prepare_declaration_target': self.declarations.prepare_declaration_target,
             '_public_pending_target': self.run_state.public_pending_target,
@@ -489,6 +519,26 @@ class DuelRuleTimingTest(RoomFlowTestCase):
         selection = snapshot['sides'][rules.SIDE_A]['selection']
         self.assertEqual(selection['kind'], 'declaration')
         self.assertEqual([card['instance_id'] for card in selection['cards']], [material['instance_id']])
+
+    def test_declaration_preview_is_read_only_and_excludes_source_in_hand(self) -> None:
+        rules = self._rules()
+        source = self._card_instance('delay_commute_bag', 'source', revealed=False, turn=2)
+        source['category'] = '材料'
+        material = self._card_instance('delay_first_wish', 'material')
+        snapshot = self._snapshot_with_cards([])
+        snapshot['phase'] = 'planning'
+        snapshot['sides'][rules.SIDE_A]['hand'] = [source, material]
+
+        preview = rules._declaration_selection_preview(
+            snapshot,
+            rules.SIDE_A,
+            snapshot['locations'][0],
+            source,
+        )
+
+        self.assertIsNotNone(preview)
+        self.assertIsNone(snapshot['sides'][rules.SIDE_A]['selection'])
+        self.assertEqual([card['instance_id'] for card in preview['cards']], [material['instance_id']])
 
     def test_commute_bag_reveal_uses_declared_hand_card(self) -> None:
         rules = self._rules()

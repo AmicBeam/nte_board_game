@@ -1103,10 +1103,7 @@
 }
 
 .hand-rail .hand-card.play-intent-source {
-    opacity: 0.3;
-    transform: translateY(10px) scale(0.94);
-    pointer-events: none;
-    filter: saturate(0.76);
+    display: none;
 }
 
 .board-card.pending-play-card {

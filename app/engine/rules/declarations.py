@@ -54,17 +54,31 @@ def prepare_declaration_selection(
 ) -> bool:
     if snapshot['sides'][side].get('selection'):
         return False
+    selection = declaration_selection_preview(snapshot, side, location, card, selected_target)
+    if selection is None:
+        return False
+    snapshot['sides'][side]['selection'] = selection
+    return True
+
+
+def declaration_selection_preview(
+    snapshot: JsonDict,
+    side: str,
+    location: JsonDict,
+    card: JsonDict,
+    selected_target: JsonDict | None = None,
+) -> JsonDict | None:
     step = _declaration_card_step(card)
     if not step:
-        return False
+        return None
     candidates = _declaration_candidates(snapshot, side, location, card, step, selected_target)
     if not candidates:
-        return False
+        return None
     title = str(step.get('title') or f"{card.get('name', '卡牌')} 检视牌库")
     description = str(step.get('description') or '宣言 1 张合法卡牌；揭示时执行。')
     pick_count = int(step.get('pick_count') or 1)
     min_count = int(step.get('min_count') if step.get('min_count') is not None else pick_count)
-    snapshot['sides'][side]['selection'] = {
+    return {
         'kind': 'declaration',
         'source_instance_id': card['instance_id'],
         'location_id': location['id'],
@@ -75,7 +89,6 @@ def prepare_declaration_selection(
         'max_count': pick_count,
         'cards': candidates,
     }
-    return True
 
 
 def prepare_declaration_target(snapshot: JsonDict, side: str, location: JsonDict, card: JsonDict) -> bool:
@@ -270,6 +283,7 @@ def _declaration_candidates(
     zones = _declaration_zones(step)
     if not zones:
         return []
+    source_id = str(card.get('instance_id') or '')
     predicate = step.get('predicate')
     selected_target = selected_target or _find_card_on_board(snapshot, str(card.get('selected_target_instance_id') or ''))
     context = {
@@ -283,6 +297,8 @@ def _declaration_candidates(
     candidates: list[JsonDict] = []
     for zone_name in zones:
         for candidate in side_state.get(zone_name, []):
+            if str(candidate.get('instance_id') or '') == source_id:
+                continue
             zone_context = {**context, 'zone': zone_name}
             if _declaration_predicate_matches(predicate, candidate, zone_context):
                 candidates.append(candidate)

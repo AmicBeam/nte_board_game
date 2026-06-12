@@ -75,6 +75,10 @@ from app.engine.flow.turn_flow import (
     _sync_planning_phase,
     _turn_undo_checkpoint,
 )
+from app.engine.rules.declarations import (
+    declaration_selection_preview as _declaration_selection_preview,
+    target_rule_internal as _target_rule_internal,
+)
 
 def start_or_resume_run_for_room(room: Room, actor: Player, options: JsonDict | None = None) -> JsonDict:
     options = options or {}
@@ -109,6 +113,66 @@ def get_run_state_for_room(room: Room, player: Player) -> JsonDict | None:
     if not _is_snap_snapshot(snapshot):
         return None
     return _public_state(snapshot, room, player, include_queues=_should_show_initial_banner(snapshot))
+
+
+def declaration_previews(player: Player) -> JsonDict:
+    room, snapshot, side = _load_mutable_player_run(player)
+    _ensure_playing(snapshot)
+    side_state = snapshot['sides'][side]
+    payload = {
+        'turn': int(snapshot.get('turn') or 0),
+        'phase': snapshot.get('phase', ''),
+        'energy_remaining': _energy_remaining(snapshot, side),
+        'previews': {},
+    }
+    if (
+        snapshot.get('phase') != 'planning'
+        or side_state.get('ended_turn')
+        or side_state.get('selection')
+        or side_state.get('pending_target')
+    ):
+        return payload
+
+    previews: dict[str, JsonDict] = {}
+    for card in side_state.get('hand', []):
+        if _target_rule_internal(card):
+            continue
+        for location in snapshot.get('locations', []):
+            if not _can_preview_declaration_for_location(snapshot, side, location, card):
+                continue
+            preview = _declaration_selection_preview(snapshot, side, location, card)
+            if preview is None:
+                continue
+            public_preview = _public_declaration_preview(room, player, snapshot, side, preview)
+            if public_preview:
+                previews[f"{card['instance_id']}:{location['id']}"] = public_preview
+    payload['previews'] = previews
+    return payload
+
+
+def _can_preview_declaration_for_location(snapshot: JsonDict, side: str, location: JsonDict, card: JsonDict) -> bool:
+    if not _is_location_revealed(snapshot, location):
+        return False
+    if _location_occupied_card_count(location, side) >= _location_capacity(location):
+        return False
+    cost = _effective_cost(card) + _delay_tax(snapshot, side, location)
+    return cost <= _energy_remaining(snapshot, side)
+
+
+def _public_declaration_preview(
+    room: Room,
+    player: Player,
+    snapshot: JsonDict,
+    side: str,
+    preview: JsonDict,
+) -> JsonDict | None:
+    preview_snapshot = deepcopy(snapshot)
+    preview_snapshot['action_queue'] = []
+    preview_snapshot['banner_queue'] = []
+    preview_snapshot['sides'][side]['selection'] = deepcopy(preview)
+    public_payload = _public_state(preview_snapshot, room, player, include_queues=False)
+    selection = public_payload.get('selection')
+    return selection if isinstance(selection, dict) else None
 
 
 def reset_run_for_room(room: Room) -> None:

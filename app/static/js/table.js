@@ -64,6 +64,8 @@ let materialSelection = null;
 let materialSelectionClickShieldUntil = 0;
 let presentationLocked = false;
 let pendingPlayIntent = null;
+let declarationPreviewCache = { key: '', previews: {} };
+let declarationPreviewRequestKey = '';
 const previewCardsByInstanceId = new Map();
 
 const ACTION_ANIMATION_MS = 1000;
@@ -134,6 +136,7 @@ async function loadState() {
 }
 
 function renderState(state) {
+  scheduleDeclarationPreviewPrefetch(state);
   clearPendingPlayIntent();
   const previousState = currentState;
   const requiresImmediateChoice = Boolean(state?.selection || state?.pending_target);
@@ -171,6 +174,75 @@ function renderState(state) {
   syncTargetMode(displayState);
   renderDeclarationArrows(displayState);
   playPresentation(state, { renderFinalAfter: shouldHoldPresentation });
+}
+
+function scheduleDeclarationPreviewPrefetch(state) {
+  const key = declarationPreviewStateKey(state);
+  if (!key) {
+    declarationPreviewCache = { key: '', previews: {} };
+    declarationPreviewRequestKey = '';
+    return;
+  }
+  if (declarationPreviewCache.key === key || declarationPreviewRequestKey === key) {
+    return;
+  }
+  declarationPreviewRequestKey = key;
+  apiRequest('/api/game/declaration-previews')
+    .then((payload) => {
+      if (declarationPreviewRequestKey !== key) {
+        return;
+      }
+      declarationPreviewCache = {
+        key,
+        previews: payload?.previews && typeof payload.previews === 'object' ? payload.previews : {},
+      };
+    })
+    .catch(() => {
+      if (declarationPreviewRequestKey === key) {
+        declarationPreviewCache = { key: '', previews: {} };
+      }
+    })
+    .finally(() => {
+      if (declarationPreviewRequestKey === key) {
+        declarationPreviewRequestKey = '';
+      }
+    });
+}
+
+function declarationPreviewStateKey(state) {
+  if (
+    !state
+    || state.status !== 'playing'
+    || state.phase !== 'planning'
+    || state.selection
+    || state.pending_target
+    || state.player?.ended_turn
+  ) {
+    return '';
+  }
+  const handIds = (state.player?.hand || []).map((card) => String(card.instance_id || '')).join(',');
+  const locations = (state.locations || [])
+    .map((location) => [
+      location.id,
+      location.revealed ? 1 : 0,
+      location.capacity ?? '',
+      location.occupied?.player ?? '',
+      location.occupied?.opponent ?? '',
+    ].join(':'))
+    .join('|');
+  return [
+    state.turn,
+    state.energy_remaining,
+    state.player?.deck_count ?? '',
+    state.player?.discard_count ?? '',
+    handIds,
+    locations,
+  ].join('::');
+}
+
+function cachedDeclarationPreview(cardInstanceId, locationId) {
+  const key = `${String(cardInstanceId || '')}:${String(locationId || '')}`;
+  return declarationPreviewCache.previews?.[key] || null;
 }
 
 function syncRoundInfo(state) {
@@ -1557,6 +1629,7 @@ async function submitPlayCard(cardInstanceId, locationId) {
     actionLocked = false;
     renderState(state);
   } catch (error) {
+    closeSelectionOverlay();
     window.alert(error.message);
   } finally {
     clearPendingPlayIntent();
@@ -1597,6 +1670,10 @@ function beginPendingPlayIntent(cardInstanceId, locationId) {
   node.setAttribute('aria-label', `正在部署 ${card.name || '卡牌'}`);
   slotsNode.appendChild(node);
   sourceNode?.classList.add('play-intent-source');
+  const preview = cachedDeclarationPreview(instanceId, locationKey);
+  if (preview) {
+    renderSelection(preview);
+  }
   pendingPlayIntent = { node, sourceNode };
 }
 
