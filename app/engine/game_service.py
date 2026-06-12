@@ -26,7 +26,6 @@ from app.engine.flow.turn_flow import (
     SIDE_A,
     SIDE_B,
     SIDE_KEYS,
-    LOCATION_CARD_LIMIT,
     CARD_TYPE_ESPER,
     RuleValidationError,
     _add_log,
@@ -50,6 +49,7 @@ from app.engine.flow.turn_flow import (
     _find_target_card,
     _is_location_revealed,
     _is_snap_snapshot,
+    _location_capacity,
     _location_has_room_after_materials,
     _location_index,
     _location_occupied_card_count,
@@ -125,7 +125,7 @@ def play_card(player: Player, card_instance_id: str, location_id: str) -> JsonDi
     location = _find_location(snapshot, str(location_id))
     if not _is_location_revealed(snapshot, location):
         raise RuleValidationError('这个异象空间尚未显现，暂时不能出牌。')
-    if _location_occupied_card_count(location, side) >= LOCATION_CARD_LIMIT:
+    if _location_occupied_card_count(location, side) >= _location_capacity(location):
         raise RuleValidationError('这个空间已满。')
     hand = snapshot['sides'][side]['hand']
     card = _find_card_in_zone(hand, str(card_instance_id), '手牌中没有这张牌。')
@@ -304,7 +304,7 @@ def move_staged_card(player: Player, card_instance_id: str, location_id: str) ->
         material_cards = _material_cards_for_esper(snapshot, side, target_location, card)
         if not _location_has_room_after_materials(target_location, side, material_cards):
             raise RuleValidationError('目标空间在消耗素材后仍然会超出上限。')
-    elif _location_occupied_card_count(target_location, side) >= LOCATION_CARD_LIMIT:
+    elif _location_occupied_card_count(target_location, side) >= _location_capacity(target_location):
         raise RuleValidationError('目标空间已满。')
     _ensure_turn_undo_checkpoint(snapshot, side)
     if card.get('summoned_from') == 'esper_standby' or card.get('type') == CARD_TYPE_ESPER:

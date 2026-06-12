@@ -4,6 +4,7 @@ from copy import deepcopy
 from dataclasses import dataclass
 from typing import Callable
 
+from app.content.common.constants import LOCATION_CARD_LIMIT
 from app.engine.rules.declarations import target_candidates, target_rule, target_rule_internal
 from app.engine.state.types import JsonDict
 from app.models import Player, Room
@@ -11,7 +12,6 @@ from app.models import Player, Room
 SIDE_A = 'a'
 SIDE_B = 'b'
 SIDE_KEYS = (SIDE_A, SIDE_B)
-LOCATION_CARD_LIMIT = 16
 CARD_BACK_IMAGE = '/static/images/cards/card-back.svg'
 CARD_TYPE_ANOMALY_ITEM = 'anomaly_item'
 
@@ -336,7 +336,7 @@ def _public_location(location: JsonDict, perspective: SidePerspective, rules: Pr
             'player': rules.location_occupied_card_count(location, perspective.own),
             'opponent': rules.location_occupied_card_count(location, perspective.opponent),
         },
-        'capacity': LOCATION_CARD_LIMIT,
+        'capacity': int(location.get('capacity') or LOCATION_CARD_LIMIT),
     }
 
 

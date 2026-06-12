@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from copy import deepcopy
 
+from app.content.common.constants import LOCATION_CARD_LIMIT
 from app.content.loader import get_duel_card
 from app.engine.rules.declarations import target_rule
 from app.engine.rules.materials import release_material_reservations
@@ -16,7 +17,6 @@ SIDE_KEYS = (SIDE_A, SIDE_B)
 MAX_TURNS = 6
 MAX_ENERGY = 6
 MAX_HAND_SIZE = 10
-LOCATION_CARD_LIMIT = 16
 LOG_LIMIT = 28
 
 CARD_TYPE_ESPER = 'esper'
@@ -222,11 +222,15 @@ def location_occupied_card_count(
     )
 
 
+def location_capacity(location: JsonDict) -> int:
+    return int(location.get('capacity') or LOCATION_CARD_LIMIT)
+
+
 def open_locations(snapshot: JsonDict, side: str) -> list[JsonDict]:
     return [
         location
         for location in snapshot['locations']
-        if is_location_revealed(snapshot, location) and location_occupied_card_count(location, side) < LOCATION_CARD_LIMIT
+        if is_location_revealed(snapshot, location) and location_occupied_card_count(location, side) < location_capacity(location)
     ]
 
 

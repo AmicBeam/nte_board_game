@@ -3,6 +3,7 @@ from __future__ import annotations
 import random
 from copy import deepcopy
 
+from app.content.common.constants import LOCATION_CARD_LIMIT
 from app.content.loader import get_duel_card
 from app.engine.application.build_service import card_by_id as _card_by_id
 from app.engine.ai.player import AiRules, run_ai_turn as _run_ai_turn_impl
@@ -44,7 +45,6 @@ SIDE_KEYS = (SIDE_A, SIDE_B)
 MAX_TURNS = 6
 MAX_ENERGY = 6
 MAX_HAND_SIZE = 10
-LOCATION_CARD_LIMIT = 16
 LOG_LIMIT = 28
 
 TAG_MURK = 'murk'
@@ -345,8 +345,7 @@ def _resolve_harmony_end_of_turn(snapshot: JsonDict, *, final_turn: bool = False
 
 
 def _resolve_genesis_end_of_turn(snapshot: JsonDict, location: JsonDict, side: str) -> None:
-    count = _location_mark_count(location, side, TAG_GENESIS)
-    if count <= 0:
+    if _location_mark_count(location, side, TAG_GENESIS) <= 0:
         return
     candidates = [
         card
@@ -357,7 +356,7 @@ def _resolve_genesis_end_of_turn(snapshot: JsonDict, location: JsonDict, side: s
         return
     target = random.choice(candidates)
     power_before = int(target.get('computed_power', _raw_card_power(target)) or 0)
-    _boost_card(target, count, '创生')
+    _boost_card(target, 1, '创生')
     power_after = int(target.get('computed_power', _raw_card_power(target)) or 0)
     snapshot.setdefault('action_queue', []).append({
         'kind': 'impact_arrow',
@@ -367,45 +366,46 @@ def _resolve_genesis_end_of_turn(snapshot: JsonDict, location: JsonDict, side: s
         'power_before': power_before,
         'power_after': power_after,
         'power_delta': power_after - power_before,
-        'subtitle': f'{power_before} + {count} = {power_after}',
+        'subtitle': f'{power_before} + 1 = {power_after}',
     })
-    _add_log(snapshot, f"{location['name']} 的创生标记使 {target['name']} +{count} 战力。")
+    _add_log(snapshot, f"{location['name']} 的创生标记使 {target['name']} +1 战力。")
 
 
 def _resolve_murk_end_of_turn(snapshot: JsonDict, location: JsonDict, side: str) -> None:
     murk_count = _location_mark_count(location, side, TAG_MURK) + len(_legacy_harmony_cards(location, side, TAG_MURK))
+    if murk_count <= 0:
+        return
     target_side = _opponent_side(side)
-    for _ in range(murk_count):
-        candidates = [
-            card
-            for card in location['cards'][target_side]
-            if card.get('revealed')
-            and TAG_COLLAPSING not in card.get('tags', [])
-            and card.get('type') != 'token'
-        ]
-        if not candidates:
-            break
-        non_negative = [
-            card
-            for card in candidates
-            if int(card.get('computed_power', _raw_card_power(card))) >= 0
-        ]
-        target = max(non_negative or candidates, key=lambda item: int(item.get('computed_power', _raw_card_power(item))))
-        power_before = int(target.get('computed_power', _raw_card_power(target)) or 0)
-        _boost_card(target, -1, '浊燃')
-        power_after = int(target.get('computed_power', _raw_card_power(target)) or 0)
-        snapshot.setdefault('action_queue', []).append({
-            'kind': 'impact_arrow',
-            'source_location_id': location['id'],
-            'side': side,
-            'target_instance_id': target['instance_id'],
-            'title': '浊燃',
-            'power_before': power_before,
-            'power_after': power_after,
-            'power_delta': power_after - power_before,
-            'subtitle': f'{power_before} - 1 = {power_after}',
-        })
-        _add_log(snapshot, f"{location['name']} 的浊燃使 {target['name']} -1 战力。")
+    candidates = [
+        card
+        for card in location['cards'][target_side]
+        if card.get('revealed')
+        and TAG_COLLAPSING not in card.get('tags', [])
+        and card.get('type') != 'token'
+    ]
+    if not candidates:
+        return
+    non_negative = [
+        card
+        for card in candidates
+        if int(card.get('computed_power', _raw_card_power(card))) >= 0
+    ]
+    target = max(non_negative or candidates, key=lambda item: int(item.get('computed_power', _raw_card_power(item))))
+    power_before = int(target.get('computed_power', _raw_card_power(target)) or 0)
+    _boost_card(target, -1, '浊燃')
+    power_after = int(target.get('computed_power', _raw_card_power(target)) or 0)
+    snapshot.setdefault('action_queue', []).append({
+        'kind': 'impact_arrow',
+        'source_location_id': location['id'],
+        'side': side,
+        'target_instance_id': target['instance_id'],
+        'title': '浊燃',
+        'power_before': power_before,
+        'power_after': power_after,
+        'power_delta': power_after - power_before,
+        'subtitle': f'{power_before} - 1 = {power_after}',
+    })
+    _add_log(snapshot, f"{location['name']} 的浊燃使 {target['name']} -1 战力。")
 
 
 def _resolve_nightmare_end_of_turn(snapshot: JsonDict, location: JsonDict, side: str) -> None:
@@ -1217,8 +1217,12 @@ def _open_locations(snapshot: JsonDict, side: str) -> list[JsonDict]:
     return [
         location
         for location in snapshot['locations']
-        if _is_location_revealed(snapshot, location) and _location_occupied_card_count(location, side) < LOCATION_CARD_LIMIT
+        if _is_location_revealed(snapshot, location) and _location_occupied_card_count(location, side) < _location_capacity(location)
     ]
+
+
+def _location_capacity(location: JsonDict) -> int:
+    return int(location.get('capacity') or LOCATION_CARD_LIMIT)
 
 
 def _counts_as_location_slot(card: JsonDict) -> bool:

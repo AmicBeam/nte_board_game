@@ -1,9 +1,9 @@
 from __future__ import annotations
 
+from app.content.common.constants import LOCATION_CARD_LIMIT
 from app.engine.state.types import JsonDict
 from app.errors import RuleValidationError
 
-LOCATION_CARD_LIMIT = 16
 TAG_MATERIAL = 'material'
 TAG_HARMONY = 'harmony'
 CARD_TYPE_ESPER = 'esper'
@@ -242,7 +242,11 @@ def material_absorb_power(card: JsonDict) -> int:
 def location_has_room_after_materials(location: JsonDict, side: str, material_cards: list[JsonDict]) -> bool:
     material_ids = {str(card.get('instance_id') or '') for card in material_cards}
     future_count = location_occupied_card_count(location, side, excluding_instance_ids=material_ids) + 1
-    return future_count <= LOCATION_CARD_LIMIT
+    return future_count <= location_capacity(location)
+
+
+def location_capacity(location: JsonDict) -> int:
+    return int(location.get('capacity') or LOCATION_CARD_LIMIT)
 
 
 def reserve_materials(material_cards: list[JsonDict], esper_instance_id: str) -> None:

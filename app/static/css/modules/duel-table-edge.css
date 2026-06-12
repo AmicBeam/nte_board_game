@@ -1073,7 +1073,6 @@
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 6px;
 }
 
 .selection-card-shell .selection-card {
@@ -1081,11 +1080,15 @@
 }
 
 .selection-source-badge {
+    position: absolute;
+    left: 7px;
+    top: 7px;
+    z-index: 8;
     min-height: 22px;
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    padding: 3px 10px;
+    padding: 3px 8px;
     border-radius: 999px;
     border: 1px solid rgba(116, 224, 213, 0.44);
     background: rgba(8, 19, 28, 0.9);
@@ -1097,6 +1100,41 @@
     letter-spacing: 0;
     pointer-events: none;
     white-space: nowrap;
+}
+
+.hand-rail .hand-card.play-intent-source {
+    opacity: 0.3;
+    transform: translateY(10px) scale(0.94);
+    pointer-events: none;
+    filter: saturate(0.76);
+}
+
+.board-card.pending-play-card {
+    pointer-events: none;
+    opacity: 0.88;
+    border-color: rgba(255,191,87,0.72);
+    box-shadow: 0 18px 34px rgba(0,0,0,0.34), 0 0 0 1px rgba(255,191,87,0.32), 0 0 22px rgba(255,191,87,0.16);
+    animation: pendingPlayLand 0.24s cubic-bezier(0.2, 0.86, 0.2, 1) both;
+}
+
+.board-card.pending-play-card::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    background: linear-gradient(180deg, rgba(255,255,255,0.08), transparent 42%);
+    pointer-events: none;
+}
+
+@keyframes pendingPlayLand {
+    from {
+        opacity: 0;
+        transform: translateY(14px) scale(0.9);
+    }
+    to {
+        opacity: 0.88;
+        transform: translateY(0) scale(1);
+    }
 }
 
 .selection-preview-btn {

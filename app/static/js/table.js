@@ -63,10 +63,12 @@ let playedResultRedirect = false;
 let materialSelection = null;
 let materialSelectionClickShieldUntil = 0;
 let presentationLocked = false;
+let pendingPlayIntent = null;
 const previewCardsByInstanceId = new Map();
 
 const ACTION_ANIMATION_MS = 1000;
 const ACTION_INTERVAL_MS = 1000;
+const DEFAULT_LOCATION_CAPACITY = 10;
 const ELEMENT_ICON_BASE = '/static/images/elements';
 const CARD_BACK_IMAGE = '/static/images/cards/card-back.svg';
 
@@ -132,8 +134,10 @@ async function loadState() {
 }
 
 function renderState(state) {
+  clearPendingPlayIntent();
   const previousState = currentState;
-  const shouldHoldPresentation = Boolean(previousState && hasNewPresentation(state));
+  const requiresImmediateChoice = Boolean(state?.selection || state?.pending_target);
+  const shouldHoldPresentation = Boolean(previousState && hasNewPresentation(state) && !requiresImmediateChoice);
   const displayState = shouldHoldPresentation ? previousState : state;
   hideCardPreview({ force: true });
   previewCardsByInstanceId.clear();
@@ -945,7 +949,7 @@ function canPlayToLocation(location) {
     && !materialSelection
     && !presentationLocked
     && location.revealed
-    && locationOccupiedCount(location, 'player') < Number(location.capacity || 10)
+    && locationOccupiedCount(location, 'player') < locationCapacity(location)
   );
 }
 
@@ -968,7 +972,12 @@ function hasRoomForEsperAfterMaterials(location, card = null, materialCount = nu
   const consumed = Number(materialCount ?? esperMaterialCost(card));
   const addsCard = !(card?.revealed && card.location_id === location.id);
   const futureCount = locationOccupiedCount(location, 'player') - Math.max(0, consumed) + (addsCard ? 1 : 0);
-  return futureCount <= Number(location.capacity || 10);
+  return futureCount <= locationCapacity(location);
+}
+
+function locationCapacity(location) {
+  const capacity = Number(location?.capacity);
+  return Number.isFinite(capacity) && capacity > 0 ? capacity : DEFAULT_LOCATION_CAPACITY;
 }
 
 function locationOccupiedCount(location, owner = 'player') {
@@ -1538,6 +1547,7 @@ async function submitPlayCard(cardInstanceId, locationId) {
   }
   actionLocked = true;
   syncControls(currentState);
+  beginPendingPlayIntent(cardInstanceId, locationId);
   try {
     const state = await apiRequest('/api/game/play-card', {
       method: 'POST',
@@ -1549,9 +1559,54 @@ async function submitPlayCard(cardInstanceId, locationId) {
   } catch (error) {
     window.alert(error.message);
   } finally {
+    clearPendingPlayIntent();
     actionLocked = false;
     syncControls(currentState);
   }
+}
+
+function beginPendingPlayIntent(cardInstanceId, locationId) {
+  clearPendingPlayIntent();
+  const instanceId = String(cardInstanceId || '');
+  const locationKey = String(locationId || '');
+  if (!instanceId || !locationKey) {
+    return;
+  }
+  const card = (currentState?.player?.hand || []).find((candidate) => String(candidate.instance_id || '') === instanceId)
+    || previewCardsByInstanceId.get(instanceId);
+  const locationNode = document.querySelector(`.duel-location[data-location-id="${cssEscape(locationKey)}"]`);
+  const slotsNode = locationNode?.querySelector('.player-slots');
+  if (!card || !slotsNode) {
+    return;
+  }
+  const sourceNode = document.querySelector(`.hand-card[data-card-instance-id="${cssEscape(instanceId)}"]`);
+  const intentCard = {
+    ...card,
+    hidden: false,
+    revealed: false,
+    staged: true,
+    location_id: locationKey,
+  };
+  const wrapper = document.createElement('template');
+  wrapper.innerHTML = boardCardHtml(intentCard, 'player');
+  const node = wrapper.content.firstElementChild;
+  if (!node) {
+    return;
+  }
+  node.classList.add('pending-play-card');
+  node.setAttribute('aria-label', `正在部署 ${card.name || '卡牌'}`);
+  slotsNode.appendChild(node);
+  sourceNode?.classList.add('play-intent-source');
+  pendingPlayIntent = { node, sourceNode };
+}
+
+function clearPendingPlayIntent() {
+  if (!pendingPlayIntent) {
+    return;
+  }
+  pendingPlayIntent.node?.remove();
+  pendingPlayIntent.sourceNode?.classList.remove('play-intent-source');
+  pendingPlayIntent = null;
 }
 
 async function submitPlayEsper(cardInstanceId, locationId, materialInstanceIds = []) {
@@ -2350,7 +2405,7 @@ async function playPresentation(state, options = {}) {
   const actions = state.action_queue || [];
   const banners = state.banner_queue || [];
 
-  if (actions.length) {
+  if (hasRevealPresentationActions(actions)) {
     await playActionQueue(actions);
   }
   const latestBanner = banners[banners.length - 1];
@@ -2389,8 +2444,7 @@ function presentationKeyForState(state) {
 
 function hasPendingPresentation(state) {
   const actions = state.action_queue || [];
-  const banners = state.banner_queue || [];
-  if (!state.selection || (!actions.length && !banners.length)) {
+  if (!state.selection || !hasRevealPresentationActions(actions)) {
     return false;
   }
   return presentationKeyForState(state) !== lastPresentationKey;
@@ -2399,10 +2453,14 @@ function hasPendingPresentation(state) {
 function hasNewPresentation(state) {
   const actions = state.action_queue || [];
   const banners = state.banner_queue || [];
-  if (!actions.length && !banners.length) {
+  if (!hasRevealPresentationActions(actions) && !banners.some((banner) => banner.kind === 'result')) {
     return false;
   }
   return presentationKeyForState(state) !== lastPresentationKey;
+}
+
+function hasRevealPresentationActions(actions = []) {
+  return actions.some((action) => action.kind === 'reveal_phase_begin' || action.kind === 'reveal_card');
 }
 
 async function playActionQueue(actions) {
@@ -2421,19 +2479,17 @@ async function playActionQueue(actions) {
   try {
     for (let index = 0; index < actions.length; index += 1) {
       const action = actions[index];
-      if (shouldSkipPresentationAction(action)) {
+      if (shouldSkipPresentationAction(action) || !shouldAnimateRevealAction(action)) {
         continue;
       }
       showActionCardPreview(action);
       if (action.kind === 'message' || action.kind === 'turn_begin') {
-        showTitleBanner(action.title || '提示', action.subtitle || '', { sticky: true, kind: 'action' });
-        await sleep(Math.round(ACTION_ANIMATION_MS * 0.62));
+        continue;
       } else if (action.kind === 'reveal_phase_begin') {
         showTitleBanner(action.title || '揭示阶段', action.subtitle || '双方伏置卡牌扣放。', { sticky: true, kind: 'action' });
-        await sleep(Math.round(ACTION_ANIMATION_MS * 0.72));
         continue;
       } else if (action.kind === 'initiative_decided') {
-        await sleep(Math.round(ACTION_ANIMATION_MS * 0.18));
+        continue;
       } else if (action.kind === 'reveal_side_begin') {
         continue;
       } else if (action.kind === 'draw_card') {
@@ -2510,6 +2566,16 @@ function shouldSkipPresentationAction(action) {
     return true;
   }
   return action.kind === 'message' && String(action.title || '').includes('成功覆盖');
+}
+
+function shouldAnimateRevealAction(action) {
+  if (action.kind === 'turn_begin' || action.kind === 'initiative_decided') {
+    return false;
+  }
+  if (action.kind === 'draw_card' && (action.silent || !action.source_instance_id)) {
+    return false;
+  }
+  return true;
 }
 
 function ensureCoveredCardsForReveal(revealActions) {

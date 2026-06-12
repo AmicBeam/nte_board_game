@@ -229,6 +229,9 @@ class SoloRoomFlowTest(RoomFlowTestCase):
         self.assertTrue(run_payload['opponent']['is_ai'])
         self.assertEqual(len(run_payload['locations']), 1)
         self.assertEqual(run_payload['locations'][0]['id'], 'main_battlefield')
+        constants = importlib.import_module('app.content.common.constants')
+        self.assertEqual(constants.LOCATION_CARD_LIMIT, 10)
+        self.assertEqual(run_payload['locations'][0]['capacity'], constants.LOCATION_CARD_LIMIT)
         self.assertEqual(run_payload['current_actor_uid'], 'solo-room-start')
 
         room_state = self._get('/api/room/state', token=token)
@@ -631,6 +634,25 @@ class DuelRuleTimingTest(RoomFlowTestCase):
         expected_power = sum(int(card['computed_power']) for card in materials[2:])
         self.assertEqual(location['power'][rules.SIDE_A], expected_power)
 
+    def test_refresh_charge_effect_deploy_uses_shared_location_capacity(self) -> None:
+        rules = self._rules()
+        source = self._card_instance('genesis_refresh_charge', 'source', revealed=False, turn=2)
+        source['staged'] = True
+        urban = self._card_instance('genesis_urban_energy', 'urban')
+        filler_a = self._card_instance('genesis_breakfast_bag', 'filler-a')
+        filler_b = self._card_instance('genesis_marble_soda', 'filler-b')
+        hand_card = self._card_instance('genesis_breakfast_bag', 'hand-card')
+        snapshot = self._snapshot_with_cards([source, urban, filler_a, filler_b])
+        snapshot['locations'][0]['capacity'] = rules.LOCATION_CARD_LIMIT
+        snapshot['sides'][rules.SIDE_A]['hand'] = [hand_card]
+
+        rules._reveal_card(snapshot, rules.SIDE_A, snapshot['locations'][0], source)
+
+        self.assertEqual(len(snapshot['locations'][0]['cards'][rules.SIDE_A]), 5)
+        self.assertEqual(snapshot['locations'][0]['cards'][rules.SIDE_A][-1]['definition_id'], 'genesis_breakfast_bag')
+        self.assertFalse(snapshot['sides'][rules.SIDE_A]['hand'])
+        self.assertFalse(any('战场已满' in line for line in snapshot['log']))
+
     def test_multi_requirement_esper_material_accepts_matching_anomaly_items(self) -> None:
         rules = self._rules()
         material_a = self._card_instance('genesis_urban_energy', 'material-a')
@@ -689,6 +711,30 @@ class DuelRuleTimingTest(RoomFlowTestCase):
         self.assertEqual(location['marks'][rules.SIDE_A][rules.TAG_NIGHTMARE], 1)
         self.assertNotIn(rules.TAG_ZHUE_HUCHI, location['marks'][rules.SIDE_A])
 
+    def test_genesis_and_murk_resolve_once_per_turn_regardless_of_layers(self) -> None:
+        rules = self._rules()
+        ally = self._card_instance('genesis_urban_energy', 'ally')
+        enemy = self._card_instance('genesis_muscle_faith', 'enemy')
+        enemy['side'] = rules.SIDE_B
+        snapshot = self._snapshot_with_cards([ally])
+        location = snapshot['locations'][0]
+        location['cards'][rules.SIDE_B] = [enemy]
+        location['marks'] = {
+            rules.SIDE_A: {
+                rules.TAG_GENESIS: 3,
+                rules.TAG_MURK: 3,
+            },
+            rules.SIDE_B: {},
+        }
+
+        with patch('app.engine.rules.harmony.random.choice', side_effect=lambda cards: cards[0]):
+            rules._resolve_harmony_end_of_turn(snapshot)
+
+        self.assertEqual(ally['computed_power'], 3)
+        self.assertEqual(enemy['computed_power'], 6)
+        self.assertEqual([action['title'] for action in snapshot['action_queue']].count('创生'), 1)
+        self.assertEqual([action['title'] for action in snapshot['action_queue']].count('浊燃'), 1)
+
     def test_nightmare_and_panyu_qiu_resolve_at_end_of_turn(self) -> None:
         rules = self._rules()
         high_enemy = self._card_instance('genesis_muscle_faith', 'enemy-high')
@@ -732,7 +778,7 @@ class DuelRuleTimingTest(RoomFlowTestCase):
 
         self.assertEqual(location['marks'][rules.SIDE_A][rules.TAG_GENESIS], 3)
         self.assertEqual(location['marks'][rules.SIDE_A][rules.TAG_DELAY], 2)
-        self.assertEqual(xun['computed_power'], 10)
+        self.assertEqual(xun['computed_power'], 7)
         self.assertTrue(any('令创生花在时停中生效' in line for line in snapshot['log']))
 
     def test_xun_requires_light_drink_and_eborn_cake_materials(self) -> None:

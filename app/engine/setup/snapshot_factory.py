@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from typing import Any, Callable
 
 from app.content.loader import default_duel_deck_id, get_duel_deck, load_duel_decks, validate_duel_deck_card_ids
+from app.content.common.constants import LOCATION_CARD_LIMIT
 from app.dao import get_build
 from app.engine.application.build_service import (
     card_by_id,
@@ -283,6 +284,7 @@ def _initial_locations() -> list[JsonDict]:
         'reveal_turn': 1,
         'effect': trait['effect'],
         'revealed': False,
+        'capacity': LOCATION_CARD_LIMIT,
         'cards': {SIDE_A: [], SIDE_B: []},
         'marks': {SIDE_A: {}, SIDE_B: {}},
         'power': {SIDE_A: 0, SIDE_B: 0},

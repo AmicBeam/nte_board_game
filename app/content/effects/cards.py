@@ -47,7 +47,7 @@ def _trigger_immediate_genesis(context: 'EventContext', location: JsonDict) -> b
         return False
     target = random.choice(candidates)
     power_before = int(target.get('computed_power', _raw_card_power(target)) or 0)
-    _boost_card(target, count, '创生')
+    _boost_card(target, 1, '创生')
     power_after = int(target.get('computed_power', _raw_card_power(target)) or 0)
     context.state.setdefault('action_queue', []).append({
         'kind': 'impact_arrow',
@@ -58,9 +58,9 @@ def _trigger_immediate_genesis(context: 'EventContext', location: JsonDict) -> b
         'power_before': power_before,
         'power_after': power_after,
         'power_delta': power_after - power_before,
-        'subtitle': f'{power_before} + {count} = {power_after}',
+        'subtitle': f'{power_before} + 1 = {power_after}',
     })
-    _add_log(context.state, f"{location['name']} 的创生标记使 {target['name']} +{count} 战力。")
+    _add_log(context.state, f"{location['name']} 的创生标记使 {target['name']} +1 战力。")
     return True
 
 
@@ -242,7 +242,7 @@ def _pop_discard_definition(context: 'EventContext', definition_id: str) -> Json
 
 def _deploy_discard_definition_to_current_location(context: 'EventContext', definition_id: str, source_name: str) -> JsonDict | None:
     side = str(context.payload['side'])
-    if len(context.payload['location']['cards'][side]) >= LOCATION_CARD_LIMIT:
+    if _location_occupied_count(context.payload['location'], side) >= _location_capacity(context.payload['location']):
         _add_log(context.state, f"{source_name} 想部署墓地中的卡牌，但战场已满。")
         return None
     card = _pop_discard_definition(context, definition_id)
@@ -311,7 +311,7 @@ def _deploy_card_to_current_location(context: 'EventContext', card: JsonDict | N
         return False
     side = str(context.payload['side'])
     location = context.payload['location']
-    if len(location['cards'][side]) >= LOCATION_CARD_LIMIT:
+    if _location_occupied_count(location, side) >= _location_capacity(location):
         _add_log(context.state, f"{source_name} 想部署 {card['name']}，但战场已满。")
         return False
     card = _reset_card_for_zone(card, revealed=False)
@@ -330,6 +330,18 @@ def _next_effect_play_sequence(state: JsonDict) -> int:
     counter = int(state.get('play_sequence_counter', 0)) + 1
     state['play_sequence_counter'] = counter
     return counter
+
+
+def _location_capacity(location: JsonDict) -> int:
+    return int(location.get('capacity') or LOCATION_CARD_LIMIT)
+
+
+def _location_occupied_count(location: JsonDict, side: str) -> int:
+    return sum(
+        1
+        for card in location.get('cards', {}).get(side, [])
+        if not card.get('reserved_as_material_for')
+    )
 
 
 def _return_target_to_hand(context: 'EventContext', target: JsonDict) -> bool:
@@ -521,7 +533,7 @@ def _create_token_in_location(state: JsonDict, location: JsonDict, side: str, to
     if mark_tag:
         _add_location_mark(state, location, side, mark_tag)
         return True
-    if len(location['cards'][side]) >= LOCATION_CARD_LIMIT:
+    if _location_occupied_count(location, side) >= _location_capacity(location):
         return False
     token = _build_token_instance(state, side, token_id, revealed=True)
     token['location_id'] = location['id']
