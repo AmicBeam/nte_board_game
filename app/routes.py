@@ -42,10 +42,10 @@ PRETEAM_MAIN_CANDIDATES: list[dict[str, object]] = [
     {'id': 'nanali', 'name': '娜娜莉', 'image': _preteam_avatar('娜娜莉.png'), 'elem': '灵', 'char_key': 'nanali'},
     {'id': 'xiaozhi', 'name': '小吱', 'image': _preteam_avatar('小吱.png'), 'elem': '光', 'char_key': 'xiaozhi'},
     {'id': 'baicang', 'name': '白藏', 'image': _preteam_avatar('白藏.png'), 'elem': '咒', 'char_key': 'baicang'},
+    {'id': 'requiem', 'name': '安魂曲', 'image': _preteam_avatar('安魂曲.png'), 'elem': '暗', 'char_key': 'requiem'},
     {'id': 'hasuoerM', 'name': '哈索尔', 'image': _preteam_avatar('哈索尔.png'), 'elem': '相', 'char_key': 'hasuoer'},
     {'id': 'haiyue', 'name': '海月', 'image': _preteam_avatar('海月.png'), 'elem': '魂', 'char_key': 'haiyue'},
     {'id': 'bohe', 'name': '薄荷', 'image': _preteam_avatar('薄荷.png'), 'elem': '灵', 'char_key': 'bohe'},
-    {'id': 'yi', 'name': '翳', 'image': _preteam_avatar('翳.png'), 'elem': '相', 'char_key': 'yi'},
 ]
 
 PRETEAM_TEAMMATES: list[dict[str, object]] = [

@@ -5,17 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="icon" href="{{ url_for('static', filename='preteam/单位.jpg') }}">
     <title>异环预配队</title>
-    <script>
-        (function () {
-            try {
-                if (!window.localStorage.getItem('nte_token')) {
-                    window.location.replace("{{ url_for('main.login_page') }}");
-                }
-            } catch (error) {
-                window.location.replace("{{ url_for('main.login_page') }}");
-            }
-        }());
-    </script>
     <style>
         :root {
             color-scheme: light;
@@ -495,20 +484,6 @@
 </head>
 <body>
     <div class="page">
-        <button class="menu-btn" id="menuBtn" type="button" aria-label="打开菜单">
-            <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-                <path d="M4 7h16v2H4V7zm0 5h16v2H4v-2zm0 5h16v2H4v-2z"></path>
-            </svg>
-        </button>
-        <div class="sidebar-backdrop" id="sidebarBackdrop"></div>
-        <aside class="sidebar" id="sidebar">
-            <h2>显示设置</h2>
-            <p>浔默认显示在队友列表中，并会参与配队计算与额外环合枚举；如需排除，可以在这里手动关闭。</p>
-            <label class="sidebar-toggle">
-                <input type="checkbox" id="showXunToggle">
-                <span>显示浔（三测数据）</span>
-            </label>
-        </aside>
         <div class="top-actions">
             <a class="cloud-float-btn" href="{{ url_for('main.home') }}">返回牌桌</a>
         </div>
@@ -519,10 +494,10 @@
         <div class="hero">
             <div class="hero-main">
                 <div class="eyebrow">PRETEAM 1.0</div>
-                <h1>异环预配队 1.0 版本</h1>
+                <h1>异环预配队 1.0.7 版本</h1>
                 <p class="hero-copy">先选对单还是对群，再确定主C与三名队友。页面会按新的环合体系自动寻找更优配装，并输出 4 人的默认面板建议。</p>
                 <div class="hero-notes">
-                    <div>角色默认 80 级、天赋 10 级；敌人为 82 级、20 全抗、无红圈会攻击的站桩目标。</div>
+                    <div>角色默认 80 级、天赋 10 级；敌人为 90 级、30 全抗、无红圈会攻击的站桩目标。</div>
                     <div>S 级默认 0 觉，A级默认满觉，小吱默认 1 觉。</div>
                     <div>“打满环合”会把主C环合机会提高到 1 次，但会拖轴导致伤害评分下降。</div>
                     <div>关注 B 站 <a class="hero-note-link" href="https://space.bilibili.com/9412490" target="_blank" rel="noreferrer">静默之光</a>。</div>
@@ -659,18 +634,12 @@
         const breakdown = document.getElementById("breakdown");
         const panelLines = document.getElementById("panelLines");
         const surviveWarning = document.getElementById("surviveWarning");
-        const menuBtn = document.getElementById("menuBtn");
-        const sidebar = document.getElementById("sidebar");
-        const sidebarBackdrop = document.getElementById("sidebarBackdrop");
-        const showXunToggle = document.getElementById("showXunToggle");
-        const MENU_STORAGE_KEY = "preteam:showXun";
 
         const state = {
             targetMode: "single",
             rotationMode: "full_cd",
             selectedMain: null,
             selectedTeam: new Set(),
-            showXun: localStorage.getItem(MENU_STORAGE_KEY) !== "0",
         };
 
         const cardMeta = {};
@@ -691,6 +660,7 @@
             yi: 0.8,
             yiT: 0.12,
             baicang: 1.5,
+            requiem: 2.8,
             nanali: 1.3,
             nanaliT: 0.3,
             jiuyuanM: 1.0,
@@ -702,7 +672,7 @@
             adele: 0.2,
             dafutier0: 0.4,
             fatiya: 0.2,
-            haniya: 0.2,
+            haniya: 0.3,
             hasuoer: 0.25,
             hasuoerM: 1.8,
             haiyue: 1.1,
@@ -716,6 +686,9 @@
             hasuoerM: 0.80,
             haiyue: 0.20,
         };
+        const CREATION_LIGHT_REACTION_MULT = 1;
+        const DARK_ZHUORAN_REACTION_MULT = 1.3;
+        const REQUIEM_ZHUORAN_REACTION_MULT = 1.4;
 
         const defaultBuilds = {
             zhujue: {
@@ -753,6 +726,11 @@
                 card: "真红双生蝶",
                 entry: "攻伤暴",
             },
+            requiem: {
+                weapon: "最后一朵玫瑰",
+                card: "迪亚波罗斯",
+                entry: "攻伤暴（远程普攻）",
+            },
             zaowu: {
                 weapon: "好狗狗走四方",
                 card: "音速蓝刺猬",
@@ -781,7 +759,7 @@
             haniya: {
                 weapon: "引爆全场",
                 card: "音速蓝刺猬",
-                entry: "默认不堆伤害",
+                entry: "攻伤暴",
             },
             hasuoer: {
                 weapon: "焰魂狂飙",
@@ -868,28 +846,6 @@
             surviveWarning.textContent = "";
         }
 
-        function closeSidebar() {
-            sidebar.classList.remove("open");
-            sidebarBackdrop.classList.remove("open");
-        }
-
-        function openSidebar() {
-            sidebar.classList.add("open");
-            sidebarBackdrop.classList.add("open");
-        }
-
-        function updateHiddenTeammates() {
-            const xunCard = teamGrid.querySelector('.card[data-id="xun"]');
-            if (!xunCard) return;
-            xunCard.classList.toggle("hidden-card", !state.showXun);
-            if (!state.showXun && state.selectedTeam.has("xun")) {
-                state.selectedTeam.delete("xun");
-                xunCard.classList.remove("selected");
-                clearResults();
-                updateSummary();
-            }
-        }
-
         function selectMain(card) {
             mainGrid.querySelectorAll(".card").forEach((item) => item.classList.remove("selected"));
             card.classList.add("selected");
@@ -948,14 +904,16 @@
             if (hasId("zaowu", allIds)) layers += 1;
             if (hasId("zaowu", allIds) && hasId("adele", allIds)) layers += 1;
             if (hasId("zaowu", allIds) && hasId("baicang", allIds)) layers += 0.5;
+            if (hasId("zaowu", allIds) && hasId("requiem", allIds)) layers += 1;
             return layers;
         }
 
         function computeAtkBonus(allIds, anxingCount, mainId) {
             let atk = 0;
-            if (hasId("zaowu", allIds)) atk += (mainId === "xiaozhi" ? 0.05 : 0.10);
-            if (hasId("haniya", allIds)) atk += 0.25;
-            if (anxingCount > 0 && hasId("haniya", allIds)) atk += 0.08;
+            const requiemTeam = hasId("requiem", allIds);
+            if (hasId("zaowu", allIds)) atk += 0.10 * (requiemTeam ? 2 : 1);
+            if (hasId("haniya", allIds)) atk += requiemTeam ? 0.25 : 0.20;
+            if (anxingCount > 0 && hasId("haniya", allIds)) atk += 0.05;
             return atk;
         }
 
@@ -1052,17 +1010,35 @@
             return allIds.some((id) => id !== providerId && cardMeta[id]?.elem === elem);
         }
 
-        function canTriggerYiFreeDelay(allIds) {
+        function canTriggerYiFreeDelay(allIds, targetMode) {
+            if (targetMode === "aoe") return false;
             const hasYi = allIds.some((id) => getCharacterKey(id) === "yi");
             const hasLight = allIds.some((id) => cardMeta[id]?.elem === "光");
             return hasYi && hasLight;
         }
 
-        function buildProviderReactionOptions(providerId, count, allIds) {
+        function canProvideDelay(providerId, allIds, targetMode) {
+            const providerElem = cardMeta[providerId]?.elem;
+            const isAoe = targetMode === "aoe";
+            if (isAoe && getCharacterKey(providerId) === "yi") return false;
+            if (providerElem === "光") {
+                return allIds.some((id) => (
+                    id !== providerId
+                    && cardMeta[id]?.elem === "相"
+                    && (!isAoe || getCharacterKey(id) !== "yi")
+                ));
+            }
+            if (providerElem === "相") {
+                return otherHasElem(allIds, providerId, "光");
+            }
+            return false;
+        }
+
+        function buildProviderReactionOptions(providerId, count, allIds, targetMode) {
             if (!providerId || count <= 0) return [{ counts: {} }];
             const elem = cardMeta[providerId]?.elem;
             const charKey = getCharacterKey(providerId);
-            const yiFreeDelay = canTriggerYiFreeDelay(allIds);
+            const yiFreeDelay = canTriggerYiFreeDelay(allIds, targetMode);
             const options = [];
             const seen = new Set();
 
@@ -1076,7 +1052,7 @@
 
             if (elem === "光") {
                 if (otherHasElem(allIds, providerId, "灵")) pushCounts({ [getCreationCountField(providerId)]: count });
-                if (!yiFreeDelay && otherHasElem(allIds, providerId, "相")) pushCounts({ delayCount: count });
+                if (!yiFreeDelay && canProvideDelay(providerId, allIds, targetMode)) pushCounts({ delayCount: count });
             } else if (elem === "灵") {
                 if (otherHasElem(allIds, providerId, "光")) pushCounts({ [getCreationCountField(providerId)]: count });
                 if (otherHasElem(allIds, providerId, "咒")) pushCounts({ fuwenCount: count });
@@ -1096,11 +1072,21 @@
                 if (otherHasElem(allIds, providerId, "相")) pushCounts({ jinranCount: count });
                 if (otherHasElem(allIds, providerId, "暗")) pushCounts({ anxingCount: count });
             } else if (elem === "相") {
-                if (!yiFreeDelay && otherHasElem(allIds, providerId, "光")) pushCounts({ delayCount: count });
+                if (!yiFreeDelay && canProvideDelay(providerId, allIds, targetMode)) pushCounts({ delayCount: count });
                 if (otherHasElem(allIds, providerId, "魂")) pushCounts({ jinranCount: count });
             } else if (elem === "暗") {
-                if (otherHasElem(allIds, providerId, "咒")) pushCounts({ zhuoranCount: count });
-                if (otherHasElem(allIds, providerId, "魂")) pushCounts({ anxingCount: count });
+                const canTriggerZhuoran = otherHasElem(allIds, providerId, "咒");
+                const canTriggerAnxing = otherHasElem(allIds, providerId, "魂");
+                if (canTriggerZhuoran) pushCounts({ zhuoranCount: count });
+                if (canTriggerAnxing) pushCounts({ anxingCount: count });
+                if (canTriggerZhuoran && canTriggerAnxing && count > 1) {
+                    const primaryCount = Math.min(1, count);
+                    const secondaryCount = count - primaryCount;
+                    if (secondaryCount > 0) {
+                        pushCounts({ zhuoranCount: primaryCount, anxingCount: secondaryCount });
+                        pushCounts({ zhuoranCount: secondaryCount, anxingCount: primaryCount });
+                    }
+                }
             }
 
             return options.length > 0 ? options : [{ counts: {} }];
@@ -1129,23 +1115,44 @@
             const bohePresent = hasId("bohe", allIds) || hasId("boheT", allIds);
             const xunSacrifice = Boolean(reactionCounts.xunSacrifice);
 
-            function reactionProviderMult(type, providerId, masterySet) {
-                if (!providerId) return 1;
+            function hasReactionMastery(type, providerId, masterySet) {
+                if (!providerId) return false;
                 const providerElem = cardMeta[providerId]?.elem;
-                let mult = 1;
                 for (const masteryId of masterySet) {
                     const masteryElem = cardMeta[masteryId]?.elem;
                     if (type === "creation") {
-                        if (masteryElem === "灵" && (providerId === masteryId || providerElem === "光")) mult = Math.max(mult, 1.5);
-                        if (masteryElem === "光" && (providerId === masteryId || providerElem === "灵")) mult = Math.max(mult, 1.5);
+                        if (masteryElem === "灵" && (providerId === masteryId || providerElem === "光")) return true;
+                        if (masteryElem === "光" && (providerId === masteryId || providerElem === "灵")) return true;
                     } else if (type === "zhuoran") {
-                        if (masteryElem === "咒" && (providerId === masteryId || providerElem === "暗")) mult = Math.max(mult, 1.5);
-                        if (masteryElem === "暗" && (providerId === masteryId || providerElem === "咒")) mult = Math.max(mult, 1.5);
+                        if (masteryElem === "咒" && (providerId === masteryId || providerElem === "暗")) return true;
+                        if (masteryElem === "暗" && (providerId === masteryId || providerElem === "咒")) return true;
                     } else if (type === "anxing") {
-                        if (masteryElem === "暗" && (providerId === masteryId || providerElem === "魂")) mult = Math.max(mult, 1.5);
-                        if (masteryElem === "魂" && (providerId === masteryId || providerElem === "暗")) mult = Math.max(mult, 1.5);
+                        if (masteryElem === "暗" && (providerId === masteryId || providerElem === "魂")) return true;
+                        if (masteryElem === "魂" && (providerId === masteryId || providerElem === "暗")) return true;
                     }
                 }
+                return false;
+            }
+
+            function reactionAttributeMult(type, allIds) {
+                if (type === "creation" && allIds.some((id) => cardMeta[id]?.elem === "光")) {
+                    return CREATION_LIGHT_REACTION_MULT;
+                }
+                if (type === "zhuoran" && allIds.some((id) => cardMeta[id]?.elem === "暗")) {
+                    return allIds.some((id) => getCharacterKey(id) === "requiem")
+                        ? REQUIEM_ZHUORAN_REACTION_MULT
+                        : DARK_ZHUORAN_REACTION_MULT;
+                }
+                return 1;
+            }
+
+            function reactionProviderMult(type, providerId, masterySet, allIds) {
+                if (!providerId) return 1;
+                let mult = 1;
+                if (hasReactionMastery(type, providerId, masterySet)) {
+                    mult = Math.max(mult, 1.5);
+                }
+                mult = Math.max(mult, reactionAttributeMult(type, allIds));
                 return mult;
             }
 
@@ -1160,8 +1167,10 @@
                 const ringMultFactor = rotationMode === "full_ring" ? 0.8 : 1;
                 const fuwenMult = fuwenCount > 0 ? (1 + (fuwenBaseMult - 1) * ringMultFactor * fuwenCount) : 1;
                 const jinranMult = jinranCount > 0 ? (1 + (jinranBaseMult - 1) * ringMultFactor * jinranCount) : 1;
-                const zhuoranLayerBoost = zhuoranCount > 0 ? (1 + layers * 0.25) : 1;
-                const adeleLayerBoost = zhuoranCount > 0 ? (1 + layers * 0.08) : 1;
+                const zhuoranLayerCount = Math.min(Math.max(zhuoranCount, 0), 1);
+                const activeLayers = layers * zhuoranLayerCount;
+                const zhuoranLayerBoost = activeLayers > 0 ? (1 + activeLayers * 0.25) : 1;
+                const adeleLayerBoost = activeLayers > 0 ? (1 + activeLayers * 0.08) : 1;
                 const creationMultNanali = (hasId("nanali", allIds) || hasId("nanaliT", allIds)) ? 2 : 1;
                 const creationMultJiuyuan = (hasId("jiuyuan", allIds) || hasId("jiuyuanM", allIds)) ? 2 : 1;
                 const creationMult = creationMultNanali * creationMultJiuyuan;
@@ -1182,20 +1191,32 @@
                     if (fuwenCount > 0 && (elem === "灵" || elem === "咒")) dmg *= fuwenMult;
                     if (jinranCount > 0 && (elem === "魂" || elem === "相")) dmg *= jinranMult;
                     if (mainId === "yi" && elem === "相") dmg *= 1.06;
-                    if (yingxuCount > 0 && isMain) {
+                    if (yingxuCount > 0 && isMain && getCharacterKey(id) !== "requiem") {
                         dmg *= 1 + yingxuCount * yingxuLayers * 0.05;
                     }
                     if (getCharacterKey(id) === "jiuyuan" && jiuyuanSonic) {
                         dmg *= 0.8;
                     }
+                    if (hasId("requiem", allIds) && id === "zaowu") {
+                        dmg *= 2;
+                    }
+                    if (hasId("requiem", allIds) && id === "haniya") {
+                        dmg *= 1.4;
+                    }
+                    if (mainId === "requiem" && id === "dafutier0") {
+                        dmg *= 2;
+                    }
                     if (id === "haiyue" && anxingCount > 0) {
                         dmg *= 1 + anxingCount * 0.05;
+                    }
+                    if (id === "requiem" && activeLayers > 0) {
+                        dmg *= 1 + activeLayers * 0.04;
                     }
                     if (delayCount > 0 && hasId("hasuoer", allIds) && id !== "xiaozhi") {
                         dmg *= 1.05;
                     }
 
-                    const ignoreAtk = (id === "xiaozhi" || id === "adele");
+                    const ignoreAtk = (id === "xiaozhi" || id === "adele" || id === "fatiya");
                     if (!ignoreAtk) {
                         const selfAtkBonus = selfAtkMap[id] || 0;
                         if (selfAtkBonus > 0) dmg /= (1 + selfAtkBonus);
@@ -1205,15 +1226,16 @@
                     if (id === "adele") dmg *= adeleLayerBoost;
                     if (targetMode === "aoe" && isMain) {
                         const charKey = getCharacterKey(id);
-                        if (charKey === "haiyue") {
-                            if (!gatherPresent) dmg *= 2 / 3;
-                        } else if (charKey === "yi") {
-                            dmg /= 3;
-                        } else if (!gatherPresent) {
+                        if (charKey === "nanali" || charKey === "baicang") {
+                            if (!gatherPresent) dmg /= 3;
+                        } else if (gatherPresent) {
+                            dmg *= 0.7;
+                        } else {
                             dmg /= 3;
                         }
                     }
-                    if (!isMain && rotationMode === "full_ring") {
+                    const ignoreFullRingDrag = ["暗", "魂", "咒"].includes(elem) || (id === "xun" && !xunSacrifice);
+                    if (!isMain && rotationMode === "full_ring" && !ignoreFullRingDrag) {
                         dmg /= 1.3;
                     }
                     if (buildType !== "direct") dmg *= 0.7;
@@ -1232,13 +1254,13 @@
 
                 let creationDamage = 0;
                 for (const part of creationProviderParts) {
-                    creationDamage += part.count * 0.15 * creationMult * reactionProviderMult("creation", part.id, masterySet);
+                    creationDamage += part.count * 0.15 * creationMult * reactionProviderMult("creation", part.id, masterySet, allIds);
                 }
 
                 const zhuoranProviderId = mainId;
-                let zhuoranDamage = zhuoranCount * 0.2 * zhuoranLayerBoost * reactionProviderMult("zhuoran", zhuoranProviderId, masterySet);
+                let zhuoranDamage = zhuoranCount * 0.22 * zhuoranLayerBoost * reactionProviderMult("zhuoran", zhuoranProviderId, masterySet, allIds);
                 const anxingProviderId = mainId;
-                let anxingDamage = anxingCount * 0.3 * reactionProviderMult("anxing", anxingProviderId, masterySet);
+                let anxingDamage = anxingCount * 0.25 * reactionProviderMult("anxing", anxingProviderId, masterySet, allIds);
 
                 if (hasId("adele", allIds) && zhuoranCount > 0) {
                     const adlerBoost = 1.03;
@@ -1263,7 +1285,7 @@
                 }
                 qingxianDamage *= (1 + finalShixieCount * 0.3);
 
-                const hpLossDamage = hasId("fatiya", allIds) && anxingCount > 0 ? 0.3 : 0;
+                const hpLossDamage = hasId("fatiya", allIds) ? Math.min(Math.max(anxingCount, 0), 1) * 0.4 : 0;
                 let total = personalSum + creationDamage + zhuoranDamage + anxingDamage + qingxianDamage;
                 if (mainId === "baicang") total *= (targetMode === "aoe" ? 1.10 : 1.05);
                 if (targetMode === "aoe" && hasId("zaowu", allIds)) total *= 1.05;
@@ -1312,18 +1334,19 @@
             if (uniqueKeys.size !== 4) return null;
 
             const ringChance = rotationMode === "full_ring" ? 1 : 0.5;
+            const mainRingCount = mainId === "requiem" ? (rotationMode === "full_ring" ? 1.5 : 1) : ringChance;
             const providerOptions = [];
             if (hasId("zhujue", allIds)) {
-                providerOptions.push(buildProviderReactionOptions("zhujue", 1, allIds));
+                providerOptions.push(buildProviderReactionOptions("zhujue", 1, allIds, targetMode));
             }
-            providerOptions.push(buildProviderReactionOptions(mainId, ringChance, allIds));
+            providerOptions.push(buildProviderReactionOptions(mainId, mainRingCount, allIds, targetMode));
 
             const scenarios = [];
             const seen = new Set();
 
             function walkProviders(index, mergedCounts) {
                 if (index >= providerOptions.length) {
-                    const yiFreeDelay = canTriggerYiFreeDelay(allIds) ? 1 : 0;
+                    const yiFreeDelay = canTriggerYiFreeDelay(allIds, targetMode) ? 1 : 0;
                     const normalized = {
                         delayCount: Math.max(mergedCounts.delayCount || 0, yiFreeDelay),
                         creationCountBase: mergedCounts.creationCountBase || 0,
@@ -1456,22 +1479,6 @@
 
         calcBtn.addEventListener("click", calculateScore);
 
-        menuBtn.addEventListener("click", () => {
-            if (sidebar.classList.contains("open")) {
-                closeSidebar();
-            } else {
-                openSidebar();
-            }
-        });
-        sidebarBackdrop.addEventListener("click", closeSidebar);
-        showXunToggle.addEventListener("change", () => {
-            state.showXun = showXunToggle.checked;
-            localStorage.setItem(MENU_STORAGE_KEY, state.showXun ? "1" : "0");
-            updateHiddenTeammates();
-        });
-
-        showXunToggle.checked = state.showXun;
-        updateHiddenTeammates();
         updateSummary();
     </script>
 </body>
