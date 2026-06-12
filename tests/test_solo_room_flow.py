@@ -294,11 +294,25 @@ class SoloRoomFlowTest(RoomFlowTestCase):
             'card_instance_id': source['instance_id'],
             'location_id': location_id,
         }, token=token)
-        self.assertEqual(selection_state['phase'], 'selecting')
+        self.assertEqual(selection_state['phase'], 'planning')
         self.assertIsNotNone(selection_state['selection'])
+        self.assertEqual(selection_state['selection']['source_instance_id'], source['instance_id'])
 
         blocked_payload = self._get('/api/game/declaration-previews', token=token)
-        self.assertEqual(blocked_payload['previews'], {})
+        self.assertEqual(blocked_payload['phase'], 'planning')
+        self.assertIsInstance(blocked_payload['previews'], dict)
+
+        choice = selection_state['selection']['cards'][0]
+        ended_state = self._post('/api/game/end-turn', {
+            'declaration_choices': [{
+                'source_instance_id': source['instance_id'],
+                'location_id': location_id,
+                'card_instance_ids': [choice['instance_id']],
+                'card_names': [choice['name']],
+            }],
+        }, token=token)
+        self.assertEqual(ended_state['turn'], 2)
+        self.assertTrue(any(f"{source['name']} 宣言了 {choice['name']}" in line for line in ended_state['log']))
 
     def test_solo_room_can_finish_run_and_reset(self) -> None:
         token = self._issue_login_and_get_token('solo-room-victory')

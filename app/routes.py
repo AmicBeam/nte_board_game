@@ -404,8 +404,12 @@ def api_choose_cards():
 @main_bp.post('/api/game/end-turn')
 @token_required
 def api_end_turn():
+    payload = request.get_json(silent=True) or {}
+    declaration_choices = payload.get('declaration_choices')
+    if declaration_choices is not None and not isinstance(declaration_choices, list):
+        declaration_choices = []
     try:
-        return jsonify(end_turn(g.current_player))
+        return jsonify(end_turn(g.current_player, declaration_choices))
     except AppError as exc:
         return jsonify({'error': str(exc)}), 400
     except Exception:

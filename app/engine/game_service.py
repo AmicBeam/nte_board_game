@@ -175,6 +175,85 @@ def _public_declaration_preview(
     return selection if isinstance(selection, dict) else None
 
 
+def _public_state_with_transient_selection(
+    snapshot: JsonDict,
+    room: Room,
+    player: Player,
+    selection: JsonDict | None = None,
+) -> JsonDict:
+    public_payload = _public_state(snapshot, room, player)
+    if selection is not None:
+        public_payload['selection'] = selection
+    return public_payload
+
+
+def _transient_declaration_selection(
+    room: Room,
+    player: Player,
+    snapshot: JsonDict,
+    side: str,
+    location: JsonDict,
+    card: JsonDict,
+    selected_target: JsonDict | None = None,
+) -> JsonDict | None:
+    preview = _declaration_selection_preview(snapshot, side, location, card, selected_target)
+    if preview is None:
+        return None
+    return _public_declaration_preview(room, player, snapshot, side, preview)
+
+
+def _apply_declaration_choices(snapshot: JsonDict, side: str, declaration_choices: list[JsonDict] | None) -> None:
+    if not declaration_choices:
+        return
+    applied: set[str] = set()
+    for choice in declaration_choices:
+        if not isinstance(choice, dict):
+            continue
+        source_id = str(choice.get('source_instance_id') or '')
+        if not source_id or source_id in applied:
+            continue
+        source = _find_card_on_board(snapshot, source_id)
+        if source is None or str(source.get('side') or '') != side:
+            continue
+        if source.get('revealed') or not source.get('staged'):
+            continue
+        selected_ids = [
+            str(card_id)
+            for card_id in choice.get('card_instance_ids', [])
+            if str(card_id)
+        ]
+        if not selected_ids:
+            continue
+        names = [
+            str(name)
+            for name in choice.get('card_names', [])
+            if str(name)
+        ] or _declaration_choice_names(snapshot, side, selected_ids)
+        source['declared_card_instance_ids'] = selected_ids
+        source['declared_card_names'] = names
+        applied.add(source_id)
+        _add_log(snapshot, f"{source['name']} 宣言了 {'、'.join(names) if names else '卡牌'}。")
+
+
+def _declaration_choice_names(snapshot: JsonDict, side: str, selected_ids: list[str]) -> list[str]:
+    wanted = set(selected_ids)
+    names: list[str] = []
+    side_state = snapshot['sides'][side]
+    zones = [
+        *side_state.get('hand', []),
+        *side_state.get('deck', []),
+        *side_state.get('discard', []),
+    ]
+    for location in snapshot.get('locations', []):
+        zones.extend(location.get('cards', {}).get(side, []))
+    for card_id in selected_ids:
+        for card in zones:
+            if str(card.get('instance_id') or '') == card_id and card_id in wanted:
+                names.append(str(card.get('name') or '卡牌'))
+                break
+    return names
+
+
 def reset_run_for_room(room: Room) -> None:
     discard_cached_room_run(room.id)
     clear_run(room)
@@ -225,13 +304,16 @@ def play_card(player: Player, card_instance_id: str, location_id: str) -> JsonDi
         'location_id': location['id'],
         'location_index': _location_index(snapshot, location['id']),
     })
+    transient_selection = None
     if _prepare_declaration_target(snapshot, side, location, card):
         _add_log(snapshot, f"{card['name']} 等待选择目标。")
-    elif _prepare_declaration_selection(snapshot, side, location, card):
+    else:
+        transient_selection = _transient_declaration_selection(room, player, snapshot, side, location, card)
+    if transient_selection is not None:
         _add_log(snapshot, f"{card['name']} 正在检视牌库。")
     _recompute_scores(snapshot)
     _persist_room_snapshot(room, snapshot)
-    return _public_state(snapshot, room, player)
+    return _public_state_with_transient_selection(snapshot, room, player, transient_selection)
 
 
 def play_esper(
@@ -308,13 +390,16 @@ def play_esper(
         'location_id': location['id'],
         'location_index': _location_index(snapshot, location['id']),
     })
+    transient_selection = None
     if _prepare_declaration_target(snapshot, side, location, card):
         _add_log(snapshot, f"{card['name']} 等待选择目标。")
-    elif _prepare_declaration_selection(snapshot, side, location, card):
+    else:
+        transient_selection = _transient_declaration_selection(room, player, snapshot, side, location, card)
+    if transient_selection is not None:
         _add_log(snapshot, f"{card['name']} 正在检视牌库。")
     _recompute_scores(snapshot)
     _persist_room_snapshot(room, snapshot)
-    return _public_state(snapshot, room, player)
+    return _public_state_with_transient_selection(snapshot, room, player, transient_selection)
 
 
 def return_staged_card(player: Player, card_instance_id: str) -> JsonDict:
@@ -403,11 +488,12 @@ def choose_target(player: Player, target_instance_id: str) -> JsonDict:
     source['selected_target_name'] = target.get('name', '')
     snapshot['sides'][side]['pending_target'] = None
     _add_log(snapshot, f"{source['name']} 已指向 {target['name']}。")
-    if _prepare_declaration_selection(snapshot, side, source_location, source, target):
+    transient_selection = _transient_declaration_selection(room, player, snapshot, side, source_location, source, target)
+    if transient_selection is not None:
         _add_log(snapshot, f"{source['name']} 正在检视牌库。")
     _recompute_scores(snapshot)
     _persist_room_snapshot(room, snapshot)
-    return _public_state(snapshot, room, player)
+    return _public_state_with_transient_selection(snapshot, room, player, transient_selection)
 
 
 def cancel_target(player: Player) -> JsonDict:
@@ -475,9 +561,10 @@ def choose_cards(player: Player, card_instance_ids: list[str]) -> JsonDict:
     return _public_state(snapshot, room, player)
 
 
-def end_turn(player: Player) -> JsonDict:
+def end_turn(player: Player, declaration_choices: list[JsonDict] | None = None) -> JsonDict:
     room, snapshot, side = _load_mutable_player_run(player)
     _ensure_playing(snapshot)
+    _apply_declaration_choices(snapshot, side, declaration_choices)
     _ensure_selection_resolved(snapshot, side)
     snapshot['sides'][side]['ended_turn'] = True
     _add_log(snapshot, f"{_side_name(snapshot, side)} 结束回合。")

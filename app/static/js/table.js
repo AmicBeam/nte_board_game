@@ -66,6 +66,9 @@ let presentationLocked = false;
 let pendingPlayIntent = null;
 let declarationPreviewCache = { key: '', previews: {} };
 let declarationPreviewRequestKey = '';
+let turnUndoPreviewState = null;
+let lastAuthoritativeState = null;
+let pendingDeclarationChoices = {};
 const previewCardsByInstanceId = new Map();
 
 const ACTION_ANIMATION_MS = 1000;
@@ -135,13 +138,21 @@ async function loadState() {
   }
 }
 
-function renderState(state) {
-  scheduleDeclarationPreviewPrefetch(state);
+function renderState(state, options = {}) {
+  const sourceState = state;
+  const renderStatePayload = options.skipPendingDeclarationOverlay ? sourceState : stateWithPendingDeclarationChoices(sourceState);
+  if (!options.skipDeclarationPreviewPrefetch) {
+    scheduleDeclarationPreviewPrefetch(renderStatePayload);
+  }
+  if (!options.optimistic) {
+    lastAuthoritativeState = clonePublicState(sourceState);
+    updateTurnUndoPreviewState(renderStatePayload);
+  }
   clearPendingPlayIntent();
   const previousState = currentState;
-  const requiresImmediateChoice = Boolean(state?.selection || state?.pending_target);
-  const shouldHoldPresentation = Boolean(previousState && hasNewPresentation(state) && !requiresImmediateChoice);
-  const displayState = shouldHoldPresentation ? previousState : state;
+  const requiresImmediateChoice = Boolean(renderStatePayload?.selection || renderStatePayload?.pending_target);
+  const shouldHoldPresentation = Boolean(previousState && hasNewPresentation(renderStatePayload) && !requiresImmediateChoice);
+  const displayState = shouldHoldPresentation ? previousState : renderStatePayload;
   hideCardPreview({ force: true });
   previewCardsByInstanceId.clear();
   currentState = displayState;
@@ -164,7 +175,7 @@ function renderState(state) {
   renderLeftInfo(displayState);
   renderRightInfo(displayState);
   renderLocations(displayState, shouldHoldPresentation ? null : previousState);
-  renderHand(displayState, { deferSelection: shouldHoldPresentation || hasPendingPresentation(state) });
+  renderHand(displayState, { deferSelection: shouldHoldPresentation || hasPendingPresentation(renderStatePayload) });
   renderLog(displayState);
   renderDiscard(displayState);
   renderEsperStandby(displayState);
@@ -173,7 +184,7 @@ function renderState(state) {
   syncControls(displayState);
   syncTargetMode(displayState);
   renderDeclarationArrows(displayState);
-  playPresentation(state, { renderFinalAfter: shouldHoldPresentation });
+  playPresentation(renderStatePayload, { renderFinalAfter: shouldHoldPresentation });
 }
 
 function scheduleDeclarationPreviewPrefetch(state) {
@@ -243,6 +254,62 @@ function declarationPreviewStateKey(state) {
 function cachedDeclarationPreview(cardInstanceId, locationId) {
   const key = `${String(cardInstanceId || '')}:${String(locationId || '')}`;
   return declarationPreviewCache.previews?.[key] || null;
+}
+
+function updateTurnUndoPreviewState(state) {
+  if (
+    !state
+    || state.status !== 'playing'
+    || state.player?.ended_turn
+    || !['planning', 'selecting'].includes(state.phase)
+  ) {
+    turnUndoPreviewState = null;
+    return;
+  }
+  if (state.selection || state.pending_target) {
+    return;
+  }
+  if (!state.can_undo_turn) {
+    turnUndoPreviewState = clonePublicState(state);
+  }
+}
+
+function clonePublicState(state) {
+  if (!state) {
+    return null;
+  }
+  if (typeof structuredClone === 'function') {
+    return structuredClone(state);
+  }
+  return JSON.parse(JSON.stringify(state));
+}
+
+function stateWithPendingDeclarationChoices(state) {
+  const entries = Object.entries(pendingDeclarationChoices);
+  if (!state || !entries.length) {
+    return state;
+  }
+  const nextState = clonePublicState(state);
+  entries.forEach(([sourceId, choice]) => {
+    if (!applyDeclarationChoiceToState(nextState, choice)) {
+      delete pendingDeclarationChoices[sourceId];
+    }
+  });
+  return nextState;
+}
+
+function applyDeclarationChoiceToState(state, choice) {
+  const sourceId = String(choice?.source_instance_id || '');
+  if (!sourceId || !state) {
+    return false;
+  }
+  const source = findCardByInstanceId(state, sourceId);
+  if (!source || !source.staged || source.revealed) {
+    return false;
+  }
+  source.declared_card_instance_ids = [...(choice.card_instance_ids || [])];
+  source.declared_card_names = [...(choice.card_names || [])];
+  return true;
 }
 
 function syncRoundInfo(state) {
@@ -1377,22 +1444,63 @@ async function confirmSelection(selection) {
   if (actionLocked || selectedChoiceIds.length !== Number(selection.pick_count || 1)) {
     return;
   }
+  if (selection.kind === 'declaration') {
+    confirmDeclarationSelectionLocally(selection);
+    return;
+  }
+  const chosenIds = [...selectedChoiceIds];
   actionLocked = true;
+  closeSelectionOverlay();
+  syncControls(currentState);
   try {
     const state = await apiRequest('/api/game/choose-cards', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ card_instance_ids: selectedChoiceIds }),
+      body: JSON.stringify({ card_instance_ids: chosenIds }),
     });
     selectedChoiceIds = [];
     selectionKey = '';
     actionLocked = false;
     renderState(state);
   } catch (error) {
+    actionLocked = false;
+    selectedChoiceIds = chosenIds;
+    renderSelection(selection);
     window.alert(error.message);
   } finally {
     actionLocked = false;
     syncControls(currentState);
+  }
+}
+
+function confirmDeclarationSelectionLocally(selection) {
+  const chosenIds = [...selectedChoiceIds];
+  const chosenCards = chosenIds
+    .map((cardId) => (selection.cards || []).find((card) => String(card.instance_id || '') === String(cardId)))
+    .filter(Boolean);
+  const choice = {
+    source_instance_id: String(selection.source_instance_id || ''),
+    location_id: String(selection.location_id || ''),
+    card_instance_ids: chosenIds,
+    card_names: chosenCards.map((card) => String(card.name || '卡牌')),
+  };
+  if (!choice.source_instance_id) {
+    showToast('宣言来源缺失，请重新部署这张牌');
+    return;
+  }
+  pendingDeclarationChoices[choice.source_instance_id] = choice;
+  selectedChoiceIds = [];
+  selectionKey = '';
+  const nextState = clonePublicState(currentState);
+  if (nextState) {
+    nextState.selection = null;
+    if (nextState.phase === 'selecting') {
+      nextState.phase = 'planning';
+    }
+    applyDeclarationChoiceToState(nextState, choice);
+    renderState(nextState, { optimistic: true, skipDeclarationPreviewPrefetch: true });
+  } else {
+    closeSelectionOverlay();
   }
 }
 
@@ -1724,6 +1832,7 @@ async function submitReturnCard(cardInstanceId) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ card_instance_id: cardInstanceId }),
     });
+    delete pendingDeclarationChoices[String(cardInstanceId || '')];
     actionLocked = false;
     renderState(state);
   } catch (error) {
@@ -1762,8 +1871,14 @@ async function endTurn() {
   }
   actionLocked = true;
   syncControls(currentState);
+  const declarationChoices = Object.values(pendingDeclarationChoices);
   try {
-    const state = await apiRequest('/api/game/end-turn', { method: 'POST' });
+    const state = await apiRequest('/api/game/end-turn', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ declaration_choices: declarationChoices }),
+    });
+    pendingDeclarationChoices = {};
     actionLocked = false;
     renderState(state);
     if (state.status !== 'playing') {
@@ -1790,15 +1905,28 @@ async function undoTurn() {
   if (actionLocked || !currentState || !currentState.can_undo_turn) {
     return;
   }
+  const restoreState = clonePublicState(lastAuthoritativeState || currentState);
+  const optimisticState = clonePublicState(turnUndoPreviewState);
+  const restoreDeclarationChoices = { ...pendingDeclarationChoices };
   cancelMaterialSelection({ silent: true });
   actionLocked = true;
-  syncControls(currentState);
+  pendingDeclarationChoices = {};
+  if (optimisticState) {
+    renderState(optimisticState, { optimistic: true, skipDeclarationPreviewPrefetch: true });
+  } else {
+    syncControls(currentState);
+  }
   try {
     const state = await apiRequest('/api/game/undo-turn', { method: 'POST' });
     actionLocked = false;
     renderState(state);
     showToast('已撤销本回合操作');
   } catch (error) {
+    actionLocked = false;
+    pendingDeclarationChoices = restoreDeclarationChoices;
+    if (restoreState) {
+      renderState(restoreState, { skipDeclarationPreviewPrefetch: true });
+    }
     window.alert(error.message);
   } finally {
     actionLocked = false;
@@ -2564,6 +2692,7 @@ async function playActionQueue(actions) {
         continue;
       } else if (action.kind === 'reveal_phase_begin') {
         showTitleBanner(action.title || '揭示阶段', action.subtitle || '双方伏置卡牌扣放。', { sticky: true, kind: 'action' });
+        await sleep(ACTION_INTERVAL_MS);
         continue;
       } else if (action.kind === 'initiative_decided') {
         continue;

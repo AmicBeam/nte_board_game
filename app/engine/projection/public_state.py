@@ -259,6 +259,8 @@ def _public_selection(side: JsonDict, rules: ProjectionRules) -> JsonDict | None
         cards.append(selection_card)
     return {
         'kind': selection.get('kind'),
+        'source_instance_id': selection.get('source_instance_id'),
+        'location_id': selection.get('location_id'),
         'title': selection.get('title', '选择卡牌'),
         'description': selection.get('description', ''),
         'pick_count': int(selection.get('pick_count', 1)),
