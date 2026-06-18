@@ -137,7 +137,16 @@ class RoomFlowTestCase(unittest.TestCase):
     def _solo_test_run_context(self) -> ExitStack:
         stack = ExitStack()
         stack.enter_context(patch('app.engine.setup.snapshot_factory.random.shuffle', side_effect=lambda value: None))
+        stack.enter_context(self._fixed_battlefield_patch())
         return stack
+
+    def _fixed_battlefield_patch(self, trait_id: str = 'mirror_archive'):
+        battlefields = importlib.import_module('app.engine.setup.battlefields')
+        trait = next(
+            item for item in battlefields.BATTLEFIELD_TRAITS
+            if item['id'] == trait_id
+        )
+        return patch('app.engine.setup.snapshot_factory.BATTLEFIELD_TRAITS', [trait])
 
 
 class SoloRoomFlowTest(RoomFlowTestCase):
@@ -241,8 +250,9 @@ class SoloRoomFlowTest(RoomFlowTestCase):
         def reverse_shuffle(value: list) -> None:
             value.reverse()
 
-        with patch('app.engine.setup.snapshot_factory.random.shuffle', side_effect=reverse_shuffle):
-            state = self._post('/api/room/start', token=token)
+        with self._fixed_battlefield_patch():
+            with patch('app.engine.setup.snapshot_factory.random.shuffle', side_effect=reverse_shuffle):
+                state = self._post('/api/room/start', token=token)
 
         hand_ids = [card['definition_id'] for card in state['player']['hand']]
         self.assertEqual(len(hand_ids), 4)
@@ -306,6 +316,28 @@ class SoloRoomFlowTest(RoomFlowTestCase):
         self.assertEqual(room_state['status'], 'playing')
         self.assertEqual(room_state['run_status'], 'playing')
 
+    def test_hollow_theater_grants_first_turn_extra_normal_draw(self) -> None:
+        token = self._issue_login_and_get_token('hollow-theater-draw')
+        self._save_default_build(token)
+        self._post('/api/room/create', {'mode': 'solo'}, token=token)
+        battlefields = importlib.import_module('app.engine.setup.battlefields')
+        hollow_theater = next(
+            trait for trait in battlefields.BATTLEFIELD_TRAITS
+            if trait['id'] == 'hollow_theater'
+        )
+
+        with self._solo_test_run_context():
+            with patch('app.engine.setup.snapshot_factory.BATTLEFIELD_TRAITS', [hollow_theater]):
+                state = self._post('/api/room/start', token=token)
+
+        self.assertEqual(state['locations'][0]['name'], '战场：呼啸环线')
+        self.assertEqual(state['locations'][0]['description'], '首个回合双方额外执行 1 次通常抽卡。')
+        self.assertEqual(len(state['player']['hand']), 5)
+        self.assertEqual(state['player']['deck_count'], 15)
+        self.assertEqual(state['opponent']['hand_count'], 5)
+        self.assertEqual(state['opponent']['deck_count'], 15)
+        self.assertTrue(any('呼啸环线' in line and '额外执行 1 次通常抽卡' in line for line in state['log']))
+
     def test_chip_washer_requires_ally_item_target_before_deploying(self) -> None:
         token = self._issue_login_and_get_token('solo-chip-washer-target')
         self._post('/api/build/save', {
@@ -318,9 +350,10 @@ class SoloRoomFlowTest(RoomFlowTestCase):
         def chip_washer_first(value: list) -> None:
             value.sort(key=lambda card: 0 if card.get('definition_id') == 'genesis_chip_washer' else 1)
 
-        with patch('app.engine.setup.snapshot_factory.random.shuffle', side_effect=chip_washer_first):
-            self._post('/api/room/start', token=token)
-            state = self._post('/api/game/end-turn', token=token)
+        with self._fixed_battlefield_patch():
+            with patch('app.engine.setup.snapshot_factory.random.shuffle', side_effect=chip_washer_first):
+                self._post('/api/room/start', token=token)
+                state = self._post('/api/game/end-turn', token=token)
 
         washer = next(
             card for card in state['player']['hand']
@@ -1885,6 +1918,7 @@ class DuoRoomFlowTest(RoomFlowTestCase):
     def _duo_test_run_context(self) -> ExitStack:
         stack = ExitStack()
         stack.enter_context(patch('app.engine.setup.snapshot_factory.random.shuffle', side_effect=lambda value: None))
+        stack.enter_context(self._fixed_battlefield_patch())
         return stack
 
 

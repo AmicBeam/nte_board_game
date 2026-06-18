@@ -111,8 +111,15 @@
             <h2 id="result-modal-title">结算</h2>
             <p id="result-modal-subtitle">战场结算完成。</p>
             <div class="result-summary-grid" id="result-summary-grid"></div>
-            <button class="primary-btn result-confirm-btn" id="result-confirm-btn" type="button">确认</button>
+            <div class="result-modal-actions">
+                <button class="secondary-btn result-collapse-btn" id="result-collapse-btn" type="button">收起</button>
+                <button class="primary-btn result-confirm-btn" id="result-confirm-btn" type="button">确认</button>
+            </div>
         </div>
+        <button class="result-collapsed-pill" id="result-collapsed-pill" type="button" aria-label="查看对局结算">
+            <span>对局结算</span>
+            <strong id="result-collapsed-title">结算</strong>
+        </button>
     </section>
     <div class="duel-title-banner" id="duel-title-banner" aria-hidden="true"></div>
     <div class="effect-arrow-layer" id="effect-arrow-layer" aria-hidden="true"></div>

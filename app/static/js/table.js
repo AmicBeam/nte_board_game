@@ -53,6 +53,9 @@ const resultModalTitle = document.getElementById('result-modal-title');
 const resultModalSubtitle = document.getElementById('result-modal-subtitle');
 const resultSummaryGrid = document.getElementById('result-summary-grid');
 const resultConfirmBtn = document.getElementById('result-confirm-btn');
+const resultCollapseBtn = document.getElementById('result-collapse-btn');
+const resultCollapsedPill = document.getElementById('result-collapsed-pill');
+const resultCollapsedTitle = document.getElementById('result-collapsed-title');
 const tutorialFocusScrim = document.getElementById('tutorial-focus-scrim');
 const tutorialGuidancePopup = document.getElementById('tutorial-guidance-popup');
 const mobileLocationRuleLine = document.getElementById('mobile-location-rule-line');
@@ -3092,6 +3095,13 @@ function showResultModal(state) {
     return;
   }
   hideTitleBanner();
+  updateResultModalContent(state);
+  resultModal.className = `result-modal open status-${classToken(state.status)}`;
+  resultModal.setAttribute('aria-hidden', 'false');
+  resultCollapseBtn?.focus?.();
+}
+
+function updateResultModalContent(state) {
   const score = state.score || {};
   const totalPower = `${Number(score.total_power_player || 0)} - ${Number(score.total_power_opponent || 0)}`;
   const winnerText = state.status === 'draw'
@@ -3108,8 +3118,6 @@ function showResultModal(state) {
     ['模式', state.scenario_label || '异象对决'],
   ];
 
-  resultModal.className = `result-modal open status-${classToken(state.status)}`;
-  resultModal.setAttribute('aria-hidden', 'false');
   if (resultModalEyebrow) {
     resultModalEyebrow.textContent = '对局结束';
   }
@@ -3127,7 +3135,26 @@ function showResultModal(state) {
       </article>
     `).join('');
   }
-  resultConfirmBtn?.focus?.();
+  if (resultCollapsedTitle) {
+    resultCollapsedTitle.textContent = resultText(state);
+  }
+}
+
+function collapseResultModal() {
+  if (!resultModal || !currentState || currentState.status === 'playing') {
+    return;
+  }
+  updateResultModalContent(currentState);
+  resultModal.className = `result-modal collapsed status-${classToken(currentState.status)}`;
+  resultModal.setAttribute('aria-hidden', 'false');
+  resultCollapsedPill?.focus?.();
+}
+
+function expandResultModal() {
+  if (!currentState || currentState.status === 'playing') {
+    return;
+  }
+  showResultModal(currentState);
 }
 
 function confirmResultExit() {
@@ -3972,8 +3999,13 @@ async function playActionQueue(actions) {
         await sleep(ACTION_ANIMATION_MS);
         syncVisibleBoardTotals();
       } else if (action.kind === 'impact_arrow') {
-        showImpactActionBanner(action);
-        playImpactArrow(action);
+        const impactGroup = [action];
+        while (index + 1 < actions.length && canGroupImpactActions(action, actions[index + 1])) {
+          index += 1;
+          impactGroup.push(actions[index]);
+        }
+        showImpactGroupBanner(impactGroup);
+        playImpactArrowGroup(impactGroup);
         syncVisibleBoardTotals();
         await sleep(ACTION_ANIMATION_MS);
       } else if (action.kind === 'effect_summary') {
@@ -4501,12 +4533,85 @@ function playImpactArrow(action) {
   }
 }
 
+function playImpactArrowGroup(actions) {
+  if (!Array.isArray(actions) || !actions.length) {
+    return;
+  }
+  if (actions.length === 1) {
+    playImpactArrow(actions[0]);
+    return;
+  }
+  const arrows = [];
+  const powerUpdates = [];
+  actions.forEach((action) => {
+    const sourceNode = action.source_instance_id
+      ? document.querySelector(`.board-card[data-card-instance-id="${cssEscape(action.source_instance_id)}"]`)
+      : document.querySelector(`.duel-location[data-location-id="${cssEscape(action.source_location_id)}"]`);
+    const targetNode = document.querySelector(`.board-card[data-card-instance-id="${cssEscape(action.target_instance_id)}"]`);
+    const sourceRect = sourceNode?.getBoundingClientRect?.();
+    const targetRect = targetNode?.getBoundingClientRect?.();
+    if (!sourceRect || !targetRect) {
+      return;
+    }
+    arrows.push(buildArrowElement(
+      sourceRect.left + sourceRect.width / 2,
+      sourceRect.top + sourceRect.height / 2,
+      targetRect.left + targetRect.width / 2,
+      targetRect.top + targetRect.height / 2,
+      'impact',
+    ));
+    powerUpdates.push({ action, targetNode });
+  });
+  effectArrowLayer.replaceChildren(...arrows);
+  powerUpdates.forEach(({ action, targetNode }) => {
+    const amount = Number(action.power_delta || 0);
+    if (!amount) {
+      return;
+    }
+    showPowerFloat(targetNode, amount, action.power_before, action.power_after, { kind: amount > 0 ? 'buff' : 'damage' });
+    updateBoardCardPower(targetNode, action.power_after);
+  });
+}
+
+function canGroupImpactActions(baseAction, candidateAction) {
+  if (!baseAction || !candidateAction || candidateAction.kind !== 'impact_arrow') {
+    return false;
+  }
+  return impactActionGroupKey(baseAction) === impactActionGroupKey(candidateAction);
+}
+
+function impactActionGroupKey(action) {
+  return [
+    action.source_instance_id || '',
+    action.source_location_id || '',
+    action.side || '',
+    action.title || '',
+  ].join('|');
+}
+
 function showImpactActionBanner(action) {
   const title = action.title || '';
   if (!title) {
     return;
   }
   const subtitle = action.subtitle || powerChangeText(action);
+  showTitleBanner(title, subtitle, { sticky: true, kind: 'action' });
+}
+
+function showImpactGroupBanner(actions) {
+  if (!Array.isArray(actions) || !actions.length) {
+    return;
+  }
+  if (actions.length === 1) {
+    showImpactActionBanner(actions[0]);
+    return;
+  }
+  const title = actions[0].title || '范围效果';
+  const deltas = actions.map((action) => Number(action.power_delta || 0)).filter((delta) => delta !== 0);
+  const sameDelta = deltas.length === actions.length && deltas.every((delta) => delta === deltas[0]);
+  const subtitle = sameDelta
+    ? `共 ${actions.length} 张卡牌 ${deltas[0] > 0 ? '+' : '-'}${Math.abs(deltas[0])} 战力。`
+    : `共 ${actions.length} 张卡牌受到影响。`;
   showTitleBanner(title, subtitle, { sticky: true, kind: 'action' });
 }
 
@@ -4767,6 +4872,8 @@ function findPreviousBoardCard(previousLocation, owner, instanceId) {
 endTurnBtn.addEventListener('click', endTurn);
 copyLogBtn.addEventListener('click', copyLog);
 resultConfirmBtn?.addEventListener('click', confirmResultExit);
+resultCollapseBtn?.addEventListener('click', collapseResultModal);
+resultCollapsedPill?.addEventListener('click', expandResultModal);
 rightPanelTabs.forEach((button) => {
   button.addEventListener('click', () => setRightPanelView(button.dataset.rightPanelView || 'info'));
 });

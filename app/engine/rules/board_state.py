@@ -283,15 +283,6 @@ def location_power_bonus(location: JsonDict, side: str, card: JsonDict) -> int:
         if revealed and revealed[0]['instance_id'] == card['instance_id']:
             add_buff_source(card, location['name'], 2, replace_key=f'location:{location["id"]}')
             return 2
-    if location['effect'] == 'solo_card_plus_four':
-        revealed = [
-            item
-            for item in location['cards'][side]
-            if item.get('revealed') and counts_as_location_slot(item)
-        ]
-        if len(revealed) == 1 and revealed[0]['instance_id'] == card['instance_id']:
-            add_buff_source(card, location['name'], 4, replace_key=f'location:{location["id"]}')
-            return 4
     return 0
 
 
