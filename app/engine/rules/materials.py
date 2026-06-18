@@ -1,9 +1,9 @@
 from __future__ import annotations
 
+from app.content.common.constants import LOCATION_CARD_LIMIT
 from app.engine.state.types import JsonDict
 from app.errors import RuleValidationError
 
-LOCATION_CARD_LIMIT = 16
 TAG_MATERIAL = 'material'
 TAG_HARMONY = 'harmony'
 CARD_TYPE_ESPER = 'esper'
@@ -15,7 +15,7 @@ def esper_material_cost(card: JsonDict) -> int:
     requirements = esper_material_requirements(card)
     if requirements:
         return sum(int(requirement.get('count') or 1) for requirement in requirements)
-    return max(2, min(3, int(card.get('material_cost') or 2)))
+    return max(1, min(3, int(card.get('material_cost') or 2)))
 
 
 def material_cards_for_esper(
@@ -51,6 +51,7 @@ def material_cards_for_esper(
         return [card for card in selected_cards if card is not None]
     candidates.sort(key=lambda card: (
         0 if card.get('type') == CARD_TYPE_TOKEN else 1,
+        _material_reserve_penalty(card, esper_card),
         int(card.get('computed_power', card.get('base_power', 0)) or 0),
         str(card.get('name', '')),
     ))
@@ -235,18 +236,32 @@ def material_matches_esper_requirement(material: JsonDict, esper_card: JsonDict)
     return is_wildcard_material_attribute(required_attribute) or required_attribute in material_attributes_for_card(material)
 
 
+def _material_reserve_penalty(material: JsonDict, esper_card: JsonDict) -> int:
+    reserved_for = {str(card_id) for card_id in material.get('ai_material_reserved_for', []) if str(card_id)}
+    if not reserved_for:
+        return 0
+    return 0 if str(esper_card.get('definition_id') or esper_card.get('id') or '') in reserved_for else 1
+
+
 def material_absorb_power(card: JsonDict) -> int:
+    if card.get('reserved_material_power') is not None:
+        return int(card.get('reserved_material_power') or 0)
     return int(card.get('computed_power', raw_card_power(card)) or 0)
 
 
 def location_has_room_after_materials(location: JsonDict, side: str, material_cards: list[JsonDict]) -> bool:
     material_ids = {str(card.get('instance_id') or '') for card in material_cards}
     future_count = location_occupied_card_count(location, side, excluding_instance_ids=material_ids) + 1
-    return future_count <= LOCATION_CARD_LIMIT
+    return future_count <= location_capacity(location)
+
+
+def location_capacity(location: JsonDict) -> int:
+    return int(location.get('capacity') or LOCATION_CARD_LIMIT)
 
 
 def reserve_materials(material_cards: list[JsonDict], esper_instance_id: str) -> None:
     for card in material_cards:
+        card['reserved_material_power'] = material_absorb_power(card)
         card['reserved_as_material_for'] = esper_instance_id
 
 
@@ -255,6 +270,7 @@ def release_material_reservations(snapshot: JsonDict, side: str, esper_instance_
         for card in location.get('cards', {}).get(side, []):
             if card.get('reserved_as_material_for') == esper_instance_id:
                 card.pop('reserved_as_material_for', None)
+                card.pop('reserved_material_power', None)
 
 
 def cards_by_instance_ids(snapshot: JsonDict, side: str, instance_ids: list[str]) -> list[JsonDict]:

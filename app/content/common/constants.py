@@ -5,11 +5,11 @@ from typing import Any
 JsonDict = dict[str, Any]
 
 LOG_LIMIT = 28
-MAX_HAND_SIZE = 10
+MAX_HAND_SIZE = 8
 MIN_DECK_SIZE = 10
 MAX_DECK_SIZE = 20
 MAX_ESPER_CARDS_PER_DECK = 4
-LOCATION_CARD_LIMIT = 4
+LOCATION_CARD_LIMIT = 7
 
 CARD_TYPE_ESPER = 'esper'
 CARD_TYPE_ANOMALY_ITEM = 'anomaly_item'
@@ -24,22 +24,22 @@ GENERATED_CARD_ART_BASE = '/static/images/cards/generated'
 ITEM_IMAGE_BASE = '/static/images/item'
 ELEMENT_ICON_BASE = '/static/images/elements'
 
-ART_NANALI = '/static/images/characters/portrait/娜娜莉.png'
-ART_XUN = '/static/images/characters/portrait/浔.png'
-ART_JIUYUAN = '/static/images/characters/portrait/九原.png'
-ART_BOHE = '/static/images/characters/portrait/薄荷.png'
-ART_PROTAGONIST = '/static/images/characters/portrait/鉴定师.png'
-ART_XIAOZHI = '/static/images/characters/portrait/小吱.png'
-ART_EDGAR = '/static/images/characters/portrait/埃德嘉.png'
-ART_BAICANG = '/static/images/characters/portrait/白藏.png'
-ART_ADLER = '/static/images/characters/portrait/阿德勒.png'
-ART_ZAOWU = '/static/images/characters/portrait/早雾.png'
-ART_DAFUTIER = '/static/images/characters/portrait/达芙蒂尔.png'
-ART_HAIYUE = '/static/images/characters/portrait/海月.png'
-ART_FATIYA = '/static/images/characters/portrait/法帝娅.png'
-ART_HANIYA = '/static/images/characters/portrait/哈尼娅.png'
-ART_HASUOER = '/static/images/characters/portrait/哈索尔.png'
-ART_YI = '/static/images/characters/portrait/翳.png'
+ART_NANALI = '/static/images/characters/portrait/娜娜莉.webp'
+ART_XUN = '/static/images/characters/portrait/浔.webp'
+ART_JIUYUAN = '/static/images/characters/portrait/九原.webp'
+ART_BOHE = '/static/images/characters/portrait/薄荷.webp'
+ART_PROTAGONIST = '/static/images/characters/portrait/鉴定师.webp'
+ART_XIAOZHI = '/static/images/characters/portrait/小吱.webp'
+ART_EDGAR = '/static/images/characters/portrait/埃德嘉.webp'
+ART_BAICANG = '/static/images/characters/portrait/白藏.webp'
+ART_ADLER = '/static/images/characters/portrait/阿德勒.webp'
+ART_ZAOWU = '/static/images/characters/portrait/早雾.webp'
+ART_DAFUTIER = '/static/images/characters/portrait/达芙蒂尔.webp'
+ART_HAIYUE = '/static/images/characters/portrait/海月.webp'
+ART_FATIYA = '/static/images/characters/portrait/法帝娅.webp'
+ART_HANIYA = '/static/images/characters/portrait/哈尼娅.webp'
+ART_HASUOER = '/static/images/characters/portrait/哈索尔.webp'
+ART_YI = '/static/images/characters/portrait/翳.webp'
 
 TAG_GENESIS = 'genesis'
 TAG_MURK = 'murk'
@@ -118,13 +118,15 @@ ITEM_ART_FILES = {
     '彩色波子汽水',
     '来自「伊波恩」的蛋糕',
     '吃薯片专用洗指机',
-    '护巢残片',
+    '遗失的钱包',
     '暴走棉绒绒-肌肉信仰',
     '初次的期许',
     '思维的同频',
     '水波的迟疑',
     '新兵的怯懦',
+    '老旧信箱',
     '雏鸟的希冀',
+    '初级角色异能材料自选箱',
     '通勤公文包',
     '无人来电',
     '万花筒',
@@ -133,8 +135,6 @@ ITEM_ART_FILES = {
     '模糊数符',
     '悬想幻妄',
     '上膛骑士火花塞',
-    '妄想彼端的一页',
-    '斑斓的票根',
     '初级异象材料自选箱',
     '「异晶开采凭证」',
     '环石',
@@ -143,7 +143,7 @@ ITEM_ART_FILES = {
     '谕石',
     '聆谕水晶',
     '织梦结',
-    '何人的头盔',
+    '银边管家',
     '方斯',
     '甲硬币',
     '嗯硬币',

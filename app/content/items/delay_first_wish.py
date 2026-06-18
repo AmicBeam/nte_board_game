@@ -9,17 +9,18 @@ if TYPE_CHECKING:
 
 def delay_first_wish(context: 'EventContext') -> None:
     card = context.payload['card']
-    names = {'思维的同频', '水波的迟疑'}
-    added = _declared_deck_item(context, lambda item: str(item.get('name') or '') in names)
-    if added is None:
-        added = _tutor_named_item(context, names, card['name'])
-    else:
-        _add_card_to_hand(context, added, card['name'])
-    if _has_turn_deployed(context, str(context.payload['side']), lambda item: str(item.get('attribute') or '') == '相'):
-        _boost_card(card, 1, card['name'])
-    if added is None:
-        _add_log(context.state, f"{card['name']} 没有找到可加入手牌的延滞起点。")
-    card.pop('declared_card_instance_ids', None)
+    side = str(context.payload['side'])
+    opponent = str(context.payload['opponent_side'])
+    drawn = _draw_one_from_deck(context.state, side)
+    if drawn is None:
+        _add_log(context.state, f"{card['name']} 没有可抽的牌。")
+    own_cards = [item for item in _revealed_cards(context.payload['location'], side) if item.get('type') != CARD_TYPE_TOKEN]
+    opponent_cards = [item for item in _revealed_cards(context.payload['location'], opponent) if item.get('type') != CARD_TYPE_TOKEN]
+    if len(opponent_cards) >= len(own_cards):
+        target = min(opponent_cards, key=_raw_card_power) if opponent_cards else None
+        if target is not None:
+            _boost_card(target, -1, card['name'])
+            _add_log(context.state, f"{card['name']} 在对手场上卡牌不少于己方时，使 {target['name']} -1。")
 
 
 ITEM = {'id': 'delay_first_wish',
@@ -30,7 +31,7 @@ ITEM = {'id': 'delay_first_wish',
  'element': '异象',
  'rarity': 'r',
  'art': '/static/images/item/初次的期许.webp',
- 'description': '宣言：检视牌库，选择 1 张「思维的同频」或「水波的迟疑」。揭示：将宣言牌加入手牌；若本回合已经部署过相属性道具，自身 +1。',
+ 'description': '揭示：抽 1 张牌；若场上对手的卡牌不少于己方，则使对手当前战力最低的表侧卡牌 -1。',
  'effect_key': 'delay_first_wish',
  'tags': ['delay', 'tool', 'material', 'mat_coin'],
  'archetype': 'delay',
@@ -43,11 +44,6 @@ ITEM = {'id': 'delay_first_wish',
  'material_requirements': [],
  'material_requirement_text': '',
  'target_rule': {},
- 'declaration': {'steps': [{'kind': 'cards',
-                            'zones': ['deck'],
-                            'title': '初次的期许 检视牌库',
-                            'description': '宣言「思维的同频」或「水波的迟疑」；揭示时加入手牌。',
-                            'predicate': lambda item, context: str(item.get('name') or '') in {'思维的同频', '水波的迟疑'}}]},
  'icon': '/static/images/item/初次的期许.webp'}
 
 ITEM['event_hooks'] = {GameEvent.CARD_REVEALED.value: delay_first_wish}

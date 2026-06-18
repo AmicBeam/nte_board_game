@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from copy import deepcopy
 
+from app.content.common.constants import LOCATION_CARD_LIMIT
 from app.content.loader import get_duel_card
 from app.engine.rules.declarations import target_rule
 from app.engine.rules.materials import release_material_reservations
@@ -15,8 +16,7 @@ SIDE_B = 'b'
 SIDE_KEYS = (SIDE_A, SIDE_B)
 MAX_TURNS = 6
 MAX_ENERGY = 6
-MAX_HAND_SIZE = 10
-LOCATION_CARD_LIMIT = 16
+MAX_HAND_SIZE = 8
 LOG_LIMIT = 28
 
 CARD_TYPE_ESPER = 'esper'
@@ -118,6 +118,7 @@ def action_card(card: JsonDict, *, own: bool = True) -> JsonDict:
             'material_requirements': deepcopy(card.get('material_requirements') or []),
             'material_requirement_text': card.get('material_requirement_text', ''),
             'material_tags': list(card.get('material_tags', [])),
+            'display_tags': list(card.get('display_tags', [])),
             'buff_sources': [],
         }
     return {
@@ -151,11 +152,14 @@ def action_card(card: JsonDict, *, own: bool = True) -> JsonDict:
         'consumed_material_tags': list(card.get('consumed_material_tags', [])),
         'consumed_material_names': list(card.get('consumed_material_names', [])),
         'consumed_material_attributes': list(card.get('consumed_material_attributes', [])),
+        'consumed_material_instance_ids': list(card.get('consumed_material_instance_ids', [])),
         'absorbed_material_power': int(card.get('absorbed_material_power', 0)),
         'played_turn': card.get('played_turn'),
         'location_id': card.get('location_id'),
         'type': card.get('type', 'esper'),
         'tags': list(card.get('tags', [])),
+        'display_tags': list(card.get('display_tags', [])),
+        'deck_buildable': card.get('deck_buildable') is not False,
         'buff_sources': [deepcopy(source) for source in card.get('buff_sources', [])],
         'target_rule': target_rule(card) or None,
         'selected_target_instance_id': card.get('selected_target_instance_id'),
@@ -192,6 +196,9 @@ def card_instance(definition: JsonDict, side: str, suffix: str) -> JsonDict:
         'required_material_attribute': definition.get('required_material_attribute', ''),
         'material_requirements': deepcopy(definition.get('material_requirements') or []),
         'material_requirement_text': definition.get('material_requirement_text', ''),
+        'ai_material_reserved_for': list(definition.get('ai_material_reserved_for', [])),
+        'display_tags': list(definition.get('display_tags', [])),
+        'deck_buildable': definition.get('deck_buildable') is not False,
         'side': side,
         'revealed': False,
         'played_turn': None,
@@ -222,11 +229,15 @@ def location_occupied_card_count(
     )
 
 
+def location_capacity(location: JsonDict) -> int:
+    return int(location.get('capacity') or LOCATION_CARD_LIMIT)
+
+
 def open_locations(snapshot: JsonDict, side: str) -> list[JsonDict]:
     return [
         location
         for location in snapshot['locations']
-        if is_location_revealed(snapshot, location) and location_occupied_card_count(location, side) < LOCATION_CARD_LIMIT
+        if is_location_revealed(snapshot, location) and location_occupied_card_count(location, side) < location_capacity(location)
     ]
 
 
@@ -314,6 +325,7 @@ def remove_board_card(snapshot: JsonDict, side: str, location: JsonDict, card: J
     card.pop('paid_cost', None)
     card.pop('play_sequence', None)
     card.pop('reserved_as_material_for', None)
+    card.pop('reserved_material_power', None)
     card.pop('pending_material_ids', None)
     card.pop('selected_target_name', None)
     card.pop('declared_card_instance_ids', None)
@@ -337,9 +349,11 @@ def reset_esper_to_standby(snapshot: JsonDict, side: str, card: JsonDict) -> Non
     card.pop('consumed_material_tags', None)
     card.pop('consumed_material_names', None)
     card.pop('consumed_material_attributes', None)
+    card.pop('consumed_material_instance_ids', None)
     card.pop('absorbed_material_power', None)
     card.pop('reactivating_turn', None)
     card.pop('reserved_as_material_for', None)
+    card.pop('reserved_material_power', None)
     reset_card_stats_from_definition(card)
     snapshot['sides'][side].setdefault('esper_standby', []).append(card)
 
@@ -370,6 +384,7 @@ def sweep_broken_cards(snapshot: JsonDict) -> None:
 def add_generated_card_to_hand(snapshot: JsonDict, side: str, card_id: str) -> JsonDict | None:
     side_state = snapshot['sides'][side]
     if len(side_state.get('hand', [])) >= MAX_HAND_SIZE:
+        add_log(snapshot, f"{side_name(snapshot, side)} 手牌已达上限 {MAX_HAND_SIZE}，生成加入手牌失效。")
         return None
     definition = get_duel_card(card_id)
     if definition is None:

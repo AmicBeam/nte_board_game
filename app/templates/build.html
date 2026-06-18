@@ -13,6 +13,7 @@
                 <span aria-hidden="true">?</span>
                 <span class="sr-only">打开构筑手册</span>
             </button>
+            <button class="secondary-btn" id="prebuilt-preview-btn" type="button">预组预览</button>
             <a class="secondary-btn" href="{{ url_for('main.home') }}">取消</a>
             <button class="primary-btn" id="save-build-btn">保存</button>
         </div>
@@ -111,6 +112,20 @@
     <aside class="build-card-preview" id="build-card-preview" aria-hidden="true"></aside>
     <div class="build-drag-ghost" id="build-drag-ghost" aria-hidden="true"></div>
     <div class="build-toast" id="build-toast" aria-hidden="true"></div>
+    <section class="prebuilt-preview-layer" id="prebuilt-preview-layer" aria-hidden="true">
+        <div class="prebuilt-preview-dialog" role="dialog" aria-modal="true" aria-labelledby="prebuilt-preview-title">
+            <div class="prebuilt-preview-head">
+                <div>
+                    <p class="eyebrow">预设套牌</p>
+                    <h2 id="prebuilt-preview-title">预组预览</h2>
+                </div>
+                <button class="preview-close" id="prebuilt-preview-close" type="button" aria-label="关闭预组预览">×</button>
+            </div>
+            <div class="prebuilt-preview-tabs" id="prebuilt-preview-tabs" role="tablist" aria-label="预组列表"></div>
+            <div class="prebuilt-preview-summary" id="prebuilt-preview-summary"></div>
+            <div class="prebuilt-preview-body" id="prebuilt-preview-body"></div>
+        </div>
+    </section>
 </main>
 <script src="{{ url_for('static', filename='js/common.js') }}"></script>
 <script src="{{ url_for('static', filename='js/build.js') }}"></script>

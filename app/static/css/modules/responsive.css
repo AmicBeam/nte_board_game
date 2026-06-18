@@ -584,11 +584,29 @@
 @media (max-width: 720px) {
     .build-page:not(.profile-page) .build-deck-panel {
         max-height: min(62vh, 560px);
+        display: block;
         overflow: auto;
         overscroll-behavior: contain;
+        -webkit-overflow-scrolling: touch;
+        touch-action: pan-y;
+    }
+
+    .build-page:not(.profile-page) .build-deck-panel > * + * {
+        margin-top: 8px;
+    }
+
+    .build-page:not(.profile-page) .build-deck-esper-zone,
+    .build-page:not(.profile-page) .deck-zone {
+        display: block;
+        overflow: visible;
+    }
+
+    .build-page:not(.profile-page) .deck-zone-title {
+        margin-bottom: 6px;
     }
 
     .build-page:not(.profile-page) .deck-zones {
+        display: block;
         max-height: none;
         overflow: visible;
     }
@@ -711,7 +729,25 @@
 @media (orientation: landscape) and (max-height: 680px) and (pointer: coarse) {
     .build-page:not(.profile-page) .build-deck-panel {
         max-height: none;
+        display: block;
         overflow: auto;
+        -webkit-overflow-scrolling: touch;
+        touch-action: pan-y;
+    }
+
+    .build-page:not(.profile-page) .build-deck-panel > * + * {
+        margin-top: 6px;
+    }
+
+    .build-page:not(.profile-page) .build-deck-esper-zone,
+    .build-page:not(.profile-page) .deck-zone,
+    .build-page:not(.profile-page) .deck-zones {
+        display: block;
+        overflow: visible;
+    }
+
+    .build-page:not(.profile-page) .deck-zone-title {
+        margin-bottom: 4px;
     }
 
     .build-page:not(.profile-page) .deck-slots,

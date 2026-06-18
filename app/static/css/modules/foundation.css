@@ -311,7 +311,7 @@ select {
 .tutorial-modal {
     position: fixed;
     inset: 0;
-    z-index: 130;
+    z-index: 180;
     display: none;
     place-items: center;
     padding: 24px;
@@ -322,6 +322,10 @@ select {
 
 .tutorial-modal.open {
     display: grid;
+}
+
+.tutorial-modal.tutorial-modal-forced {
+    background: rgba(3, 6, 12, 0.82);
 }
 
 .tutorial-dialog {
@@ -340,6 +344,11 @@ select {
         rgba(8, 12, 19, 0.98);
     border: 1px solid rgba(226,185,95,0.28);
     box-shadow: 0 30px 90px rgba(0,0,0,0.58);
+}
+
+.tutorial-modal-forced .tutorial-dialog {
+    border-color: rgba(255, 218, 142, 0.48);
+    box-shadow: 0 30px 90px rgba(0,0,0,0.64), 0 0 0 1px rgba(139,215,255,0.12);
 }
 
 .tutorial-header {
@@ -432,6 +441,12 @@ select {
     margin-top: 3px;
     color: var(--muted);
     line-height: 1.35;
+}
+
+.tutorial-modal-forced .tutorial-sample-card {
+    background:
+        linear-gradient(135deg, rgba(139,215,255,0.08), transparent 62%),
+        rgba(255,255,255,0.05);
 }
 
 .tutorial-sample-img {

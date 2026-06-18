@@ -10,24 +10,28 @@ if TYPE_CHECKING:
 def nanali_genesis(context: 'EventContext') -> None:
     side = str(context.payload['side'])
     card = context.payload['card']
-    material = sum(1 for attribute in card.get('consumed_material_attributes', []) if str(attribute) == '灵')
-    created = _create_tokens_at_location(context, 'harmony_genesis', count=material)
-    if created > 0:
-        _add_combo_counter(context.state, side, 'genesis_created', created)
-        _add_log(context.state, f"{card['name']} 依据消耗的灵属性素材数量，设置环合：创生 {created} 层。")
-    if created <= 0:
-        _add_log(context.state, f"{card['name']} 没有消耗灵属性素材，未设置创生。")
+    remaining = sum(_location_mark_count(location, side, TAG_GENESIS) for location in context.state.get('locations', []))
+    consumed = 0
+    for location in context.state.get('locations', []):
+        if remaining <= 0:
+            break
+        used = _consume_location_mark(location, side, TAG_GENESIS, remaining)
+        consumed += used
+        remaining -= used
+    if consumed > 0:
+        _boost_card(card, consumed * 2, card['name'])
+    _add_log(context.state, f"{card['name']} 消耗 {consumed} 层创生，自身 +{consumed * 2}。")
 
 
 CHARACTER = {'id': 'nanali',
  'name': '娜娜莉',
  'cost': 0,
- 'power': 3,
+ 'power': 6,
  'type': 'esper',
  'element': '灵',
  'rarity': 'n',
- 'art': '/static/images/characters/portrait/娜娜莉.png',
- 'description': '共鸣：依据消耗的灵属性素材数量设置环合：创生；无其他效果。',
+ 'art': '/static/images/characters/portrait/娜娜莉.webp',
+ 'description': '共鸣：消耗所有创生层数，每层使自身 +2。',
  'effect_key': 'nanali_genesis',
  'tags': ['esper', 'genesis'],
  'archetype': '',
@@ -35,12 +39,12 @@ CHARACTER = {'id': 'nanali',
  'attribute': '灵',
  'attribute_icon': '/static/images/elements/灵.png',
  'material_tags': [],
- 'material_cost': 2,
+ 'material_cost': 3,
  'required_material_attribute': '灵',
- 'material_requirements': [{'attribute': '灵', 'count': 1}, {}],
+ 'material_requirements': [{'attribute': '灵', 'count': 2}, {'name': '来自「伊波恩」的蛋糕', 'count': 1}],
  'material_requirement_text': '',
  'target_rule': {},
- 'portrait_image': '/static/images/characters/portrait/娜娜莉.png',
- 'avatar_image': '/static/images/characters/portrait/娜娜莉.png'}
+ 'portrait_image': '/static/images/characters/portrait/娜娜莉.webp',
+ 'avatar_image': '/static/images/characters/avatar/娜娜莉.webp'}
 
 CHARACTER['event_hooks'] = {GameEvent.CARD_REVEALED.value: nanali_genesis}

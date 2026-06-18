@@ -9,8 +9,13 @@ class GameEvent(str, Enum):
     TURN_END = 'turn_end'
     CARD_PLAYED = 'card_played'
     CARD_REVEALED = 'card_revealed'
+    ESPER_RESONATED = 'esper_resonated'
+    MATERIAL_CONSUMED = 'material_consumed'
     LOCATION_REVEALED = 'location_revealed'
     LOCATION_SCORED = 'location_scored'
+    HARMONY_MARK_ADDED = 'harmony_mark_added'
+    # 对局内数值包
+    DAMAGE_PACKET = 'damage_packet'
     # 对局结果
     RUN_VICTORY = 'run_victory'
     RUN_DEFEAT = 'run_defeat'

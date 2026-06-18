@@ -35,17 +35,20 @@ class CardState(TypedDict, total=False):
     material_requirements: list[JsonDict]
     material_requirement_text: str
     required_material_attribute: str
+    ai_material_reserved_for: list[str]
     selected_target_instance_id: str
     selected_target_name: str
     declared_card_instance_ids: list[str]
     declared_card_names: list[str]
     pending_material_ids: list[str]
     reserved_as_material_for: str
+    reserved_material_power: int
     summoned_from: str
     reactivating_turn: int
     consumed_material_tags: list[str]
     consumed_material_names: list[str]
     consumed_material_attributes: list[str]
+    consumed_material_instance_ids: list[str]
     absorbed_material_power: int
     buff_sources: list[BuffSourceState]
 

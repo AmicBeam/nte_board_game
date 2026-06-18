@@ -3,20 +3,16 @@ from flask import Blueprint, g, jsonify, redirect, render_template, request, url
 from app.auth import login_with_code, token_required
 from app.dao import is_tutorial_completed, mark_tutorial_completed, update_player_nickname, update_player_password
 from app.engine.game_service import (
-    cancel_target,
     choose_cards,
-    choose_target,
+    declaration_preview,
+    declaration_previews,
     end_turn,
     get_catalog_payload,
     get_encyclopedia_payload,
-    move_staged_card,
-    play_card,
-    play_esper,
-    return_staged_card,
     retreat,
     save_build,
-    undo_turn,
 )
+from app.engine.application.analytics_service import get_duel_analytics_payload
 from app.errors import AppError
 from app.room_service import (
     create_or_resume_solo_room,
@@ -39,29 +35,29 @@ def _preteam_avatar(filename: str) -> str:
 
 
 PRETEAM_MAIN_CANDIDATES: list[dict[str, object]] = [
-    {'id': 'nanali', 'name': '娜娜莉', 'image': _preteam_avatar('娜娜莉.png'), 'elem': '灵', 'char_key': 'nanali'},
-    {'id': 'xiaozhi', 'name': '小吱', 'image': _preteam_avatar('小吱.png'), 'elem': '光', 'char_key': 'xiaozhi'},
-    {'id': 'baicang', 'name': '白藏', 'image': _preteam_avatar('白藏.png'), 'elem': '咒', 'char_key': 'baicang'},
-    {'id': 'requiem', 'name': '安魂曲', 'image': _preteam_avatar('安魂曲.png'), 'elem': '暗', 'char_key': 'requiem'},
-    {'id': 'hasuoerM', 'name': '哈索尔', 'image': _preteam_avatar('哈索尔.png'), 'elem': '相', 'char_key': 'hasuoer'},
-    {'id': 'haiyue', 'name': '海月', 'image': _preteam_avatar('海月.png'), 'elem': '魂', 'char_key': 'haiyue'},
-    {'id': 'bohe', 'name': '薄荷', 'image': _preteam_avatar('薄荷.png'), 'elem': '灵', 'char_key': 'bohe'},
+    {'id': 'nanali', 'name': '娜娜莉', 'image': _preteam_avatar('娜娜莉.webp'), 'elem': '灵', 'char_key': 'nanali'},
+    {'id': 'xiaozhi', 'name': '小吱', 'image': _preteam_avatar('小吱.webp'), 'elem': '光', 'char_key': 'xiaozhi'},
+    {'id': 'baicang', 'name': '白藏', 'image': _preteam_avatar('白藏.webp'), 'elem': '咒', 'char_key': 'baicang'},
+    {'id': 'requiem', 'name': '安魂曲', 'image': _preteam_avatar('安魂曲.webp'), 'elem': '暗', 'char_key': 'requiem'},
+    {'id': 'hasuoerM', 'name': '哈索尔', 'image': _preteam_avatar('哈索尔.webp'), 'elem': '相', 'char_key': 'hasuoer'},
+    {'id': 'haiyue', 'name': '海月', 'image': _preteam_avatar('海月.webp'), 'elem': '魂', 'char_key': 'haiyue'},
+    {'id': 'bohe', 'name': '薄荷', 'image': _preteam_avatar('薄荷.webp'), 'elem': '灵', 'char_key': 'bohe'},
 ]
 
 PRETEAM_TEAMMATES: list[dict[str, object]] = [
-    {'id': 'zhujue', 'name': '主角', 'image': _preteam_avatar('鉴定师.png'), 'elem': '光', 'char_key': 'zhujue'},
-    {'id': 'xun', 'name': '浔', 'image': _preteam_avatar('浔.png'), 'elem': '光', 'char_key': 'xun'},
-    {'id': 'aidejia', 'name': '埃德嘉', 'image': _preteam_avatar('埃德嘉.png'), 'elem': '光', 'char_key': 'aidejia'},
-    {'id': 'jiuyuan', 'name': '九原', 'image': _preteam_avatar('九原.png'), 'elem': '灵', 'char_key': 'jiuyuan'},
-    {'id': 'boheT', 'name': '薄荷', 'image': _preteam_avatar('薄荷.png'), 'elem': '灵', 'char_key': 'bohe'},
-    {'id': 'nanaliT', 'name': '娜娜莉', 'image': _preteam_avatar('娜娜莉.png'), 'elem': '灵', 'char_key': 'nanali'},
-    {'id': 'zaowu', 'name': '早雾', 'image': _preteam_avatar('早雾.png'), 'elem': '咒', 'char_key': 'zaowu'},
-    {'id': 'adele', 'name': '阿德勒', 'image': _preteam_avatar('阿德勒.png'), 'elem': '咒', 'char_key': 'adele'},
-    {'id': 'dafutier0', 'name': '达芙蒂尔', 'image': _preteam_avatar('达芙蒂尔.png'), 'elem': '暗', 'char_key': 'dafutier'},
-    {'id': 'fatiya', 'name': '法帝娅', 'image': _preteam_avatar('法帝娅.png'), 'elem': '魂', 'char_key': 'fatiya'},
-    {'id': 'haniya', 'name': '哈尼娅', 'image': _preteam_avatar('哈尼娅.png'), 'elem': '魂', 'char_key': 'haniya'},
-    {'id': 'hasuoer', 'name': '哈索尔', 'image': _preteam_avatar('哈索尔.png'), 'elem': '相', 'char_key': 'hasuoer'},
-    {'id': 'yiT', 'name': '翳', 'image': _preteam_avatar('翳.png'), 'elem': '相', 'char_key': 'yi'},
+    {'id': 'zhujue', 'name': '主角', 'image': _preteam_avatar('鉴定师.webp'), 'elem': '光', 'char_key': 'zhujue'},
+    {'id': 'xun', 'name': '浔', 'image': _preteam_avatar('浔.webp'), 'elem': '光', 'char_key': 'xun'},
+    {'id': 'aidejia', 'name': '埃德嘉', 'image': _preteam_avatar('埃德嘉.webp'), 'elem': '光', 'char_key': 'aidejia'},
+    {'id': 'jiuyuan', 'name': '九原', 'image': _preteam_avatar('九原.webp'), 'elem': '灵', 'char_key': 'jiuyuan'},
+    {'id': 'boheT', 'name': '薄荷', 'image': _preteam_avatar('薄荷.webp'), 'elem': '灵', 'char_key': 'bohe'},
+    {'id': 'nanaliT', 'name': '娜娜莉', 'image': _preteam_avatar('娜娜莉.webp'), 'elem': '灵', 'char_key': 'nanali'},
+    {'id': 'zaowu', 'name': '早雾', 'image': _preteam_avatar('早雾.webp'), 'elem': '咒', 'char_key': 'zaowu'},
+    {'id': 'adele', 'name': '阿德勒', 'image': _preteam_avatar('阿德勒.webp'), 'elem': '咒', 'char_key': 'adele'},
+    {'id': 'dafutier0', 'name': '达芙蒂尔', 'image': _preteam_avatar('达芙蒂尔.webp'), 'elem': '暗', 'char_key': 'dafutier'},
+    {'id': 'fatiya', 'name': '法帝娅', 'image': _preteam_avatar('法帝娅.webp'), 'elem': '魂', 'char_key': 'fatiya'},
+    {'id': 'haniya', 'name': '哈尼娅', 'image': _preteam_avatar('哈尼娅.webp'), 'elem': '魂', 'char_key': 'haniya'},
+    {'id': 'hasuoer', 'name': '哈索尔', 'image': _preteam_avatar('哈索尔.webp'), 'elem': '相', 'char_key': 'hasuoer'},
+    {'id': 'yiT', 'name': '翳', 'image': _preteam_avatar('翳.webp'), 'elem': '相', 'char_key': 'yi'},
 ]
 
 
@@ -98,6 +94,11 @@ def build_page():
 @main_bp.get('/codex')
 def codex_page():
     return render_template('codex.html')
+
+
+@main_bp.get('/analytics')
+def analytics_page():
+    return render_template('analytics.html')
 
 
 @main_bp.get('/table')
@@ -218,6 +219,12 @@ def api_encyclopedia():
     return jsonify(get_encyclopedia_payload())
 
 
+@main_bp.get('/api/analytics/balance')
+@token_required
+def api_balance_analytics():
+    return jsonify(get_duel_analytics_payload())
+
+
 @main_bp.post('/api/build/save')
 @token_required
 def api_save_build():
@@ -273,103 +280,34 @@ def api_game_state():
         return jsonify({'error': '读取对局状态时发生异常，请稍后重试。'}), 500
 
 
-@main_bp.post('/api/game/play-card')
+@main_bp.get('/api/game/declaration-previews')
 @token_required
-def api_play_card():
+def api_declaration_previews():
+    try:
+        return jsonify(declaration_previews(g.current_player))
+    except AppError as exc:
+        return jsonify({'error': str(exc)}), 400
+    except Exception:
+        logger.exception('api_declaration_previews failed')
+        return jsonify({'error': '预读取检视候选时发生异常，请稍后重试。'}), 500
+
+
+@main_bp.post('/api/game/declaration-preview')
+@token_required
+def api_declaration_preview():
     payload = request.get_json(silent=True) or {}
     try:
-        return jsonify(play_card(
+        return jsonify(declaration_preview(
             g.current_player,
             str(payload.get('card_instance_id', '')),
             str(payload.get('location_id', '')),
+            str(payload.get('selected_target_instance_id', '')),
         ))
     except AppError as exc:
         return jsonify({'error': str(exc)}), 400
     except Exception:
-        logger.exception('api_play_card failed')
-        return jsonify({'error': '出牌时发生异常，请稍后重试。'}), 500
-
-
-@main_bp.post('/api/game/play-esper')
-@token_required
-def api_play_esper():
-    payload = request.get_json(silent=True) or {}
-    material_instance_ids = payload.get('material_instance_ids')
-    if material_instance_ids is not None and not isinstance(material_instance_ids, list):
-        material_instance_ids = []
-    try:
-        return jsonify(play_esper(
-            g.current_player,
-            str(payload.get('card_instance_id', '')),
-            str(payload.get('location_id', '')),
-            material_instance_ids,
-        ))
-    except AppError as exc:
-        return jsonify({'error': str(exc)}), 400
-    except Exception:
-        logger.exception('api_play_esper failed')
-        return jsonify({'error': '唤醒异能者时发生异常，请稍后重试。'}), 500
-
-
-@main_bp.post('/api/game/return-card')
-@token_required
-def api_return_card():
-    payload = request.get_json(silent=True) or {}
-    try:
-        return jsonify(return_staged_card(
-            g.current_player,
-            str(payload.get('card_instance_id', '')),
-        ))
-    except AppError as exc:
-        return jsonify({'error': str(exc)}), 400
-    except Exception:
-        logger.exception('api_return_card failed')
-        return jsonify({'error': '收回卡牌时发生异常，请稍后重试。'}), 500
-
-
-@main_bp.post('/api/game/move-card')
-@token_required
-def api_move_card():
-    payload = request.get_json(silent=True) or {}
-    try:
-        return jsonify(move_staged_card(
-            g.current_player,
-            str(payload.get('card_instance_id', '')),
-            str(payload.get('location_id', '')),
-        ))
-    except AppError as exc:
-        return jsonify({'error': str(exc)}), 400
-    except Exception:
-        logger.exception('api_move_card failed')
-        return jsonify({'error': '移动卡牌时发生异常，请稍后重试。'}), 500
-
-
-@main_bp.post('/api/game/choose-target')
-@token_required
-def api_choose_target():
-    payload = request.get_json(silent=True) or {}
-    try:
-        return jsonify(choose_target(
-            g.current_player,
-            str(payload.get('target_instance_id', '')),
-        ))
-    except AppError as exc:
-        return jsonify({'error': str(exc)}), 400
-    except Exception:
-        logger.exception('api_choose_target failed')
-        return jsonify({'error': '选择目标时发生异常，请稍后重试。'}), 500
-
-
-@main_bp.post('/api/game/cancel-target')
-@token_required
-def api_cancel_target():
-    try:
-        return jsonify(cancel_target(g.current_player))
-    except AppError as exc:
-        return jsonify({'error': str(exc)}), 400
-    except Exception:
-        logger.exception('api_cancel_target failed')
-        return jsonify({'error': '取消目标时发生异常，请稍后重试。'}), 500
+        logger.exception('api_declaration_preview failed')
+        return jsonify({'error': '读取检视候选时发生异常，请稍后重试。'}), 500
 
 
 @main_bp.post('/api/game/choose-cards')
@@ -391,13 +329,20 @@ def api_choose_cards():
 @main_bp.post('/api/game/end-turn')
 @token_required
 def api_end_turn():
+    payload = request.get_json(silent=True) or {}
+    declaration_choices = payload.get('declaration_choices')
+    if declaration_choices is not None and not isinstance(declaration_choices, list):
+        declaration_choices = []
+    planning_actions = payload.get('planning_actions')
+    if planning_actions is not None and not isinstance(planning_actions, list):
+        planning_actions = []
     try:
-        return jsonify(end_turn(g.current_player))
+        return jsonify(end_turn(g.current_player, declaration_choices, planning_actions))
     except AppError as exc:
         return jsonify({'error': str(exc)}), 400
     except Exception:
         logger.exception('api_end_turn failed')
-        return jsonify({'error': '结束回合时发生异常，请稍后重试。'}), 500
+        return jsonify({'error': '完成部署时发生异常，请稍后重试。'}), 500
 
 
 @main_bp.post('/api/game/retreat')
@@ -410,18 +355,6 @@ def api_retreat():
     except Exception:
         logger.exception('api_retreat failed')
         return jsonify({'error': '撤退时发生异常，请稍后重试。'}), 500
-
-
-@main_bp.post('/api/game/undo-turn')
-@token_required
-def api_undo_turn():
-    try:
-        return jsonify(undo_turn(g.current_player))
-    except AppError as exc:
-        return jsonify({'error': str(exc)}), 400
-    except Exception:
-        logger.exception('api_undo_turn failed')
-        return jsonify({'error': '撤销本回合操作时发生异常，请稍后重试。'}), 500
 
 
 @main_bp.post('/api/game/reset')

@@ -1,0 +1,4 @@
+interface:
+  display_name: "NTE Card Effect Design"
+  short_description: "异象对决卡牌效果术语与写法护栏"
+  default_prompt: "Use $nte-card-effect-design to design or revise 异象对决 card effects with precise terms and declarations."

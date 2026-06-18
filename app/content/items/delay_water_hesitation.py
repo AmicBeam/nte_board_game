@@ -9,11 +9,16 @@ if TYPE_CHECKING:
 
 def delay_water_hesitation(context: 'EventContext') -> None:
     card = context.payload['card']
-    target = _selected_or_highest_opponent(context)
+    opponent = str(context.payload['opponent_side'])
+    selected = context.payload.get('target_card') if isinstance(context.payload.get('target_card'), dict) else None
+    if selected is not None and selected.get('side') == opponent and selected.get('type') == CARD_TYPE_ANOMALY_ITEM:
+        target = selected
+    else:
+        target = _highest_opponent_item(context)
     if target is None:
         _add_log(context.state, f"{card['name']} 没有可影响的对手道具。")
         return
-    amount = -2
+    amount = -3
     _boost_card(target, amount, card['name'])
     _add_log(context.state, f"{card['name']} 使 {target['name']} {amount}。")
 
@@ -26,7 +31,7 @@ ITEM = {'id': 'delay_water_hesitation',
  'element': '异象',
  'rarity': 'r',
  'art': '/static/images/item/水波的迟疑.webp',
- 'description': '宣言：选择 1 张对手道具。揭示：宣言道具 -2。',
+ 'description': '宣言：选择 1 张对手表侧道具。揭示：宣言道具 -3。',
  'effect_key': 'delay_water_hesitation',
  'tags': ['delay', 'tool', 'material', 'mat_device'],
  'archetype': 'delay',
@@ -41,7 +46,7 @@ ITEM = {'id': 'delay_water_hesitation',
  'target_rule': {},
  'declaration': {'steps': [{'kind': 'board',
                             'scope': 'opponent_same_location',
-                            'prompt': '选择 1 张对手道具。',
+                            'prompt': '选择 1 张对手表侧道具。',
                             'predicate': lambda item, context: item.get('type') == CARD_TYPE_ANOMALY_ITEM}]},
  'icon': '/static/images/item/水波的迟疑.webp'}
 

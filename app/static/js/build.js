@@ -30,6 +30,7 @@ async function bootstrap() {
   }
 
   const data = catalogResult.data;
+  const prebuiltDecks = Array.isArray(data.decks) ? data.decks : [];
   const buildSize = Number(data.build_size || 20);
   const savedItemIds = data.saved_build
     ? (data.saved_build.item_ids || [
@@ -88,9 +89,16 @@ async function bootstrap() {
   const esperCountLabel = document.getElementById('esper-count');
   const clearBuildBtn = document.getElementById('clear-build-btn');
   const saveBuildBtn = document.getElementById('save-build-btn');
+  const prebuiltPreviewBtn = document.getElementById('prebuilt-preview-btn');
+  const prebuiltPreviewLayer = document.getElementById('prebuilt-preview-layer');
+  const prebuiltPreviewClose = document.getElementById('prebuilt-preview-close');
+  const prebuiltPreviewTabs = document.getElementById('prebuilt-preview-tabs');
+  const prebuiltPreviewSummary = document.getElementById('prebuilt-preview-summary');
+  const prebuiltPreviewBody = document.getElementById('prebuilt-preview-body');
   const buildToast = document.getElementById('build-toast');
   const buildCardPreview = document.getElementById('build-card-preview');
   const buildDragGhost = document.getElementById('build-drag-ghost');
+  let activePrebuiltDeckId = String(data.default_deck_id || prebuiltDecks[0]?.id || '');
   let currentDragPayload = null;
   let pointerDrag = null;
   let suppressNextClick = false;
@@ -157,6 +165,7 @@ async function bootstrap() {
           item.description,
           item.attribute,
           item.category,
+          ...(item.display_tags || []),
           item.required_material_attribute,
           itemTypeLabel(item.type),
         ].filter(Boolean).join(' ').toLowerCase();
@@ -211,6 +220,9 @@ async function bootstrap() {
     }
     if (zone === 'esper') {
       return { ok: false, reason: '异象道具不能加入异能者待命区。' };
+    }
+    if (item.deck_buildable === false) {
+      return { ok: false, reason: '这张牌带有不可构筑标签。' };
     }
     if (itemCopyCount(item.id) >= MAX_ITEM_COPIES) {
       return { ok: false, reason: `同名异象道具最多携带 ${MAX_ITEM_COPIES} 张。` };
@@ -335,7 +347,7 @@ async function bootstrap() {
       });
       card.addEventListener('dragstart', (event) => startCardDrag(event, 'catalog', item.id));
       card.addEventListener('dragend', finishCardDrag);
-      bindCardReadPreview(card, item);
+      bindCardReadPreview(card, item, { touchSide: 'right' });
       fragment.appendChild(card);
     });
     catalogGrid.replaceChildren(fragment);
@@ -393,11 +405,163 @@ async function bootstrap() {
       });
       card.addEventListener('dragstart', (event) => startCardDrag(event, 'deck', item.id, { zone, index }));
       card.addEventListener('dragend', finishCardDrag);
-      bindCardReadPreview(card, item);
+      bindCardReadPreview(card, item, { touchSide: 'left' });
       slot.appendChild(card);
       fragment.appendChild(slot);
     }
     container.replaceChildren(fragment);
+  }
+
+  function activePrebuiltDeck() {
+    return prebuiltDecks.find((deck) => String(deck.id || '') === activePrebuiltDeckId) || prebuiltDecks[0] || null;
+  }
+
+  function openPrebuiltPreview() {
+    if (!prebuiltDecks.length) {
+      showBuildToast('当前没有可预览的预组');
+      return;
+    }
+    hideBuildCardPreview({ force: true });
+    renderPrebuiltPreview();
+    prebuiltPreviewLayer.classList.add('open');
+    prebuiltPreviewLayer.setAttribute('aria-hidden', 'false');
+    prebuiltPreviewBtn?.setAttribute('aria-expanded', 'true');
+  }
+
+  function closePrebuiltPreview() {
+    hideBuildCardPreview({ force: true });
+    prebuiltPreviewLayer.classList.remove('open');
+    prebuiltPreviewLayer.setAttribute('aria-hidden', 'true');
+    prebuiltPreviewBtn?.setAttribute('aria-expanded', 'false');
+  }
+
+  function renderPrebuiltPreview() {
+    const deck = activePrebuiltDeck();
+    if (!deck) {
+      prebuiltPreviewTabs.replaceChildren();
+      prebuiltPreviewSummary.textContent = '暂无预组。';
+      prebuiltPreviewBody.replaceChildren();
+      return;
+    }
+    renderPrebuiltTabs(deck);
+    renderPrebuiltSummary(deck);
+    renderPrebuiltBody(deck);
+  }
+
+  function renderPrebuiltTabs(activeDeck) {
+    const fragment = document.createDocumentFragment();
+    prebuiltDecks.forEach((deck) => {
+      const active = String(deck.id || '') === String(activeDeck.id || '');
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.dataset.deckId = String(deck.id || '');
+      button.setAttribute('role', 'tab');
+      button.setAttribute('aria-selected', active ? 'true' : 'false');
+      button.className = active ? 'active' : '';
+      button.textContent = deck.short_name || deck.name || '预组';
+      fragment.appendChild(button);
+    });
+    prebuiltPreviewTabs.replaceChildren(fragment);
+  }
+
+  function renderPrebuiltSummary(deck) {
+    const itemIds = prebuiltItemIds(deck);
+    const esperIds = prebuiltEsperIds(deck);
+    const difficulty = deck.difficulty ? `<span>${escapeHtml(deck.difficulty)}</span>` : '';
+    prebuiltPreviewSummary.innerHTML = `
+      <div>
+        <strong>${escapeHtml(deck.name || '未命名预组')}</strong>
+        ${difficulty}
+      </div>
+      <p>${escapeHtml(deck.description || '只读预组，可在这里查看完整构成。')}</p>
+      <dl>
+        <div><dt>异能者</dt><dd>${esperIds.length}</dd></div>
+        <div><dt>主牌组</dt><dd>${itemIds.length}</dd></div>
+        <div><dt>不同卡名</dt><dd>${deckCardGroups(itemIds).length}</dd></div>
+      </dl>
+    `;
+  }
+
+  function renderPrebuiltBody(deck) {
+    const esperIds = prebuiltEsperIds(deck);
+    const itemIds = prebuiltItemIds(deck);
+    prebuiltPreviewBody.innerHTML = `
+      <section class="prebuilt-preview-zone">
+        <div class="deck-zone-title">
+          <h3>异能者待命区</h3>
+          <span>${esperIds.length}</span>
+        </div>
+        <div class="prebuilt-card-list">
+          ${prebuiltCardRows(esperIds, { groupCopies: false })}
+        </div>
+      </section>
+      <section class="prebuilt-preview-zone">
+        <div class="deck-zone-title">
+          <h3>主牌组</h3>
+          <span>${itemIds.length}</span>
+        </div>
+        <div class="prebuilt-card-list">
+          ${prebuiltCardRows(itemIds, { groupCopies: true })}
+        </div>
+      </section>
+    `;
+    bindPrebuiltCardPreviews();
+  }
+
+  function prebuiltEsperIds(deck) {
+    return knownIds(deck?.esper_card_ids || [])
+      .filter((itemId) => itemById.get(itemId)?.type === 'esper')
+      .sort(compareCardIds);
+  }
+
+  function prebuiltItemIds(deck) {
+    return knownIds(deck?.card_ids || [])
+      .filter((itemId) => itemById.get(itemId)?.type === 'anomaly_item')
+      .sort(compareCardIds);
+  }
+
+  function deckCardGroups(itemIds) {
+    const groups = [];
+    const byId = new Map();
+    itemIds.forEach((itemId) => {
+      if (byId.has(itemId)) {
+        byId.get(itemId).count += 1;
+        return;
+      }
+      const group = { itemId, count: 1 };
+      byId.set(itemId, group);
+      groups.push(group);
+    });
+    return groups;
+  }
+
+  function prebuiltCardRows(itemIds, options = {}) {
+    const groups = options.groupCopies ? deckCardGroups(itemIds) : itemIds.map((itemId) => ({ itemId, count: 1 }));
+    if (!groups.length) {
+      return '<div class="empty-state">暂无卡牌</div>';
+    }
+    return groups.map((group) => {
+      const item = itemById.get(group.itemId);
+      if (!item) {
+        return '';
+      }
+      const countBadge = group.count > 1 ? `<span class="prebuilt-card-count">×${group.count}</span>` : '';
+      return `
+        <article class="deck-card prebuilt-deck-card rarity-${classToken(item.rarity)} type-${classToken(item.type)}" tabindex="0" data-prebuilt-card-id="${escapeAttr(item.id)}" aria-label="${escapeAttr(item.name)}，只读预组卡牌">
+          ${cardMarkup(item, { compact: true })}
+          ${countBadge}
+        </article>
+      `;
+    }).join('');
+  }
+
+  function bindPrebuiltCardPreviews() {
+    prebuiltPreviewBody.querySelectorAll('[data-prebuilt-card-id]').forEach((cardNode) => {
+      const item = itemById.get(cardNode.dataset.prebuiltCardId || '');
+      if (item) {
+        bindCardReadPreview(cardNode, item);
+      }
+    });
   }
 
   function renderStatus() {
@@ -474,8 +638,10 @@ async function bootstrap() {
     return true;
   }
 
-  function cardMarkup(item, { mark = '', compact = false }) {
-    const description = `<p class="card-meta ${descriptionDensityClass(item.description)}">${descriptionWithAttributeIcon(item)}</p>`;
+  function cardMarkup(item, { mark = '', compact = false, preview = false } = {}) {
+    const description = preview
+      ? previewEffectMarkup(item)
+      : `<p class="card-meta ${descriptionDensityClass(item.description)}">${descriptionWithAttributeIcon(item)}</p>`;
     const metaMarkup = itemMetaMarkup(item);
     const typeTag = compact ? '' : `
       <div class="build-card-type-row">
@@ -554,6 +720,16 @@ async function bootstrap() {
     return `<span>${escapeHtml(item.description || '')}</span>`;
   }
 
+  function previewEffectMarkup(item) {
+    const description = String(item.description || '').trim() || '无具体效果。';
+    return `
+      <section class="build-preview-effect ${descriptionDensityClass(description)}" aria-label="卡牌效果">
+        <h3>效果</h3>
+        <p>${escapeHtml(description)}</p>
+      </section>
+    `;
+  }
+
   function itemMetaMarkup(item) {
     if (item.type !== 'anomaly_item' && item.type !== 'token') {
       return '';
@@ -565,6 +741,9 @@ async function bootstrap() {
     if (item.category) {
       chips.push(`<span class="build-meta-chip">${escapeHtml(item.category)}</span>`);
     }
+    (item.display_tags || []).forEach((label) => {
+      chips.push(`<span class="build-meta-chip special-chip">${escapeHtml(label)}</span>`);
+    });
     return chips.join('');
   }
 
@@ -596,7 +775,7 @@ async function bootstrap() {
       return requirements.reduce((total, requirement) => total + Number(requirement.count || 1), 0);
     }
     const cost = Number(item?.material_cost || 2);
-    return Math.max(2, Math.min(3, Number.isFinite(cost) ? cost : 2));
+    return Math.max(1, Math.min(3, Number.isFinite(cost) ? cost : 2));
   }
 
   function materialRequirementText(item) {
@@ -646,6 +825,9 @@ async function bootstrap() {
 
   function beginPointerCardDrag(event, source, itemId, sourceNode, meta = {}) {
     if (typeof event.button === 'number' && event.button !== 0) {
+      return;
+    }
+    if (event.pointerType === 'touch') {
       return;
     }
     event.preventDefault();
@@ -886,12 +1068,13 @@ async function bootstrap() {
     }, 1700);
   }
 
-  function bindCardReadPreview(cardNode, item) {
+  function bindCardReadPreview(cardNode, item, options = {}) {
+    let previewTouchStart = null;
     cardNode.addEventListener('pointerover', (event) => {
       if (event.pointerType === 'touch' || pointerDrag?.active) {
         return;
       }
-      showBuildCardPreview(item, cardNode, { pinned: false, pointerType: event.pointerType || 'mouse' });
+      showBuildCardPreview(item, cardNode, { pinned: false, pointerType: event.pointerType || 'mouse', touchSide: options.touchSide });
     });
     cardNode.addEventListener('pointerout', (event) => {
       if (cardNode.contains(event.relatedTarget)) {
@@ -900,7 +1083,7 @@ async function bootstrap() {
       hideBuildCardPreview();
     });
     cardNode.addEventListener('focusin', () => {
-      showBuildCardPreview(item, cardNode, { pinned: false, pointerType: 'keyboard' });
+      showBuildCardPreview(item, cardNode, { pinned: false, pointerType: 'keyboard', touchSide: options.touchSide });
     });
     cardNode.addEventListener('focusout', (event) => {
       if (cardNode.contains(event.relatedTarget)) {
@@ -914,14 +1097,33 @@ async function bootstrap() {
         return;
       }
       clearBuildPreviewPressTimer();
+      previewTouchStart = { x: event.clientX, y: event.clientY };
       buildPreviewPressTimer = window.setTimeout(() => {
         suppressNextClick = true;
         buildPreviewIgnoreUntil = Date.now() + 360;
-        showBuildCardPreview(item, cardNode, { pinned: true, pointerType: 'touch' });
+        showBuildCardPreview(item, cardNode, { pinned: true, pointerType: 'touch', touchSide: options.touchSide });
         window.setTimeout(() => {
           suppressNextClick = false;
         }, 720);
       }, 420);
+    });
+    cardNode.addEventListener('pointermove', (event) => {
+      if (!previewTouchStart || event.pointerType !== 'touch') {
+        return;
+      }
+      const distance = Math.hypot(event.clientX - previewTouchStart.x, event.clientY - previewTouchStart.y);
+      if (distance >= 8) {
+        previewTouchStart = null;
+        clearBuildPreviewPressTimer();
+      }
+    });
+    cardNode.addEventListener('pointerup', () => {
+      previewTouchStart = null;
+      clearBuildPreviewPressTimer();
+    });
+    cardNode.addEventListener('pointercancel', () => {
+      previewTouchStart = null;
+      clearBuildPreviewPressTimer();
     });
   }
 
@@ -930,12 +1132,17 @@ async function bootstrap() {
     const touchLike = options.pointerType === 'touch' || window.matchMedia('(hover: none), (pointer: coarse)').matches;
     const sourceRect = sourceNode?.getBoundingClientRect?.();
     const showLeft = sourceRect ? sourceRect.left > window.innerWidth / 2 : false;
-    buildCardPreview.className = `build-card-preview open${touchLike ? ' touch-preview' : showLeft ? ' preview-left' : ' preview-right'}${buildPreviewPinned ? ' pinned' : ''}`;
+    const typeClass = ` type-${classToken(item.type)}`;
+    const touchSide = options.touchSide === 'left' ? 'left' : options.touchSide === 'right' ? 'right' : '';
+    const touchPositionClass = touchLike
+      ? ` touch-preview${touchSide ? ` touch-side-preview preview-${touchSide}` : ''}`
+      : showLeft ? ' preview-left' : ' preview-right';
+    buildCardPreview.className = `build-card-preview open${typeClass}${touchPositionClass}${buildPreviewPinned ? ' pinned' : ''}`;
     buildCardPreview.setAttribute('aria-hidden', 'false');
     buildCardPreview.innerHTML = `
       <button class="preview-close" data-build-preview-close type="button" aria-label="关闭卡牌预览">×</button>
       <article class="build-card catalog-card preview-catalog-card rarity-${classToken(item.rarity)} type-${classToken(item.type)}">
-        ${cardMarkup(item, { mark: '', compact: false })}
+        ${cardMarkup(item, { mark: '', compact: false, preview: true })}
       </article>
     `;
   }
@@ -1014,6 +1221,21 @@ async function bootstrap() {
     renderAll();
     showBuildToast('构筑集已清空');
   });
+  prebuiltPreviewBtn?.addEventListener('click', openPrebuiltPreview);
+  prebuiltPreviewClose?.addEventListener('click', closePrebuiltPreview);
+  prebuiltPreviewTabs?.addEventListener('click', (event) => {
+    const button = event.target.closest('button[data-deck-id]');
+    if (!button) {
+      return;
+    }
+    activePrebuiltDeckId = button.dataset.deckId || activePrebuiltDeckId;
+    renderPrebuiltPreview();
+  });
+  prebuiltPreviewLayer?.addEventListener('pointerdown', (event) => {
+    if (event.target === prebuiltPreviewLayer) {
+      closePrebuiltPreview();
+    }
+  });
   saveBuildBtn.addEventListener('click', saveBuild);
   buildCardPreview.addEventListener('click', (event) => {
     if (Date.now() < buildPreviewIgnoreUntil) {
@@ -1038,6 +1260,10 @@ async function bootstrap() {
   });
   document.addEventListener('keydown', (event) => {
     if (event.key === 'Escape') {
+      if (prebuiltPreviewLayer?.classList.contains('open')) {
+        closePrebuiltPreview();
+        return;
+      }
       hideBuildCardPreview({ force: true });
     }
   });
@@ -1071,7 +1297,7 @@ function cardSortKey(item, fallbackId = '') {
   const attributeIndex = ATTRIBUTE_SORT_ORDER.includes(attribute) ? ATTRIBUTE_SORT_ORDER.indexOf(attribute) : 99;
   const cost = Number(item?.type === 'esper' ? item?.material_cost || item?.cost || 0 : item?.cost || 0);
   const power = Number(item?.power || 0);
-  return [typeIndex, attributeIndex, cost, power, String(item?.name || fallbackId)];
+  return [typeIndex, cost, attributeIndex, power, String(item?.name || fallbackId)];
 }
 
 function compareCardSortKeys(left, right) {

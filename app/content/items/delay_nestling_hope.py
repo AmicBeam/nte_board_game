@@ -9,31 +9,40 @@ if TYPE_CHECKING:
 
 def delay_nestling_hope(context: 'EventContext') -> None:
     card = context.payload['card']
-    target = context.payload.get('target_card') if isinstance(context.payload.get('target_card'), dict) else None
-    if target is not None and target.get('side') == str(context.payload['side']):
-        target['survive_non_positive_once'] = True
-        _add_log(context.state, f"{card['name']} 保护 {target['name']}，持续一回合。")
+    opponent_state = context.state['sides'][str(context.payload['opponent_side'])]
+    declared_ids = [str(card_id) for card_id in card.get('declared_card_instance_ids', [])]
+    exiled = None
+    for declared_id in declared_ids:
+        for index, candidate in enumerate(list(opponent_state.get('discard', []))):
+            if str(candidate.get('instance_id') or '') == declared_id:
+                exiled = opponent_state['discard'].pop(index)
+                break
+        if exiled is not None:
+            break
+    if exiled is not None:
+        _add_log(context.state, f"{card['name']} 将对手墓地的 {exiled['name']} 除外。")
+    else:
+        _add_log(context.state, f"{card['name']} 的宣言墓地卡牌已不合法。")
     if _opponent_esper_consumed_material_this_turn(context):
-        _add_card_to_hand(
-            context,
-            _random_deck_item(context, lambda item: item.get('type') == CARD_TYPE_ANOMALY_ITEM and str(item.get('category') or '') == '材料'),
-            card['name'],
-        )
+        added = _add_generated_card_to_hand(context, 'delay_common_role_material_box')
+        if added:
+            _add_log(context.state, f"{card['name']} 生成 1 张「初级角色异能材料自选箱」加入手牌。")
+    card.pop('declared_card_instance_ids', None)
 
 
 ITEM = {'id': 'delay_nestling_hope',
- 'name': '雏鸟的希冀',
+ 'name': '老旧信箱',
  'cost': 2,
  'power': 3,
  'type': 'anomaly_item',
  'element': '异象',
  'rarity': 'r',
- 'art': '/static/images/item/雏鸟的希冀.webp',
- 'description': '宣言：选择 1 张己方相属性道具。揭示：宣言道具获得护盾，持续一回合；若对手本回合素材消耗阶段共鸣过异能者，随机从牌库将 1 张材料道具加入手牌。',
+ 'art': '/static/images/item/老旧信箱.webp',
+ 'description': '宣言：检视对手墓地，选择 1 张卡牌。揭示：将宣言卡牌除外；若对手本回合素材消耗阶段共鸣过异能者，生成 1 张「初级角色异能材料自选箱」加入手牌。',
  'effect_key': 'delay_nestling_hope',
  'tags': ['delay', 'tool', 'material', 'mat_coin'],
  'archetype': 'delay',
- 'category': '材料',
+ 'category': '家具',
  'attribute': '光',
  'attribute_icon': '/static/images/elements/光.png',
  'material_tags': ['mat_coin'],
@@ -42,10 +51,12 @@ ITEM = {'id': 'delay_nestling_hope',
  'material_requirements': [],
  'material_requirement_text': '',
  'target_rule': {},
- 'declaration': {'steps': [{'kind': 'board',
-                            'scope': 'ally_xiang_item_same_location',
-                            'prompt': '选择 1 张己方相属性道具。',
-                            'predicate': lambda item, context: item.get('type') == CARD_TYPE_ANOMALY_ITEM and str(item.get('attribute') or '') == '相'}]},
- 'icon': '/static/images/item/雏鸟的希冀.webp'}
+ 'declaration': {'steps': [{'kind': 'cards',
+                            'zones': ['discard'],
+                            'owner': 'opponent',
+                            'title': '老旧信箱 检视对手墓地',
+                            'description': '宣言对手墓地 1 张卡牌；揭示时除外。',
+                            'predicate': lambda item, context: True}]},
+ 'icon': '/static/images/item/老旧信箱.webp'}
 
 ITEM['event_hooks'] = {GameEvent.CARD_REVEALED.value: delay_nestling_hope}

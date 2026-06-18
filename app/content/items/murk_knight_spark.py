@@ -10,7 +10,7 @@ if TYPE_CHECKING:
 def murk_spark_relay(context: 'EventContext') -> None:
     card = context.payload['card']
     side = str(context.payload['side'])
-    count = _count_board_tag(context.state, side, TAG_MURK)
+    count = _count_harmony_mark(context.state, side, TAG_MURK)
     bonus = 2 if count else 0
     if bonus:
         _boost_card(card, bonus, card['name'])

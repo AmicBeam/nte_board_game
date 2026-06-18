@@ -8,6 +8,7 @@ from app.content.common.card_factory import *
 from app.content.common.constants import *
 from app.content.common.tokens import *
 from app.content.common.zone_ops import *
+from app.engine.event_bus import dispatch_event
 from app.engine.events import GameEvent
 
 if TYPE_CHECKING:
@@ -47,7 +48,7 @@ def _trigger_immediate_genesis(context: 'EventContext', location: JsonDict) -> b
         return False
     target = random.choice(candidates)
     power_before = int(target.get('computed_power', _raw_card_power(target)) or 0)
-    _boost_card(target, count, '创生')
+    _boost_card(target, 1, '创生')
     power_after = int(target.get('computed_power', _raw_card_power(target)) or 0)
     context.state.setdefault('action_queue', []).append({
         'kind': 'impact_arrow',
@@ -58,9 +59,9 @@ def _trigger_immediate_genesis(context: 'EventContext', location: JsonDict) -> b
         'power_before': power_before,
         'power_after': power_after,
         'power_delta': power_after - power_before,
-        'subtitle': f'{power_before} + {count} = {power_after}',
+        'subtitle': f'{power_before} + 1 = {power_after}',
     })
-    _add_log(context.state, f"{location['name']} 的创生标记使 {target['name']} +{count} 战力。")
+    _add_log(context.state, f"{location['name']} 的创生标记使 {target['name']} +1 战力。")
     return True
 
 
@@ -126,6 +127,7 @@ def _recover_discard_item(context: 'EventContext', predicate: Any, source_name: 
     side = str(context.payload['side'])
     side_state = context.state['sides'][side]
     if len(side_state.get('hand', [])) >= MAX_HAND_SIZE:
+        _add_hand_limit_log(context.state, side, source_name)
         return None
     for index, card in enumerate(list(side_state.get('discard', []))):
         if card.get('type') != CARD_TYPE_ANOMALY_ITEM or not predicate(card):
@@ -164,10 +166,16 @@ def _move_deck_item_to_discard(context: 'EventContext', predicate: Any, source_n
     moved = _pop_deck_item(context, predicate)
     if moved is None:
         return None
+    return _move_popped_deck_item_to_discard(context, moved, source_name)
+
+
+def _move_popped_deck_item_to_discard(context: 'EventContext', moved: JsonDict, source_name: str) -> JsonDict:
     moved = _reset_card_for_zone(moved, revealed=True)
-    context.state['sides'][str(context.payload['side'])].setdefault('discard', []).append(moved)
+    side = str(context.payload['side'])
+    context.state['sides'][side].setdefault('discard', []).append(moved)
     _append_effect_discard_action(context, moved, source_name)
     _add_log(context.state, f"{source_name} 将 {moved['name']} 从牌库置入墓地。")
+    _add_turn_combo_counter(context.state, side, 'deck_to_discard_this_turn', 1)
     _resolve_deck_to_discard_trigger(context, moved, source_name)
     return moved
 
@@ -175,16 +183,70 @@ def _move_deck_item_to_discard(context: 'EventContext', predicate: Any, source_n
 def _resolve_deck_to_discard_trigger(context: 'EventContext', moved: JsonDict, source_name: str) -> None:
     definition_id = _definition_id(moved)
     if definition_id == 'murk_lost_whisper':
-        target = _lowest_opponent(context)
+        target = _lowest_opponent_item(context)
         if target is not None:
             _boost_card(target, -1, source_name)
             _add_log(context.state, f"{moved['name']} 被送入墓地，压低 {target['name']} 1 点战力。")
+    elif definition_id == 'murk_faded_shadow':
+        target = _highest_opponent_item(context)
+        if target is not None:
+            _boost_card(target, -1, source_name)
+            _add_log(context.state, f"{moved['name']} 被送入墓地，压低 {target['name']} 1 点战力。")
+    elif definition_id == 'murk_blur_number':
+        side_state = context.state['sides'][str(context.payload['side'])]
+        if side_state.get('deck'):
+            top_card = side_state['deck'].pop(0)
+            _move_popped_deck_item_to_discard(context, top_card, moved['name'])
+        else:
+            _add_log(context.state, f"{moved['name']} 被送入墓地，但己方牌库没有可置入墓地的牌。")
+    elif definition_id == 'murk_fantasy_delusion':
+        if _location_occupied_count(context.payload['location'], str(context.payload['side'])) >= _location_capacity(context.payload['location']):
+            _add_log(context.state, f"{moved['name']} 被送入墓地，但战场已满，未能表侧置入战场。")
+            return
+        side = str(context.payload['side'])
+        context.state['sides'][side].setdefault('discard', []).remove(moved)
+        moved = _reset_card_for_zone(moved, revealed=True)
+        moved['played_turn'] = _current_turn(context)
+        moved['location_id'] = context.payload['location']['id']
+        context.payload['location']['cards'][side].append(moved)
+        _append_spawn_action(context.state, context.payload['location'], side, moved)
+        _add_log(context.state, f"{moved['name']} 被送入墓地，改为表侧置入战场。")
 
 
 def _lowest_opponent(context: 'EventContext') -> JsonDict | None:
     opponent = str(context.payload['opponent_side'])
     candidates = _revealed_cards(context.payload['location'], opponent)
     return min(candidates, key=_raw_card_power) if candidates else None
+
+
+def _lowest_opponent_item(context: 'EventContext') -> JsonDict | None:
+    opponent = str(context.payload['opponent_side'])
+    candidates = [
+        card
+        for card in _revealed_cards(context.payload['location'], opponent)
+        if card.get('type') == CARD_TYPE_ANOMALY_ITEM
+    ]
+    return min(candidates, key=_raw_card_power) if candidates else None
+
+
+def _highest_opponent_item(context: 'EventContext') -> JsonDict | None:
+    opponent = str(context.payload['opponent_side'])
+    candidates = [
+        card
+        for card in _revealed_cards(context.payload['location'], opponent)
+        if card.get('type') == CARD_TYPE_ANOMALY_ITEM
+    ]
+    return max(candidates, key=_raw_card_power) if candidates else None
+
+
+def _highest_ally_item_with_attributes(context: 'EventContext', attributes: set[str]) -> JsonDict | None:
+    side = str(context.payload['side'])
+    candidates = [
+        card
+        for card in _revealed_cards(context.payload['location'], side)
+        if card.get('type') == CARD_TYPE_ANOMALY_ITEM and str(card.get('attribute') or '') in attributes
+    ]
+    return max(candidates, key=_raw_card_power) if candidates else None
 
 
 def _highest_ally(context: 'EventContext') -> JsonDict | None:
@@ -242,7 +304,7 @@ def _pop_discard_definition(context: 'EventContext', definition_id: str) -> Json
 
 def _deploy_discard_definition_to_current_location(context: 'EventContext', definition_id: str, source_name: str) -> JsonDict | None:
     side = str(context.payload['side'])
-    if len(context.payload['location']['cards'][side]) >= LOCATION_CARD_LIMIT:
+    if _location_occupied_count(context.payload['location'], side) >= _location_capacity(context.payload['location']):
         _add_log(context.state, f"{source_name} 想部署墓地中的卡牌，但战场已满。")
         return None
     card = _pop_discard_definition(context, definition_id)
@@ -267,29 +329,35 @@ def _append_effect_discard_action(context: 'EventContext', card: JsonDict, sourc
 def _resolve_nature_pixel_sent_from_deck(context: 'EventContext', source_name: str) -> None:
     side = str(context.payload['side'])
     side_state = context.state['sides'][side]
-    inspected = list(side_state.get('deck', [])[:3])
-    if not inspected:
+    deck = side_state.setdefault('deck', [])
+    if not deck:
         _add_log(context.state, f"{source_name} 没有可查看的牌库顶牌。")
         return
-    side_state['deck'] = list(side_state.get('deck', [])[3:])
-    selected_index = next(
-        (
-            index for index, card in enumerate(inspected)
-            if card.get('type') == CARD_TYPE_ANOMALY_ITEM and str(card.get('attribute') or '') in {'暗', '魂'}
-        ),
-        -1,
-    )
-    if selected_index >= 0 and len(side_state.get('hand', [])) < MAX_HAND_SIZE:
-        selected = inspected.pop(selected_index)
+    inspected: list[JsonDict] = []
+    selected: JsonDict | None = None
+    for _ in range(min(3, len(deck))):
+        top_card = deck.pop(0)
+        if top_card.get('type') == CARD_TYPE_ANOMALY_ITEM and str(top_card.get('attribute') or '') in {'暗', '魂'}:
+            selected = top_card
+            break
+        inspected.append(top_card)
+    if selected is not None and len(side_state.get('hand', [])) < MAX_HAND_SIZE:
         selected['_animation_source_zone'] = 'deck'
         _add_card_to_hand(context, selected, source_name)
+    elif selected is not None:
+        inspected.append(selected)
+        _add_log(context.state, f"{source_name} 翻到暗或魂属性道具，但手牌已满。")
     else:
-        _add_log(context.state, f"{source_name} 查看牌库顶 3 张，没有可加入手牌的暗或魂属性道具。")
+        _add_log(context.state, f"{source_name} 翻看牌库顶至多 3 张，没有可加入手牌的暗或魂属性道具。")
     side_state.setdefault('deck', []).extend(_reset_card_for_zone(card, revealed=False) for card in inspected)
 
 
 def _add_card_to_hand(context: 'EventContext', card: JsonDict | None, source_name: str) -> None:
     if card is None:
+        return
+    side = str(context.payload['side'])
+    if len(context.state['sides'][side].get('hand', [])) >= MAX_HAND_SIZE:
+        _add_hand_limit_log(context.state, side, source_name)
         return
     source_zone = str(card.pop('_animation_source_zone', '') or '')
     card['played_turn'] = None
@@ -298,11 +366,12 @@ def _add_card_to_hand(context: 'EventContext', card: JsonDict | None, source_nam
     card.pop('staged', None)
     card.pop('paid_cost', None)
     card.pop('reserved_as_material_for', None)
+    card.pop('reserved_material_power', None)
     card.pop('pending_material_ids', None)
     card.pop('declared_card_instance_ids', None)
-    context.state['sides'][str(context.payload['side'])].setdefault('hand', []).append(card)
+    context.state['sides'][side].setdefault('hand', []).append(card)
     if source_zone == 'deck':
-        _append_draw_action(context.state, str(context.payload['side']), card, source_name)
+        _append_draw_action(context.state, side, card, source_name)
     _add_log(context.state, f"{source_name} 将 {card['name']} 加入手牌。")
 
 
@@ -311,7 +380,7 @@ def _deploy_card_to_current_location(context: 'EventContext', card: JsonDict | N
         return False
     side = str(context.payload['side'])
     location = context.payload['location']
-    if len(location['cards'][side]) >= LOCATION_CARD_LIMIT:
+    if _location_occupied_count(location, side) >= _location_capacity(location):
         _add_log(context.state, f"{source_name} 想部署 {card['name']}，但战场已满。")
         return False
     card = _reset_card_for_zone(card, revealed=False)
@@ -326,14 +395,71 @@ def _deploy_card_to_current_location(context: 'EventContext', card: JsonDict | N
     return True
 
 
+def _deploy_generated_card_face_up(context: 'EventContext', definition_id: str, source_name: str, *, side: str | None = None) -> JsonDict | None:
+    target_side = side or str(context.payload['side'])
+    location = context.payload['location']
+    if _location_occupied_count(location, target_side) >= _location_capacity(location):
+        _add_log(context.state, f"{source_name} 想生成卡牌，但战场已满。")
+        return None
+    generated = _build_generated_definition_instance(context.state, target_side, definition_id)
+    if generated is None:
+        return None
+    generated = _reset_card_for_zone(generated, revealed=True)
+    generated['played_turn'] = _current_turn(context)
+    generated['location_id'] = location['id']
+    location['cards'][target_side].append(generated)
+    _append_spawn_action(context.state, location, target_side, generated)
+    _add_log(context.state, f"{source_name} 将 {generated['name']} 表侧置入战场。")
+    return generated
+
+
+def _restore_consumed_material_face_up(context: 'EventContext', predicate: Any, source_name: str) -> JsonDict | None:
+    side = str(context.payload['side'])
+    location = context.payload['location']
+    if _location_occupied_count(location, side) >= _location_capacity(location):
+        _add_log(context.state, f"{source_name} 想将素材置回战场，但战场已满。")
+        return None
+    consumed_ids = {str(item_id) for item_id in context.payload['card'].get('consumed_material_instance_ids', []) if str(item_id)}
+    if not consumed_ids:
+        return None
+    discard = context.state['sides'][side].setdefault('discard', [])
+    for index, card in enumerate(list(discard)):
+        if str(card.get('instance_id') or '') not in consumed_ids or not predicate(card):
+            continue
+        restored = discard.pop(index)
+        restored = _reset_card_for_zone(restored, revealed=True)
+        restored['played_turn'] = _current_turn(context)
+        restored['location_id'] = location['id']
+        location['cards'][side].append(restored)
+        _append_spawn_action(context.state, location, side, restored)
+        _add_log(context.state, f"{source_name} 将消耗过的 {restored['name']} 表侧置回战场。")
+        return restored
+    return None
+
+
 def _next_effect_play_sequence(state: JsonDict) -> int:
     counter = int(state.get('play_sequence_counter', 0)) + 1
     state['play_sequence_counter'] = counter
     return counter
 
 
+def _location_capacity(location: JsonDict) -> int:
+    return int(location.get('capacity') or LOCATION_CARD_LIMIT)
+
+
+def _location_occupied_count(location: JsonDict, side: str) -> int:
+    return sum(
+        1
+        for card in location.get('cards', {}).get(side, [])
+        if not card.get('reserved_as_material_for')
+    )
+
+
 def _return_target_to_hand(context: 'EventContext', target: JsonDict) -> bool:
     side = str(context.payload['side'])
+    if len(context.state['sides'][side].get('hand', [])) >= MAX_HAND_SIZE:
+        _add_hand_limit_log(context.state, side, context.payload['card']['name'])
+        return False
     for location in context.state.get('locations', []):
         cards = location.get('cards', {}).get(side, [])
         if target not in cards:
@@ -347,6 +473,7 @@ def _return_target_to_hand(context: 'EventContext', target: JsonDict) -> bool:
         target.pop('paid_cost', None)
         target.pop('play_sequence', None)
         target.pop('reserved_as_material_for', None)
+        target.pop('reserved_material_power', None)
         target.pop('pending_material_ids', None)
         target.pop('declared_card_instance_ids', None)
         context.state['sides'][side].setdefault('hand', []).append(target)
@@ -494,6 +621,8 @@ def _build_token_instance(state: JsonDict, side: str, token_id: str, *, revealed
         'material_attributes': list(definition.get('material_attributes', [])),
         'material_tags': list(definition.get('material_tags', [])),
         'material_cost': int(definition.get('material_cost') or 0),
+        'display_tags': list(definition.get('display_tags', [])),
+        'deck_buildable': definition.get('deck_buildable') is not False,
         'tags': list(definition.get('tags', [])),
     }
 
@@ -504,6 +633,7 @@ def _create_token_at_location(context: 'EventContext', token_id: str, *, side: s
         context.payload['location'],
         side or str(context.payload['side']),
         token_id,
+        context=context,
     )
 
 
@@ -516,12 +646,12 @@ def _create_tokens_at_location(context: 'EventContext', token_id: str, *, count:
     return created
 
 
-def _create_token_in_location(state: JsonDict, location: JsonDict, side: str, token_id: str) -> bool:
+def _create_token_in_location(state: JsonDict, location: JsonDict, side: str, token_id: str, *, context: 'EventContext' | None = None) -> bool:
     mark_tag = LOCATION_MARK_TOKENS.get(token_id)
     if mark_tag:
-        _add_location_mark(state, location, side, mark_tag)
+        _add_location_mark(state, location, side, mark_tag, context=context)
         return True
-    if len(location['cards'][side]) >= LOCATION_CARD_LIMIT:
+    if _location_occupied_count(location, side) >= _location_capacity(location):
         return False
     token = _build_token_instance(state, side, token_id, revealed=True)
     token['location_id'] = location['id']
@@ -546,25 +676,130 @@ def _append_spawn_action(state: JsonDict, location: JsonDict, side: str, token: 
     })
 
 
-def _add_location_mark(state: JsonDict, location: JsonDict, side: str, tag: str, amount: int = 1) -> int:
+def _add_location_mark(state: JsonDict, location: JsonDict, side: str, tag: str, amount: int = 1, *, context: 'EventContext' | None = None) -> int:
     if amount <= 0:
         return _location_mark_count(location, side, tag)
     mark_bucket = location.setdefault('marks', {}).setdefault(side, {})
-    mark_bucket[tag] = max(0, int(mark_bucket.get(tag, 0)) + amount)
+    before = int(mark_bucket.get(tag, 0) or 0)
+    mark_bucket[tag] = max(0, before + amount)
+    gained = max(0, int(mark_bucket[tag]) - before)
     if tag == TAG_DELAY:
         _add_combo_counter(state, side, 'delay_set_total', amount)
     _append_mark_action(state, location, side, tag, amount)
+    _sync_fusion_mark_after_harmony_gain(state, location, side, tag, gained, context=context)
+    if gained > 0 and context is not None and tag in {TAG_GENESIS, TAG_MURK, TAG_DELAY, TAG_DARKSTAR}:
+        dispatch_event(state, GameEvent.HARMONY_MARK_ADDED, {
+            'source_instance_id': context.payload.get('card_instance_id') or context.payload.get('source_instance_id') or '',
+            'source_card': context.payload.get('card'),
+            'source_name': str((context.payload.get('card') or {}).get('name') or context.payload.get('source_name') or '效果'),
+            'side': side,
+            'opponent_side': context.payload.get('opponent_side'),
+            'location': location,
+            'location_id': location.get('id'),
+            'tag': tag,
+            'amount': gained,
+            'mark_count': int(mark_bucket.get(tag, 0) or 0),
+        })
     return int(mark_bucket[tag])
 
 
 def _reset_location_mark(context: 'EventContext', location: JsonDict, side: str, tag: str, amount: int) -> int:
     mark_bucket = location.setdefault('marks', {}).setdefault(side, {})
+    before = int(mark_bucket.get(tag, 0) or 0)
     if amount <= 0:
         mark_bucket.pop(tag, None)
+        _clamp_fusion_marks_after_harmony_change(location, side, tag)
         return 0
     mark_bucket[tag] = int(amount)
     _append_mark_action(context.state, location, side, tag, int(amount))
+    _sync_fusion_mark_after_harmony_gain(context.state, location, side, tag, max(0, int(amount) - before), context=context)
+    _clamp_fusion_marks_after_harmony_change(location, side, tag)
     return int(amount)
+
+
+def _sync_fusion_mark_after_harmony_gain(
+    state: JsonDict,
+    location: JsonDict,
+    side: str,
+    gained_tag: str,
+    gained_amount: int,
+    *,
+    context: 'EventContext' | None = None,
+) -> None:
+    if gained_amount <= 0:
+        return
+    if gained_tag == TAG_GENESIS:
+        _add_capped_fusion_mark(
+            state,
+            location,
+            side,
+            fusion_tag=TAG_SURPLUS,
+            cap=min(_location_mark_count(location, side, TAG_GENESIS), _location_mark_count(location, side, TAG_DELAY)),
+            gained_amount=gained_amount,
+            context=context,
+        )
+    elif gained_tag in {TAG_MURK, TAG_DARKSTAR}:
+        _add_capped_fusion_mark(
+            state,
+            location,
+            side,
+            fusion_tag=TAG_DISCORD,
+            cap=min(_location_mark_count(location, side, TAG_MURK), _location_mark_count(location, side, TAG_DARKSTAR)),
+            gained_amount=gained_amount,
+            context=context,
+        )
+
+
+def _add_capped_fusion_mark(
+    state: JsonDict,
+    location: JsonDict,
+    side: str,
+    *,
+    fusion_tag: str,
+    cap: int,
+    gained_amount: int,
+    context: 'EventContext' | None = None,
+) -> int:
+    if cap <= 0:
+        return 0
+    mark_bucket = location.setdefault('marks', {}).setdefault(side, {})
+    current = int(mark_bucket.get(fusion_tag, 0) or 0)
+    added = min(max(0, gained_amount), max(0, cap - current))
+    if added <= 0:
+        return 0
+    mark_bucket[fusion_tag] = current + added
+    _append_mark_action(state, location, side, fusion_tag, added)
+    if fusion_tag == TAG_DISCORD and context is not None:
+        _trigger_dafutier_discord_passive(context)
+    return added
+
+
+def _clamp_fusion_marks_after_harmony_change(location: JsonDict, side: str, tag: str) -> None:
+    if tag in {TAG_GENESIS, TAG_DELAY}:
+        _clamp_location_mark(
+            location,
+            side,
+            TAG_SURPLUS,
+            min(_location_mark_count(location, side, TAG_GENESIS), _location_mark_count(location, side, TAG_DELAY)),
+        )
+    if tag in {TAG_MURK, TAG_DARKSTAR}:
+        _clamp_location_mark(
+            location,
+            side,
+            TAG_DISCORD,
+            min(_location_mark_count(location, side, TAG_MURK), _location_mark_count(location, side, TAG_DARKSTAR)),
+        )
+
+
+def _clamp_location_mark(location: JsonDict, side: str, tag: str, cap: int) -> None:
+    mark_bucket = location.setdefault('marks', {}).setdefault(side, {})
+    current = int(mark_bucket.get(tag, 0) or 0)
+    if current <= max(0, cap):
+        return
+    if cap <= 0:
+        mark_bucket.pop(tag, None)
+    else:
+        mark_bucket[tag] = int(cap)
 
 
 def _consume_location_mark(location: JsonDict, side: str, tag: str, amount: int = 1) -> int:
@@ -578,6 +813,7 @@ def _consume_location_mark(location: JsonDict, side: str, tag: str, amount: int 
         mark_bucket[tag] = remaining
     else:
         mark_bucket.pop(tag, None)
+    _clamp_fusion_marks_after_harmony_change(location, side, tag)
     return consumed
 
 
@@ -591,7 +827,7 @@ def _append_mark_action(state: JsonDict, location: JsonDict, side: str, tag: str
         return
     source_name = str(state.get('_active_reveal_source_name') or '效果')
     mark_name = LOCATION_MARK_NAMES.get(tag, tag)
-    title_action = '设置环合' if tag in {TAG_GENESIS, TAG_MURK, TAG_DELAY, TAG_DARKSTAR, TAG_SURPLUS, TAG_DISCORD} else '生成标记'
+    title_action = '设置环合' if tag in {TAG_GENESIS, TAG_MURK, TAG_DELAY, TAG_DARKSTAR} else '生成标记'
     state.setdefault('action_queue', []).append({
         'kind': 'spawn_mark',
         'source_instance_id': source_instance_id,
@@ -612,6 +848,7 @@ def _add_token_to_hand(context: 'EventContext', token_id: str, *, side: str | No
     added = 0
     for _ in range(max(0, count)):
         if len(side_state['hand']) >= MAX_HAND_SIZE:
+            _add_hand_limit_log(context.state, target_side, context.payload.get('card', {}).get('name') or '效果')
             break
         side_state['hand'].append(_build_token_instance(context.state, target_side, token_id, revealed=False))
         added += 1
@@ -648,6 +885,9 @@ def _build_generated_definition_instance(state: JsonDict, side: str, definition_
         'required_material_attribute': definition.get('required_material_attribute', ''),
         'material_requirements': deepcopy(definition.get('material_requirements') or []),
         'material_requirement_text': definition.get('material_requirement_text', ''),
+        'ai_material_reserved_for': list(definition.get('ai_material_reserved_for', [])),
+        'display_tags': list(definition.get('display_tags', [])),
+        'deck_buildable': definition.get('deck_buildable') is not False,
         'side': side,
         'revealed': False,
         'played_turn': None,
@@ -662,6 +902,7 @@ def _add_generated_card_to_hand(context: 'EventContext', definition_id: str, *, 
     added = 0
     for _ in range(max(0, count)):
         if len(side_state.get('hand', [])) >= MAX_HAND_SIZE:
+            _add_hand_limit_log(context.state, target_side, context.payload.get('card', {}).get('name') or '效果')
             break
         generated = _build_generated_definition_instance(context.state, target_side, definition_id)
         if generated is None:
@@ -693,6 +934,7 @@ def _random_deck_item(context: 'EventContext', predicate: Any) -> JsonDict | Non
     side = str(context.payload['side'])
     side_state = context.state['sides'][side]
     if len(side_state.get('hand', [])) >= MAX_HAND_SIZE:
+        _add_hand_limit_log(context.state, side, context.payload.get('card', {}).get('name') or '效果')
         return None
     candidates = [
         (index, card)
@@ -869,7 +1111,7 @@ def _trigger_reveal_effect_as_copy(
     original_selected_target_id = context.payload.get('selected_target_instance_id')
     original_fields = {
         key: source_card.get(key)
-        for key in ('definition_id', 'description', 'effect_key', 'archetype', 'category', 'attribute', 'attribute_icon', 'material_attributes', 'material_tags', 'tags')
+        for key in ('definition_id', 'description', 'effect_key', 'archetype', 'category', 'attribute', 'attribute_icon', 'material_attributes', 'material_tags', 'display_tags', 'deck_buildable', 'tags')
     }
     try:
         for key in original_fields:
@@ -916,7 +1158,43 @@ def _boost_allied_espers(context: 'EventContext', amount: int) -> int:
     return boosted
 
 
-def _impact_damage(context: 'EventContext', target: JsonDict, amount: int, source_name: str) -> bool:
+def _resolve_damage_packet_amount(
+    context: 'EventContext',
+    target: JsonDict,
+    amount: int,
+    source_name: str,
+    *,
+    timing: str = 'effect',
+) -> int:
+    amount = max(0, int(amount))
+    payload = dispatch_event(context.state, GameEvent.DAMAGE_PACKET, {
+        'side': str(context.payload['side']),
+        'opponent_side': str(context.payload.get('opponent_side') or ''),
+        'location': context.payload['location'],
+        'location_id': context.payload['location']['id'],
+        'source_card': context.payload.get('card'),
+        'source_instance_id': str((context.payload.get('card') or {}).get('instance_id') or ''),
+        'damage_target_card': target,
+        'damage_target_instance_id': str(target.get('instance_id') or ''),
+        'source_name': source_name,
+        'base_amount': amount,
+        'amount': amount,
+        'timing': timing,
+    })
+    return max(0, int(payload.get('amount') or 0))
+
+
+def _impact_damage(
+    context: 'EventContext',
+    target: JsonDict,
+    amount: int,
+    source_name: str,
+    *,
+    timing: str = 'effect',
+) -> bool:
+    amount = _resolve_damage_packet_amount(context, target, amount, source_name, timing=timing)
+    if amount <= 0:
+        return False
     power_before = int(target.get('computed_power', _raw_card_power(target)) or 0)
     _boost_card(target, -amount, source_name)
     power_after = int(target.get('computed_power', _raw_card_power(target)) or 0)
@@ -934,7 +1212,7 @@ def _impact_damage(context: 'EventContext', target: JsonDict, amount: int, sourc
     return power_before > 0 and power_after <= 0
 
 
-def _damage_all_enemies(context: 'EventContext', amount: int, *, source_name: str) -> bool:
+def _damage_all_enemies(context: 'EventContext', amount: int, *, source_name: str, timing: str = 'effect') -> bool:
     opponent = str(context.payload['opponent_side'])
     destroyed = False
     targets = [
@@ -943,7 +1221,7 @@ def _damage_all_enemies(context: 'EventContext', amount: int, *, source_name: st
         if card.get('type') != CARD_TYPE_TOKEN
     ]
     for target in targets:
-        destroyed = _impact_damage(context, target, amount, source_name) or destroyed
+        destroyed = _impact_damage(context, target, amount, source_name, timing=timing) or destroyed
     return destroyed
 
 
@@ -965,7 +1243,7 @@ def _trigger_dafutier_discord_passive(context: 'EventContext') -> None:
         context.payload['location'] = original_location
 
 
-def _random_enemy_hits(context: 'EventContext', hit_count: int, amount: int) -> int:
+def _random_enemy_hits(context: 'EventContext', hit_count: int, amount: int, *, timing: str = 'effect') -> int:
     opponent = str(context.payload['opponent_side'])
     hits = 0
     for _ in range(max(0, hit_count)):
@@ -977,7 +1255,7 @@ def _random_enemy_hits(context: 'EventContext', hit_count: int, amount: int) -> 
         if not candidates:
             break
         target = random.choice(candidates)
-        _impact_damage(context, target, amount, context.payload['card']['name'])
+        _impact_damage(context, target, amount, context.payload['card']['name'], timing=timing)
         hits += 1
     return hits
 
@@ -1026,9 +1304,20 @@ def _count_board_tag(state: JsonDict, side: str, tag: str) -> int:
     return sum(_count_location_tag(location, side, tag) for location in state.get('locations', []))
 
 
+def _count_harmony_mark(state: JsonDict, side: str, tag: str) -> int:
+    return sum(
+        _location_mark_count(location, side, tag) + sum(
+            1
+            for card in location['cards'][side]
+            if card.get('revealed') and tag in card.get('tags', []) and TAG_HARMONY in card.get('tags', [])
+        )
+        for location in state.get('locations', [])
+    )
+
+
 def _own_damage_marker_type_count(context: 'EventContext') -> int:
     side = str(context.payload['side'])
-    count = 1 if _count_board_tag(context.state, side, TAG_MURK) > 0 else 0
+    count = 1 if _count_harmony_mark(context.state, side, TAG_MURK) > 0 else 0
     for tag in (TAG_ZHUE_HUCHI, TAG_NIGHTMARE, TAG_PANYU_QIU):
         if _count_board_tag(context.state, side, tag) > 0:
             count += 1
@@ -1056,9 +1345,43 @@ def _add_combo_counter(state: JsonDict, side: str, key: str, amount: int) -> int
     return int(combo[key])
 
 
+def _add_turn_combo_counter(state: JsonDict, side: str, key: str, amount: int) -> int:
+    combo = state['sides'][side].setdefault('combo', {})
+    turn = int(state.get('turn') or 0)
+    turn_key = f'{key}_turn'
+    if int(combo.get(turn_key) or 0) != turn:
+        combo[key] = 0
+        combo[turn_key] = turn
+    combo[key] = int(combo.get(key, 0)) + amount
+    return int(combo[key])
+
+
+def _turn_combo_count(state: JsonDict, side: str, key: str) -> int:
+    combo = state['sides'][side].setdefault('combo', {})
+    if int(combo.get(f'{key}_turn') or 0) != int(state.get('turn') or 0):
+        return 0
+    return int(combo.get(key, 0))
+
+
+def _schedule_next_turn_energy_penalty(context: 'EventContext', target_side: str, amount: int, source_name: str) -> None:
+    penalty = max(0, int(amount))
+    if penalty <= 0:
+        return
+    combo = context.state['sides'][target_side].setdefault('combo', {})
+    next_turn = int(context.state.get('turn') or 0) + 1
+    if int(combo.get('next_turn_energy_penalty_turn') or 0) != next_turn:
+        combo['next_turn_energy_penalty'] = 0
+    combo['next_turn_energy_penalty_turn'] = next_turn
+    combo['next_turn_energy_penalty'] = int(combo.get('next_turn_energy_penalty') or 0) + penalty
+    _add_log(context.state, f"{source_name} 使对手下回合可用能量 -{penalty}。")
+
+
 def _draw_one_from_deck(state: JsonDict, side: str) -> JsonDict | None:
     side_state = state['sides'][side]
-    if not side_state.get('deck') or len(side_state.get('hand', [])) >= MAX_HAND_SIZE:
+    if not side_state.get('deck'):
+        return None
+    if len(side_state.get('hand', [])) >= MAX_HAND_SIZE:
+        _add_hand_limit_log(state, side, '抽牌')
         return None
     card = side_state['deck'].pop(0)
     side_state['hand'].append(card)
@@ -1113,6 +1436,8 @@ def _action_card_payload(card: JsonDict) -> JsonDict:
         'material_requirements': deepcopy(card.get('material_requirements') or []),
         'material_requirement_text': card.get('material_requirement_text', ''),
         'material_tags': list(card.get('material_tags', [])),
+        'display_tags': list(card.get('display_tags', [])),
+        'deck_buildable': card.get('deck_buildable') is not False,
         'buff_sources': [deepcopy(source) for source in card.get('buff_sources', [])],
     }
 

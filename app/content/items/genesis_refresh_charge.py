@@ -19,18 +19,19 @@ def genesis_tutor(context: 'EventContext') -> None:
                 if (
                     hand_card.get('type') == CARD_TYPE_ANOMALY_ITEM
                     and int(hand_card.get('cost') or 0) <= 1
-                    and str(hand_card.get('category') or '') in {'食物', '耗材'}
+                    and str(hand_card.get('category') or '') == '耗材'
                 )
             ]
             if candidates:
                 index, _ = random.choice(candidates)
                 _deploy_card_to_current_location(context, side_state['hand'].pop(index), card['name'])
                 return
-        _tutor_named_item(context, {'都市活力'}, card['name'])
+        _boost_card(card, 1, card['name'])
+        _add_log(context.state, f"{card['name']} 未能部署费用 <=1 的耗材，自身 +1。")
         return
     declared = _declared_deck_item(
         context,
-        lambda item: item.get('type') == CARD_TYPE_ANOMALY_ITEM and str(item.get('category') or '') in {'饮料', '食物'},
+        lambda item: item.get('type') == CARD_TYPE_ANOMALY_ITEM and str(item.get('category') or '') in {'饮料', '耗材'},
     )
     if declared is not None:
         if str(declared.get('definition_id') or '') == 'genesis_refresh_charge':
@@ -38,8 +39,7 @@ def genesis_tutor(context: 'EventContext') -> None:
         _add_card_to_hand(context, declared, card['name'])
         card.pop('declared_card_instance_ids', None)
         return
-    _boost_card(card, 1, card['name'])
-    _add_card_to_hand(context, _tutor_item(context, 'genesis'), card['name'])
+    _add_log(context.state, f"{card['name']} 的宣言牌已不合法。")
     card.pop('declared_card_instance_ids', None)
 
 
@@ -51,7 +51,7 @@ ITEM = {'id': 'genesis_refresh_charge',
  'element': '异象',
  'rarity': 'r',
  'art': '/static/images/item/畅爽焕能.webp',
- 'description': '揭示：若「都市活力」在己方场上或墓地，随机选择手牌中 1 张费用 <=1 的食物或耗材部署；若不能部署，从牌库将 1 张「都市活力」加入手牌。',
+ 'description': '揭示：若「都市活力」在己方场上或墓地，随机选择手牌中 1 张费用 <=1 的耗材并部署；若不能部署，使自身 +1。',
  'effect_key': 'genesis_tutor',
  'tags': ['genesis', 'tool', 'material', 'mat_fons'],
  'archetype': 'genesis',
