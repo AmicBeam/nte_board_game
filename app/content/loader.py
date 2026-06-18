@@ -1,6 +1,7 @@
 import importlib
 import pkgutil
 from copy import deepcopy
+from functools import lru_cache
 from types import ModuleType
 from typing import Any
 
@@ -16,7 +17,7 @@ from app.content.common.tokens import TOKEN_CARDS
 from app.content.duel_decks import DUEL_DECKS
 
 
-def _load_from_package(package: ModuleType, attribute_name: str) -> list[dict[str, Any]]:
+def _load_from_package(package: ModuleType, attribute_name: str) -> tuple[dict[str, Any], ...]:
     results: list[dict[str, Any]] = []
     for module_info in pkgutil.iter_modules(package.__path__):
         module = importlib.import_module(f'{package.__name__}.{module_info.name}')
@@ -26,29 +27,57 @@ def _load_from_package(package: ModuleType, attribute_name: str) -> list[dict[st
                 results.extend(deepcopy(list(payload)))
             else:
                 results.append(deepcopy(payload))
-    return results
+    return tuple(results)
+
+
+@lru_cache(maxsize=1)
+def _cached_characters() -> tuple[dict[str, Any], ...]:
+    return tuple(sorted(_load_from_package(characters, 'CHARACTER'), key=lambda item: item['id']))
 
 
 def load_characters() -> list[dict[str, Any]]:
-    return sorted(_load_from_package(characters, 'CHARACTER'), key=lambda item: item['id'])
+    return deepcopy(list(_cached_characters()))
+
+
+@lru_cache(maxsize=1)
+def _cached_items() -> tuple[dict[str, Any], ...]:
+    return tuple(sorted(_load_from_package(items, 'ITEM'), key=lambda item: item['id']))
 
 
 def load_items() -> list[dict[str, Any]]:
-    return sorted(_load_from_package(items, 'ITEM'), key=lambda item: item['id'])
+    return deepcopy(list(_cached_items()))
+
+
+@lru_cache(maxsize=1)
+def _cached_duel_cards() -> tuple[dict[str, Any], ...]:
+    return tuple(sorted(
+        [*_cached_items(), *_cached_characters()],
+        key=lambda card: (str(card.get('archetype', '')), int(card['cost']), str(card['name'])),
+    ))
 
 
 def load_duel_cards() -> list[dict[str, Any]]:
-    return sorted(
-        [*load_items(), *load_characters()],
-        key=lambda card: (str(card.get('archetype', '')), int(card['cost']), str(card['name'])),
-    )
+    return deepcopy(list(_cached_duel_cards()))
+
+
+@lru_cache(maxsize=1)
+def _cached_duel_card_index() -> dict[str, dict[str, Any]]:
+    return {str(card['id']): card for card in _cached_duel_cards()}
 
 
 def get_duel_card(card_id: str) -> dict[str, Any] | None:
     normalized = str(card_id or '').strip()
     if normalized in TOKEN_CARDS:
         return deepcopy(TOKEN_CARDS[normalized])
-    return next((card for card in load_duel_cards() if card['id'] == normalized), None)
+    definition = _cached_duel_card_index().get(normalized)
+    return deepcopy(definition) if definition is not None else None
+
+
+def clear_content_cache() -> None:
+    _cached_characters.cache_clear()
+    _cached_items.cache_clear()
+    _cached_duel_cards.cache_clear()
+    _cached_duel_card_index.cache_clear()
 
 
 def load_duel_decks() -> list[dict[str, Any]]:

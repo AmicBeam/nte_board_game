@@ -182,11 +182,18 @@ def serialize_room_member(member: RoomMember) -> dict[str, Any]:
 
 
 def serialize_room(room: Room, members: list[RoomMember] | None = None) -> dict[str, Any]:
+    host_player_uid = ''
+    if members is not None:
+        host_member = next((member for member in members if member.is_host), None)
+        if host_member is not None:
+            host_player_uid = host_member.player.player_uid
+    if not host_player_uid:
+        host_player_uid = room.host.player_uid
     payload = {
         'room_code': room.room_code,
         'mode': room.mode,
         'status': room.status,
-        'host_player_uid': room.host.player_uid,
+        'host_player_uid': host_player_uid,
         'created_at': room.created_at.isoformat(),
         'updated_at': room.updated_at.isoformat(),
     }
@@ -221,7 +228,13 @@ def get_room_member(room: Room, player: Player) -> RoomMember | None:
 
 
 def list_room_members(room: Room) -> list[RoomMember]:
-    return list(RoomMember.select().where(RoomMember.room == room).order_by(RoomMember.joined_at.asc()))
+    return list(
+        RoomMember
+        .select(RoomMember, Player)
+        .join(Player)
+        .where(RoomMember.room == room)
+        .order_by(RoomMember.joined_at.asc())
+    )
 
 
 def get_current_room(player: Player, statuses: set[str] | frozenset[str] | None = None) -> Room | None:
