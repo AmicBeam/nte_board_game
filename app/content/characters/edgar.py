@@ -9,12 +9,17 @@ if TYPE_CHECKING:
 
 def edgar_surplus_link(context: 'EventContext') -> None:
     side = str(context.payload['side'])
-    if not _consume_hand_card_with_tag(context, side, TAG_SURPLUS):
+    consumed = 0
+    for location in context.state.get('locations', []):
+        consumed = _consume_location_mark(location, side, TAG_SURPLUS, 1)
+        if consumed:
+            break
+    if not consumed:
         _add_log(context.state, f"{context.payload['card']['name']} 没有可消耗的盈蓄。")
         return
     target = _highest_ally(context) or context.payload['card']
     _boost_card(target, 6, context.payload['card']['name'])
-    _add_log(context.state, f"{context.payload['card']['name']} 消耗 1 张盈蓄，使战力最高的己方单位 {target['name']} +6。")
+    _add_log(context.state, f"{context.payload['card']['name']} 消耗 1 层盈蓄，使战力最高的己方单位 {target['name']} +6。")
 
 
 CHARACTER = {'id': 'edgar',
@@ -24,8 +29,8 @@ CHARACTER = {'id': 'edgar',
  'type': 'esper',
  'element': '光',
  'rarity': 'sr',
- 'art': '/static/images/characters/portrait/埃德嘉.png',
- 'description': '共鸣：若手牌中有盈蓄，消耗 1 张，并使战力最高的友方单位 +6。',
+ 'art': '/static/images/characters/portrait/埃德嘉.webp',
+ 'description': '共鸣：若己方有盈蓄标记，消耗 1 层，并使当前战力最高的己方表侧单位 +6。',
  'effect_key': 'edgar_surplus_link',
  'tags': ['esper', 'surplus'],
  'archetype': '',
@@ -38,7 +43,7 @@ CHARACTER = {'id': 'edgar',
  'material_requirements': [{'attribute': '光', 'count': 1}, {'category': '货币', 'count': 1}],
  'material_requirement_text': '',
  'target_rule': {},
- 'portrait_image': '/static/images/characters/portrait/埃德嘉.png',
- 'avatar_image': '/static/images/characters/portrait/埃德嘉.png'}
+ 'portrait_image': '/static/images/characters/portrait/埃德嘉.webp',
+ 'avatar_image': '/static/images/characters/avatar/埃德嘉.webp'}
 
 CHARACTER['event_hooks'] = {GameEvent.CARD_REVEALED.value: edgar_surplus_link}

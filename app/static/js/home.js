@@ -1,5 +1,11 @@
 const MODES = [
   {
+    id: 'tutorial_basics',
+    name: '新手教学关',
+    description: '使用固定新手套牌与固定对手脚本，逐步学习部署、揭示、宣言、共鸣、创生和战力结算。',
+    scenario: 'tutorial_basics',
+  },
+  {
     id: 'trial',
     name: '套牌试用关',
     description: '选择我方和敌方套路，对战对应人机，验证展开、干扰和王牌终结。',
@@ -67,6 +73,7 @@ async function bootstrapHome() {
         selectedModeId = mode.id;
         renderModes();
         renderTrialConfig();
+        renderBuildSummary();
       });
       modeGrid.appendChild(card);
     });
@@ -93,6 +100,11 @@ async function bootstrapHome() {
   }
 
   function renderBuildSummary() {
+    if (selectedModeId === 'tutorial_basics') {
+      buildSummaryCopy.textContent = '新手教学使用独立固定套牌，不读取当前构筑，也不会受到常规模式平衡调整影响。';
+      startModeBtn.disabled = false;
+      return;
+    }
     if (decks.length) {
       buildSummaryCopy.textContent = `已开放 ${decks.length} 套试用套牌；每套 20 张异象道具，最多 4 张异能者。`;
       startModeBtn.disabled = false;

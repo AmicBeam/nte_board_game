@@ -34,6 +34,7 @@ const duelTitleBanner = document.getElementById('duel-title-banner');
 const effectArrowLayer = document.getElementById('effect-arrow-layer');
 const roundCounter = document.getElementById('round-counter');
 const energySidecar = document.getElementById('energy-sidecar');
+const mobileScoreSidecar = document.getElementById('mobile-score-sidecar');
 const initiativeSidecar = document.getElementById('initiative-sidecar');
 const playerHandName = document.getElementById('player-hand-name');
 const playerDiscardName = document.getElementById('player-discard-name');
@@ -46,6 +47,15 @@ const discardModal = document.getElementById('discard-modal');
 const discardModalTitle = document.getElementById('discard-modal-title');
 const discardModalSubtitle = document.getElementById('discard-modal-subtitle');
 const discardModalList = document.getElementById('discard-modal-list');
+const resultModal = document.getElementById('result-modal');
+const resultModalEyebrow = document.getElementById('result-modal-eyebrow');
+const resultModalTitle = document.getElementById('result-modal-title');
+const resultModalSubtitle = document.getElementById('result-modal-subtitle');
+const resultSummaryGrid = document.getElementById('result-summary-grid');
+const resultConfirmBtn = document.getElementById('result-confirm-btn');
+const tutorialFocusScrim = document.getElementById('tutorial-focus-scrim');
+const tutorialGuidancePopup = document.getElementById('tutorial-guidance-popup');
+const mobileLocationRuleLine = document.getElementById('mobile-location-rule-line');
 
 let currentState = null;
 let actionLocked = false;
@@ -59,23 +69,197 @@ let selectionCollapsed = false;
 let cardPreviewPinned = false;
 let targetPointer = null;
 let lastPresentationKey = '';
-let playedResultRedirect = false;
+let resultModalShown = false;
 let materialSelection = null;
 let materialSelectionClickShieldUntil = 0;
 let presentationLocked = false;
 let pendingPlayIntent = null;
-let declarationPreviewCache = { key: '', previews: {} };
+let declarationPreviewCache = { key: '', previews: {}, targetPreviews: {} };
 let declarationPreviewRequestKey = '';
 let turnUndoPreviewState = null;
 let lastAuthoritativeState = null;
 let pendingDeclarationChoices = {};
+let pendingPlanningActions = [];
+let planningActionSequence = 0;
+let tutorialMechanicModalKey = '';
+let tutorialMechanicModalOpening = false;
+let tutorialMechanicShownKeys = new Set();
 const previewCardsByInstanceId = new Map();
 
 const ACTION_ANIMATION_MS = 1000;
 const ACTION_INTERVAL_MS = 1000;
-const DEFAULT_LOCATION_CAPACITY = 10;
+const DEFAULT_LOCATION_CAPACITY = 7;
 const ELEMENT_ICON_BASE = '/static/images/elements';
 const CARD_BACK_IMAGE = '/static/images/cards/card-back.svg';
+const TUTORIAL_EXPECTED_ACTIONS = {
+  1: [{ kind: 'play_card', definitionId: 'tutorial_refresh_charge' }],
+  2: [{ kind: 'play_card', definitionId: 'tutorial_urban_energy' }],
+  3: [
+    { kind: 'play_esper', definitionId: 'tutorial_appraiser', materialDefinitionIds: ['tutorial_refresh_charge', 'tutorial_urban_energy'] },
+    { kind: 'play_card', definitionId: 'tutorial_water_hesitation', targetDefinitionId: 'tutorial_tomato_dummy' },
+    { kind: 'play_card', definitionId: 'tutorial_breakfast_bag' },
+  ],
+  4: [
+    { kind: 'play_card', definitionId: 'tutorial_fons' },
+    { kind: 'play_card', definitionId: 'tutorial_eborn_cake' },
+  ],
+  5: [
+    { kind: 'play_esper', definitionId: 'tutorial_appraiser', materialDefinitionIds: ['tutorial_fons', 'tutorial_eborn_cake'] },
+    { kind: 'play_card', definitionId: 'tutorial_lost_wallet' },
+  ],
+  6: [{ kind: 'play_esper', definitionId: 'tutorial_bohe', materialDefinitionIds: ['tutorial_lost_wallet'] }],
+};
+const TUTORIAL_EXPECTED_DECLARATIONS = {
+  2: { tutorial_urban_energy: ['tutorial_breakfast_bag'] },
+  3: { tutorial_breakfast_bag: ['tutorial_eborn_cake'] },
+};
+const TUTORIAL_DEFINITION_NAMES = {
+  tutorial_appraiser: '鉴定师',
+  tutorial_bohe: '薄荷',
+  tutorial_breakfast_bag: '速食早餐袋',
+  tutorial_eborn_cake: '来自「伊波恩」的蛋糕',
+  tutorial_fons: '方斯',
+  tutorial_lost_wallet: '遗失的钱包',
+  tutorial_refresh_charge: '畅爽焕能',
+  tutorial_tomato_dummy: '西红柿',
+  tutorial_urban_energy: '都市活力',
+  tutorial_water_hesitation: '水波的迟疑',
+};
+const TUTORIAL_MECHANIC_PAGES = {
+  basics: {
+    title: '基础牌桌',
+    pages: [
+      {
+        title: '手牌与战场',
+        body: [
+          '底部横排是你的手牌。手牌是当前可以部署的异象道具，本回合没有被部署的手牌会留到之后。',
+          '手牌上限为 8 张；达到上限时不会通常抽卡，加入手牌的效果也会失效。',
+          '中央大区域是战场。双方最终会比较战场上的总战力。',
+          '战场每方最多 7 个占位；被异能者预定的素材会先隐藏且不占占位，结算时吸收战力后进入墓地。',
+        ],
+        samples: [
+          { icon: '/static/images/item/畅爽焕能.webp', name: '手牌', description: '从底部拖动或按回车部署。' },
+          { icon: '/static/images/cards/card-back.svg', name: '战场', description: '牌会先进入这里，完成部署后再揭示。' },
+        ],
+      },
+      {
+        title: '部署与揭示',
+        body: [
+          '部署不是立刻发动效果，而是先支付能量，把牌盖放到战场上。',
+          '点击「完成部署」后，本回合部署的牌才会按结算先手依次揭示并结算效果。',
+          '第一回合只需要部署「畅爽焕能」，看它如何从盖放变成表侧牌。',
+        ],
+        samples: [
+          { icon: '/static/images/cards/card-back.svg', name: '部署', description: '先盖放，效果还不结算。' },
+          { icon: '/static/images/item/畅爽焕能.webp', name: '揭示', description: '翻开后才执行卡面效果。' },
+        ],
+      },
+    ],
+  },
+  esper: {
+    title: '异能者与素材',
+    pages: [
+      {
+        title: '异能者是什么',
+        body: [
+          '左侧是异能者编队。异能者不是从牌库抽到手里的牌，而是满足素材条件后从编队共鸣到战场。',
+          '异能者通常会带来更强的收益。本教程第 3 回合会先让「鉴定师」共鸣。',
+        ],
+        samples: [
+          { icon: '/static/images/characters/portrait/鉴定师.webp', name: '鉴定师', description: '消耗光属性和灵属性素材，设置创生。' },
+          { icon: '/static/images/characters/portrait/薄荷.webp', name: '薄荷', description: '终局消耗创生，把战力抬高。' },
+        ],
+      },
+      {
+        title: '素材怎么看、什么时候消耗',
+        body: [
+          '战场上带“素材”标记的表侧道具可以被异能者消耗。异能者卡左上角会显示需要几个素材，卡面说明会写需要的属性。',
+          '只有进入本回合前已经稳定在场的牌能当素材。本回合刚部署或刚生成的牌，要等本回合完全结算后才稳定。',
+          '选择素材时，虚线高亮的是合法素材；被教学锁定的其他牌不能乱选。',
+        ],
+        samples: [
+          { icon: '/static/images/item/畅爽焕能.webp', name: '灵属性素材', description: '进入回合前已在场，能被消耗。' },
+          { icon: '/static/images/item/都市活力.webp', name: '光属性素材', description: '与灵属性一起满足鉴定师条件。' },
+        ],
+      },
+    ],
+  },
+  discard: {
+    title: '解场与墓地',
+    pages: [
+      {
+        title: '什么是解场',
+        body: [
+          '解场就是用效果削弱、破坏或移走对手战场上的牌，让对手的素材链或战力计划变慢。',
+          '第 3 回合你会用「水波的迟疑」降低对手「西红柿」的战力；对手也会用「新兵的怯懦」解掉你的「速食早餐袋」。',
+        ],
+        samples: [
+          { icon: '/static/images/item/水波的迟疑.webp', name: '水波的迟疑', description: '选择对手表侧目标并降低战力。' },
+          { icon: '/static/images/item/西红柿.webp', name: '西红柿', description: '战力降到 0 或更低会破碎。' },
+        ],
+      },
+      {
+        title: '什么是墓地',
+        body: [
+          '道具被破碎、被消耗为素材或被效果送走后，会进入墓地。',
+          '墓地不是失败区，而是公开记录：你可以点击墓地区查看哪些牌已经离开战场。',
+          '薄荷第 4 回合暂时不能登场，就是因为关键素材被解掉，只能先补一回合资源。',
+        ],
+        samples: [
+          { icon: '/static/images/item/速食早餐袋.webp', name: '被解掉的素材', description: '进入墓地后不能再作为场上素材。' },
+          { icon: '/static/images/cards/card-back.svg', name: '墓地按钮', description: '左下或右上墓地区会显示数量。' },
+        ],
+      },
+    ],
+  },
+  final: {
+    title: '终局战力比拼',
+    pages: [
+      {
+        title: '最终回合怎么看胜负',
+        body: [
+          '教学关一共 6 回合。第 6 回合结算完成后，会比较双方战场总战力。',
+          '你的目标不是每回合都领先，而是在最终结算时让总战力超过对手。',
+        ],
+        samples: [
+          { icon: '/static/images/characters/portrait/薄荷.webp', name: '薄荷终结', description: '消耗创生后大幅提高战力。' },
+          { icon: '/static/images/item/遗失的钱包.webp', name: '遗失的钱包', description: '最后一块稳定灵属性素材。' },
+        ],
+      },
+      {
+        title: '为什么这回合能赢',
+        body: [
+          '前面两次鉴定师共鸣已经设置了两层创生。',
+          '薄荷登场时先吸收素材战力，再一次性消耗两个创生，形成足够高的终局战力。',
+          '完成部署后观察揭示与结算，最后看战场总战力判定胜负。',
+        ],
+        samples: [
+          { icon: '/static/images/characters/portrait/鉴定师.webp', name: '两次共鸣', description: '准备两层创生。' },
+          { icon: '/static/images/characters/portrait/薄荷.webp', name: '消耗创生', description: '把前期准备转化为胜利战力。' },
+        ],
+      },
+    ],
+  },
+  result: {
+    title: '教学完成',
+    pages: [
+      {
+        title: '你刚学会了什么',
+        body: [
+          '手牌部署到战场，完成部署后才揭示结算。',
+          '宣言会在部署时锁定选择，揭示阶段只执行已经锁定的结果。',
+          '战场每方最多 7 个占位；被异能者预定的素材会先隐藏且不占占位，结算时吸收战力后进入墓地。',
+          '手牌上限为 8 张；达到上限时不会通常抽卡，加入手牌的效果也会失效。',
+          '最终胜负看 6 回合结算后的战场总战力。',
+        ],
+        samples: [
+          { icon: '/static/images/item/都市活力.webp', name: '宣言', description: '提前锁定选择。' },
+          { icon: '/static/images/characters/portrait/薄荷.webp', name: '胜利条件', description: '终局总战力更高。' },
+        ],
+      },
+    ],
+  },
+};
 
 const LOCATION_MARK_LABELS = {
   genesis: '创生',
@@ -130,6 +314,7 @@ async function loadState() {
         title: '异象对决手册',
         eyebrow: '牌桌',
         pages: () => buildTableTutorialPages(),
+        autoOpen: !isTutorialMode(state),
       });
     }
   } catch (error) {
@@ -140,6 +325,9 @@ async function loadState() {
 
 function renderState(state, options = {}) {
   const sourceState = state;
+  if (!options.optimistic) {
+    clearLocalPlanningDrafts();
+  }
   const renderStatePayload = options.skipPendingDeclarationOverlay ? sourceState : stateWithPendingDeclarationChoices(sourceState);
   if (!options.skipDeclarationPreviewPrefetch) {
     scheduleDeclarationPreviewPrefetch(renderStatePayload);
@@ -169,12 +357,13 @@ function renderState(state, options = {}) {
     duelHud.innerHTML = `
       <span>${escapeHtml(displayState.scenario_label || '异象对决')}</span>
       <span>回合 ${displayState.turn}/${displayState.max_turns}</span>
-      <span>主战场 ${escapeHtml(displayState.score.total_power_player)}-${escapeHtml(displayState.score.total_power_opponent)}</span>
+      <span>战场 ${escapeHtml(displayState.score.total_power_player)}-${escapeHtml(displayState.score.total_power_opponent)}</span>
     `;
   }
   renderLeftInfo(displayState);
   renderRightInfo(displayState);
   renderLocations(displayState, shouldHoldPresentation ? null : previousState);
+  syncVisibleScoreFromState(displayState);
   renderHand(displayState, { deferSelection: shouldHoldPresentation || hasPendingPresentation(renderStatePayload) });
   renderLog(displayState);
   renderDiscard(displayState);
@@ -183,14 +372,295 @@ function renderState(state, options = {}) {
   syncMaterialSelection();
   syncControls(displayState);
   syncTargetMode(displayState);
+  renderTutorialGuidance(displayState);
+  syncTutorialMechanicModal(displayState);
   renderDeclarationArrows(displayState);
   playPresentation(renderStatePayload, { renderFinalAfter: shouldHoldPresentation });
+}
+
+function tutorialMechanicKey(state, stage) {
+  return `${String(state?.game_id || 'tutorial')}:${String(stage || '')}`;
+}
+
+function tutorialMechanicStage(state) {
+  if (!isTutorialMode(state)) {
+    return '';
+  }
+  if (state.status !== 'playing') {
+    return 'result';
+  }
+  if (
+    state.phase !== 'planning'
+    || state.selection
+    || state.pending_target
+    || materialSelection
+    || presentationLocked
+    || pendingPlanningActions.length
+  ) {
+    return '';
+  }
+  const turn = Number(state.turn || 1);
+  if (turn === 1) {
+    return 'basics';
+  }
+  if (turn === 3) {
+    return 'esper';
+  }
+  if (turn === 4) {
+    return 'discard';
+  }
+  if (turn === 6) {
+    return 'final';
+  }
+  return '';
+}
+
+function syncTutorialMechanicModal(state) {
+  const stage = tutorialMechanicStage(state);
+  if (!stage || tutorialMechanicModalOpening) {
+    return;
+  }
+  const modalKey = tutorialMechanicKey(state, stage);
+  if (tutorialMechanicModalKey === modalKey) {
+    return;
+  }
+  if (tutorialMechanicShownKeys.has(modalKey)) {
+    return;
+  }
+  const definition = TUTORIAL_MECHANIC_PAGES[stage];
+  if (!definition) {
+    return;
+  }
+  tutorialMechanicModalKey = modalKey;
+  tutorialMechanicModalOpening = true;
+  tutorialMechanicShownKeys.add(modalKey);
+  window.setTimeout(() => {
+    tutorialMechanicModalOpening = false;
+    openTutorialManual(`tutorial_mechanic_${stage}`, {
+      title: definition.title,
+      eyebrow: '新手教学',
+      pages: definition.pages,
+      persistCompletion: false,
+      closeAllowed: false,
+    });
+  }, 0);
+}
+
+function renderTutorialGuidance(state) {
+  clearTutorialSpotlights();
+  const tutorial = state?.tutorial;
+  if (!tutorial?.enabled || !tutorialGuidancePopup || !tutorialFocusScrim) {
+    document.body.classList.remove('tutorial-lock-esper-panel');
+    tutorialGuidancePopup?.classList.remove('open');
+    tutorialGuidancePopup?.setAttribute('aria-hidden', 'true');
+    tutorialFocusScrim?.classList.remove('open');
+    tutorialFocusScrim?.setAttribute('aria-hidden', 'true');
+    return;
+  }
+  const prompt = tutorialGuidanceModel(state);
+  document.body.classList.toggle('tutorial-lock-esper-panel', !(tutorial.visible_esper_ids || []).length);
+  tutorialGuidancePopup.className = `tutorial-guidance-popup open placement-${classToken(prompt.placement || 'default')}`;
+  tutorialGuidancePopup.setAttribute('aria-hidden', 'false');
+  tutorialFocusScrim.classList.toggle('open', prompt.scrim !== false);
+  tutorialFocusScrim.classList.toggle('suppressed', prompt.scrim === false);
+  tutorialFocusScrim.setAttribute('aria-hidden', prompt.scrim === false ? 'true' : 'false');
+  tutorialGuidancePopup.innerHTML = `
+    <p class="eyebrow">新手教学 · 第 ${escapeHtml(tutorial.turn || state.turn)} 回合</p>
+    <strong>${escapeHtml(prompt.title || '教学提示')}</strong>
+    <span>${escapeHtml(prompt.body || '')}</span>
+  `;
+  (prompt.spotlights || []).forEach((selector) => {
+    try {
+      document.querySelectorAll(selector).forEach((node) => {
+        node.classList.add('tutorial-spotlight');
+        addTutorialFocusFrame(node);
+      });
+    } catch (error) {
+      // Ignore invalid selectors from older snapshots.
+    }
+  });
+  renderTutorialDragCue(prompt.dragCue);
+  renderTutorialClickCue(prompt.clickCue);
+}
+
+function tutorialGuidanceModel(state) {
+  const base = state?.tutorial || {};
+  if (presentationLocked || state?.phase === 'revealing') {
+    return {
+      title: '揭示阶段：观察结算顺序',
+      body: '现在不能继续操作。先看双方覆盖卡牌按结算先手依次揭示，提示栏会在新回合开始后切回下一步。',
+      spotlights: ['#phase-chip', '#log-list'],
+      scrim: false,
+      placement: 'reveal',
+    };
+  }
+  if (state?.selection) {
+    return {
+      title: '完成宣言',
+      body: state.selection.description || '选择本次宣言牌；揭示阶段会执行已经锁定的选择。',
+      spotlights: ['#selection-overlay.open .selection-panel'],
+      scrim: false,
+      placement: 'selection',
+    };
+  }
+  if (materialSelection) {
+    return {
+      title: '选择共鸣素材',
+      body: `点击虚线高亮的素材。已选满后，「${materialSelection.esperCard?.name || '异能者'}」会完成共鸣准备。`,
+      spotlights: ['.board-card.material-candidate'],
+      scrim: false,
+      placement: 'board',
+    };
+  }
+  if (state?.pending_target) {
+    return {
+      title: '选择目标',
+      body: state.pending_target.prompt || '选择一个表侧目标；背面和未揭示的牌不能成为目标。',
+      spotlights: ['.board-card.legal-target'],
+      scrim: false,
+      placement: 'board',
+    };
+  }
+  if (!isTutorialMode(state)) {
+    return base;
+  }
+  const next = tutorialNextExpectedAction(state);
+  if (!next) {
+    return {
+      title: '完成本回合部署',
+      body: '本回合教学操作已经完成。点击「完成部署」后进入揭示阶段，观察盖放卡牌如何结算。',
+      spotlights: ['#end-turn-btn'],
+      placement: 'right',
+    };
+  }
+  const turn = Number(state.turn || 1);
+  if (next.kind === 'play_card') {
+    const name = cardNameForDefinition(next.definitionId);
+    const handCardSelector = `#hand-list .hand-card[data-card-definition-id="${next.definitionId}"]`;
+    const bodies = {
+      tutorial_refresh_charge: '拖动唯一手牌「畅爽焕能」到战场。它会先盖放，双方完成部署后再揭示。',
+      tutorial_urban_energy: '部署「都市活力」，随后在宣言窗口选择「速食早餐袋」。',
+      tutorial_water_hesitation: '部署「水波的迟疑」，并把目标指向对手表侧的「西红柿」。',
+      tutorial_breakfast_bag: '继续部署「速食早餐袋」，在宣言窗口选择来自「伊波恩」的蛋糕。',
+      tutorial_fons: '薄荷已经可见，但素材还没稳定。先部署「方斯」。',
+      tutorial_eborn_cake: '继续部署来自「伊波恩」的蛋糕，等揭示后作为下一回合素材。',
+      tutorial_lost_wallet: '鉴定师共鸣已完成。部署「遗失的钱包」，给薄荷准备灵属性素材。',
+    };
+    return {
+      title: `第 ${turn} 回合：部署「${name}」`,
+      body: bodies[next.definitionId] || `请部署「${name}」。`,
+      spotlights: [handCardSelector],
+      placement: 'board',
+      dragCue: {
+        from: handCardSelector,
+        to: '.player-slots',
+      },
+    };
+  }
+  const esperName = cardNameForDefinition(next.definitionId);
+  const materialNames = (next.materialDefinitionIds || []).map(cardNameForDefinition).join('、');
+  const esperSelector = `#esper-standby-list .esper-card[data-card-definition-id="${next.definitionId}"], .player-slots .board-card[data-card-definition-id="${next.definitionId}"]`;
+  return {
+    title: `第 ${turn} 回合：${esperName}共鸣`,
+    body: `点击「${esperName}」，选择 ${materialNames} 作为素材。其他素材会被教学锁定。`,
+    spotlights: [esperSelector],
+    placement: 'esper',
+    clickCue: { target: esperSelector },
+  };
+}
+
+function clearTutorialSpotlights() {
+  document.querySelectorAll('.tutorial-spotlight').forEach((node) => {
+    node.classList.remove('tutorial-spotlight');
+  });
+  document.querySelectorAll('.tutorial-focus-frame, .tutorial-drag-cue, .tutorial-click-cue').forEach((node) => node.remove());
+}
+
+function addTutorialFocusFrame(node) {
+  const rect = node.getBoundingClientRect();
+  if (rect.width <= 0 || rect.height <= 0) {
+    return;
+  }
+  const frame = document.createElement('div');
+  frame.className = 'tutorial-focus-frame';
+  frame.style.left = `${Math.max(4, rect.left - 6)}px`;
+  frame.style.top = `${Math.max(4, rect.top - 6)}px`;
+  frame.style.width = `${Math.max(24, rect.width + 12)}px`;
+  frame.style.height = `${Math.max(24, rect.height + 12)}px`;
+  document.body.appendChild(frame);
+}
+
+function firstVisibleElement(selector) {
+  if (!selector) {
+    return null;
+  }
+  try {
+    return Array.from(document.querySelectorAll(selector)).find((node) => {
+      const rect = node.getBoundingClientRect();
+      const style = getComputedStyle(node);
+      return rect.width > 0 && rect.height > 0 && style.display !== 'none' && style.visibility !== 'hidden';
+    }) || null;
+  } catch (error) {
+    return null;
+  }
+}
+
+function renderTutorialDragCue(cue) {
+  if (!cue) {
+    return;
+  }
+  const fromNode = firstVisibleElement(cue.from);
+  const toNode = firstVisibleElement(cue.to);
+  if (!fromNode || !toNode) {
+    return;
+  }
+  const fromRect = fromNode.getBoundingClientRect();
+  const toRect = toNode.getBoundingClientRect();
+  const from = {
+    x: fromRect.left + fromRect.width / 2,
+    y: fromRect.top + fromRect.height / 2,
+  };
+  const to = {
+    x: toRect.left + toRect.width / 2,
+    y: toRect.top + toRect.height / 2,
+  };
+  const dx = to.x - from.x;
+  const dy = to.y - from.y;
+  const length = Math.hypot(dx, dy);
+  if (length < 16) {
+    return;
+  }
+  const angle = Math.atan2(dy, dx) * 180 / Math.PI;
+  const cueNode = document.createElement('div');
+  cueNode.className = 'tutorial-drag-cue';
+  cueNode.style.left = `${from.x}px`;
+  cueNode.style.top = `${from.y}px`;
+  cueNode.style.width = `${length}px`;
+  cueNode.style.transform = `rotate(${angle}deg)`;
+  cueNode.innerHTML = '<span class="tutorial-drag-cue-runner"></span>';
+  document.body.appendChild(cueNode);
+}
+
+function renderTutorialClickCue(cue) {
+  if (!cue) {
+    return;
+  }
+  const targetNode = firstVisibleElement(cue.target);
+  if (!targetNode) {
+    return;
+  }
+  const rect = targetNode.getBoundingClientRect();
+  const cueNode = document.createElement('div');
+  cueNode.className = 'tutorial-click-cue';
+  cueNode.style.left = `${rect.left + rect.width / 2}px`;
+  cueNode.style.top = `${rect.top + rect.height / 2}px`;
+  document.body.appendChild(cueNode);
 }
 
 function scheduleDeclarationPreviewPrefetch(state) {
   const key = declarationPreviewStateKey(state);
   if (!key) {
-    declarationPreviewCache = { key: '', previews: {} };
+    declarationPreviewCache = { key: '', previews: {}, targetPreviews: {} };
     declarationPreviewRequestKey = '';
     return;
   }
@@ -206,11 +676,12 @@ function scheduleDeclarationPreviewPrefetch(state) {
       declarationPreviewCache = {
         key,
         previews: payload?.previews && typeof payload.previews === 'object' ? payload.previews : {},
+        targetPreviews: payload?.target_previews && typeof payload.target_previews === 'object' ? payload.target_previews : {},
       };
     })
     .catch(() => {
       if (declarationPreviewRequestKey === key) {
-        declarationPreviewCache = { key: '', previews: {} };
+        declarationPreviewCache = { key: '', previews: {}, targetPreviews: {} };
       }
     })
     .finally(() => {
@@ -218,6 +689,29 @@ function scheduleDeclarationPreviewPrefetch(state) {
         declarationPreviewRequestKey = '';
       }
     });
+}
+
+async function ensureDeclarationPreviewCache(state) {
+  const key = declarationPreviewStateKey(state);
+  if (!key || declarationPreviewCache.key === key) {
+    return;
+  }
+  declarationPreviewRequestKey = key;
+  try {
+    const payload = await apiRequest('/api/game/declaration-previews');
+    if (declarationPreviewRequestKey !== key) {
+      return;
+    }
+    declarationPreviewCache = {
+      key,
+      previews: payload?.previews && typeof payload.previews === 'object' ? payload.previews : {},
+      targetPreviews: payload?.target_previews && typeof payload.target_previews === 'object' ? payload.target_previews : {},
+    };
+  } finally {
+    if (declarationPreviewRequestKey === key) {
+      declarationPreviewRequestKey = '';
+    }
+  }
 }
 
 function declarationPreviewStateKey(state) {
@@ -231,7 +725,11 @@ function declarationPreviewStateKey(state) {
   ) {
     return '';
   }
-  const handIds = (state.player?.hand || []).map((card) => String(card.instance_id || '')).join(',');
+  const hand = state.player?.hand || [];
+  if (!hand.some((card) => canPrefetchDeclarationForCard(card))) {
+    return '';
+  }
+  const handIds = hand.map((card) => String(card.instance_id || '')).join(',');
   const locations = (state.locations || [])
     .map((location) => [
       location.id,
@@ -239,6 +737,7 @@ function declarationPreviewStateKey(state) {
       location.capacity ?? '',
       location.occupied?.player ?? '',
       location.occupied?.opponent ?? '',
+      targetPreviewLocationKey(location),
     ].join(':'))
     .join('|');
   return [
@@ -251,9 +750,35 @@ function declarationPreviewStateKey(state) {
   ].join('::');
 }
 
+function canPrefetchDeclarationForCard(card) {
+  return Boolean(card?.target_rule || card?.requires_declaration);
+}
+
 function cachedDeclarationPreview(cardInstanceId, locationId) {
   const key = `${String(cardInstanceId || '')}:${String(locationId || '')}`;
   return declarationPreviewCache.previews?.[key] || null;
+}
+
+function cachedTargetPreview(cardInstanceId, locationId) {
+  const key = `${String(cardInstanceId || '')}:${String(locationId || '')}`;
+  return declarationPreviewCache.targetPreviews?.[key] || null;
+}
+
+function targetPreviewLocationKey(location) {
+  return ['player', 'opponent'].map((owner) => (
+    (location.slots?.[owner] || []).map((card) => [
+      owner,
+      card.instance_id || '',
+      card.definition_id || '',
+      card.revealed ? 1 : 0,
+      card.hidden ? 1 : 0,
+      card.type || '',
+      card.category || '',
+      card.attribute || '',
+      card.power ?? '',
+      card.base_power ?? '',
+    ].join('/')).join(',')
+  )).join(';');
 }
 
 function updateTurnUndoPreviewState(state) {
@@ -282,6 +807,183 @@ function clonePublicState(state) {
     return structuredClone(state);
   }
   return JSON.parse(JSON.stringify(state));
+}
+
+function clearLocalPlanningDrafts() {
+  pendingPlanningActions = [];
+  pendingDeclarationChoices = {};
+  planningActionSequence = 0;
+}
+
+function hasLocalPlanningActions() {
+  return pendingPlanningActions.length > 0;
+}
+
+function isTutorialMode(state = currentState) {
+  return Boolean(state?.tutorial?.enabled && state?.scenario === 'tutorial_basics');
+}
+
+function cardDefinitionId(card) {
+  return String(card?.definition_id || '');
+}
+
+function cardNameForDefinition(definitionId) {
+  return TUTORIAL_DEFINITION_NAMES[definitionId] || definitionId || '指定卡牌';
+}
+
+function findCardByDefinitionId(state, definitionId) {
+  const wanted = String(definitionId || '');
+  if (!state || !wanted) {
+    return null;
+  }
+  for (const card of state.player?.hand || []) {
+    if (cardDefinitionId(card) === wanted) {
+      return card;
+    }
+  }
+  for (const card of state.player?.esper_standby || []) {
+    if (cardDefinitionId(card) === wanted) {
+      return card;
+    }
+  }
+  for (const location of state.locations || []) {
+    for (const owner of ['player', 'opponent']) {
+      const found = (location.slots?.[owner] || []).find((card) => cardDefinitionId(card) === wanted);
+      if (found) {
+        return found;
+      }
+    }
+  }
+  return null;
+}
+
+function definitionIdForInstance(state, instanceId) {
+  const card = findCardByInstanceId(state, instanceId)
+    || (state?.player?.hand || []).find((candidate) => String(candidate.instance_id || '') === String(instanceId || ''))
+    || (state?.player?.esper_standby || []).find((candidate) => String(candidate.instance_id || '') === String(instanceId || ''))
+    || previewCardsByInstanceId.get(String(instanceId || ''));
+  return cardDefinitionId(card);
+}
+
+function tutorialExpectedActionsForTurn(state = currentState) {
+  return TUTORIAL_EXPECTED_ACTIONS[Number(state?.turn || 0)] || [];
+}
+
+function tutorialActionDefinitionId(action, state = currentState) {
+  return definitionIdForInstance(state, action?.card_instance_id);
+}
+
+function tutorialNextExpectedAction(state = currentState) {
+  if (!isTutorialMode(state)) {
+    return null;
+  }
+  const expected = tutorialExpectedActionsForTurn(state);
+  for (let index = 0; index < expected.length; index += 1) {
+    const action = pendingPlanningActions[index];
+    if (!action) {
+      return expected[index];
+    }
+    if (
+      String(action.kind || '') !== expected[index].kind
+      || tutorialActionDefinitionId(action, state) !== expected[index].definitionId
+    ) {
+      return expected[index];
+    }
+  }
+  return null;
+}
+
+function tutorialExpectedMaterialDefinitionIds(card, state = currentState) {
+  const expected = tutorialNextExpectedAction(state);
+  if (
+    !expected
+    || expected.kind !== 'play_esper'
+    || expected.definitionId !== cardDefinitionId(card)
+  ) {
+    return [];
+  }
+  return expected.materialDefinitionIds || [];
+}
+
+function tutorialAllowedMaterialIds(card, location, state = currentState) {
+  const requiredDefinitions = tutorialExpectedMaterialDefinitionIds(card, state);
+  if (!requiredDefinitions.length) {
+    return null;
+  }
+  const remaining = new Set(requiredDefinitions);
+  const allowed = [];
+  for (const candidate of materialCandidates(location, card)) {
+    const definitionId = cardDefinitionId(candidate);
+    if (!remaining.has(definitionId)) {
+      continue;
+    }
+    allowed.push(candidate.instance_id);
+    remaining.delete(definitionId);
+  }
+  return allowed;
+}
+
+function tutorialActionBlockedReason(kind, card, state = currentState) {
+  if (!isTutorialMode(state)) {
+    return '';
+  }
+  const expected = tutorialNextExpectedAction(state);
+  if (!expected) {
+    return '本步操作已经完成，请点击完成部署。';
+  }
+  if (expected.kind !== kind || expected.definitionId !== cardDefinitionId(card)) {
+    return `教学当前步骤请使用「${cardNameForDefinition(expected.definitionId)}」。`;
+  }
+  return '';
+}
+
+function tutorialExpectedSelectionDefinitionIds(selection, state = currentState) {
+  if (!isTutorialMode(state) || selection?.kind !== 'declaration') {
+    return null;
+  }
+  const sourceDefinitionId = definitionIdForInstance(state, selection.source_instance_id);
+  const expected = TUTORIAL_EXPECTED_DECLARATIONS[Number(state.turn || 0)] || {};
+  return expected[sourceDefinitionId] || null;
+}
+
+function tutorialPlanComplete(state = currentState) {
+  if (!isTutorialMode(state)) {
+    return true;
+  }
+  const expected = tutorialExpectedActionsForTurn(state);
+  if (pendingPlanningActions.length !== expected.length) {
+    return false;
+  }
+  for (let index = 0; index < expected.length; index += 1) {
+    const action = pendingPlanningActions[index];
+    const target = expected[index];
+    if (
+      String(action?.kind || '') !== target.kind
+      || tutorialActionDefinitionId(action, state) !== target.definitionId
+    ) {
+      return false;
+    }
+    if (target.targetDefinitionId) {
+      const targetDefinitionId = definitionIdForInstance(state, action.selected_target_instance_id);
+      if (targetDefinitionId !== target.targetDefinitionId) {
+        return false;
+      }
+    }
+  }
+  const expectedDeclarations = TUTORIAL_EXPECTED_DECLARATIONS[Number(state.turn || 0)] || {};
+  const expectedDeclarationKeys = Object.keys(expectedDeclarations);
+  if (expectedDeclarationKeys.length !== Object.keys(pendingDeclarationChoices).length) {
+    return false;
+  }
+  return expectedDeclarationKeys.every((sourceDefinitionId) => {
+    const source = findCardByDefinitionId(state, sourceDefinitionId);
+    const choice = source ? pendingDeclarationChoices[String(source.instance_id || '')] : null;
+    const selectedDefinitions = new Set((choice?.card_instance_ids || []).map((id) => definitionIdForInstance(state, id)).filter(Boolean));
+    const selectedNames = new Set((choice?.card_names || []).map((name) => String(name || '')));
+    return expectedDeclarations[sourceDefinitionId].every((definitionId) => (
+      selectedDefinitions.has(definitionId) || selectedNames.has(cardNameForDefinition(definitionId))
+    ));
+  });
 }
 
 function stateWithPendingDeclarationChoices(state) {
@@ -323,6 +1025,14 @@ function syncRoundInfo(state) {
     phaseChip.textContent = PHASE_LABELS[state.phase] || state.phase;
     phaseChip.className = `phase-chip phase-${classToken(state.phase)}`;
   }
+}
+
+function setPhaseChip(label, phaseClass = '') {
+  if (!phaseChip) {
+    return;
+  }
+  phaseChip.textContent = label;
+  phaseChip.className = `phase-chip ${phaseClass}`.trim();
 }
 
 function renderLeftInfo(state) {
@@ -381,6 +1091,7 @@ function renderLeftInfo(state) {
 
 function renderLocations(state, previousState = null) {
   locationsBoard.innerHTML = '';
+  renderMobileLocationRule(state.locations?.[0], state);
   state.locations.forEach((location) => {
     const previousLocation = previousState?.locations?.find((currentLocation) => currentLocation.id === location.id);
     const node = document.createElement('article');
@@ -396,7 +1107,7 @@ function renderLocations(state, previousState = null) {
     node.dataset.locationId = location.id;
     node.innerHTML = `
       <div class="location-slots opponent-slots">
-        ${location.slots.opponent.map((card) => boardCardHtml(card, 'opponent', previousLocation)).join('')}
+        ${visibleBoardCards(location.slots.opponent).map((card) => boardCardHtml(card, 'opponent', previousLocation)).join('')}
       </div>
       <div class="location-contest">
         <div class="location-rule-line">
@@ -420,11 +1131,35 @@ function renderLocations(state, previousState = null) {
         </div>
       </div>
       <div class="location-slots player-slots">
-        ${location.slots.player.map((card) => boardCardHtml(card, 'player', previousLocation)).join('')}
+        ${visibleBoardCards(location.slots.player).map((card) => boardCardHtml(card, 'player', previousLocation)).join('')}
       </div>
     `;
     locationsBoard.appendChild(node);
   });
+}
+
+function visibleBoardCards(cards = []) {
+  return cards.filter((card) => !card?.reserved_as_material_for);
+}
+
+function renderMobileLocationRule(location, state) {
+  if (!mobileLocationRuleLine) {
+    return;
+  }
+  if (!location) {
+    mobileLocationRuleLine.replaceChildren();
+    mobileLocationRuleLine.setAttribute('aria-hidden', 'true');
+    return;
+  }
+  const revealText = location.revealed ? '' : unrevealedRevealText(location, state.turn);
+  const revealBadge = revealText ? `<span>${escapeHtml(revealText)}</span>` : '';
+  const description = location.revealed ? location.description : `${revealText}，显现后揭示空间规则。`;
+  mobileLocationRuleLine.innerHTML = `
+    ${revealBadge}
+    <strong>${escapeHtml(location.name)}</strong>
+    <small>${escapeHtml(description)}</small>
+  `;
+  mobileLocationRuleLine.setAttribute('aria-hidden', 'false');
 }
 
 function unrevealedRevealText(location, currentTurn) {
@@ -460,12 +1195,15 @@ function locationMarkChips(marks, owner, ownerLabel) {
 
 function renderEsperStandby(state) {
   const espers = state.player.esper_standby || [];
-  esperStandbyCopy.textContent = espers.length
+  const tutorialLocked = isTutorialMode(state) && !(state.tutorial?.visible_esper_ids || []).length;
+  esperStandbyCopy.textContent = tutorialLocked
+    ? '异能者编队区域先保持在这里，后续回合会开始操作。'
+    : espers.length
     ? '拖动异能者到己方素材所在区域。'
     : `对手待命 ${state.opponent.esper_standby_count || 0} 名异能者`;
   esperStandbyList.innerHTML = '';
   if (!espers.length) {
-    esperStandbyList.innerHTML = '<div class="empty-state">没有待命异能者</div>';
+    esperStandbyList.innerHTML = `<div class="empty-state">${tutorialLocked ? '教学稍后解锁异能者操作' : '没有待命异能者'}</div>`;
     return;
   }
   espers.forEach((card) => {
@@ -475,6 +1213,7 @@ function renderEsperStandby(state) {
     const blockedReason = playable ? '' : canPlayEsperReason(card);
     node.className = `duel-card esper-card rarity-${classToken(card.rarity)}${playable ? ' playable' : ' disabled'}`;
     node.dataset.cardInstanceId = card.instance_id;
+    node.dataset.cardDefinitionId = cardDefinitionId(card);
     if (blockedReason) {
       node.dataset.disabledReason = blockedReason;
       node.title = blockedReason;
@@ -517,6 +1256,7 @@ function renderHandCards(hand, state) {
     const node = document.createElement('article');
     node.className = `duel-card hand-card rarity-${classToken(card.rarity)}`;
     node.dataset.cardInstanceId = card.instance_id;
+    node.dataset.cardDefinitionId = cardDefinitionId(card);
     applyHandCardState(node, card);
     node.innerHTML = cardHtml(card, { compact: false, showCurrentStats: false, mode: 'hand' });
     attachHandCardHandlers(node, card);
@@ -597,12 +1337,14 @@ function renderSelection(selection) {
 
   const rail = document.createElement('div');
   rail.className = 'selection-card-grid';
+  const tutorialExpectedSelectionIds = tutorialExpectedSelectionDefinitionIds(selection);
+  const hideSourceBadges = shouldHideSelectionSourceBadges(visibleCards);
   visibleCards.forEach((card) => {
     registerPreviewCard(card);
     const shell = document.createElement('div');
     shell.className = 'selection-card-shell';
     const sourceLabel = String(card.selection_source_label || '').trim();
-    if (sourceLabel) {
+    if (sourceLabel && !hideSourceBadges) {
       const sourceBadge = document.createElement('span');
       sourceBadge.className = `selection-source-badge source-${classToken(card.selection_source_zone || sourceLabel)}`;
       sourceBadge.textContent = sourceLabel;
@@ -611,16 +1353,27 @@ function renderSelection(selection) {
     const node = document.createElement('button');
     const selected = selectedChoiceIds.includes(card.instance_id);
     const drawChoice = selection.kind === 'draw';
+    const tutorialBlocked = Boolean(tutorialExpectedSelectionIds && !tutorialExpectedSelectionIds.includes(cardDefinitionId(card)));
     node.type = 'button';
-    node.className = `duel-card selection-card${drawChoice ? ' draw-choice-card' : ''} rarity-${classToken(card.rarity)}${selected ? ' selected' : ''}`;
+    node.className = `duel-card selection-card${drawChoice ? ' draw-choice-card' : ''} rarity-${classToken(card.rarity)}${selected ? ' selected' : ''}${tutorialBlocked ? ' disabled' : ''}`;
     node.dataset.cardInstanceId = card.instance_id;
+    node.disabled = tutorialBlocked;
+    if (tutorialBlocked) {
+      node.title = '教学步骤暂不选择这张牌';
+    }
     node.setAttribute('aria-pressed', selected ? 'true' : 'false');
     node.innerHTML = cardHtml(card, {
       compact: false,
       showCurrentStats: false,
       mode: selection.kind === 'declaration' ? 'hand' : 'default',
     });
-    node.addEventListener('click', () => toggleSelectionCard(card.instance_id, selection));
+    node.addEventListener('click', () => {
+      if (tutorialBlocked) {
+        showToast('请按照教学提示选择指定卡牌');
+        return;
+      }
+      toggleSelectionCard(card.instance_id, selection);
+    });
     bindSelectionCardPreview(node, card);
     shell.appendChild(node);
     rail.appendChild(shell);
@@ -640,6 +1393,27 @@ function renderSelection(selection) {
     selectionCollapsed = true;
     renderSelection(selection);
   });
+  if (currentState?.tutorial?.enabled && currentState.selection) {
+    requestAnimationFrame(() => renderTutorialGuidance(currentState));
+  }
+}
+
+function shouldHideSelectionSourceBadges(cards) {
+  const visibleSources = (cards || [])
+    .map((card) => ({
+      label: String(card.selection_source_label || '').trim(),
+      zone: String(card.selection_source_zone || '').trim(),
+    }))
+    .filter((source) => source.label || source.zone);
+  if (!visibleSources.length) {
+    return true;
+  }
+  return visibleSources.every((source) => isLibrarySelectionSource(source.label) || isLibrarySelectionSource(source.zone));
+}
+
+function isLibrarySelectionSource(value) {
+  const source = String(value || '').trim().toLowerCase();
+  return ['deck', 'library', 'draw', 'discard', 'graveyard', 'trash', '牌库', '墓地'].includes(source);
 }
 
 function closeSelectionOverlay() {
@@ -689,8 +1463,8 @@ function renderLog(state) {
 }
 
 function renderRightInfo(state) {
-  const playerEnded = state.player.ended_turn ? '已结束' : '部署中';
-  const opponentEnded = state.opponent.ended_turn ? '已结束' : '部署中';
+  const playerEnded = state.player.ended_turn ? '已完成部署' : '部署中';
+  const opponentEnded = state.opponent.ended_turn ? '已完成部署' : '部署中';
   const opponentInitiative = state.initiative?.first === 'opponent' ? '本回合先揭示' : '本回合后揭示';
   rightResourceGrid.innerHTML = `
     <article class="right-resource-card highlight">
@@ -897,14 +1671,15 @@ function syncControls(state) {
   const playing = state.status === 'playing';
   const hasPendingTarget = Boolean(state.pending_target);
   const isFinalRound = playing && Number(state.turn || 0) >= Number(state.max_turns || 0);
-  endTurnBtn.disabled = actionLocked || presentationLocked || Boolean(materialSelection) || !playing || state.phase !== 'planning' || Boolean(state.selection) || hasPendingTarget;
-  endTurnBtn.textContent = hasPendingTarget ? '选择目标' : state.phase === 'waiting' ? '等待对手' : '结束回合';
+  const tutorialWaitingForAction = isTutorialMode(state) && !tutorialPlanComplete(state);
+  endTurnBtn.disabled = actionLocked || presentationLocked || Boolean(materialSelection) || !playing || state.phase !== 'planning' || Boolean(state.selection) || hasPendingTarget || tutorialWaitingForAction;
+  endTurnBtn.textContent = hasPendingTarget ? '选择目标' : state.phase === 'waiting' ? '等待对手' : '完成部署';
   endTurnBtn.classList.remove('initiative-first', 'initiative-second');
-  endTurnBtn.title = '结束当前部署';
+  endTurnBtn.title = tutorialWaitingForAction ? '请先完成当前教学步骤' : '完成当前部署';
   if (finalRoundLabel) {
     finalRoundLabel.hidden = !isFinalRound;
   }
-  undoTurnBtn.disabled = actionLocked || presentationLocked || Boolean(materialSelection) || !playing || state.phase !== 'planning' || Boolean(state.selection) || !state.can_undo_turn;
+  undoTurnBtn.disabled = isTutorialMode(state) || actionLocked || presentationLocked || Boolean(materialSelection) || !playing || state.phase !== 'planning' || Boolean(state.selection) || !hasLocalPlanningActions();
 }
 
 function canPlayCard(card) {
@@ -947,6 +1722,10 @@ function canPlayCardReason(card, targetLocation = null) {
   if (!openLocations.some((location) => canPlayCardToLocation(location, card))) {
     return '当前不能部署';
   }
+  const tutorialReason = tutorialActionBlockedReason('play_card', card);
+  if (tutorialReason) {
+    return tutorialReason;
+  }
   return '';
 }
 
@@ -967,6 +1746,9 @@ function canPlayCardToLocation(location, card) {
   ) {
     return false;
   }
+  if (tutorialActionBlockedReason('play_card', card)) {
+    return false;
+  }
   if (requiresTargetBeforePlay(card) && !cardTargetCandidates(location, card).length) {
     return false;
   }
@@ -978,11 +1760,25 @@ function requiresTargetBeforePlay(card) {
 }
 
 function cardTargetCandidates(location, card) {
+  return cardTargetCandidatesInState(currentState, location, card);
+}
+
+function cardTargetCandidatesInState(state, location, card) {
   const scope = String(card?.target_rule?.scope || (requiresTargetBeforePlay(card) ? 'ally_item_same_location' : ''));
   if (!scope || !location) {
     return [];
   }
-  const locations = scope.endsWith('_same_location') ? [location] : (currentState?.locations || []);
+  const preview = cachedTargetPreview(card?.instance_id, location?.id);
+  if (card?.target_rule && preview && Array.isArray(preview.target_instance_ids)) {
+    const owner = scope.startsWith('opponent') ? 'opponent' : 'player';
+    return preview.target_instance_ids
+      .map((instanceId) => findBoardCardWithLocation(state, instanceId, owner)?.card)
+      .filter(Boolean);
+  }
+  if (card?.target_rule && declarationPreviewCache.key === declarationPreviewStateKey(currentState)) {
+    return [];
+  }
+  const locations = scope.endsWith('_same_location') ? [location] : (state?.locations || []);
   const sideKey = scope.startsWith('opponent') ? 'opponent' : 'player';
   const itemOnly = scope.includes('_item_');
   return locations.flatMap((candidateLocation) => candidateLocation?.slots?.[sideKey] || [])
@@ -1051,7 +1847,7 @@ function canPlayEsperReason(card) {
     return '对局已经结束';
   }
   if (currentState.phase !== 'planning') {
-    return '当前阶段不能唤醒异能者';
+    return '当前阶段不能让异能者共鸣';
   }
   if (currentState.selection) {
     return '请先完成当前选牌';
@@ -1061,6 +1857,10 @@ function canPlayEsperReason(card) {
   }
   if (materialSelection) {
     return '请先完成素材选择';
+  }
+  const tutorialReason = tutorialActionBlockedReason('play_esper', card);
+  if (tutorialReason) {
+    return tutorialReason;
   }
   const revealedLocations = (currentState.locations || []).filter((location) => location.revealed);
   if (!revealedLocations.length) {
@@ -1076,7 +1876,7 @@ function canPlayEsperReason(card) {
   if (!materialReadyLocations.some((location) => hasRoomForEsperAfterMaterials(location, card))) {
     return '符合素材的区域已满';
   }
-  return '当前不能唤醒';
+  return '当前不能共鸣';
 }
 
 function canPlayToLocation(location) {
@@ -1102,6 +1902,9 @@ function canPlayEsperToLocation(location, card = null) {
     return false;
   }
   if (!canSatisfyMaterialRequirements(materials, card)) {
+    return false;
+  }
+  if (tutorialActionBlockedReason('play_esper', card)) {
     return false;
   }
   return hasRoomForEsperAfterMaterials(location, card, requirement);
@@ -1256,7 +2059,7 @@ function esperMaterialCost(card) {
     return requirements.reduce((total, requirement) => total + Number(requirement.count || 1), 0);
   }
   const cost = Number(card?.material_cost || 2);
-  return Math.max(2, Math.min(3, Number.isFinite(cost) ? cost : 2));
+  return Math.max(1, Math.min(3, Number.isFinite(cost) ? cost : 2));
 }
 
 function materialRequirementText(card) {
@@ -1293,6 +2096,11 @@ function materialRequirementFragment(requirement) {
 }
 
 function startMaterialSelection(card, locationId, options = {}) {
+  const tutorialReason = tutorialActionBlockedReason('play_esper', card);
+  if (tutorialReason) {
+    showToast(tutorialReason);
+    return false;
+  }
   const location = (currentState?.locations || []).find((candidate) => candidate.id === locationId);
   if (!location) {
     showToast('没有找到目标区域');
@@ -1302,6 +2110,11 @@ function startMaterialSelection(card, locationId, options = {}) {
   const candidates = materialCandidates(location, card);
   if (candidates.length < required) {
     showToast(`${card.name} 需要 ${materialRequirementText(card)}`);
+    return false;
+  }
+  const tutorialAllowedIds = isTutorialMode(currentState) ? tutorialAllowedMaterialIds(card, location, currentState) : null;
+  if (tutorialAllowedIds && tutorialAllowedIds.length < required) {
+    showToast('请按照教学提示选择指定素材');
     return false;
   }
   hideCardPreview({ force: true });
@@ -1317,6 +2130,7 @@ function startMaterialSelection(card, locationId, options = {}) {
   document.body.classList.add('selecting-materials');
   syncControls(currentState);
   syncMaterialSelection();
+  renderTutorialGuidance(currentState);
   return true;
 }
 
@@ -1360,7 +2174,12 @@ function syncMaterialSelection() {
     return;
   }
   const location = (currentState?.locations || []).find((candidate) => candidate.id === materialSelection.locationId);
-  const candidateIds = new Set((location ? materialCandidates(location, materialSelection.esperCard) : []).map((card) => card.instance_id));
+  const tutorialAllowedIds = location && isTutorialMode(currentState)
+    ? tutorialAllowedMaterialIds(materialSelection.esperCard, location, currentState)
+    : null;
+  const candidateIds = new Set((location ? materialCandidates(location, materialSelection.esperCard) : [])
+    .filter((card) => !tutorialAllowedIds || tutorialAllowedIds.includes(card.instance_id))
+    .map((card) => card.instance_id));
   const selectedIds = new Set(materialSelection.selectedIds);
   document.querySelectorAll('.board-card.player').forEach((node) => {
     const card = cardFromPreviewNode(node);
@@ -1404,6 +2223,7 @@ async function handleMaterialClick(event) {
   if (index >= 0) {
     materialSelection.selectedIds.splice(index, 1);
     syncMaterialSelection();
+    renderTutorialGuidance(currentState);
     return;
   }
   if (materialSelection.selectedIds.length >= materialSelection.required) {
@@ -1412,6 +2232,7 @@ async function handleMaterialClick(event) {
   }
   materialSelection.selectedIds.push(instanceId);
   syncMaterialSelection();
+  renderTutorialGuidance(currentState);
   if (materialSelection.selectedIds.length >= materialSelection.required) {
     const { esperCard, locationId, selectedIds } = materialSelection;
     materialSelection = null;
@@ -1685,6 +2506,7 @@ function isOverEsperStandby(x, y) {
 function canMoveStagedCard(card, sourceNode) {
   return Boolean(
     currentState
+    && !isTutorialMode(currentState)
     && !actionLocked
     && !materialSelection
     && !presentationLocked
@@ -1721,28 +2543,170 @@ async function quickPlayEsper(card) {
   startMaterialSelection(card, location.id);
 }
 
+function nextPlanningActionSequence() {
+  planningActionSequence += 1;
+  return planningActionSequence;
+}
+
+function planningActionForCard(cardInstanceId) {
+  const wanted = String(cardInstanceId || '');
+  return pendingPlanningActions.find((action) => String(action.card_instance_id || '') === wanted) || null;
+}
+
+function removePlanningAction(cardInstanceId) {
+  const wanted = String(cardInstanceId || '');
+  pendingPlanningActions = pendingPlanningActions.filter((action) => String(action.card_instance_id || '') !== wanted);
+}
+
+function syncLocalOccupied(state) {
+  (state.locations || []).forEach((location) => {
+    location.occupied = location.occupied || {};
+    ['player', 'opponent'].forEach((owner) => {
+      location.occupied[owner] = (location.slots?.[owner] || []).filter((card) => !card.reserved_as_material_for).length;
+    });
+  });
+}
+
+function findHandCardIndex(state, cardInstanceId) {
+  const wanted = String(cardInstanceId || '');
+  return (state.player?.hand || []).findIndex((card) => String(card.instance_id || '') === wanted);
+}
+
+function findEsperStandbyIndex(state, cardInstanceId) {
+  const wanted = String(cardInstanceId || '');
+  return (state.player?.esper_standby || []).findIndex((card) => String(card.instance_id || '') === wanted);
+}
+
+function findBoardCardWithLocation(state, cardInstanceId, owner = 'player') {
+  const wanted = String(cardInstanceId || '');
+  for (const location of state.locations || []) {
+    const cards = location.slots?.[owner] || [];
+    const index = cards.findIndex((card) => String(card.instance_id || '') === wanted);
+    if (index >= 0) {
+      return { location, cards, index, card: cards[index] };
+    }
+  }
+  return null;
+}
+
+function localEnergyCost(card) {
+  const cost = Number(card?.cost || 0);
+  return Number.isFinite(cost) ? cost : 0;
+}
+
+function applyLocalEnergyDelta(state, amount) {
+  const delta = Number(amount || 0);
+  state.energy_remaining = Number(state.energy_remaining || 0) - delta;
+  state.player.energy_used = Number(state.player.energy_used || 0) + delta;
+}
+
+function localPendingTargetForCard(state, location, card) {
+  if (!card?.target_rule) {
+    return null;
+  }
+  const preview = cachedTargetPreview(card.instance_id, location.id);
+  if (!preview || !Array.isArray(preview.target_instance_ids) || !preview.target_instance_ids.length) {
+    return null;
+  }
+  return {
+    source_instance_id: card.instance_id,
+    location_id: location.id,
+    scope: preview.scope || card.target_rule.scope || '',
+    prompt: preview.prompt || card.target_rule.prompt || '请选择一个目标。',
+    target_instance_ids: [...preview.target_instance_ids],
+  };
+}
+
+async function declarationSelectionForLocalCard(card, locationId, selectedTargetInstanceId = '') {
+  const cached = selectedTargetInstanceId ? null : cachedDeclarationPreview(card.instance_id, locationId);
+  if (cached) {
+    return cached;
+  }
+  if (!card?.requires_declaration) {
+    return null;
+  }
+  const payload = await apiRequest('/api/game/declaration-preview', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      card_instance_id: card.instance_id,
+      location_id: locationId,
+      selected_target_instance_id: selectedTargetInstanceId,
+    }),
+  });
+  return payload?.selection || null;
+}
+
+function releaseLocalMaterialReservations(state, esperInstanceId) {
+  const wanted = String(esperInstanceId || '');
+  (state.locations || []).forEach((location) => {
+    (location.slots?.player || []).forEach((card) => {
+      if (String(card.reserved_as_material_for || '') === wanted) {
+        delete card.reserved_as_material_for;
+      }
+    });
+  });
+}
+
 async function submitPlayCard(cardInstanceId, locationId) {
   if (actionLocked) {
     return;
   }
-  actionLocked = true;
-  syncControls(currentState);
-  beginPendingPlayIntent(cardInstanceId, locationId);
   try {
-    const state = await apiRequest('/api/game/play-card', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ card_instance_id: cardInstanceId, location_id: locationId }),
+    const currentCard = (currentState?.player?.hand || []).find((candidate) => String(candidate.instance_id || '') === String(cardInstanceId || ''));
+    if (currentCard?.target_rule || currentCard?.requires_declaration) {
+      await ensureDeclarationPreviewCache(currentState);
+    }
+    const nextState = clonePublicState(currentState);
+    const handIndex = findHandCardIndex(nextState, cardInstanceId);
+    if (handIndex < 0) {
+      showToast('手牌中没有这张牌');
+      return;
+    }
+    const location = (nextState.locations || []).find((candidate) => candidate.id === locationId);
+    if (!location || !canPlayCardToLocation(location, nextState.player.hand[handIndex])) {
+      showToast(canPlayCardReason(nextState.player.hand[handIndex], location));
+      return;
+    }
+    const [card] = nextState.player.hand.splice(handIndex, 1);
+    const paidCost = localEnergyCost(card);
+    Object.assign(card, {
+      hidden: false,
+      revealed: false,
+      staged: true,
+      location_id: location.id,
+      played_turn: nextState.turn,
+      paid_cost: paidCost,
+      play_sequence: planningActionSequence + 1,
     });
-    actionLocked = false;
-    renderState(state);
+    delete card.selected_target_instance_id;
+    delete card.selected_target_name;
+    delete card.declared_card_instance_ids;
+    delete card.declared_card_names;
+    location.slots.player.push(card);
+    nextState.player.hand_count = nextState.player.hand.length;
+    applyLocalEnergyDelta(nextState, paidCost);
+    const action = {
+      kind: 'play_card',
+      card_instance_id: card.instance_id,
+      location_id: location.id,
+      sequence: nextPlanningActionSequence(),
+    };
+    pendingPlanningActions.push(action);
+    syncLocalOccupied(nextState);
+    const pendingTarget = localPendingTargetForCard(nextState, location, card);
+    if (pendingTarget) {
+      nextState.pending_target = pendingTarget;
+    } else {
+      const selection = await declarationSelectionForLocalCard(card, location.id);
+      if (selection) {
+        nextState.selection = selection;
+      }
+    }
+    renderState(nextState, { optimistic: true, skipDeclarationPreviewPrefetch: true });
   } catch (error) {
     closeSelectionOverlay();
     window.alert(error.message);
-  } finally {
-    clearPendingPlayIntent();
-    actionLocked = false;
-    syncControls(currentState);
   }
 }
 
@@ -1798,25 +2762,76 @@ async function submitPlayEsper(cardInstanceId, locationId, materialInstanceIds =
   if (actionLocked) {
     return;
   }
-  actionLocked = true;
-  syncControls(currentState);
   try {
-    const state = await apiRequest('/api/game/play-esper', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        card_instance_id: cardInstanceId,
-        location_id: locationId,
-        material_instance_ids: materialInstanceIds,
-      }),
+    const nextState = clonePublicState(currentState);
+    const location = (nextState.locations || []).find((candidate) => candidate.id === locationId);
+    if (!location) {
+      showToast('没有找到目标区域');
+      return;
+    }
+    const materialIds = materialInstanceIds.map((id) => String(id || '')).filter(Boolean);
+    let card = null;
+    let isReactivation = false;
+    const standbyIndex = findEsperStandbyIndex(nextState, cardInstanceId);
+    if (standbyIndex >= 0) {
+      [card] = nextState.player.esper_standby.splice(standbyIndex, 1);
+      Object.assign(card, {
+        hidden: false,
+        revealed: false,
+        staged: true,
+        location_id: location.id,
+        played_turn: nextState.turn,
+        play_sequence: planningActionSequence + 1,
+        summoned_from: 'esper_standby',
+      });
+      location.slots.player.push(card);
+      nextState.player.esper_standby_count = nextState.player.esper_standby.length;
+    } else {
+      const found = findBoardCardWithLocation(nextState, cardInstanceId);
+      if (!found || !canReactivateEsper(found.card)) {
+        showToast('这名异能者当前不能共鸣');
+        return;
+      }
+      card = found.card;
+      isReactivation = true;
+      card.reactivating_turn = nextState.turn;
+    }
+    card.pending_material_ids = materialIds;
+    card.paid_cost = 0;
+    delete card.selected_target_instance_id;
+    delete card.selected_target_name;
+    delete card.declared_card_instance_ids;
+    delete card.declared_card_names;
+    materialIds.forEach((materialId) => {
+      const material = findBoardCardWithLocation(nextState, materialId)?.card;
+      if (material) {
+        material.reserved_as_material_for = card.instance_id;
+      }
     });
-    actionLocked = false;
-    renderState(state);
+    const action = {
+      kind: 'play_esper',
+      card_instance_id: card.instance_id,
+      location_id: location.id,
+      material_instance_ids: materialIds,
+      sequence: nextPlanningActionSequence(),
+    };
+    pendingPlanningActions.push(action);
+    syncLocalOccupied(nextState);
+    const pendingTarget = localPendingTargetForCard(nextState, location, card);
+    if (pendingTarget) {
+      nextState.pending_target = pendingTarget;
+    } else {
+      const selection = await declarationSelectionForLocalCard(card, location.id);
+      if (selection) {
+        nextState.selection = selection;
+      }
+    }
+    renderState(nextState, { optimistic: true, skipDeclarationPreviewPrefetch: true });
+    if (isReactivation) {
+      showToast(`${card.name} 已准备共鸣`);
+    }
   } catch (error) {
     window.alert(error.message);
-  } finally {
-    actionLocked = false;
-    syncControls(currentState);
   }
 }
 
@@ -1824,22 +2839,57 @@ async function submitReturnCard(cardInstanceId) {
   if (actionLocked) {
     return;
   }
-  actionLocked = true;
-  syncControls(currentState);
+  if (isTutorialMode(currentState)) {
+    showToast('教学模式会锁定非预设操作');
+    return;
+  }
   try {
-    const state = await apiRequest('/api/game/return-card', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ card_instance_id: cardInstanceId }),
-    });
-    delete pendingDeclarationChoices[String(cardInstanceId || '')];
-    actionLocked = false;
-    renderState(state);
+    const nextState = clonePublicState(currentState);
+    const found = findBoardCardWithLocation(nextState, cardInstanceId);
+    if (!found) {
+      showToast('战场上没有这张牌');
+      return;
+    }
+    const { location, cards, index, card } = found;
+    if (card.reserved_as_material_for) {
+      showToast('这张牌已被预定为素材，请先收回对应异能者');
+      return;
+    }
+    releaseLocalMaterialReservations(nextState, card.instance_id);
+    delete pendingDeclarationChoices[String(card.instance_id || '')];
+    removePlanningAction(card.instance_id);
+    if (card.reactivating_turn && Number(card.reactivating_turn) === Number(nextState.turn || 0)) {
+      delete card.pending_material_ids;
+      delete card.reactivating_turn;
+      syncLocalOccupied(nextState);
+      renderState(nextState, { optimistic: true, skipDeclarationPreviewPrefetch: true });
+      return;
+    }
+    cards.splice(index, 1);
+    if (card.type === 'esper' || card.summoned_from === 'esper_standby') {
+      delete card.summoned_from;
+      nextState.player.esper_standby = nextState.player.esper_standby || [];
+      nextState.player.esper_standby.push(card);
+      nextState.player.esper_standby_count = nextState.player.esper_standby.length;
+    } else {
+      applyLocalEnergyDelta(nextState, -localEnergyCost(card));
+      nextState.player.hand.push(card);
+      nextState.player.hand_count = nextState.player.hand.length;
+    }
+    delete card.location_id;
+    delete card.staged;
+    delete card.paid_cost;
+    delete card.play_sequence;
+    delete card.pending_material_ids;
+    delete card.selected_target_instance_id;
+    delete card.selected_target_name;
+    delete card.declared_card_instance_ids;
+    delete card.declared_card_names;
+    nextState.pending_target = null;
+    syncLocalOccupied(nextState);
+    renderState(nextState, { optimistic: true, skipDeclarationPreviewPrefetch: true });
   } catch (error) {
     window.alert(error.message);
-  } finally {
-    actionLocked = false;
-    syncControls(currentState);
   }
 }
 
@@ -1847,21 +2897,45 @@ async function submitMoveCard(cardInstanceId, locationId) {
   if (actionLocked) {
     return;
   }
-  actionLocked = true;
-  syncControls(currentState);
+  if (isTutorialMode(currentState)) {
+    showToast('教学模式会锁定非预设操作');
+    return;
+  }
   try {
-    const state = await apiRequest('/api/game/move-card', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ card_instance_id: cardInstanceId, location_id: locationId }),
-    });
-    actionLocked = false;
-    renderState(state);
+    const nextState = clonePublicState(currentState);
+    const found = findBoardCardWithLocation(nextState, cardInstanceId);
+    const targetLocation = (nextState.locations || []).find((candidate) => candidate.id === locationId);
+    if (!found || !targetLocation) {
+      showToast('没有找到可移动的卡牌或目标区域');
+      return;
+    }
+    const { location: sourceLocation, cards, index, card } = found;
+    if (sourceLocation.id === targetLocation.id) {
+      return;
+    }
+    if (card.type === 'esper') {
+      showToast('异能者请先收回后重新共鸣');
+      return;
+    }
+    if (!targetLocation.revealed || locationOccupiedCount(targetLocation, 'player') >= locationCapacity(targetLocation)) {
+      showToast('目标空间已满或不可部署');
+      return;
+    }
+    cards.splice(index, 1);
+    targetLocation.slots.player.push(card);
+    card.location_id = targetLocation.id;
+    const action = planningActionForCard(card.instance_id);
+    if (action) {
+      action.location_id = targetLocation.id;
+    }
+    delete pendingDeclarationChoices[String(card.instance_id || '')];
+    delete card.declared_card_instance_ids;
+    delete card.declared_card_names;
+    nextState.pending_target = null;
+    syncLocalOccupied(nextState);
+    renderState(nextState, { optimistic: true, skipDeclarationPreviewPrefetch: true });
   } catch (error) {
     window.alert(error.message);
-  } finally {
-    actionLocked = false;
-    syncControls(currentState);
   }
 }
 
@@ -1869,22 +2943,34 @@ async function endTurn() {
   if (actionLocked || !currentState) {
     return;
   }
+  if (isTutorialMode(currentState) && !tutorialPlanComplete(currentState)) {
+    showToast('请先完成当前教学步骤');
+    return;
+  }
   actionLocked = true;
   syncControls(currentState);
   const declarationChoices = Object.values(pendingDeclarationChoices);
+  const planningActions = pendingPlanningActions.map((action) => ({ ...action }));
   try {
     const state = await apiRequest('/api/game/end-turn', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ declaration_choices: declarationChoices }),
+      body: JSON.stringify({
+        planning_actions: planningActions,
+        declaration_choices: declarationChoices,
+      }),
     });
-    pendingDeclarationChoices = {};
+    clearLocalPlanningDrafts();
     actionLocked = false;
     renderState(state);
-    if (state.status !== 'playing') {
-      showToast(resultText(state));
-    }
   } catch (error) {
+    clearLocalPlanningDrafts();
+    closeSelectionOverlay();
+    cancelMaterialSelection({ silent: true });
+    clearPendingPlayIntent();
+    if (lastAuthoritativeState) {
+      renderState(clonePublicState(lastAuthoritativeState));
+    }
     window.alert(error.message);
   } finally {
     actionLocked = false;
@@ -1902,35 +2988,15 @@ async function resetRun() {
 }
 
 async function undoTurn() {
-  if (actionLocked || !currentState || !currentState.can_undo_turn) {
+  if (actionLocked || !currentState || !hasLocalPlanningActions()) {
     return;
   }
   const restoreState = clonePublicState(lastAuthoritativeState || currentState);
-  const optimisticState = clonePublicState(turnUndoPreviewState);
-  const restoreDeclarationChoices = { ...pendingDeclarationChoices };
   cancelMaterialSelection({ silent: true });
-  actionLocked = true;
-  pendingDeclarationChoices = {};
-  if (optimisticState) {
-    renderState(optimisticState, { optimistic: true, skipDeclarationPreviewPrefetch: true });
-  } else {
-    syncControls(currentState);
-  }
-  try {
-    const state = await apiRequest('/api/game/undo-turn', { method: 'POST' });
-    actionLocked = false;
-    renderState(state);
+  clearLocalPlanningDrafts();
+  if (restoreState) {
+    renderState(restoreState, { optimistic: true, skipDeclarationPreviewPrefetch: true });
     showToast('已撤销本回合操作');
-  } catch (error) {
-    actionLocked = false;
-    pendingDeclarationChoices = restoreDeclarationChoices;
-    if (restoreState) {
-      renderState(restoreState, { skipDeclarationPreviewPrefetch: true });
-    }
-    window.alert(error.message);
-  } finally {
-    actionLocked = false;
-    syncControls(currentState);
   }
 }
 
@@ -1952,6 +3018,61 @@ function resultText(state) {
     return '失败';
   }
   return '平局';
+}
+
+function maybeShowResultModal(state) {
+  if (!state || state.status === 'playing' || resultModalShown) {
+    return;
+  }
+  resultModalShown = true;
+  showResultModal(state);
+}
+
+function showResultModal(state) {
+  if (!resultModal) {
+    return;
+  }
+  hideTitleBanner();
+  const score = state.score || {};
+  const totalPower = `${Number(score.total_power_player || 0)} - ${Number(score.total_power_opponent || 0)}`;
+  const winnerText = state.status === 'draw'
+    ? '持平'
+    : state.winner === 'player'
+      ? '我方'
+      : state.winner === 'opponent'
+        ? '对手'
+        : resultText(state);
+  const summary = [
+    ['总战力', totalPower],
+    ['领先方', winnerText],
+    ['回合', `${Number(state.turn || 0)} / ${Number(state.max_turns || 0)}`],
+    ['模式', state.scenario_label || '异象对决'],
+  ];
+
+  resultModal.className = `result-modal open status-${classToken(state.status)}`;
+  resultModal.setAttribute('aria-hidden', 'false');
+  if (resultModalEyebrow) {
+    resultModalEyebrow.textContent = '对局结束';
+  }
+  if (resultModalTitle) {
+    resultModalTitle.textContent = resultText(state);
+  }
+  if (resultModalSubtitle) {
+    resultModalSubtitle.textContent = state.route_hint || '战场结算完成。';
+  }
+  if (resultSummaryGrid) {
+    resultSummaryGrid.innerHTML = summary.map(([label, value]) => `
+      <article class="result-summary-card">
+        <span>${escapeHtml(label)}</span>
+        <strong>${escapeHtml(value)}</strong>
+      </article>
+    `).join('');
+  }
+  resultConfirmBtn?.focus?.();
+}
+
+function confirmResultExit() {
+  window.location.href = '/home';
 }
 
 function boardCardHtml(card, owner, previousLocation = null) {
@@ -1988,7 +3109,7 @@ function boardCardHtml(card, owner, previousLocation = null) {
     ? `<span class="board-card-declaration"><b>宣言</b><strong>${declaredNames.map((name) => escapeHtml(name)).join('、')}</strong></span>`
     : '';
   return `
-    <button class="board-card ${owner}${hidden}${staged}${reserved}${powerState}${animated}" type="button" data-card-instance-id="${escapeAttr(card.instance_id)}" aria-label="查看 ${escapeAttr(label)}">
+    <button class="board-card ${owner}${hidden}${staged}${reserved}${powerState}${animated}" type="button" data-card-instance-id="${escapeAttr(card.instance_id)}" data-card-definition-id="${escapeAttr(cardDefinitionId(card))}" aria-label="查看 ${escapeAttr(label)}">
       <span class="board-card-art" style="background-image: url('${escapeAttr(card.art)}')" aria-hidden="true"></span>
       <span class="board-card-stats" aria-hidden="true">
         ${showCost ? statBadgeHtml(card.type === 'esper' ? 'material' : 'cost', cost, card.type === 'esper' ? card.attribute : '', 'cost', card.type === 'esper' ? materialRequirementText(card) : '') : '<span class="duel-stat-badge hidden-stat"></span>'}
@@ -2049,6 +3170,9 @@ function itemMetaMarkup(card, options = {}) {
   if (card.category) {
     chips.push(`<span class="card-meta-chip">${escapeHtml(card.category)}</span>`);
   }
+  (card.display_tags || []).forEach((label) => {
+    chips.push(`<span class="card-meta-chip special-chip">${escapeHtml(label)}</span>`);
+  });
   return chips.join('');
 }
 
@@ -2393,8 +3517,12 @@ function legalTargetIds(state) {
   if (!pending) {
     return [];
   }
+  const expected = tutorialNextExpectedAction(state);
+  const expectedTargetDefinitionId = expected?.targetDefinitionId || '';
   if (Array.isArray(pending.target_instance_ids)) {
-    return pending.target_instance_ids;
+    return expectedTargetDefinitionId
+      ? pending.target_instance_ids.filter((instanceId) => definitionIdForInstance(state, instanceId) === expectedTargetDefinitionId)
+      : pending.target_instance_ids;
   }
   const sourceLocation = (state.locations || []).find((location) => location.id === pending.location_id);
   const locations = pending.scope?.endsWith('_same_location') && sourceLocation ? [sourceLocation] : state.locations || [];
@@ -2405,7 +3533,9 @@ function legalTargetIds(state) {
     (location.slots?.[sideKey] || []).forEach((card) => {
       const itemOnly = String(pending.scope || '').includes('_item_');
       if (targetCandidateMatchesScope(card, sourceCard, pending.scope || '', itemOnly)) {
-        ids.push(card.instance_id);
+        if (!expectedTargetDefinitionId || cardDefinitionId(card) === expectedTargetDefinitionId) {
+          ids.push(card.instance_id);
+        }
       }
     });
   });
@@ -2444,21 +3574,29 @@ async function submitChooseTarget(targetInstanceId) {
     return;
   }
   const sourceInstanceId = currentState?.pending_target?.source_instance_id;
-  actionLocked = true;
   try {
-    const state = await apiRequest('/api/game/choose-target', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ target_instance_id: targetInstanceId }),
-    });
-    actionLocked = false;
-    renderState(state);
+    const nextState = clonePublicState(currentState);
+    const source = findBoardCardWithLocation(nextState, sourceInstanceId);
+    const target = findBoardCardWithLocation(nextState, targetInstanceId, currentState?.pending_target?.scope?.startsWith('opponent') ? 'opponent' : 'player');
+    if (!source || !target) {
+      showToast('目标已不在战场');
+      return;
+    }
+    source.card.selected_target_instance_id = target.card.instance_id;
+    source.card.selected_target_name = target.card.name || '';
+    const action = planningActionForCard(source.card.instance_id);
+    if (action) {
+      action.selected_target_instance_id = target.card.instance_id;
+    }
+    nextState.pending_target = null;
+    const selection = await declarationSelectionForLocalCard(source.card, source.location.id, target.card.instance_id);
+    if (selection) {
+      nextState.selection = selection;
+    }
+    renderState(nextState, { optimistic: true, skipDeclarationPreviewPrefetch: true });
     drawConfirmedTargetArrow(sourceInstanceId, targetInstanceId);
   } catch (error) {
     window.alert(error.message);
-  } finally {
-    actionLocked = false;
-    syncControls(currentState);
   }
 }
 
@@ -2466,16 +3604,21 @@ async function submitCancelTarget() {
   if (actionLocked) {
     return;
   }
-  actionLocked = true;
+  if (isTutorialMode(currentState)) {
+    showToast('教学模式请按照提示选择指定目标');
+    return;
+  }
   try {
-    const state = await apiRequest('/api/game/cancel-target', { method: 'POST' });
-    actionLocked = false;
-    renderState(state);
+    const sourceInstanceId = currentState?.pending_target?.source_instance_id;
+    if (sourceInstanceId) {
+      await submitReturnCard(sourceInstanceId);
+    } else {
+      const nextState = clonePublicState(currentState);
+      nextState.pending_target = null;
+      renderState(nextState, { optimistic: true, skipDeclarationPreviewPrefetch: true });
+    }
   } catch (error) {
     window.alert(error.message);
-  } finally {
-    actionLocked = false;
-    syncControls(currentState);
   }
 }
 
@@ -2568,33 +3711,60 @@ function buildArrowElement(fromX, fromY, toX, toY, className) {
 function buildTableTutorialPages() {
   return [
     {
-      title: '单一主战场',
+      title: '单一战场',
       body: [
-        '每局共有 6 回合，教学关为 4 回合，双方争夺同一个主战场。',
-        '主战场会携带一条随机特性，终局总战力更高者获胜。',
+        '每局通常为 6 回合，双方围绕战场争夺最终总战力。',
+        '战场会携带一条随机特性，双方牌库、手牌数、当前总战力和结算先手显示在左右侧栏。',
+        '左侧栏显示我方战力、实时领先和本回合结算先手；右侧栏显示对手对应信息。',
       ],
     },
     {
-      title: '有限资源选牌',
+      title: '回合骨架',
       body: [
-        '开局从主牌组随机抽取 4 张手牌。',
-        '之后每回合开始，双方各从自己的牌库抽 1 张。',
+        '每回合开始先比较双方当前总战力，并锁定本回合结算先手；之后双方各抽 1 张牌。',
+        '部署阶段只决定本回合要部署的道具、要共鸣的异能者和宣言目标，不结算卡牌效果。',
+        '双方完成部署后，先进入素材消耗阶段，再由结算先手方开始揭示道具。',
       ],
     },
     {
-      title: '拖动出牌',
+      title: '结算先手',
       body: [
-        '你的回合中，拖动手牌到可用空间即可出牌。',
+        '结算先手只决定本回合揭示顺序：结算先手方先按部署顺序揭示全部道具，然后才轮到另一方。',
+        '它在每回合开始时由双方当时的总战力判断：总战力更高的一方成为结算先手，持平时随机。',
+        '结算先手一旦锁定，本回合不会因为之后部署、素材消耗、战力变化或揭示效果而改变。',
+        '它和“实时领先”不是同一个概念：实时领先会随着场上战力变化更新，结算先手本回合保持不变。',
+      ],
+    },
+    {
+      title: '部署与宣言',
+      body: [
+        '部署异象道具时只支付费用并置入部署中，完成部署前可以撤回本回合操作。',
+        '需要检视牌库、墓地、手牌或选择目标的道具，会在部署时完成宣言；揭示阶段只执行已宣言的选择。',
         '每回合能量等于当前回合数，最高 6 点。',
-        '手牌与战场卡右上角显示当前战力；卡牌大图右上角显示基础战力。',
       ],
     },
     {
-      title: '先后手揭示',
+      title: '素材与共鸣',
       body: [
-        '每回合开始会根据当前总战力锁定结算先手，持平时随机。',
-        '点击结束回合后，AI 会完成部署，结算先手方先揭示全部本回合卡牌，再轮到后手方。',
-        '卡牌效果由后端事件系统结算，前端只展示结果。',
+        '只有进入本回合前已经稳定在场的异象道具可以作为异能者素材。',
+        '本回合部署、揭示效果部署或生成的道具，要等本回合完全结算后才稳定入场。',
+        '异能者已经登场后仍可以再次消耗素材共鸣；异能者战力非正时会返回异能者编队。',
+      ],
+    },
+    {
+      title: '揭示与影响范围',
+      body: [
+        '结算先手方会按部署顺序揭示全部本回合道具，随后才轮到结算后手方。',
+        '影响战场卡牌的效果只能影响表侧卡牌，不能影响背面、部署中或尚未揭示的卡牌。',
+        '揭示效果可以读取已经发生的本回合记录，但不能回溯改变素材消耗、宣言选择或已结算效果。',
+      ],
+    },
+    {
+      title: '环合与融合标记',
+      body: [
+        '创生、延滞、浊燃、黯星只记录层数，标记本身不在回合开始减少，也不会自行结算收益。',
+        '创生增加且己方已有延滞时，生成不超过两者层数较小值的盈蓄标记；浊燃或黯星增加且已有另一方时，生成失谐标记。',
+        '诛恶护持、噩梦、判予秋等持续伤害标记不是环合，会在回合开始减少，并在结束阶段按各自规则生效。',
       ],
     },
   ];
@@ -2604,6 +3774,7 @@ async function playPresentation(state, options = {}) {
   const key = presentationKeyForState(state);
   if (key === lastPresentationKey) {
     renderPendingSelectionAfterPresentation(state);
+    maybeShowResultModal(state);
     return;
   }
   lastPresentationKey = key;
@@ -2614,14 +3785,10 @@ async function playPresentation(state, options = {}) {
     await playActionQueue(actions);
   }
   const latestBanner = banners[banners.length - 1];
-  if (latestBanner && !currentState?.pending_target) {
-    await showTitleBanner(latestBanner.title, latestBanner.subtitle || '', { kind: latestBanner.kind, duration: latestBanner.kind === 'result' ? 3000 : 1300 });
+  if (latestBanner && latestBanner.kind !== 'result' && !currentState?.pending_target) {
+    await showTitleBanner(latestBanner.title, latestBanner.subtitle || '', { kind: latestBanner.kind, duration: 1300 });
   }
-  if (state.status !== 'playing' && !playedResultRedirect) {
-    playedResultRedirect = true;
-    await sleep(3000);
-    window.location.href = '/home';
-  }
+  maybeShowResultModal(state);
   if (options.renderFinalAfter) {
     renderState(state);
     return;
@@ -2691,6 +3858,8 @@ async function playActionQueue(actions) {
       if (action.kind === 'message' || action.kind === 'turn_begin') {
         continue;
       } else if (action.kind === 'reveal_phase_begin') {
+        setPhaseChip('揭示阶段', 'phase-revealing');
+        renderTutorialGuidance(currentState);
         showTitleBanner(action.title || '揭示阶段', action.subtitle || '双方伏置卡牌扣放。', { sticky: true, kind: 'action' });
         await sleep(ACTION_INTERVAL_MS);
         continue;
@@ -2763,6 +3932,7 @@ async function playActionQueue(actions) {
     hideTitleBanner('action');
     syncRoundInfo(currentState);
     syncControls(currentState);
+    syncTutorialMechanicModal(currentState);
   }
   effectArrowLayer.replaceChildren();
 }
@@ -3122,6 +4292,15 @@ function updateLocationPowerRows(locationNode, playerPower, opponentPower) {
   }
 }
 
+function syncVisibleScoreFromState(state) {
+  const totals = (state.locations || []).reduce((currentTotals, location) => {
+    currentTotals.player += Number(location.power?.player || 0);
+    currentTotals.opponent += Number(location.power?.opponent || 0);
+    return currentTotals;
+  }, { player: 0, opponent: 0 });
+  updateVisibleScoreReadouts(totals);
+}
+
 function setPowerRowValue(valueNode, nextValue) {
   if (!valueNode) {
     return;
@@ -3142,7 +4321,7 @@ function updateVisibleScoreReadouts(totals) {
   const leaderText = totals.player > totals.opponent ? '我方' : totals.opponent > totals.player ? '对手' : '持平';
   const hudScore = duelHud?.querySelectorAll('span')?.[2];
   if (hudScore) {
-    hudScore.textContent = `主战场 ${compactTotalText}`;
+    hudScore.textContent = `战场 ${compactTotalText}`;
   }
   const statusCards = leftStatusGrid?.querySelectorAll('.side-status-card') || [];
   const powerCard = statusCards[1];
@@ -3158,6 +4337,21 @@ function updateVisibleScoreReadouts(totals) {
   if (opponentPowerValue) {
     opponentPowerValue.textContent = String(totals.opponent);
   }
+  const mobilePlayerScore = mobileScoreSidecar?.querySelector('[data-score-side="player"]');
+  const mobileOpponentScore = mobileScoreSidecar?.querySelector('[data-score-side="opponent"]');
+  const mobileLeader = mobileScoreSidecar?.querySelector('[data-score-leader]');
+  if (mobilePlayerScore) {
+    mobilePlayerScore.textContent = String(totals.player);
+  }
+  if (mobileOpponentScore) {
+    mobileOpponentScore.textContent = String(totals.opponent);
+  }
+  if (mobileLeader) {
+    mobileLeader.textContent = leaderText === '我方' ? '我方领先' : leaderText === '对手' ? '对方领先' : '持平';
+  }
+  const initiativeFirst = currentState?.initiative?.first || '';
+  mobileScoreSidecar?.querySelector('[data-score-row="player"]')?.classList.toggle('initiative-first-row', initiativeFirst === 'player');
+  mobileScoreSidecar?.querySelector('[data-score-row="opponent"]')?.classList.toggle('initiative-first-row', initiativeFirst === 'opponent');
 }
 
 function playSpawnCard(action) {
@@ -3513,6 +4707,7 @@ function findPreviousBoardCard(previousLocation, owner, instanceId) {
 
 endTurnBtn.addEventListener('click', endTurn);
 copyLogBtn.addEventListener('click', copyLog);
+resultConfirmBtn?.addEventListener('click', confirmResultExit);
 rightPanelTabs.forEach((button) => {
   button.addEventListener('click', () => setRightPanelView(button.dataset.rightPanelView || 'info'));
 });

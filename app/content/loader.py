@@ -22,7 +22,10 @@ def _load_from_package(package: ModuleType, attribute_name: str) -> list[dict[st
         module = importlib.import_module(f'{package.__name__}.{module_info.name}')
         payload = getattr(module, attribute_name, None)
         if payload is not None:
-            results.append(deepcopy(payload))
+            if isinstance(payload, (list, tuple)):
+                results.extend(deepcopy(list(payload)))
+            else:
+                results.append(deepcopy(payload))
     return results
 
 
@@ -70,6 +73,8 @@ def validate_duel_deck_card_ids(card_ids: list[str]) -> tuple[bool, str]:
         definition = get_duel_card(card_id)
         if definition is None:
             return False, '牌组中包含未知卡牌。'
+        if definition.get('deck_buildable') is False:
+            return False, f"「{definition.get('name', '该卡牌')}」不能放入构筑。"
         card_type = definition.get('type')
         if card_type == CARD_TYPE_ANOMALY_ITEM:
             item_count += 1

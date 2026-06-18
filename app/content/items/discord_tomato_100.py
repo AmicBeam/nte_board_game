@@ -11,17 +11,13 @@ def discord_tutor(context: 'EventContext') -> None:
     card = context.payload['card']
     if _definition_id(card) == 'discord_tomato':
         _tutor_named_item(context, {'番茄百分百'}, card['name'])
-        card.setdefault('material_attributes', [])
-        if '咒' not in card['material_attributes']:
-            card['material_attributes'].append('咒')
-        if TAG_MAT_FIRE not in card.setdefault('material_tags', []):
-            card['material_tags'].append(TAG_MAT_FIRE)
         _add_log(context.state, f"{card['name']} 也可视为咒属性素材。")
         return
     if _definition_id(card) == 'discord_tomato_100':
         _tutor_named_item(context, {'番茄全家桶'}, card['name'])
-        if _own_esper_consumed_tag_this_turn(context, TAG_MAT_FIRE):
-            target = _lowest_opponent(context)
+        side = str(context.payload['side'])
+        if _turn_combo_count(context.state, side, 'deck_to_discard_this_turn') > 0 or _own_esper_consumed_tag_this_turn(context, TAG_MAT_FIRE):
+            target = _lowest_opponent_item(context)
             if target is not None:
                 _boost_card(target, -1, card['name'])
         return
@@ -36,7 +32,7 @@ ITEM = {'id': 'discord_tomato_100',
  'element': '异象',
  'rarity': 'r',
  'art': '/static/images/item/番茄百分百.webp',
- 'description': '揭示：从牌库将「番茄全家桶」加入手牌；若本回合素材消耗阶段有咒属性材料进入墓地，对手当前战力最低的表侧道具 -1。',
+ 'description': '揭示：从牌库将「番茄全家桶」加入手牌；若本回合有己方道具从牌库置入墓地，或咒属性材料作为素材进入墓地，对手当前战力最低的表侧道具 -1。',
  'effect_key': 'discord_tutor',
  'tags': ['discord', 'tool', 'material', 'mat_dust'],
  'archetype': 'discord',
@@ -44,6 +40,7 @@ ITEM = {'id': 'discord_tomato_100',
  'attribute': '暗',
  'attribute_icon': '/static/images/elements/暗.png',
  'material_tags': ['mat_dust'],
+ 'ai_material_reserved_for': ['requiem'],
  'material_cost': None,
  'required_material_attribute': '',
  'material_requirements': [],

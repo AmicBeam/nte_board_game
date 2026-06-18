@@ -9,19 +9,27 @@ if TYPE_CHECKING:
 
 def murk_pressure(context: 'EventContext') -> None:
     card = context.payload['card']
-    if _definition_id(card) == 'murk_faded_shadow':
-        target = _lowest_opponent(context)
-        if target is not None:
-            _boost_card(target, -2, card['name'])
-            _add_log(context.state, f"{card['name']} 压低 {target['name']} 2 点战力。")
-            return
-        _add_log(context.state, f"{card['name']} 没有可影响的对手道具。")
+    side_state = context.state['sides'][str(context.payload['side'])]
+    declared_ids = [str(card_id) for card_id in card.get('declared_card_instance_ids', [])]
+    selected = None
+    for declared_id in declared_ids:
+        for index, candidate in enumerate(list(side_state.get('discard', []))):
+            if (
+                str(candidate.get('instance_id') or '') == declared_id
+                and candidate.get('type') == CARD_TYPE_ANOMALY_ITEM
+                and str(candidate.get('attribute') or '') == '咒'
+                and str(candidate.get('category') or '') == '材料'
+            ):
+                selected = side_state['discard'].pop(index)
+                break
+        if selected is not None:
+            break
+    if selected is None:
+        _add_log(context.state, f"{card['name']} 的宣言墓地材料已不合法。")
         return
-    target = _selected_or_highest_opponent(context)
-    if target is not None:
-        amount = -1 if _definition_id(card) == 'murk_lost_whisper' else -2
-        _boost_card(target, amount, card['name'])
-        _add_log(context.state, f"{card['name']} 压低 {target['name']} {abs(amount)} 点战力。")
+    side_state.setdefault('deck', []).append(_reset_card_for_zone(selected, revealed=False))
+    _add_log(context.state, f"{card['name']} 将墓地中的 {selected['name']} 返回牌库。")
+    card.pop('declared_card_instance_ids', None)
 
 
 ITEM = {'id': 'murk_faded_shadow',
@@ -32,7 +40,7 @@ ITEM = {'id': 'murk_faded_shadow',
  'element': '异象',
  'rarity': 'r',
  'art': '/static/images/item/褪色掠影.webp',
- 'description': '揭示：使对手当前战力最低的表侧道具 -2。',
+ 'description': '从牌库置入墓地时：对手当前战力最高的表侧道具 -1。宣言：检视己方墓地，选择 1 张咒属性材料道具。揭示：宣言道具返回牌库。',
  'effect_key': 'murk_pressure',
  'tags': ['murk', 'tool', 'material', 'mat_dust'],
  'archetype': 'murk',
@@ -45,6 +53,15 @@ ITEM = {'id': 'murk_faded_shadow',
  'material_requirements': [],
  'material_requirement_text': '',
  'target_rule': {},
+ 'declaration': {'steps': [{'kind': 'cards',
+                            'zones': ['discard'],
+                            'title': '褪色掠影 检视墓地',
+                            'description': '宣言 1 张己方墓地咒属性材料道具；揭示时返回牌库。',
+                            'predicate': lambda item, context: (
+                                item.get('type') == CARD_TYPE_ANOMALY_ITEM
+                                and str(item.get('attribute') or '') == '咒'
+                                and str(item.get('category') or '') == '材料'
+                            )}]},
  'icon': '/static/images/item/褪色掠影.webp'}
 
 ITEM['event_hooks'] = {GameEvent.CARD_REVEALED.value: murk_pressure}

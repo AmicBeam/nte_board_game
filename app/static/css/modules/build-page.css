@@ -297,6 +297,12 @@ body:has(.build-page) .shell {
     font: inherit;
 }
 
+.build-meta-chip.special-chip {
+    background: rgba(244, 196, 48, 0.14);
+    border-color: rgba(244, 196, 48, 0.36);
+    color: #f7d56f;
+}
+
 .build-meta-chip .element-icon {
     width: 15px;
     height: 15px;
@@ -879,6 +885,42 @@ body:has(.build-page) .shell {
     line-height: 1.28;
 }
 
+.preview-catalog-card .build-preview-effect {
+    min-height: 0;
+    display: grid;
+    gap: 6px;
+    padding: 10px 11px;
+    border-radius: var(--radius-sm);
+    border: 1px solid rgba(88,216,210,0.22);
+    background: rgba(3, 8, 14, 0.54);
+    color: #dce6f6;
+    line-height: 1.44;
+    overflow: visible;
+}
+
+.preview-catalog-card .build-preview-effect h3 {
+    margin: 0;
+    color: var(--primary);
+    font-size: 12px;
+    font-weight: 1000;
+}
+
+.preview-catalog-card .build-preview-effect p {
+    margin: 0;
+    font-size: 15px;
+    font-weight: 850;
+}
+
+.preview-catalog-card .build-preview-effect.desc-long p {
+    font-size: 13px;
+    line-height: 1.36;
+}
+
+.preview-catalog-card .build-preview-effect.desc-dense p {
+    font-size: 12px;
+    line-height: 1.3;
+}
+
 .preview-close {
     position: absolute;
     right: -10px;
@@ -895,6 +937,293 @@ body:has(.build-page) .shell {
     color: var(--text);
     font-size: 20px;
     font-weight: 900;
+}
+
+.prebuilt-preview-layer {
+    position: fixed;
+    inset: 0;
+    z-index: 120;
+    display: grid;
+    place-items: center;
+    padding: 22px;
+    background: rgba(3, 7, 12, 0.68);
+    opacity: 0;
+    pointer-events: none;
+    backdrop-filter: blur(16px) saturate(1.08);
+    transition: opacity 0.16s ease;
+}
+
+.prebuilt-preview-layer.open {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+.prebuilt-preview-dialog {
+    position: relative;
+    width: min(1040px, calc(100vw - 44px));
+    max-height: min(760px, calc(100dvh - 44px));
+    min-height: min(640px, calc(100dvh - 44px));
+    display: grid;
+    grid-template-rows: auto auto auto minmax(0, 1fr);
+    gap: 12px;
+    padding: 18px;
+    overflow: hidden;
+    border-radius: var(--radius-md);
+    border: 1px solid rgba(255,255,255,0.14);
+    background:
+        linear-gradient(135deg, rgba(88,216,210,0.12), transparent 36%),
+        linear-gradient(315deg, rgba(255,191,87,0.1), transparent 42%),
+        rgba(8, 12, 19, 0.96);
+    box-shadow: 0 34px 92px rgba(0,0,0,0.64), 0 0 0 1px rgba(88,216,210,0.16);
+}
+
+.prebuilt-preview-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+    padding-right: 22px;
+}
+
+.prebuilt-preview-head h2 {
+    margin: 2px 0 0;
+    font-size: 28px;
+    line-height: 1;
+}
+
+.prebuilt-preview-tabs {
+    min-width: 0;
+    display: flex;
+    gap: 7px;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    padding-bottom: 2px;
+}
+
+.prebuilt-preview-tabs button {
+    flex: 0 0 auto;
+    min-height: 34px;
+    padding: 7px 11px;
+    border-radius: var(--radius-sm);
+    border: 1px solid rgba(255,255,255,0.13);
+    background: rgba(255,255,255,0.055);
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 1000;
+}
+
+.prebuilt-preview-tabs button.active {
+    color: #081017;
+    border-color: rgba(88,216,210,0.76);
+    background: linear-gradient(135deg, var(--primary), var(--amber));
+}
+
+.prebuilt-preview-summary {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 10px 16px;
+    align-items: start;
+    padding: 12px;
+    border-radius: var(--radius-sm);
+    border: 1px solid rgba(255,255,255,0.1);
+    background: rgba(255,255,255,0.045);
+}
+
+.prebuilt-preview-summary > div {
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.prebuilt-preview-summary strong {
+    min-width: 0;
+    color: var(--text);
+    font-size: 18px;
+    line-height: 1.1;
+}
+
+.prebuilt-preview-summary span {
+    flex: 0 0 auto;
+    padding: 3px 7px;
+    border-radius: 999px;
+    border: 1px solid rgba(226,185,95,0.28);
+    background: rgba(226,185,95,0.11);
+    color: #ffe2a3;
+    font-size: 11px;
+    font-weight: 1000;
+}
+
+.prebuilt-preview-summary p {
+    grid-column: 1;
+    margin: 0;
+    color: var(--muted);
+    font-size: 13px;
+    line-height: 1.45;
+}
+
+.prebuilt-preview-summary dl {
+    grid-row: 1 / span 2;
+    grid-column: 2;
+    display: grid;
+    grid-template-columns: repeat(3, auto);
+    gap: 8px;
+    margin: 0;
+}
+
+.prebuilt-preview-summary dl div {
+    min-width: 64px;
+    padding: 7px 9px;
+    border-radius: var(--radius-sm);
+    border: 1px solid rgba(88,216,210,0.2);
+    background: rgba(88,216,210,0.08);
+    text-align: center;
+}
+
+.prebuilt-preview-summary dt {
+    color: var(--muted);
+    font-size: 10px;
+    font-weight: 1000;
+}
+
+.prebuilt-preview-summary dd {
+    margin: 2px 0 0;
+    color: #c9fff6;
+    font-size: 18px;
+    font-weight: 1000;
+}
+
+.prebuilt-preview-body {
+    min-height: 0;
+    display: grid;
+    grid-template-columns: minmax(260px, 0.34fr) minmax(0, 1fr);
+    gap: 12px;
+    overflow: hidden;
+}
+
+.prebuilt-preview-zone {
+    min-width: 0;
+    min-height: 0;
+    display: grid;
+    grid-template-rows: auto minmax(0, 1fr);
+    gap: 8px;
+    padding: 12px;
+    border-radius: var(--radius-sm);
+    border: 1px solid rgba(255,255,255,0.1);
+    background: rgba(255,255,255,0.035);
+}
+
+.prebuilt-card-list {
+    min-height: 0;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+    align-content: start;
+    gap: 8px;
+    overflow: auto;
+    overscroll-behavior: contain;
+    padding-right: 2px;
+}
+
+.prebuilt-preview-zone:first-child .prebuilt-card-list {
+    grid-template-columns: 1fr;
+}
+
+.prebuilt-deck-card {
+    min-height: 68px;
+    cursor: default;
+}
+
+.prebuilt-deck-card .deck-card-name {
+    padding-right: 28px;
+}
+
+.prebuilt-card-count {
+    position: absolute;
+    top: 7px;
+    right: 7px;
+    min-width: 24px;
+    height: 22px;
+    display: inline-grid;
+    place-items: center;
+    padding: 0 6px;
+    border-radius: 999px;
+    border: 1px solid rgba(255,255,255,0.16);
+    background: rgba(6,10,16,0.86);
+    color: #fff0bd;
+    font-size: 12px;
+    font-weight: 1000;
+}
+
+@media (max-width: 980px) {
+    .prebuilt-preview-layer {
+        padding: 12px;
+    }
+
+    .prebuilt-preview-dialog {
+        width: calc(100vw - 24px);
+        min-height: 0;
+        max-height: calc(100dvh - 24px);
+        padding: 14px;
+        gap: 10px;
+    }
+
+    .prebuilt-preview-head h2 {
+        font-size: 24px;
+    }
+
+    .prebuilt-preview-summary {
+        grid-template-columns: 1fr;
+    }
+
+    .prebuilt-preview-summary p,
+    .prebuilt-preview-summary dl {
+        grid-column: 1;
+        grid-row: auto;
+    }
+
+    .prebuilt-preview-summary dl {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
+    .prebuilt-preview-body {
+        grid-template-columns: 1fr;
+        overflow: auto;
+        overscroll-behavior: contain;
+    }
+
+    .prebuilt-preview-zone {
+        min-height: 220px;
+    }
+}
+
+@media (max-width: 720px) {
+    .prebuilt-preview-tabs button {
+        min-height: 30px;
+        padding: 6px 9px;
+        font-size: 11px;
+    }
+
+    .prebuilt-preview-summary {
+        padding: 10px;
+    }
+
+    .prebuilt-preview-summary strong {
+        font-size: 16px;
+    }
+
+    .prebuilt-preview-summary dl div {
+        min-width: 0;
+        padding: 6px;
+    }
+
+    .prebuilt-card-list,
+    .prebuilt-preview-zone:first-child .prebuilt-card-list {
+        grid-template-columns: 1fr;
+    }
+
+    .prebuilt-deck-card {
+        min-height: 54px;
+    }
 }
 
 .build-toast {
@@ -1321,12 +1650,99 @@ body:has(.build-page) .shell {
     width: min(440px, calc(100vw - 24px));
     max-height: calc(100dvh - 24px - env(safe-area-inset-top) - env(safe-area-inset-bottom));
     min-height: 0;
-    grid-template-rows: minmax(132px, 34dvh) auto auto minmax(0, auto);
+    grid-template-rows: minmax(112px, 30dvh) auto auto minmax(0, auto);
     overflow: auto;
     overscroll-behavior: contain;
 }
 
 .build-card-preview.touch-preview .preview-catalog-card .item-art {
     height: auto;
-    min-height: 132px;
+    min-height: 112px;
+}
+
+.build-card-preview.touch-preview .preview-catalog-card .build-preview-effect {
+    max-height: none;
+    overflow: visible;
+}
+
+.build-card-preview.touch-preview.touch-side-preview {
+    inset: auto;
+    left: auto;
+    top: max(10px, env(safe-area-inset-top));
+    right: auto;
+    bottom: max(10px, env(safe-area-inset-bottom));
+    width: min(360px, 42vw);
+    min-width: 300px;
+    display: block;
+    padding: 0;
+    background: transparent;
+    backdrop-filter: none;
+    transform: translateX(10px) scale(0.98);
+}
+
+.build-card-preview.touch-preview.touch-side-preview.preview-left {
+    left: max(10px, env(safe-area-inset-left));
+    right: auto;
+    transform: translateX(-10px) scale(0.98);
+}
+
+.build-card-preview.touch-preview.touch-side-preview.preview-right {
+    left: auto;
+    right: max(10px, env(safe-area-inset-right));
+}
+
+.build-card-preview.touch-preview.touch-side-preview.open {
+    transform: translateX(0) scale(1);
+}
+
+.build-card-preview.touch-preview.touch-side-preview .preview-close {
+    right: -8px;
+    top: -8px;
+}
+
+.build-card-preview.touch-preview.touch-side-preview .preview-catalog-card {
+    width: 100%;
+    max-height: 100%;
+    grid-template-rows: minmax(124px, 38dvh) auto auto minmax(0, auto);
+}
+
+.build-card-preview.touch-preview.touch-side-preview .preview-catalog-card .item-art {
+    min-height: 124px;
+}
+
+@media (orientation: landscape) and (max-height: 500px) and (pointer: coarse) {
+    .build-card-preview.touch-preview .preview-catalog-card {
+        grid-template-rows: minmax(92px, 25dvh) auto auto minmax(0, auto);
+    }
+
+    .build-card-preview.touch-preview .preview-catalog-card .item-art {
+        min-height: 92px;
+    }
+
+    .build-card-preview.touch-preview .preview-catalog-card .card-headline h2 {
+        font-size: 18px;
+    }
+
+    .build-card-preview.touch-preview .preview-catalog-card .build-preview-effect {
+        padding: 8px 9px;
+        gap: 4px;
+    }
+
+    .build-card-preview.touch-preview .preview-catalog-card .build-preview-effect p {
+        font-size: 12px;
+        line-height: 1.3;
+    }
+
+    .build-card-preview.touch-preview.touch-side-preview {
+        width: min(340px, 40vw);
+        min-width: 292px;
+    }
+
+    .build-card-preview.touch-preview.touch-side-preview .preview-catalog-card {
+        grid-template-rows: minmax(108px, 32dvh) auto auto minmax(0, auto);
+    }
+
+    .build-card-preview.touch-preview.touch-side-preview .preview-catalog-card .item-art {
+        min-height: 108px;
+    }
 }

@@ -11,17 +11,13 @@ def discord_tutor(context: 'EventContext') -> None:
     card = context.payload['card']
     if _definition_id(card) == 'discord_tomato':
         _tutor_named_item(context, {'番茄百分百'}, card['name'])
-        card.setdefault('material_attributes', [])
-        if '咒' not in card['material_attributes']:
-            card['material_attributes'].append('咒')
-        if TAG_MAT_FIRE not in card.setdefault('material_tags', []):
-            card['material_tags'].append(TAG_MAT_FIRE)
         _add_log(context.state, f"{card['name']} 也可视为咒属性素材。")
         return
     if _definition_id(card) == 'discord_tomato_100':
         _tutor_named_item(context, {'番茄全家桶'}, card['name'])
-        if _own_esper_consumed_tag_this_turn(context, TAG_MAT_FIRE):
-            target = _lowest_opponent(context)
+        side = str(context.payload['side'])
+        if _turn_combo_count(context.state, side, 'deck_to_discard_this_turn') > 0 or _own_esper_consumed_tag_this_turn(context, TAG_MAT_FIRE):
+            target = _lowest_opponent_item(context)
             if target is not None:
                 _boost_card(target, -1, card['name'])
         return
@@ -43,7 +39,9 @@ ITEM = {'id': 'discord_tomato',
  'category': '食材',
  'attribute': '暗',
  'attribute_icon': '/static/images/elements/暗.png',
- 'material_tags': ['mat_dust'],
+ 'material_attributes': ['咒'],
+ 'material_tags': ['mat_dust', 'mat_fire'],
+ 'ai_material_reserved_for': ['requiem'],
  'material_cost': None,
  'required_material_attribute': '',
  'material_requirements': [],

@@ -5,7 +5,12 @@ from dataclasses import dataclass
 from typing import Callable
 
 from app.content.common.constants import LOCATION_CARD_LIMIT
-from app.engine.rules.declarations import target_candidates, target_rule, target_rule_internal
+from app.engine.rules.declarations import has_card_declaration, target_candidates, target_rule, target_rule_internal
+from app.engine.setup.tutorial_scripts import (
+    is_tutorial_basics,
+    tutorial_public_prompt,
+    tutorial_visible_esper_ids,
+)
 from app.engine.state.types import JsonDict
 from app.models import Player, Room
 
@@ -74,7 +79,12 @@ def public_state(
         'player_seat': perspective.own,
         'opponent_seat': perspective.opponent,
         'current_actor_uid': own['uid'] if not own.get('ended_turn') else opponent['uid'],
-        'player': _public_side(own, reveal_hand=True, rules=rules),
+        'player': _public_side(
+            own,
+            reveal_hand=True,
+            rules=rules,
+            visible_esper_ids=tutorial_visible_esper_ids(snapshot, perspective.own) if is_tutorial_basics(snapshot) else None,
+        ),
         'opponent': _public_side(opponent, reveal_hand=False, rules=rules),
         'selection': _public_selection(own, rules),
         'pending_target': _public_pending_target(own, rules, snapshot),
@@ -84,6 +94,7 @@ def public_state(
         'initiative': _public_initiative(snapshot, perspective),
         'winner': _public_winner(snapshot, perspective),
         'route_hint': _route_hint(snapshot, perspective.own, rules),
+        'tutorial': _public_tutorial(snapshot, perspective.own),
         'log': _public_log(snapshot, perspective, rules),
         'action_queue': list(snapshot.get('action_queue', [])) if include_queues else [],
         'banner_queue': list(snapshot.get('banner_queue', [])) if include_queues else [],
@@ -117,6 +128,7 @@ def public_card(card: JsonDict, *, own: bool, rules: ProjectionRules) -> JsonDic
             'material_requirements': deepcopy(card.get('material_requirements') or []),
             'material_requirement_text': card.get('material_requirement_text', ''),
             'material_tags': list(card.get('material_tags', [])),
+            'display_tags': list(card.get('display_tags', [])),
             'buff_sources': [],
         }
     card_target_rule = target_rule(card)
@@ -151,13 +163,17 @@ def public_card(card: JsonDict, *, own: bool, rules: ProjectionRules) -> JsonDic
         'consumed_material_tags': list(card.get('consumed_material_tags', [])),
         'consumed_material_names': list(card.get('consumed_material_names', [])),
         'consumed_material_attributes': list(card.get('consumed_material_attributes', [])),
+        'consumed_material_instance_ids': list(card.get('consumed_material_instance_ids', [])),
         'absorbed_material_power': int(card.get('absorbed_material_power', 0)),
         'played_turn': card.get('played_turn'),
         'location_id': card.get('location_id'),
         'type': card.get('type', 'esper'),
         'tags': list(card.get('tags', [])),
+        'display_tags': list(card.get('display_tags', [])),
+        'deck_buildable': card.get('deck_buildable') is not False,
         'buff_sources': [deepcopy(source) for source in card.get('buff_sources', [])],
         'target_rule': card_target_rule or None,
+        'requires_declaration': has_card_declaration(card),
         'selected_target_instance_id': card.get('selected_target_instance_id'),
         'selected_target_name': card.get('selected_target_name', ''),
         'declared_card_names': list(card.get('declared_card_names', [])),
@@ -180,7 +196,20 @@ def _perspective_for_player(snapshot: JsonDict, player: Player, rules: Projectio
     return SidePerspective(own=side, opponent=rules.opponent_side(side))
 
 
-def _public_side(side: JsonDict, *, reveal_hand: bool, rules: ProjectionRules) -> JsonDict:
+def _public_side(
+    side: JsonDict,
+    *,
+    reveal_hand: bool,
+    rules: ProjectionRules,
+    visible_esper_ids: set[str] | None = None,
+) -> JsonDict:
+    esper_standby = list(side.get('esper_standby', []))
+    if visible_esper_ids is not None:
+        esper_standby = [
+            card
+            for card in esper_standby
+            if str(card.get('definition_id') or '') in visible_esper_ids
+        ]
     return {
         'uid': side['uid'],
         'nickname': side['nickname'],
@@ -193,12 +222,27 @@ def _public_side(side: JsonDict, *, reveal_hand: bool, rules: ProjectionRules) -
         'deck_count': len(side['deck']),
         'hand_count': len(side['hand']),
         'discard_count': len(side.get('discard', [])),
-        'esper_standby_count': len(side.get('esper_standby', [])),
+        'esper_standby_count': len(esper_standby),
         'combo': deepcopy(side.get('combo', {})),
         'pending_target': _public_pending_target(side, rules),
         'hand': [public_card(card, own=True, rules=rules) for card in side['hand']] if reveal_hand else [_public_hidden_hand_card(card) for card in side['hand']],
-        'esper_standby': [public_card(card, own=True, rules=rules) for card in side.get('esper_standby', [])] if reveal_hand else [],
+        'esper_standby': [public_card(card, own=True, rules=rules) for card in esper_standby] if reveal_hand else [],
         'discard': [public_card(card, own=True, rules=rules) for card in side.get('discard', [])],
+    }
+
+
+def _public_tutorial(snapshot: JsonDict, side: str) -> JsonDict | None:
+    prompt = tutorial_public_prompt(snapshot, side)
+    if prompt is None:
+        return None
+    return {
+        'enabled': True,
+        'id': snapshot.get('tutorial', {}).get('id', 'basics') if isinstance(snapshot.get('tutorial'), dict) else 'basics',
+        'turn': int(snapshot.get('turn') or 1),
+        'title': prompt.get('title', ''),
+        'body': prompt.get('body', ''),
+        'spotlights': list(prompt.get('spotlights', [])),
+        'visible_esper_ids': sorted(tutorial_visible_esper_ids(snapshot, side)),
     }
 
 
@@ -253,6 +297,12 @@ def _public_selection(side: JsonDict, rules: ProjectionRules) -> JsonDict | None
     for card in selection.get('cards', []):
         selection_card = public_card(card, own=True, rules=rules)
         source_zone, source_label = _selection_card_source(side, card)
+        if (
+            not source_label
+            and str(selection.get('owner_side') or '') not in {'', str(side.get('side') or '')}
+            and 'discard' in selection.get('zones', [])
+        ):
+            source_zone, source_label = 'opponent_discard', '对手墓地'
         if source_label:
             selection_card['selection_source_zone'] = source_zone
             selection_card['selection_source_label'] = source_label
@@ -422,19 +472,19 @@ def _side_overview(side: JsonDict) -> JsonDict:
 def _route_hint(snapshot: JsonDict, side: str, rules: ProjectionRules) -> str:
     if snapshot['status'] != 'playing':
         if snapshot.get('winner_side') is None:
-            return '主战场战力持平，这局没有输家。'
-        return '你赢下了主战场。' if snapshot['winner_side'] == side else '对手赢下了主战场。'
+            return '战场战力持平，这局没有输家。'
+        return '你赢下了战场。' if snapshot['winner_side'] == side else '对手赢下了战场。'
     selection = snapshot['sides'][side].get('selection')
     if selection and selection.get('kind') != 'draw':
         return str(selection.get('description') or '先完成本次卡牌选择。')
     if snapshot.get('phase') == 'selecting':
         return '等待对手完成卡牌选择。'
     if snapshot['sides'][side].get('ended_turn'):
-        return '你已结束回合，等待对手完成置入。'
+        return '你已完成部署，等待对手完成部署。'
     pending = snapshot['sides'][side].get('pending_target')
     if pending:
         return str(pending.get('prompt') or '请选择一个目标。')
-    return f'拖动手牌置入异象道具，或从待命区唤醒/共鸣异能者消耗同区域素材；剩余 {rules.energy_remaining(snapshot, side)} 点能量。'
+    return f'拖动手牌置入异象道具，或从异能者编队选择异能者登场/共鸣并消耗同区域素材；剩余 {rules.energy_remaining(snapshot, side)} 点能量。'
 
 
 def _public_status(snapshot: JsonDict, viewer_side: str) -> str:

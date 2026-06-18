@@ -12,16 +12,13 @@ def genesis_recover(context: 'EventContext') -> None:
     if _definition_id(card) == 'genesis_eborn_cake':
         predicate = lambda item: (
             item.get('type') == CARD_TYPE_ANOMALY_ITEM
-            and int(item.get('cost') or 0) <= 3
-            and str(item.get('category') or '') in {'食物', '饮料', '耗材', '礼物'}
+            and str(item.get('category') or '') in {'饮料', '耗材'}
         )
         added = _declared_deck_or_discard_item(context, predicate)
-        if added is None:
-            added = _recover_discard_item(context, predicate, card['name'])
-            if added is not None:
-                card.pop('declared_card_instance_ids', None)
-        else:
+        if added is not None:
             _add_card_to_hand(context, added, card['name'])
+        else:
+            _add_log(context.state, f"{card['name']} 的宣言墓地牌已不合法。")
         side = str(context.payload['side'])
         own_revealed_items = [
             item
@@ -60,7 +57,7 @@ ITEM = {'id': 'genesis_eborn_cake',
  'element': '异象',
  'rarity': 'r',
  'art': '/static/images/item/来自「伊波恩」的蛋糕.webp',
- 'description': '宣言：检视牌库与墓地，选择 1 张费用 <=3 的食物、饮料、耗材或礼物道具。揭示：将宣言牌加入手牌；若己方场上有 3 张以上道具，己方全体 +1。',
+ 'description': '宣言：检视墓地，选择 1 张饮料或耗材道具。揭示：将宣言牌加入手牌；若己方场上有 3 张以上道具，己方全体 +1。',
  'effect_key': 'genesis_recover',
  'tags': ['genesis', 'tool', 'material', 'mat_archive'],
  'archetype': 'genesis',
@@ -74,13 +71,12 @@ ITEM = {'id': 'genesis_eborn_cake',
  'material_requirement_text': '',
  'target_rule': {},
  'declaration': {'steps': [{'kind': 'cards',
-                            'zones': ['deck', 'discard'],
-                            'title': '来自「伊波恩」的蛋糕 检视牌库与墓地',
-                            'description': '宣言 1 张费用 <=3 的食物、饮料、耗材或礼物道具；揭示时加入手牌。',
+                            'zones': ['discard'],
+                            'title': '来自「伊波恩」的蛋糕 检视墓地',
+                            'description': '宣言 1 张饮料或耗材道具；揭示时加入手牌。',
                             'predicate': lambda item, context: (
                                 item.get('type') == CARD_TYPE_ANOMALY_ITEM
-                                and int(item.get('cost') or 0) <= 3
-                                and str(item.get('category') or '') in {'食物', '饮料', '耗材', '礼物'}
+                                and str(item.get('category') or '') in {'饮料', '耗材'}
                             )}]},
  'icon': '/static/images/item/来自「伊波恩」的蛋糕.webp'}
 

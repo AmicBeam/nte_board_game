@@ -46,9 +46,14 @@
             </div>
             <div class="locations-board" id="locations-board" aria-label="异象空间"></div>
             <div class="board-action-ring">
+                <div class="mobile-score-sidecar" id="mobile-score-sidecar" aria-label="双方战力">
+                    <span class="mobile-score-row opponent" data-score-row="opponent">对方 <strong data-score-side="opponent">0</strong></span>
+                    <span class="mobile-score-leader" data-score-leader>持平</span>
+                    <span class="mobile-score-row player" data-score-row="player">我方 <strong data-score-side="player">0</strong></span>
+                </div>
                 <div class="end-turn-stack">
                     <span class="final-round-label" id="final-round-label" hidden>决胜回合</span>
-                    <button class="primary-btn end-turn-btn" id="end-turn-btn" type="button">结束回合</button>
+                    <button class="primary-btn end-turn-btn" id="end-turn-btn" type="button">完成部署</button>
                 </div>
                 <div class="energy-sidecar" id="energy-sidecar" aria-label="能量信息">
                     <span>能量</span>
@@ -85,7 +90,10 @@
         <div class="deck-zone player-deck-zone deck-empty deck-count-only" id="player-deck-zone" data-public-side="player" aria-label="我方牌库"></div>
     </section>
 
+    <aside class="mobile-location-rule-line" id="mobile-location-rule-line" aria-label="战场说明" aria-hidden="true"></aside>
     <section class="selection-overlay" id="selection-overlay" aria-hidden="true"></section>
+    <div class="tutorial-focus-scrim" id="tutorial-focus-scrim" aria-hidden="true"></div>
+    <aside class="tutorial-guidance-popup" id="tutorial-guidance-popup" aria-hidden="true"></aside>
     <section class="discard-modal" id="discard-modal" aria-hidden="true">
         <div class="discard-modal-dialog" role="dialog" aria-modal="true" aria-labelledby="discard-modal-title">
             <div class="section-title-row right-panel-title-row">
@@ -95,6 +103,15 @@
                 </div>
             </div>
             <div class="discard-list" id="discard-modal-list"></div>
+        </div>
+    </section>
+    <section class="result-modal" id="result-modal" aria-hidden="true">
+        <div class="result-modal-dialog" role="dialog" aria-modal="true" aria-labelledby="result-modal-title">
+            <p class="eyebrow" id="result-modal-eyebrow">对局结束</p>
+            <h2 id="result-modal-title">结算</h2>
+            <p id="result-modal-subtitle">战场结算完成。</p>
+            <div class="result-summary-grid" id="result-summary-grid"></div>
+            <button class="primary-btn result-confirm-btn" id="result-confirm-btn" type="button">确认</button>
         </div>
     </section>
     <div class="duel-title-banner" id="duel-title-banner" aria-hidden="true"></div>

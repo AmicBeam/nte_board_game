@@ -15,6 +15,16 @@ from app.engine.application.build_service import (
     unique_known_ids,
 )
 from app.engine.setup.battlefields import BATTLEFIELD_TRAITS
+from app.engine.setup.tutorial_scripts import (
+    TUTORIAL_BASICS_SCENARIO,
+    TUTORIAL_OPPONENT_DECK,
+    TUTORIAL_OPPONENT_HAND,
+    TUTORIAL_PLAYER_DECK,
+    TUTORIAL_PLAYER_ESPERS,
+    TUTORIAL_PLAYER_HAND,
+    normalize_tutorial_scenario,
+    tutorial_locations,
+)
 from app.engine.state.types import JsonDict
 from app.errors import RuleValidationError
 from app.models import Player, Room
@@ -54,24 +64,32 @@ def create_initial_snapshot(
         raise RuleValidationError('房间缺少玩家。')
     guest_member = next((member for member in members if member.player_id != host_member.player_id), None)
     scenario = normalize_scenario(options.get('scenario'))
-    player_deck_id = str(options.get('player_deck_id') or '').strip()
-    enemy_deck_id = str(options.get('enemy_deck_id') or '').strip()
-    if scenario == 'tutorial':
-        player_deck_id = player_deck_id or 'genesis_bloom'
-        enemy_deck_id = enemy_deck_id or 'murk_burn'
-    elif scenario == 'trial':
-        player_deck_id = player_deck_id or default_duel_deck_id()
-        enemy_deck_id = enemy_deck_id or player_deck_id
-    elif scenario == 'random_ai':
-        enemy_deck_id = enemy_deck_id or 'random'
+    initial_log = '战场显现，双方已从牌组随机抽取起始手牌。'
+    locations = _initial_locations()
 
-    host_side = _build_side(host_member.player, SIDE_A, is_ai=False, deck_id=player_deck_id)
-    if room.mode == 'solo':
-        opponent_side = _build_ai_side(enemy_deck_id)
-    elif guest_member is not None:
-        opponent_side = _build_side(guest_member.player, SIDE_B, is_ai=False, deck_id='')
+    if scenario == TUTORIAL_BASICS_SCENARIO:
+        if room.mode != 'solo':
+            raise RuleValidationError('新手教学模式只支持单人房间。')
+        host_side = _build_tutorial_player_side(host_member.player)
+        opponent_side = _build_tutorial_ai_side()
+        locations = tutorial_locations()
+        initial_log = '教学演习开始：本局没有随机牌序，按固定步骤学习基础机制。'
     else:
-        raise RuleValidationError('未来 1v1 房间需要两名玩家都进入后才能开始。')
+        player_deck_id = str(options.get('player_deck_id') or '').strip()
+        enemy_deck_id = str(options.get('enemy_deck_id') or '').strip()
+        if scenario == 'trial':
+            player_deck_id = player_deck_id or default_duel_deck_id()
+            enemy_deck_id = enemy_deck_id or player_deck_id
+        elif scenario == 'random_ai':
+            enemy_deck_id = enemy_deck_id or 'random'
+
+        host_side = _build_side(host_member.player, SIDE_A, is_ai=False, deck_id=player_deck_id)
+        if room.mode == 'solo':
+            opponent_side = _build_ai_side(enemy_deck_id)
+        elif guest_member is not None:
+            opponent_side = _build_side(guest_member.player, SIDE_B, is_ai=False, deck_id='')
+        else:
+            raise RuleValidationError('未来 1v1 房间需要两名玩家都进入后才能开始。')
 
     snapshot: JsonDict = {
         'schema_version': SCHEMA_VERSION,
@@ -82,8 +100,8 @@ def create_initial_snapshot(
         'status': 'playing',
         'phase': 'planning',
         'turn': 1,
-        'max_turns': 4 if scenario == 'tutorial' else MAX_TURNS,
-        'locations': _initial_locations(),
+        'max_turns': MAX_TURNS,
+        'locations': locations,
         'sides': {
             SIDE_A: host_side,
             SIDE_B: opponent_side,
@@ -95,11 +113,13 @@ def create_initial_snapshot(
         'play_sequence_counter': 0,
         'turn_undo_checkpoints': {},
     }
+    if scenario == TUTORIAL_BASICS_SCENARIO:
+        snapshot['tutorial'] = {'id': 'basics', 'version': 1}
     rules.reveal_locations_for_turn(snapshot)
     rules.sync_planning_phase(snapshot)
     rules.recompute_scores(snapshot)
     rules.lock_settlement_initiative(snapshot, emit_action=False)
-    rules.add_log(snapshot, '主战场显现，双方已从牌组随机抽取起始手牌。')
+    rules.add_log(snapshot, initial_log)
     return snapshot
 
 
@@ -128,6 +148,9 @@ def card_instance(definition: JsonDict, side: str, suffix: str) -> JsonDict:
         'required_material_attribute': definition.get('required_material_attribute', ''),
         'material_requirements': deepcopy(definition.get('material_requirements') or []),
         'material_requirement_text': definition.get('material_requirement_text', ''),
+        'ai_material_reserved_for': list(definition.get('ai_material_reserved_for', [])),
+        'display_tags': list(definition.get('display_tags', [])),
+        'deck_buildable': definition.get('deck_buildable') is not False,
         'side': side,
         'revealed': False,
         'played_turn': None,
@@ -138,14 +161,15 @@ def card_instance(definition: JsonDict, side: str, suffix: str) -> JsonDict:
 
 def normalize_scenario(value: object) -> str:
     scenario = str(value or 'standard').strip().lower()
-    if scenario in {'tutorial', 'trial', 'standard', 'random_ai'}:
+    scenario = normalize_tutorial_scenario(scenario)
+    if scenario in {TUTORIAL_BASICS_SCENARIO, 'trial', 'standard', 'random_ai'}:
         return scenario
     return 'standard'
 
 
 def scenario_label(scenario: object) -> str:
     normalized = normalize_scenario(scenario)
-    if normalized == 'tutorial':
+    if normalized == TUTORIAL_BASICS_SCENARIO:
         return '新手教学关'
     if normalized == 'trial':
         return '套牌试用关'
@@ -195,6 +219,55 @@ def _build_ai_side(deck_id: str = '') -> JsonDict:
         'deck': deck,
         'hand': hand,
         'esper_standby': esper_standby,
+        'discard': [],
+        'selection': None,
+        'pending_target': None,
+        'combo': {},
+        'energy_used': 0,
+        'ended_turn': False,
+    }
+
+
+def _build_tutorial_player_side(player: Player) -> JsonDict:
+    hand = _build_deck_instances(TUTORIAL_PLAYER_HAND, SIDE_A, prefix='hand')
+    deck = _build_deck_instances(TUTORIAL_PLAYER_DECK, SIDE_A, prefix='deck')
+    esper_standby = _build_deck_instances(TUTORIAL_PLAYER_ESPERS, SIDE_A, prefix='esper')
+    return {
+        'side': SIDE_A,
+        'uid': player.player_uid,
+        'nickname': player.nickname or player.player_uid,
+        'is_ai': False,
+        'deck_id': 'tutorial_basics',
+        'deck_name': '新手教学套牌',
+        'deck_description': '固定教学套牌，只在新手教学模式中使用。',
+        'ai_plan': {},
+        'deck': deck,
+        'hand': hand,
+        'esper_standby': esper_standby,
+        'discard': [],
+        'selection': None,
+        'pending_target': None,
+        'combo': {},
+        'energy_used': 0,
+        'ended_turn': False,
+    }
+
+
+def _build_tutorial_ai_side() -> JsonDict:
+    hand = _build_deck_instances(TUTORIAL_OPPONENT_HAND, SIDE_B, prefix='hand')
+    deck = _build_deck_instances(TUTORIAL_OPPONENT_DECK, SIDE_B, prefix='deck')
+    return {
+        'side': SIDE_B,
+        'uid': 'tutorial_ai',
+        'nickname': '教学对手',
+        'is_ai': True,
+        'deck_id': 'tutorial_opponent',
+        'deck_name': '教学对手脚本',
+        'deck_description': '固定教学对手，只在新手教学模式中使用。',
+        'ai_plan': {},
+        'deck': deck,
+        'hand': hand,
+        'esper_standby': [],
         'discard': [],
         'selection': None,
         'pending_target': None,
@@ -278,8 +351,8 @@ def _initial_locations() -> list[JsonDict]:
     return [{
         'id': 'main_battlefield',
         'trait_id': trait['id'],
-        'name': f"主战场：{trait['name']}",
-        'short_name': '主战场',
+        'name': f"战场：{trait['name']}",
+        'short_name': '战场',
         'description': trait['description'],
         'reveal_turn': 1,
         'effect': trait['effect'],

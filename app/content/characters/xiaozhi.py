@@ -9,7 +9,7 @@ if TYPE_CHECKING:
 
 def xiaozhi_surplus_link(context: 'EventContext') -> None:
     side = str(context.payload['side'])
-    count = 2 if _count_hand_tag(context.state, side, TAG_SURPLUS) > 0 else 1
+    count = 2 if _count_board_tag(context.state, side, TAG_SURPLUS) > 0 else 1
     added = _add_generated_card_to_hand(context, 'surplus_fons', count=count)
     _add_log(context.state, f"{context.payload['card']['name']} 生成 {added} 张「方斯」加入手牌。")
 
@@ -21,8 +21,8 @@ CHARACTER = {'id': 'xiaozhi',
  'type': 'esper',
  'element': '光',
  'rarity': 'r',
- 'art': '/static/images/characters/portrait/小吱.png',
- 'description': '共鸣：生成 1 张「方斯」加入手牌；若手牌中有盈蓄，改为生成 2 张。',
+ 'art': '/static/images/characters/portrait/小吱.webp',
+ 'description': '共鸣：生成 1 张「方斯」加入手牌；若己方有盈蓄标记，改为生成 2 张。',
  'effect_key': 'xiaozhi_surplus_link',
  'tags': ['esper', 'surplus'],
  'archetype': '',
@@ -35,7 +35,7 @@ CHARACTER = {'id': 'xiaozhi',
  'material_requirements': [{'attribute': '光', 'count': 1}, {'category': '货币', 'count': 1}],
  'material_requirement_text': '',
  'target_rule': {},
- 'portrait_image': '/static/images/characters/portrait/小吱.png',
- 'avatar_image': '/static/images/characters/portrait/小吱.png'}
+ 'portrait_image': '/static/images/characters/portrait/小吱.webp',
+ 'avatar_image': '/static/images/characters/avatar/小吱.webp'}
 
 CHARACTER['event_hooks'] = {GameEvent.CARD_REVEALED.value: xiaozhi_surplus_link}

@@ -7,6 +7,7 @@ from app.content.common.constants import LOCATION_CARD_LIMIT
 from app.content.loader import get_duel_card
 from app.engine.application.build_service import card_by_id as _card_by_id
 from app.engine.ai.player import AiRules, run_ai_turn as _run_ai_turn_impl
+from app.engine.ai.scoring import declaration_selection_ids, selection_card_contribution
 from app.engine.rules.declarations import (
     ensure_required_target_before_play as _ensure_required_target_before_play,
     find_target_card as _find_target_card,
@@ -21,6 +22,7 @@ from app.engine.rules.materials import (
     cards_by_instance_ids as _cards_by_instance_ids,
     esper_material_cost as _esper_material_cost,
     esper_material_filter_text as _esper_material_filter_text,
+    esper_material_requirements as _esper_material_requirements,
     esper_material_requirement_text as _esper_material_requirement_text,
     is_valid_esper_material as _is_valid_esper_material,
     location_has_room_after_materials as _location_has_room_after_materials,
@@ -28,6 +30,7 @@ from app.engine.rules.materials import (
     material_attribute as _material_attribute,
     material_cards_for_esper as _material_cards_for_esper,
     material_tags_for_card as _material_tags_for_card,
+    materials_satisfy_requirements as _materials_satisfy_requirements,
     release_material_reservations as _release_material_reservations,
     reserve_materials as _reserve_materials,
 )
@@ -44,7 +47,7 @@ SIDE_B = 'b'
 SIDE_KEYS = (SIDE_A, SIDE_B)
 MAX_TURNS = 6
 MAX_ENERGY = 6
-MAX_HAND_SIZE = 10
+MAX_HAND_SIZE = 8
 LOG_LIMIT = 28
 
 TAG_MURK = 'murk'
@@ -64,7 +67,7 @@ CARD_TYPE_ANOMALY_ITEM = 'anomaly_item'
 CARD_TYPE_TOKEN = 'token'
 CARD_BACK_IMAGE = '/static/images/cards/card-back.svg'
 HARMONY_TAGS = frozenset({TAG_GENESIS, TAG_MURK, TAG_DELAY, TAG_DARKSTAR, TAG_SURPLUS, TAG_DISCORD, TAG_COLLAPSING})
-DECAYING_HARMONY_TAGS = (TAG_GENESIS, TAG_MURK, TAG_DELAY, TAG_SURPLUS, TAG_DISCORD, TAG_ZHUE_HUCHI, TAG_NIGHTMARE, TAG_PANYU_QIU)
+DAMAGE_MARK_TAGS = (TAG_ZHUE_HUCHI, TAG_NIGHTMARE, TAG_PANYU_QIU)
 LOCATION_MARK_NAMES = {
     TAG_GENESIS: '创生',
     TAG_MURK: '浊燃',
@@ -129,19 +132,22 @@ def _resolve_ai_pending_choices(snapshot: JsonDict, side: str) -> None:
         if selection.get('kind') == 'draw':
             _resolve_legacy_draw_selection_as_auto_draw(snapshot, side)
         elif selection.get('kind') == 'declaration':
-            selected_ids = _ai_selection_ids(snapshot['sides'][side], selection)
+            selected_ids = _ai_selection_ids(snapshot, side, selection)
             _resolve_declaration_selection(snapshot, side, selected_ids)
         else:
-            selected_ids = _ai_selection_ids(snapshot['sides'][side], selection)
+            selected_ids = _ai_selection_ids(snapshot, side, selection)
             snapshot['sides'][side]['selection'] = None
 
 
-def _ai_selection_ids(side_state: JsonDict, selection: JsonDict) -> list[str]:
+def _ai_selection_ids(snapshot: JsonDict, side: str, selection: JsonDict) -> list[str]:
     cards = list(selection.get('cards', []))
-    priority = _ai_priority(side_state)
+    location = _selection_location(snapshot, selection)
+    selected_ids = declaration_selection_ids(snapshot, side, selection, location=location)
+    if selected_ids is not None:
+        return selected_ids
     cards.sort(
         key=lambda card: (
-            priority.get(card.get('definition_id'), -99),
+            selection_card_contribution(snapshot, side, card, location=location).total,
             int(card.get('cost', 0)),
             int(card.get('base_power', 0)),
         ),
@@ -151,9 +157,11 @@ def _ai_selection_ids(side_state: JsonDict, selection: JsonDict) -> list[str]:
     return [card['instance_id'] for card in cards[:pick_count]]
 
 
-def _ai_priority(side_state: JsonDict) -> dict[str, int]:
-    priority_ids = list(side_state.get('ai_plan', {}).get('priority_card_ids', []))
-    return {str(card_id): len(priority_ids) - index for index, card_id in enumerate(priority_ids)}
+def _selection_location(snapshot: JsonDict, selection: JsonDict) -> JsonDict | None:
+    location_id = str(selection.get('location_id') or '')
+    if not location_id:
+        return None
+    return next((location for location in snapshot.get('locations', []) if str(location.get('id') or '') == location_id), None)
 
 
 def _sync_planning_phase(snapshot: JsonDict) -> None:
@@ -180,6 +188,10 @@ def _lock_settlement_initiative(snapshot: JsonDict, *, emit_action: bool = True)
         first_side = SIDE_B
         leader_side = SIDE_B
         reason = '战力领先'
+    elif str(snapshot.get('scenario') or '') == 'tutorial_basics':
+        first_side = SIDE_A
+        leader_side = None
+        reason = '教学固定：战力持平时由玩家先揭示'
     else:
         first_side = random.choice(list(SIDE_KEYS))
         leader_side = None
@@ -218,9 +230,28 @@ def _begin_turn(snapshot: JsonDict) -> None:
     _lock_settlement_initiative(snapshot, emit_action=False)
     for side in SIDE_KEYS:
         snapshot['sides'][side]['energy_used'] = 0
+        _apply_next_turn_energy_penalty(snapshot, side)
         snapshot['sides'][side]['ended_turn'] = False
         _draw_cards(snapshot, side, 1, reason='回合补牌')
     _sync_planning_phase(snapshot)
+
+
+def _apply_next_turn_energy_penalty(snapshot: JsonDict, side: str) -> None:
+    combo = snapshot['sides'][side].setdefault('combo', {})
+    penalty_turn = int(combo.get('next_turn_energy_penalty_turn') or 0)
+    current_turn = int(snapshot.get('turn') or 0)
+    if penalty_turn != current_turn:
+        if penalty_turn and penalty_turn < current_turn:
+            combo.pop('next_turn_energy_penalty_turn', None)
+            combo.pop('next_turn_energy_penalty', None)
+        return
+    amount = max(0, int(combo.pop('next_turn_energy_penalty', 0) or 0))
+    combo.pop('next_turn_energy_penalty_turn', None)
+    if amount <= 0:
+        return
+    applied = min(_turn_energy(snapshot), amount)
+    snapshot['sides'][side]['energy_used'] = max(0, int(snapshot['sides'][side].get('energy_used', 0)) + applied)
+    _add_log(snapshot, f"{_side_name(snapshot, side)} 受到延滞影响，本回合可用能量 -{applied}。")
 
 
 def _snapshot_for_turn_undo(snapshot: JsonDict) -> JsonDict:
@@ -307,7 +338,36 @@ def _consume_location_mark(location: JsonDict, side: str, tag: str, amount: int 
         mark_bucket[tag] = remaining
     else:
         mark_bucket.pop(tag, None)
+    _clamp_fusion_marks_after_harmony_change(location, side, tag)
     return consumed
+
+
+def _clamp_fusion_marks_after_harmony_change(location: JsonDict, side: str, tag: str) -> None:
+    if tag in {TAG_GENESIS, TAG_DELAY}:
+        _clamp_location_mark(
+            location,
+            side,
+            TAG_SURPLUS,
+            min(_location_mark_count(location, side, TAG_GENESIS), _location_mark_count(location, side, TAG_DELAY)),
+        )
+    if tag in {TAG_MURK, TAG_DARKSTAR}:
+        _clamp_location_mark(
+            location,
+            side,
+            TAG_DISCORD,
+            min(_location_mark_count(location, side, TAG_MURK), _location_mark_count(location, side, TAG_DARKSTAR)),
+        )
+
+
+def _clamp_location_mark(location: JsonDict, side: str, tag: str, cap: int) -> None:
+    mark_bucket = location.setdefault('marks', {}).setdefault(side, {})
+    current = int(mark_bucket.get(tag, 0) or 0)
+    if current <= max(0, cap):
+        return
+    if cap <= 0:
+        mark_bucket.pop(tag, None)
+    else:
+        mark_bucket[tag] = int(cap)
 
 
 def _legacy_harmony_cards(location: JsonDict, side: str, tag: str) -> list[JsonDict]:
@@ -323,7 +383,7 @@ def _decay_harmony_layers_at_turn_start(snapshot: JsonDict) -> None:
         marks = location.setdefault('marks', {})
         for side in SIDE_KEYS:
             mark_bucket = marks.setdefault(side, {})
-            for tag in DECAYING_HARMONY_TAGS:
+            for tag in DAMAGE_MARK_TAGS:
                 current = int(mark_bucket.get(tag, 0) or 0)
                 if current <= 0:
                     continue
@@ -336,12 +396,8 @@ def _decay_harmony_layers_at_turn_start(snapshot: JsonDict) -> None:
 def _resolve_harmony_end_of_turn(snapshot: JsonDict, *, final_turn: bool = False) -> None:
     for location in snapshot.get('locations', []):
         for side in SIDE_KEYS:
-            _resolve_genesis_end_of_turn(snapshot, location, side)
-            _resolve_murk_end_of_turn(snapshot, location, side)
             _resolve_nightmare_end_of_turn(snapshot, location, side)
             _resolve_panyu_qiu_end_of_turn(snapshot, location, side)
-            if final_turn:
-                _resolve_darkstar_end_of_turn(snapshot, location, side)
 
 
 def _resolve_genesis_end_of_turn(snapshot: JsonDict, location: JsonDict, side: str) -> None:
@@ -371,6 +427,34 @@ def _resolve_genesis_end_of_turn(snapshot: JsonDict, location: JsonDict, side: s
     _add_log(snapshot, f"{location['name']} 的创生标记使 {target['name']} +1 战力。")
 
 
+def _resolve_damage_packet_amount(
+    snapshot: JsonDict,
+    *,
+    side: str,
+    location: JsonDict,
+    target: JsonDict,
+    amount: int,
+    source_name: str,
+    timing: str,
+) -> int:
+    amount = max(0, int(amount))
+    payload = dispatch_event(snapshot, GameEvent.DAMAGE_PACKET, {
+        'side': side,
+        'opponent_side': _opponent_side(side),
+        'location': location,
+        'location_id': location['id'],
+        'source_card': None,
+        'source_instance_id': '',
+        'damage_target_card': target,
+        'damage_target_instance_id': str(target.get('instance_id') or ''),
+        'source_name': source_name,
+        'base_amount': amount,
+        'amount': amount,
+        'timing': timing,
+    })
+    return max(0, int(payload.get('amount') or 0))
+
+
 def _resolve_murk_end_of_turn(snapshot: JsonDict, location: JsonDict, side: str) -> None:
     murk_count = _location_mark_count(location, side, TAG_MURK) + len(_legacy_harmony_cards(location, side, TAG_MURK))
     if murk_count <= 0:
@@ -391,8 +475,19 @@ def _resolve_murk_end_of_turn(snapshot: JsonDict, location: JsonDict, side: str)
         if int(card.get('computed_power', _raw_card_power(card))) >= 0
     ]
     target = max(non_negative or candidates, key=lambda item: int(item.get('computed_power', _raw_card_power(item))))
+    damage = _resolve_damage_packet_amount(
+        snapshot,
+        side=side,
+        location=location,
+        target=target,
+        amount=1,
+        source_name='浊燃',
+        timing='end_phase',
+    )
+    if damage <= 0:
+        return
     power_before = int(target.get('computed_power', _raw_card_power(target)) or 0)
-    _boost_card(target, -1, '浊燃')
+    _boost_card(target, -damage, '浊燃')
     power_after = int(target.get('computed_power', _raw_card_power(target)) or 0)
     snapshot.setdefault('action_queue', []).append({
         'kind': 'impact_arrow',
@@ -403,9 +498,9 @@ def _resolve_murk_end_of_turn(snapshot: JsonDict, location: JsonDict, side: str)
         'power_before': power_before,
         'power_after': power_after,
         'power_delta': power_after - power_before,
-        'subtitle': f'{power_before} - 1 = {power_after}',
+        'subtitle': f'{power_before} - {damage} = {power_after}',
     })
-    _add_log(snapshot, f"{location['name']} 的浊燃使 {target['name']} -1 战力。")
+    _add_log(snapshot, f"{location['name']} 的浊燃使 {target['name']} -{damage} 战力。")
 
 
 def _resolve_nightmare_end_of_turn(snapshot: JsonDict, location: JsonDict, side: str) -> None:
@@ -418,8 +513,19 @@ def _resolve_nightmare_end_of_turn(snapshot: JsonDict, location: JsonDict, side:
         if card.get('revealed') and card.get('type') != CARD_TYPE_TOKEN
     ]
     for target in targets:
+        damage = _resolve_damage_packet_amount(
+            snapshot,
+            side=side,
+            location=location,
+            target=target,
+            amount=1,
+            source_name='噩梦',
+            timing='end_phase',
+        )
+        if damage <= 0:
+            continue
         power_before = int(target.get('computed_power', _raw_card_power(target)) or 0)
-        _boost_card(target, -1, '噩梦')
+        _boost_card(target, -damage, '噩梦')
         power_after = int(target.get('computed_power', _raw_card_power(target)) or 0)
         snapshot.setdefault('action_queue', []).append({
             'kind': 'impact_arrow',
@@ -430,10 +536,10 @@ def _resolve_nightmare_end_of_turn(snapshot: JsonDict, location: JsonDict, side:
             'power_before': power_before,
             'power_after': power_after,
             'power_delta': power_after - power_before,
-            'subtitle': f'{power_before} - 1 = {power_after}',
+            'subtitle': f'{power_before} - {damage} = {power_after}',
         })
     if targets:
-        _add_log(snapshot, f"{location['name']} 的噩梦使 {len(targets)} 张敌方牌 -1 战力。")
+        _add_log(snapshot, f"{location['name']} 的噩梦使 {len(targets)} 张敌方牌受到结束阶段伤害。")
 
 
 def _resolve_panyu_qiu_end_of_turn(snapshot: JsonDict, location: JsonDict, side: str) -> None:
@@ -445,7 +551,7 @@ def _resolve_panyu_qiu_end_of_turn(snapshot: JsonDict, location: JsonDict, side:
         for card in list(location['cards'][target_side])
         if card.get('revealed')
         and card.get('type') != CARD_TYPE_TOKEN
-        and int(card.get('computed_power', _raw_card_power(card)) or 0) <= 3
+        and int(card.get('computed_power', _raw_card_power(card)) or 0) <= 2
     ]
     for target in targets:
         snapshot.setdefault('action_queue', []).append({
@@ -465,7 +571,7 @@ def _resolve_panyu_qiu_end_of_turn(snapshot: JsonDict, location: JsonDict, side:
             _release_material_reservations(snapshot, target_side, target['instance_id'])
             _remove_board_card(snapshot, target_side, location, target)
     if targets:
-        _add_log(snapshot, f"{location['name']} 的判予秋斩杀 {len(targets)} 张战力不高于 3 的敌方牌。")
+        _add_log(snapshot, f"{location['name']} 的判予秋斩杀 {len(targets)} 张战力不高于 2 的敌方牌。")
 
 
 def _resolve_darkstar_end_of_turn(snapshot: JsonDict, location: JsonDict, side: str) -> None:
@@ -485,8 +591,19 @@ def _resolve_darkstar_end_of_turn(snapshot: JsonDict, location: JsonDict, side: 
         if card.get('revealed') and card.get('type') != CARD_TYPE_TOKEN
     ]
     for target in targets:
+        actual_damage = _resolve_damage_packet_amount(
+            snapshot,
+            side=side,
+            location=location,
+            target=target,
+            amount=damage,
+            source_name='黯星',
+            timing='end_phase',
+        )
+        if actual_damage <= 0:
+            continue
         power_before = int(target.get('computed_power', _raw_card_power(target)) or 0)
-        _boost_card(target, -damage, '黯星')
+        _boost_card(target, -actual_damage, '黯星')
         power_after = int(target.get('computed_power', _raw_card_power(target)) or 0)
         snapshot.setdefault('action_queue', []).append({
             'kind': 'impact_arrow',
@@ -497,7 +614,7 @@ def _resolve_darkstar_end_of_turn(snapshot: JsonDict, location: JsonDict, side: 
             'power_before': power_before,
             'power_after': power_after,
             'power_delta': power_after - power_before,
-            'subtitle': f'{power_before} - {damage} = {power_after}',
+            'subtitle': f'{power_before} - {actual_damage} = {power_after}',
         })
     removed_murk = _consume_location_mark(location, side, TAG_MURK, _location_mark_count(location, side, TAG_MURK))
     replaced = _collapse_remaining_murks(location, side)
@@ -640,7 +757,6 @@ def _staged_cards_for_side(snapshot: JsonDict, side: str) -> list[tuple[JsonDict
 
 
 def _resolve_pending_material_consumption(snapshot: JsonDict) -> None:
-    _sweep_broken_cards(snapshot)
     for location in snapshot.get('locations', []):
         for side in SIDE_KEYS:
             espers = [
@@ -654,13 +770,10 @@ def _resolve_pending_material_consumption(snapshot: JsonDict) -> None:
             for esper in espers:
                 is_reactivation = _is_pending_esper_reactivation(snapshot, esper)
                 material_ids = [str(card_id) for card_id in esper.get('pending_material_ids', [])]
-                materials = [
-                    card
-                    for card in list(location['cards'][side])
-                    if str(card.get('instance_id')) in material_ids and _is_valid_reserved_material(card, esper['instance_id'])
-                ]
+                materials = _pending_reserved_materials(location, side, esper, material_ids)
                 required = _esper_material_cost(esper)
-                if len(materials) < required:
+                requirements = _esper_material_requirements(esper)
+                if len(materials) < required or (requirements and not _materials_satisfy_requirements(materials, requirements)):
                     _release_material_reservations(snapshot, side, esper['instance_id'])
                     if is_reactivation:
                         esper.pop('pending_material_ids', None)
@@ -674,10 +787,12 @@ def _resolve_pending_material_consumption(snapshot: JsonDict) -> None:
                 consumed_material_tags: list[str] = []
                 consumed_material_names: list[str] = []
                 consumed_material_attributes: list[str] = []
+                consumed_material_instance_ids: list[str] = []
                 absorbed_power = 0
                 for material in materials[:required]:
                     material_power = _material_absorb_power(material)
                     absorbed_power += material_power
+                    consumed_material_instance_ids.append(str(material.get('instance_id') or ''))
                     consumed_material_tags.extend(_material_tags_for_card(material))
                     consumed_material_names.append(str(material.get('name') or '素材'))
                     if _material_attribute(material):
@@ -694,6 +809,19 @@ def _resolve_pending_material_consumption(snapshot: JsonDict) -> None:
                         'card': _public_card(material, own=True),
                     })
                     _remove_board_card(snapshot, side, location, material)
+                    dispatch_event(snapshot, GameEvent.MATERIAL_CONSUMED, {
+                        'target_instance_id': material['instance_id'],
+                        'material_instance_id': material['instance_id'],
+                        'material_card': material,
+                        'card': material,
+                        'side': side,
+                        'opponent_side': _opponent_side(side),
+                        'location': location,
+                        'location_id': location['id'],
+                        'esper_instance_id': esper['instance_id'],
+                        'esper_card': esper,
+                        'material_power': material_power,
+                    })
                     _add_log(snapshot, f"{esper['name']} 消耗 {material['name']} 作为共鸣素材，吸收 {material_power} 战力。")
                 if absorbed_power:
                     _boost_card(esper, absorbed_power, '素材吸收')
@@ -706,6 +834,9 @@ def _resolve_pending_material_consumption(snapshot: JsonDict) -> None:
                 if consumed_material_attributes:
                     esper.setdefault('consumed_material_attributes', [])
                     esper['consumed_material_attributes'].extend(consumed_material_attributes)
+                if consumed_material_instance_ids:
+                    esper.setdefault('consumed_material_instance_ids', [])
+                    esper['consumed_material_instance_ids'].extend(consumed_material_instance_ids)
                 esper['absorbed_material_power'] = int(esper.get('absorbed_material_power', 0)) + absorbed_power
                 esper.pop('pending_material_ids', None)
                 esper.pop('summoned_from', None)
@@ -715,8 +846,25 @@ def _resolve_pending_material_consumption(snapshot: JsonDict) -> None:
     _sweep_broken_cards(snapshot)
 
 
+def _pending_reserved_materials(location: JsonDict, side: str, esper: JsonDict, material_ids: list[str]) -> list[JsonDict]:
+    cards_by_id = {
+        str(card.get('instance_id') or ''): card
+        for card in list(location.get('cards', {}).get(side, []))
+    }
+    return [
+        card
+        for material_id in material_ids
+        if (card := cards_by_id.get(material_id)) is not None
+        and _is_valid_reserved_material(card, esper['instance_id'])
+    ]
+
+
 def _is_valid_reserved_material(card: JsonDict, esper_instance_id: str) -> bool:
-    return _is_valid_esper_material({**card, 'reserved_as_material_for': ''}) and card.get('reserved_as_material_for') == esper_instance_id
+    reserved_power = int(card.get('reserved_material_power', card.get('computed_power', _raw_card_power(card))) or 0)
+    return (
+        _is_valid_esper_material({**card, 'reserved_as_material_for': '', 'computed_power': reserved_power})
+        and card.get('reserved_as_material_for') == esper_instance_id
+    )
 
 
 def _is_pending_esper_entry(snapshot: JsonDict, card: JsonDict) -> bool:
@@ -786,6 +934,18 @@ def _resolve_esper_reactivation(snapshot: JsonDict, side: str, location: JsonDic
             'title': card['name'],
             'effect_summary': effect_summary,
         })
+    dispatch_event(snapshot, GameEvent.ESPER_RESONATED, {
+        'card_instance_id': card['instance_id'],
+        'resonated_instance_id': card['instance_id'],
+        'card': card,
+        'resonated_card': card,
+        'side': side,
+        'opponent_side': opponent,
+        'location': location,
+        'location_id': location['id'],
+        'location_index': _location_index(snapshot, location['id']),
+        'reactivated': True,
+    })
     card.pop('selected_target_instance_id', None)
     card.pop('selected_target_name', None)
 
@@ -806,9 +966,11 @@ def _reset_esper_to_standby(snapshot: JsonDict, side: str, card: JsonDict) -> No
     card.pop('consumed_material_tags', None)
     card.pop('consumed_material_names', None)
     card.pop('consumed_material_attributes', None)
+    card.pop('consumed_material_instance_ids', None)
     card.pop('absorbed_material_power', None)
     card.pop('reactivating_turn', None)
     card.pop('reserved_as_material_for', None)
+    card.pop('reserved_material_power', None)
     _reset_card_stats_from_definition(card)
     snapshot['sides'][side].setdefault('esper_standby', []).append(card)
 
@@ -901,6 +1063,19 @@ def _reveal_card(snapshot: JsonDict, side: str, location: JsonDict, card: JsonDi
     effect_summary = _reveal_effect_summary(card['name'], _new_log_entries(snapshot, logs_before_effect))
     if effect_summary:
         reveal_action['effect_summary'] = effect_summary
+    if card.get('type') == CARD_TYPE_ESPER:
+        dispatch_event(snapshot, GameEvent.ESPER_RESONATED, {
+            'card_instance_id': card['instance_id'],
+            'resonated_instance_id': card['instance_id'],
+            'card': card,
+            'resonated_card': card,
+            'side': side,
+            'opponent_side': opponent,
+            'location': location,
+            'location_id': location['id'],
+            'location_index': _location_index(snapshot, location['id']),
+            'reactivated': False,
+        })
     _sweep_broken_cards(snapshot)
     _recompute_scores(snapshot)
 
@@ -1075,7 +1250,10 @@ def _location_power_bonus(location: JsonDict, side: str, card: JsonDict) -> int:
 def _draw_cards(snapshot: JsonDict, side: str, count: int, *, reason: str = '抽牌') -> list[JsonDict]:
     drawn: list[JsonDict] = []
     for _ in range(count):
-        if not snapshot['sides'][side]['deck'] or len(snapshot['sides'][side]['hand']) >= MAX_HAND_SIZE:
+        if not snapshot['sides'][side]['deck']:
+            break
+        if len(snapshot['sides'][side]['hand']) >= MAX_HAND_SIZE:
+            _add_log(snapshot, f"{_side_name(snapshot, side)} 手牌已达上限 {MAX_HAND_SIZE}，{reason}失效。")
             break
         card = snapshot['sides'][side]['deck'].pop(0)
         snapshot['sides'][side]['hand'].append(card)
@@ -1125,6 +1303,7 @@ def _public_card(card: JsonDict, *, own: bool) -> JsonDict:
             'material_requirements': deepcopy(card.get('material_requirements') or []),
             'material_requirement_text': card.get('material_requirement_text', ''),
             'material_tags': list(card.get('material_tags', [])),
+            'display_tags': list(card.get('display_tags', [])),
             'buff_sources': [],
         }
     return {
@@ -1158,11 +1337,14 @@ def _public_card(card: JsonDict, *, own: bool) -> JsonDict:
         'consumed_material_tags': list(card.get('consumed_material_tags', [])),
         'consumed_material_names': list(card.get('consumed_material_names', [])),
         'consumed_material_attributes': list(card.get('consumed_material_attributes', [])),
+        'consumed_material_instance_ids': list(card.get('consumed_material_instance_ids', [])),
         'absorbed_material_power': int(card.get('absorbed_material_power', 0)),
         'played_turn': card.get('played_turn'),
         'location_id': card.get('location_id'),
         'type': card.get('type', 'esper'),
         'tags': list(card.get('tags', [])),
+        'display_tags': list(card.get('display_tags', [])),
+        'deck_buildable': card.get('deck_buildable') is not False,
         'buff_sources': [deepcopy(source) for source in card.get('buff_sources', [])],
         'target_rule': _target_rule(card) or None,
         'selected_target_instance_id': card.get('selected_target_instance_id'),
@@ -1282,12 +1464,7 @@ def _cost_to_play(snapshot: JsonDict, side: str, card: JsonDict, location: JsonD
 
 
 def _delay_tax(snapshot: JsonDict, side: str, location: JsonDict) -> int:
-    source_side = _opponent_side(side)
-    return 1 if (
-        _location_mark_count(location, source_side, TAG_DELAY) > 0
-        or _location_mark_count(location, source_side, TAG_SURPLUS) > 0
-        or _first_delay_in_location(location, source_side) is not None
-    ) else 0
+    return 0
 
 
 def _first_delay_in_location(location: JsonDict, side: str) -> JsonDict | None:
@@ -1298,28 +1475,7 @@ def _first_delay_in_location(location: JsonDict, side: str) -> JsonDict | None:
 
 
 def _consume_delay_tax(snapshot: JsonDict, side: str, location: JsonDict) -> None:
-    source_side = _opponent_side(side)
-    delay_card = _first_delay_in_location(location, source_side)
-    consumed_mark = _consume_location_mark(location, source_side, TAG_DELAY, 1)
-    consumed_surplus = 0
-    if delay_card is None and consumed_mark <= 0:
-        consumed_surplus = _consume_location_mark(location, source_side, TAG_SURPLUS, 1)
-    if delay_card is None and consumed_mark <= 0:
-        if consumed_surplus <= 0:
-            return
-    if delay_card is not None and consumed_mark <= 0:
-        _remove_board_card(snapshot, source_side, location, delay_card)
-    snapshot['sides'][source_side].setdefault('combo', {})['delay_consumed_by_opponent'] = (
-        int(snapshot['sides'][source_side].setdefault('combo', {}).get('delay_consumed_by_opponent', 0)) + 1
-    )
-    mark_name = '盈蓄' if consumed_surplus else '延滞'
-    _add_log(snapshot, f"{location['name']} 的{mark_name}被触发，{_side_name(snapshot, side)} 本次置入额外消耗 1 点能量。")
-    if (
-        not consumed_surplus
-        and _has_revealed_tag(location, source_side, TAG_GENESIS)
-        and _add_generated_card_to_hand(snapshot, source_side, 'surplus_charge') is not None
-    ):
-        _add_log(snapshot, f"{location['name']} 的创生接住延滞反冲，{_side_name(snapshot, source_side)} 获得 1 张盈蓄。")
+    return None
 
 
 def _has_revealed_tag(location: JsonDict, side: str, tag: str) -> bool:
@@ -1336,6 +1492,7 @@ def _remove_board_card(snapshot: JsonDict, side: str, location: JsonDict, card: 
     card.pop('paid_cost', None)
     card.pop('play_sequence', None)
     card.pop('reserved_as_material_for', None)
+    card.pop('reserved_material_power', None)
     card.pop('pending_material_ids', None)
     card.pop('selected_target_name', None)
     card.pop('declared_card_instance_ids', None)
@@ -1387,6 +1544,7 @@ def _vanish_revealed_card_if_needed(snapshot: JsonDict, side: str, location: Jso
 def _add_generated_card_to_hand(snapshot: JsonDict, side: str, card_id: str) -> JsonDict | None:
     side_state = snapshot['sides'][side]
     if len(side_state.get('hand', [])) >= MAX_HAND_SIZE:
+        _add_log(snapshot, f"{_side_name(snapshot, side)} 手牌已达上限 {MAX_HAND_SIZE}，生成加入手牌失效。")
         return None
     definition = get_duel_card(card_id)
     if definition is None:

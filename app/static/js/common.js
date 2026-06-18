@@ -94,7 +94,7 @@ const TUTORIAL_DEFINITIONS = {
           '欢迎游玩，本项目还没有正式的名字，可以帮忙起一个。',
           '请在左侧轮盘滑动或点击，先选择一位领队。',
         ],
-        image: { src: '/static/images/characters/portrait/小吱.png', alt: '小吱角色立绘' },
+        image: { src: '/static/images/characters/portrait/小吱.webp', alt: '小吱角色立绘' },
       },
       {
         title: '携带卡牌',
@@ -226,9 +226,11 @@ function renderTutorialModal() {
   modal.querySelector('#tutorial-body').innerHTML = nteTutorialPageHtml(page);
   const prevBtn = modal.querySelector('#tutorial-prev-btn');
   const nextBtn = modal.querySelector('#tutorial-next-btn');
+  const closeBtn = modal.querySelector('#tutorial-close-btn');
   prevBtn.disabled = state.pageIndex === 0;
   nextBtn.disabled = Boolean(state.finishing);
   nextBtn.textContent = state.pageIndex >= lastPageIndex ? '我知道了' : '下一页';
+  closeBtn.hidden = state.closeAllowed === false;
 }
 
 function openTutorialManual(scope, options = {}) {
@@ -243,8 +245,11 @@ function openTutorialManual(scope, options = {}) {
     pages: pages.length ? pages : [{ title: '教学手册', body: ['暂无手册内容。'] }],
     pageIndex: 0,
     finishing: false,
+    persistCompletion: options.persistCompletion !== false,
+    closeAllowed: options.closeAllowed !== false,
   };
   const modal = ensureTutorialModal();
+  modal.classList.toggle('tutorial-modal-forced', options.closeAllowed === false);
   renderTutorialModal();
   modal.classList.add('open');
   modal.setAttribute('aria-hidden', 'false');
@@ -263,24 +268,31 @@ async function finishOrAdvanceTutorial() {
   tutorialModalState.finishing = true;
   renderTutorialModal();
   try {
-    await apiRequest('/api/tutorial/complete', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ scope: tutorialModalState.scope }),
-    });
+    if (tutorialModalState.persistCompletion) {
+      await apiRequest('/api/tutorial/complete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ scope: tutorialModalState.scope }),
+      });
+    }
   } catch (error) {
     console.warn(error);
   } finally {
     const modal = ensureTutorialModal();
     modal.classList.remove('open');
+    modal.classList.remove('tutorial-modal-forced');
     modal.setAttribute('aria-hidden', 'true');
     tutorialModalState = null;
   }
 }
 
 function closeTutorialModal() {
+  if (tutorialModalState?.closeAllowed === false) {
+    return;
+  }
   const modal = ensureTutorialModal();
   modal.classList.remove('open');
+  modal.classList.remove('tutorial-modal-forced');
   modal.setAttribute('aria-hidden', 'true');
   tutorialModalState = null;
 }

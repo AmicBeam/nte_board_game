@@ -7,16 +7,29 @@ if TYPE_CHECKING:
     from app.engine.event_context import EventContext
 
 
+def _lowest_enemy_unit(context: 'EventContext', opponent: str) -> JsonDict | None:
+    candidates = [
+        card
+        for location in context.state.get('locations', [])
+        for card in _revealed_cards(location, opponent)
+        if card.get('type') != CARD_TYPE_TOKEN
+    ]
+    return min(candidates, key=_raw_card_power) if candidates else None
+
+
 def jiuyuan_genesis(context: 'EventContext') -> None:
     side = str(context.payload['side'])
+    opponent = str(context.payload['opponent_side'])
     count = _count_board_tag(context.state, side, TAG_GENESIS)
-    target = _selected_or_highest_opponent(context)
-    if target is None:
-        _add_log(context.state, f"{context.payload['card']['name']} 读到 {count} 层创生，但没有可影响的敌方单位。")
-        return
-    amount = -max(1, count)
-    _boost_card(target, amount, context.payload['card']['name'])
-    _add_log(context.state, f"{context.payload['card']['name']} 以 {count} 层创生缠绕 {target['name']}，使其 {amount} 战力。")
+    repeats = min(4, max(1, count))
+    applied = 0
+    for _ in range(repeats):
+        target = _lowest_enemy_unit(context, opponent)
+        if target is None:
+            break
+        _boost_card(target, -1, context.payload['card']['name'])
+        applied += 1
+    _add_log(context.state, f"{context.payload['card']['name']} 依据 {count} 层创生，重复 {applied}/{repeats} 次使对手当前战力最低的表侧单位 -1。")
 
 
 CHARACTER = {'id': 'jiuyuan',
@@ -26,8 +39,8 @@ CHARACTER = {'id': 'jiuyuan',
  'type': 'esper',
  'element': '灵',
  'rarity': 'sr',
- 'art': '/static/images/characters/portrait/九原.png',
- 'description': '共鸣：依据己方创生层数，使对手最高战力表侧单位 -X，X 至少为 1。',
+ 'art': '/static/images/characters/portrait/九原.webp',
+ 'description': '共鸣：依据己方创生层数，使对手战力最低的表侧单位 -1，重复 X 次，X 至少为 1，至多为 4。',
  'effect_key': 'jiuyuan_genesis',
  'tags': ['esper', 'genesis'],
  'archetype': '',
@@ -40,7 +53,7 @@ CHARACTER = {'id': 'jiuyuan',
  'material_requirements': [{'attribute': '灵', 'count': 2}],
  'material_requirement_text': '',
  'target_rule': {},
- 'portrait_image': '/static/images/characters/portrait/九原.png',
- 'avatar_image': '/static/images/characters/portrait/九原.png'}
+ 'portrait_image': '/static/images/characters/portrait/九原.webp',
+ 'avatar_image': '/static/images/characters/avatar/九原.webp'}
 
 CHARACTER['event_hooks'] = {GameEvent.CARD_REVEALED.value: jiuyuan_genesis}

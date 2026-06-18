@@ -9,26 +9,37 @@ if TYPE_CHECKING:
 
 def genesis_nest_shard(context: 'EventContext') -> None:
     card = context.payload['card']
-    target = _highest_ally(context) or card
-    target['survive_non_positive_once'] = True
-    if int(target.get('played_turn') or 0) == _current_turn(context):
-        _boost_card(target, 1, card['name'])
-    _add_log(context.state, f"{card['name']} 保护 {target['name']}，其第一次将被减为非正时保留 1 战力。")
+    side = str(context.payload['side'])
+    turn = int(context.state.get('turn') or 0)
+    has_other_revealed = any(
+        other.get('instance_id') != card.get('instance_id')
+        and other.get('revealed')
+        and int(other.get('played_turn') or 0) == turn
+        for other in context.payload['location'].get('cards', {}).get(side, [])
+    )
+    if not has_other_revealed:
+        _add_log(context.state, f"{card['name']} 本回合没有其他己方已揭示卡牌，未生成「方斯」。")
+        return
+    added = _add_generated_card_to_hand(context, 'surplus_fons')
+    if added:
+        _add_log(context.state, f"{card['name']} 将 1 张「方斯」加入手牌。")
+    else:
+        _add_log(context.state, f"{card['name']} 想生成「方斯」，但手牌已满。")
 
 
 ITEM = {'id': 'genesis_nest_shard',
- 'name': '护巢残片',
- 'cost': 3,
+ 'name': '遗失的钱包',
+ 'cost': 2,
  'power': 4,
  'type': 'anomaly_item',
  'element': '异象',
  'rarity': 'r',
- 'art': '/static/images/item/护巢残片.webp',
- 'description': '揭示：选择己方战力最高的 1 张道具，使其获得护盾，持续一回合；若该道具是本回合部署的道具，它额外 +1 战力。',
+ 'art': '/static/images/item/遗失的钱包.webp',
+ 'description': '揭示：若本回合已揭示过其他己方卡牌，则将 1 张「方斯」加入手牌。',
  'effect_key': 'genesis_nest_shard',
  'tags': ['genesis', 'tool', 'material', 'mat_relic'],
  'archetype': 'genesis',
- 'category': '材料',
+ 'category': '耗材',
  'attribute': '灵',
  'attribute_icon': '/static/images/elements/灵.png',
  'material_tags': ['mat_relic'],
@@ -37,6 +48,6 @@ ITEM = {'id': 'genesis_nest_shard',
  'material_requirements': [],
  'material_requirement_text': '',
  'target_rule': {},
- 'icon': '/static/images/item/护巢残片.webp'}
+ 'icon': '/static/images/item/遗失的钱包.webp'}
 
 ITEM['event_hooks'] = {GameEvent.CARD_REVEALED.value: genesis_nest_shard}

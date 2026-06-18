@@ -9,20 +9,20 @@ if TYPE_CHECKING:
 
 def adler_murk_pressure(context: 'EventContext') -> None:
     side = str(context.payload['side'])
-    created = _create_tokens_at_location(context, 'harmony_murk', side=side, count=2)
-    _reset_location_mark(context, context.payload['location'], side, TAG_ZHUE_HUCHI, 4)
-    _add_log(context.state, f"{context.payload['card']['name']} 设置环合：浊燃 {created} 层，并将诛恶护持重置为 4 层。")
+    created = _create_tokens_at_location(context, 'harmony_murk', side=side, count=1)
+    _reset_location_mark(context, context.payload['location'], side, TAG_ZHUE_HUCHI, 3)
+    _add_log(context.state, f"{context.payload['card']['name']} 设置环合：浊燃 {created} 层，并将诛恶护持重置为 3 层。")
 
 
 CHARACTER = {'id': 'adler',
  'name': '阿德勒',
  'cost': 0,
- 'power': 5,
+ 'power': 4,
  'type': 'esper',
  'element': '咒',
  'rarity': 'sr',
- 'art': '/static/images/characters/portrait/阿德勒.png',
- 'description': '共鸣：设置环合：浊燃 2 层，并将诛恶护持重置为 4 层。',
+ 'art': '/static/images/characters/portrait/阿德勒.webp',
+ 'description': '共鸣：设置环合：浊燃 1 层，并将诛恶护持重置为 3 层。',
  'effect_key': 'adler_murk_pressure',
  'tags': ['esper', 'murk'],
  'archetype': '',
@@ -35,7 +35,7 @@ CHARACTER = {'id': 'adler',
  'material_requirements': [{'attribute': '咒', 'count': 1}, {'attribute': '暗', 'count': 1}],
  'material_requirement_text': '',
  'target_rule': {},
- 'portrait_image': '/static/images/characters/portrait/阿德勒.png',
- 'avatar_image': '/static/images/characters/portrait/阿德勒.png'}
+ 'portrait_image': '/static/images/characters/portrait/阿德勒.webp',
+ 'avatar_image': '/static/images/characters/avatar/阿德勒.webp'}
 
 CHARACTER['event_hooks'] = {GameEvent.CARD_REVEALED.value: adler_murk_pressure}

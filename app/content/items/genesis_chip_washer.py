@@ -35,20 +35,24 @@ def genesis_recover(context: 'EventContext') -> None:
         card.pop('declared_card_instance_ids', None)
         return
     target = context.payload.get('target_card') if isinstance(context.payload.get('target_card'), dict) else None
-    if target is not None and target.get('side') == str(context.payload['side']):
-        if _return_target_to_hand(context, target):
-            declared = _declared_deck_item(
-                context,
-                lambda item: (
-                    item.get('type') == CARD_TYPE_ANOMALY_ITEM
-                    and int(item.get('cost') or 0) <= 1
-                    and str(item.get('attribute') or '') in {'光', '灵', '相'}
-                ),
-            )
-            _add_card_to_hand(context, declared, card['name'])
-            card.pop('declared_card_instance_ids', None)
-            return
-    _add_log(context.state, f"{card['name']} 的宣言目标已不合法。")
+    if target is None or target.get('side') != str(context.payload['side']) or str(target.get('category') or '') not in {'食物', '饮料'}:
+        _add_log(context.state, f"{card['name']} 的宣言食物或饮料道具已不在战场。")
+        card.pop('declared_card_instance_ids', None)
+        return
+    if _return_target_to_hand(context, target):
+        opponent = str(context.payload['opponent_side'])
+        candidates = [
+            item
+            for item in _revealed_cards(context.payload['location'], opponent)
+            if item.get('type') == CARD_TYPE_ANOMALY_ITEM
+        ]
+        if candidates:
+            returned = random.choice(candidates)
+            context.payload['location']['cards'][opponent].remove(returned)
+            returned = _reset_card_for_zone(returned, revealed=False)
+            returned['_animation_source_zone'] = 'board'
+            context.state['sides'][opponent].setdefault('hand', []).append(returned)
+            _add_log(context.state, f"{card['name']} 随机使对手的 {returned['name']} 返回手牌。")
     card.pop('declared_card_instance_ids', None)
 
 
@@ -60,12 +64,11 @@ ITEM = {'id': 'genesis_chip_washer',
  'element': '异象',
  'rarity': 'r',
  'art': '/static/images/item/吃薯片专用洗指机.webp',
- 'description': '宣言：选择 1 张己方当前战力低于基础战力的食物道具，并检视牌库选择 1 张费用 <=1 的光、灵或相属性道具。揭示：将宣言道具返回手牌并使其下次部署费用 '
-                '-1；将第二次宣言的道具加入手牌。',
+ 'description': '宣言：选择 1 张己方表侧食物或饮料道具。揭示：将宣言道具返回手牌并使其下次部署费用 -1；随后随机使对手 1 张表侧道具返回手牌。',
  'effect_key': 'genesis_recover',
  'tags': ['genesis', 'tool', 'material', 'mat_device'],
  'archetype': 'genesis',
- 'category': '其他',
+ 'category': '耗材',
  'attribute': '光',
  'attribute_icon': '/static/images/elements/光.png',
  'material_tags': ['mat_device'],
@@ -75,22 +78,12 @@ ITEM = {'id': 'genesis_chip_washer',
  'material_requirement_text': '',
  'target_rule': {},
  'declaration': {'steps': [{'kind': 'board',
-                            'scope': 'ally_damaged_food_same_location',
-                            'prompt': '选择 1 张己方当前战力低于基础战力的食物道具。',
+                            'scope': 'ally_item_same_location',
+                            'prompt': '选择 1 张己方表侧食物或饮料道具。',
                             'required_before_play': True,
                             'predicate': lambda item, context: (
                                 item.get('type') == CARD_TYPE_ANOMALY_ITEM
-                                and str(item.get('category') or '') == '食物'
-                                and int(item.get('computed_power', item.get('base_power', 0)) or 0) < int(item.get('base_power') or 0)
-                            )},
-                           {'kind': 'cards',
-                            'zones': ['deck'],
-                            'title': '吃薯片专用洗指机 检视牌库',
-                            'description': '宣言 1 张费用 <=1 的光、灵或相属性道具；揭示时加入手牌。',
-                            'predicate': lambda item, context: (
-                                item.get('type') == CARD_TYPE_ANOMALY_ITEM
-                                and int(item.get('cost') or 0) <= 1
-                                and str(item.get('attribute') or '') in {'光', '灵', '相'}
+                                and str(item.get('category') or '') in {'食物', '饮料'}
                             )}]},
  'icon': '/static/images/item/吃薯片专用洗指机.webp'}
 

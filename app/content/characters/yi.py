@@ -8,23 +8,29 @@ if TYPE_CHECKING:
 
 
 def yi_delay_support(context: 'EventContext') -> None:
+    card = context.payload['card']
     side = str(context.payload['side'])
+    if card.get('yi_delay_support_used'):
+        _add_log(context.state, f"{card['name']} 已经触发过延滞支援。")
+        return
+    if _location_mark_count(context.payload['location'], side, TAG_DELAY) <= 0:
+        _add_log(context.state, f"{card['name']} 检查己方没有延滞，未设置延滞。")
+        return
     created = _create_tokens_at_location(context, 'harmony_delay', side=side, count=1)
-    target = _lowest_ally(context)
-    if target is not None:
-        _boost_card(target, 2, context.payload['card']['name'])
-    _add_log(context.state, f"{context.payload['card']['name']} 设置环合：延滞 {created} 层，并使己方当前战力最低的表侧单位 +2。")
+    if created:
+        card['yi_delay_support_used'] = True
+    _add_log(context.state, f"{card['name']} 因己方已有延滞，设置环合：延滞 {created} 层。")
 
 
 CHARACTER = {'id': 'yi',
  'name': '翳',
  'cost': 0,
- 'power': 5,
+ 'power': 3,
  'type': 'esper',
  'element': '相',
  'rarity': 'sr',
- 'art': '/static/images/characters/portrait/翳.png',
- 'description': '共鸣：设置环合：延滞 1 层，并选择己方当前战力最低的表侧单位 +2。',
+ 'art': '/static/images/characters/portrait/翳.webp',
+ 'description': '共鸣：【限1次】若己方已有延滞，设置环合：延滞 1 层。',
  'effect_key': 'yi_delay_support',
  'tags': ['esper', 'delay'],
  'archetype': '',
@@ -32,12 +38,12 @@ CHARACTER = {'id': 'yi',
  'attribute': '相',
  'attribute_icon': '/static/images/elements/相.png',
  'material_tags': [],
- 'material_cost': 2,
+ 'material_cost': 1,
  'required_material_attribute': '相',
- 'material_requirements': [{'attribute': '相', 'count': 1}, {'category': '材料', 'count': 1}],
+ 'material_requirements': [{'attribute': '相', 'count': 1}],
  'material_requirement_text': '',
  'target_rule': {},
- 'portrait_image': '/static/images/characters/portrait/翳.png',
- 'avatar_image': '/static/images/characters/portrait/翳.png'}
+ 'portrait_image': '/static/images/characters/portrait/翳.webp',
+ 'avatar_image': '/static/images/characters/avatar/翳.webp'}
 
 CHARACTER['event_hooks'] = {GameEvent.CARD_REVEALED.value: yi_delay_support}

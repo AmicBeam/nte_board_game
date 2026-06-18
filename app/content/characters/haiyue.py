@@ -9,12 +9,9 @@ if TYPE_CHECKING:
 
 def haiyue_darkstar_finish(context: 'EventContext') -> None:
     side = str(context.payload['side'])
-    consumed = _consume_location_mark(context.payload['location'], side, TAG_DARKSTAR, 1)
-    if consumed:
-        _add_combo_counter(context.state, side, 'darkstar_exploded', consumed)
-    repeat_count = _count_board_or_discard_items(context.state, side, lambda card: str(card.get('category') or '') == '耗材' or _definition_id(card) == 'darkstar_ringstone')
+    repeat_count = _count_board_tag(context.state, side, TAG_DARKSTAR)
     hits = _random_enemy_hits(context, repeat_count, 1)
-    _add_log(context.state, f"{context.payload['card']['name']} 立刻结算并消耗 {consumed} 层黯星，按耗材与环石数量随机造成 {hits} 次 1 点伤害。")
+    _add_log(context.state, f"{context.payload['card']['name']} 依据 {repeat_count} 层黯星，随机造成 {hits} 次 1 点伤害。")
 
 
 CHARACTER = {'id': 'haiyue',
@@ -24,8 +21,8 @@ CHARACTER = {'id': 'haiyue',
  'type': 'esper',
  'element': '魂',
  'rarity': 'sr',
- 'art': '/static/images/characters/portrait/海月.png',
- 'description': '共鸣：立刻结算并消耗 1 层黯星；随机对 1 个敌人造成 1 点伤害，重复 X 次，X 为战场和墓地的耗材与环石数量之和。',
+ 'art': '/static/images/characters/portrait/海月.webp',
+ 'description': '共鸣：随机对 1 个敌方单位造成 1 点伤害，重复 X 次，X 为己方黯星层数。',
  'effect_key': 'haiyue_darkstar_finish',
  'tags': ['esper', 'darkstar'],
  'archetype': '',
@@ -38,7 +35,7 @@ CHARACTER = {'id': 'haiyue',
  'material_requirements': [{'attribute': '魂', 'count': 2}, {'category': '耗材', 'count': 1}],
  'material_requirement_text': '',
  'target_rule': {},
- 'portrait_image': '/static/images/characters/portrait/海月.png',
- 'avatar_image': '/static/images/characters/portrait/海月.png'}
+ 'portrait_image': '/static/images/characters/portrait/海月.webp',
+ 'avatar_image': '/static/images/characters/avatar/海月.webp'}
 
 CHARACTER['event_hooks'] = {GameEvent.CARD_REVEALED.value: haiyue_darkstar_finish}

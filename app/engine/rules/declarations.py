@@ -16,11 +16,11 @@ LOG_LIMIT = 28
 SPECIAL_TARGET_RULES: dict[str, JsonDict] = {
     'genesis_marble_soda': {
         'scope': 'ally_item_same_location',
-        'prompt': '选择 1 张己方战力不高于 2 的道具。',
+        'prompt': '选择 1 张己方表侧耗材道具。',
     },
     'genesis_chip_washer': {
-        'scope': 'ally_damaged_food_same_location',
-        'prompt': '选择 1 张己方当前战力低于基础战力的食物道具。',
+        'scope': 'ally_item_same_location',
+        'prompt': '选择 1 张己方表侧食物道具。',
     },
     'delay_mind_sync': {
         'scope': 'opponent_power_lte_3_same_location',
@@ -29,10 +29,6 @@ SPECIAL_TARGET_RULES: dict[str, JsonDict] = {
     'delay_water_hesitation': {
         'scope': 'opponent_same_location',
         'prompt': '选择 1 张对手道具。',
-    },
-    'delay_nestling_hope': {
-        'scope': 'ally_xiang_item_same_location',
-        'prompt': '选择 1 张己方相属性道具。',
     },
     'murk_lost_whisper': {
         'scope': 'opponent_same_location',
@@ -74,14 +70,18 @@ def declaration_selection_preview(
     candidates = _declaration_candidates(snapshot, side, location, card, step, selected_target)
     if not candidates:
         return None
-    title = str(step.get('title') or f"{card.get('name', '卡牌')} 检视牌库")
-    description = str(step.get('description') or '宣言 1 张合法卡牌；揭示时执行。')
     pick_count = int(step.get('pick_count') or 1)
     min_count = int(step.get('min_count') if step.get('min_count') is not None else pick_count)
+    if len(candidates) < min_count:
+        return None
+    title = str(step.get('title') or f"{card.get('name', '卡牌')} 检视牌库")
+    description = str(step.get('description') or '宣言 1 张合法卡牌；揭示时执行。')
     return {
         'kind': 'declaration',
         'source_instance_id': card['instance_id'],
         'location_id': location['id'],
+        'owner_side': _opponent_side(side) if str(step.get('owner') or '') == 'opponent' else side,
+        'zones': _declaration_zones(step),
         'title': title,
         'description': description,
         'pick_count': pick_count,
@@ -89,6 +89,10 @@ def declaration_selection_preview(
         'max_count': pick_count,
         'cards': candidates,
     }
+
+
+def has_card_declaration(card: JsonDict) -> bool:
+    return bool(_declaration_card_step(card))
 
 
 def prepare_declaration_target(snapshot: JsonDict, side: str, location: JsonDict, card: JsonDict) -> bool:
@@ -279,10 +283,11 @@ def _declaration_candidates(
     step: JsonDict,
     selected_target: JsonDict | None = None,
 ) -> list[JsonDict]:
-    side_state = snapshot['sides'][side]
     zones = _declaration_zones(step)
     if not zones:
         return []
+    owner_side = _opponent_side(side) if str(step.get('owner') or '') == 'opponent' else side
+    side_state = snapshot['sides'][owner_side]
     source_id = str(card.get('instance_id') or '')
     predicate = step.get('predicate')
     selected_target = selected_target or _find_card_on_board(snapshot, str(card.get('selected_target_instance_id') or ''))
@@ -290,6 +295,7 @@ def _declaration_candidates(
         'snapshot': snapshot,
         'side': side,
         'opponent_side': _opponent_side(side),
+        'owner_side': owner_side,
         'source': card,
         'location': location,
         'selected_target': selected_target,

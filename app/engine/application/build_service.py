@@ -21,6 +21,7 @@ MAX_BUILD_ITEM_COUNT = 20
 MAX_BUILD_ESPER_COUNT = 4
 MAX_COPIES_PER_ITEM_CARD = 3
 MAP_LOCKED_ITEM_IDS: tuple[str, ...] = ()
+PUBLIC_PREBUILT_DECK_IDS: tuple[str, ...] = ('genesis_bloom', 'delay_lock', 'murk_burn')
 
 CARD_TYPE_ESPER = 'esper'
 CARD_TYPE_ANOMALY_ITEM = 'anomaly_item'
@@ -133,6 +134,8 @@ def normalize_build_payload(build: JsonDict) -> JsonDict:
     if legacy_espers:
         item_ids = [card_id for card_id in item_ids if card_type(card_id) == CARD_TYPE_ANOMALY_ITEM]
         esper_ids = unique_known_ids([*esper_ids, *legacy_espers])
+    item_ids = [card_id for card_id in item_ids if card_is_deck_buildable(card_id)]
+    esper_ids = [card_id for card_id in esper_ids if card_is_deck_buildable(card_id)]
     return {
         'character_id': str(build.get('character_id') or ''),
         'starter_item_ids': [],
@@ -175,13 +178,15 @@ def sort_card_ids(card_ids: list[str]) -> list[str]:
     return sorted(card_ids, key=card_sort_key)
 
 
-def card_sort_key(card_id: str) -> tuple[int, int, int, str]:
+def card_sort_key(card_id: str) -> tuple[int, int, int, int, str]:
     card = card_by_id().get(str(card_id), {})
+    type_order = {CARD_TYPE_ESPER: 0, CARD_TYPE_ANOMALY_ITEM: 1}
     attribute_order = {'灵': 0, '光': 1, '相': 2, '咒': 3, '暗': 4, '魂': 5}
     attribute = str(card.get('attribute') or card.get('required_material_attribute') or card.get('element') or '')
     cost = int(card.get('material_cost') or card.get('cost') or 0)
     power = int(card.get('power') or 0)
-    return (attribute_order.get(attribute, 99), cost, power, str(card.get('name') or card_id))
+    card_type = str(card.get('type') or '')
+    return (type_order.get(card_type, 99), cost, attribute_order.get(attribute, 99), power, str(card.get('name') or card_id))
 
 
 def card_count_bucket(card_ids: list[str]) -> dict[str, int]:
@@ -193,6 +198,11 @@ def card_count_bucket(card_ids: list[str]) -> dict[str, int]:
 
 def card_type(card_id: str) -> str:
     return str((card_by_id().get(str(card_id)) or {}).get('type', ''))
+
+
+def card_is_deck_buildable(card_id: str) -> bool:
+    card = card_by_id().get(str(card_id)) or {}
+    return card.get('deck_buildable') is not False
 
 
 def validate_custom_build_sections(item_ids: list[str], esper_ids: list[str]) -> None:
@@ -207,9 +217,15 @@ def validate_custom_build_sections(item_ids: list[str], esper_ids: list[str]) ->
     for card_id in item_ids:
         if card_type(card_id) != CARD_TYPE_ANOMALY_ITEM:
             raise RuleValidationError('牌组区域只能放入异象道具。')
+        if not card_is_deck_buildable(card_id):
+            card = card_by_id().get(card_id) or {}
+            raise RuleValidationError(f"「{card.get('name', '该卡牌')}」不能放入构筑。")
     for card_id in esper_ids:
         if card_type(card_id) != CARD_TYPE_ESPER:
             raise RuleValidationError('异能者区域只能放入异能者卡牌。')
+        if not card_is_deck_buildable(card_id):
+            card = card_by_id().get(card_id) or {}
+            raise RuleValidationError(f"「{card.get('name', '该异能者')}」不能放入构筑。")
 
 
 def card_catalog() -> list[JsonDict]:
@@ -226,6 +242,9 @@ def card_catalog() -> list[JsonDict]:
             'art': card['art'],
             'description': card['description'],
             'tags': list(card.get('tags', [])),
+            'display_tags': list(card.get('display_tags', [])),
+            'deck_buildable': card.get('deck_buildable') is not False,
+            'hidden_from_build': card.get('deck_buildable') is False,
             'archetype': card.get('archetype', ''),
             'category': card.get('category', ''),
             'attribute': card.get('attribute', ''),
@@ -243,6 +262,7 @@ def card_catalog() -> list[JsonDict]:
 
 
 def deck_catalog() -> list[JsonDict]:
+    public_deck_ids = set(PUBLIC_PREBUILT_DECK_IDS)
     return [
         {
             'id': deck['id'],
@@ -250,11 +270,12 @@ def deck_catalog() -> list[JsonDict]:
             'short_name': deck.get('short_name', deck['name']),
             'description': deck.get('description', ''),
             'difficulty': deck.get('difficulty', ''),
-            'card_ids': list(deck.get('card_ids', [])),
-            'esper_card_ids': list(deck.get('esper_card_ids', [])),
+            'card_ids': sort_card_ids(list(deck.get('card_ids', []))),
+            'esper_card_ids': sort_card_ids(list(deck.get('esper_card_ids', []))),
             'esper_count': len(deck.get('esper_card_ids', [])),
         }
         for deck in load_duel_decks()
+        if str(deck.get('id') or '') in public_deck_ids
     ]
 
 
@@ -269,8 +290,8 @@ def leader_catalog(cards: list[JsonDict]) -> list[JsonDict]:
             'max_hp': 0,
             'attack': card['power'],
             'defense': card.get('material_cost') or 1,
-            'portrait_image': card['art'],
-            'avatar_image': card['art'],
+            'portrait_image': card.get('portrait_image') or card['art'],
+            'avatar_image': card.get('avatar_image') or card.get('portrait_image') or card['art'],
             'passive': f"素材需求 {esper_material_requirement_text(card)} / {card['power']} 战力。{card['description']}",
             'exclusive_item_ids': [],
         })

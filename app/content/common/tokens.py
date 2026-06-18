@@ -91,7 +91,7 @@ TOKEN_CARDS: dict[str, JsonDict] = {
         0,
         0,
         LUMINOUS_TOOL_ART,
-        '区域标记。每回合结束随机使一个己方单位 +1 战力；回合开始时自动减少 1 层。',
+        '区域标记。只记录层数，不会自行结算或在回合开始减少；可被异能者和卡牌效果读取。',
         [TAG_HARMONY, TAG_GENESIS],
     ),
     'harmony_murk': _token(
@@ -100,7 +100,7 @@ TOKEN_CARDS: dict[str, JsonDict] = {
         0,
         0,
         CURSE_TOOL_ART,
-        '区域标记。每回合结束使同区域一张对手单位 -1 战力，优先当前战力最高者；回合开始时自动减少 1 层。',
+        '区域标记。只记录层数，不会自行结算或在回合开始减少；可被异能者和卡牌效果读取。',
         [TAG_HARMONY, TAG_MURK],
     ),
     'harmony_delay': _token(
@@ -109,7 +109,7 @@ TOKEN_CARDS: dict[str, JsonDict] = {
         0,
         0,
         ARCHIVE_TOOL_ART,
-        '区域标记。对手在该区域下一次部署额外需要 1 点能量，然后移除 1 层；回合开始时自动减少 1 层。',
+        '区域标记。只记录层数，不会自行结算或在回合开始减少；可被异能者和卡牌效果读取。',
         [TAG_HARMONY, TAG_DELAY],
     ),
     'harmony_surplus': _token(
@@ -118,7 +118,7 @@ TOKEN_CARDS: dict[str, JsonDict] = {
         0,
         0,
         LUMINOUS_TOOL_ART,
-        '融合标记。己方下次部署阶段生成 -1 费盈蓄牌；不占据格子。',
+        '融合标记。创生层数增加且已有延滞时生成；只记录层数，不会自行结算或在回合开始减少。',
         [TAG_HARMONY, TAG_SURPLUS],
     ),
     'harmony_darkstar': _token(
@@ -127,7 +127,7 @@ TOKEN_CARDS: dict[str, JsonDict] = {
         0,
         0,
         TIDE_TOOL_ART,
-        '区域标记。回合开始不减少层数；决胜回合结束时统一爆发，使同区域对手单位降低战力。',
+        '区域标记。只记录层数，不会自行结算或在回合开始减少；可被异能者和卡牌效果读取。',
         [TAG_HARMONY, TAG_DARKSTAR],
     ),
     'surplus_charge': _token(
@@ -155,7 +155,7 @@ TOKEN_CARDS: dict[str, JsonDict] = {
         0,
         0,
         CURSE_TOOL_ART,
-        '区域标记。放大负面效果收益；不提供战力，不占据格子。',
+        '融合标记。浊燃或黯星层数增加且已有另一方标记时生成；只记录层数，不会自行结算或在回合开始减少。',
         [TAG_HARMONY, TAG_DISCORD],
     ),
     'collapsing_card': _token(

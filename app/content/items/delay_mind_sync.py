@@ -12,7 +12,7 @@ def delay_mind_sync(context: 'EventContext') -> None:
     side = str(context.payload['side'])
     opponent = str(context.payload['opponent_side'])
     target = context.payload.get('target_card') if isinstance(context.payload.get('target_card'), dict) else None
-    if target is None or target.get('side') != opponent or _raw_card_power(target) > 3:
+    if target is None or target.get('side') != opponent or target.get('type') != CARD_TYPE_ANOMALY_ITEM or _raw_card_power(target) > 3:
         _add_log(context.state, f"{card['name']} 没有可交换的对手战力 <=3 卡牌。")
         return
     location = context.payload['location']
@@ -32,13 +32,13 @@ def delay_mind_sync(context: 'EventContext') -> None:
 
 ITEM = {'id': 'delay_mind_sync',
  'name': '思维的同频',
- 'cost': 1,
- 'power': 2,
+ 'cost': 2,
+ 'power': 1,
  'type': 'anomaly_item',
  'element': '异象',
  'rarity': 'r',
  'art': '/static/images/item/思维的同频.webp',
- 'description': '宣言：选择对手 1 个战力 <=3 的卡牌。揭示：与其交换控制权。',
+ 'description': '宣言：选择对手 1 个战力 <=3 的表侧道具。揭示：与其交换控制权。',
  'effect_key': 'delay_mind_sync',
  'tags': ['delay', 'tool', 'material', 'mat_signal'],
  'archetype': 'delay',
@@ -53,9 +53,9 @@ ITEM = {'id': 'delay_mind_sync',
  'target_rule': {},
  'declaration': {'steps': [{'kind': 'board',
                             'scope': 'opponent_power_lte_3_same_location',
-                            'prompt': '选择 1 张对手战力不高于 3 的卡牌。',
+                            'prompt': '选择 1 张对手战力不高于 3 的表侧道具。',
                             'required_before_play': True,
-                            'predicate': lambda item, context: item.get('type') != CARD_TYPE_TOKEN and int(item.get('computed_power', item.get('base_power', 0)) or 0) <= 3}]},
+                            'predicate': lambda item, context: item.get('type') == CARD_TYPE_ANOMALY_ITEM and int(item.get('computed_power', item.get('base_power', 0)) or 0) <= 3}]},
  'icon': '/static/images/item/思维的同频.webp'}
 
 ITEM['event_hooks'] = {GameEvent.CARD_REVEALED.value: delay_mind_sync}
