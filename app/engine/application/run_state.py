@@ -35,6 +35,7 @@ def snapshot_factory_rules() -> SnapshotFactoryRules:
         sync_planning_phase=turn_flow._sync_planning_phase,
         recompute_scores=turn_flow._recompute_scores,
         lock_settlement_initiative=turn_flow._lock_settlement_initiative,
+        draw_cards=turn_flow._draw_cards,
         add_log=turn_flow._add_log,
     )
 

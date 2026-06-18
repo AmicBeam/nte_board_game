@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from app.engine.state.types import JsonDict
 
+EFFECT_FIRST_TURN_EXTRA_NORMAL_DRAW = 'first_turn_extra_normal_draw'
+
 BATTLEFIELD_TRAITS: list[JsonDict] = [
     {
         'id': 'mirror_archive',
@@ -24,8 +26,8 @@ BATTLEFIELD_TRAITS: list[JsonDict] = [
         'name': '呼啸环线',
         'short_name': '呼啸',
         'reveal_turn': 3,
-        'description': '如果一边只有 1 张牌在此环线，那张牌 +4 战力。',
-        'effect': 'solo_card_plus_four',
+        'description': '首个回合双方额外执行 1 次通常抽卡。',
+        'effect': EFFECT_FIRST_TURN_EXTRA_NORMAL_DRAW,
     },
 ]
 

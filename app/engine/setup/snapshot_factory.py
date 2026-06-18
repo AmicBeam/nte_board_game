@@ -14,7 +14,7 @@ from app.engine.application.build_service import (
     normalize_build_payload,
     unique_known_ids,
 )
-from app.engine.setup.battlefields import BATTLEFIELD_TRAITS
+from app.engine.setup.battlefields import BATTLEFIELD_TRAITS, EFFECT_FIRST_TURN_EXTRA_NORMAL_DRAW
 from app.engine.setup.tutorial_scripts import (
     TUTORIAL_BASICS_SCENARIO,
     TUTORIAL_OPPONENT_DECK,
@@ -49,6 +49,7 @@ class SnapshotFactoryRules:
     sync_planning_phase: Callable[[JsonDict], None]
     recompute_scores: Callable[[JsonDict], None]
     lock_settlement_initiative: Callable[..., None]
+    draw_cards: Callable[..., list[JsonDict]]
     add_log: Callable[[JsonDict, str], None]
 
 
@@ -120,7 +121,18 @@ def create_initial_snapshot(
     rules.recompute_scores(snapshot)
     rules.lock_settlement_initiative(snapshot, emit_action=False)
     rules.add_log(snapshot, initial_log)
+    _apply_first_turn_battlefield_draw(snapshot, rules)
     return snapshot
+
+
+def _apply_first_turn_battlefield_draw(snapshot: JsonDict, rules: SnapshotFactoryRules) -> None:
+    if int(snapshot.get('turn') or 0) != 1:
+        return
+    if not any(location.get('effect') == EFFECT_FIRST_TURN_EXTRA_NORMAL_DRAW for location in snapshot.get('locations', [])):
+        return
+    for side in (SIDE_A, SIDE_B):
+        rules.draw_cards(snapshot, side, 1, reason='呼啸环线额外通常抽卡')
+    rules.add_log(snapshot, '呼啸环线使双方在首个回合额外执行 1 次通常抽卡。')
 
 
 def card_instance(definition: JsonDict, side: str, suffix: str) -> JsonDict:
