@@ -184,14 +184,15 @@ const TUTORIAL_MECHANIC_PAGES = {
       },
     ],
   },
-  discard: {
-    title: '解场与墓地',
+  clearance: {
+    title: '解场与目标',
     pages: [
       {
-        title: '什么是解场',
+        title: '接下来要解场',
         body: [
+          '鉴定师已经完成共鸣，接下来要部署「水波的迟疑」。',
           '解场就是用效果削弱、破坏或移走对手战场上的牌，让对手的素材链或战力计划变慢。',
-          '第 3 回合你会用「水波的迟疑」降低对手「西红柿」的战力；对手也会用「新兵的怯懦」解掉你的「速食早餐袋」。',
+          '这次你会把目标指向对手表侧的「西红柿」，降低它的战力，观察战力归零后如何离场。',
         ],
         samples: [
           { icon: '/static/images/item/水波的迟疑.webp', name: '水波的迟疑', description: '选择对手表侧目标并降低战力。' },
@@ -199,15 +200,44 @@ const TUTORIAL_MECHANIC_PAGES = {
         ],
       },
       {
+        title: '目标会先锁定',
+        body: [
+          '有些道具需要先选择目标。目标会在部署时锁定，揭示阶段只执行已经锁定的目标。',
+          '只能选择表侧目标；背面牌、部署中的牌和尚未揭示的牌不能被解场效果影响。',
+          '等会儿部署「水波的迟疑」后，系统会只高亮合法目标。',
+        ],
+        samples: [
+          { icon: '/static/images/item/水波的迟疑.webp', name: '部署时选目标', description: '先选目标，完成部署后再揭示。' },
+          { icon: '/static/images/cards/card-back.svg', name: '背面牌', description: '背面或部署中的牌不是合法目标。' },
+        ],
+      },
+    ],
+  },
+  discard: {
+    title: '墓地与被拖慢',
+    pages: [
+      {
         title: '什么是墓地',
         body: [
           '道具被破碎、被消耗为素材或被效果送走后，会进入墓地。',
           '墓地不是失败区，而是公开记录：你可以点击墓地区查看哪些牌已经离开战场。',
-          '薄荷第 4 回合暂时不能登场，就是因为关键素材被解掉，只能先补一回合资源。',
+          '上一回合对手用「新兵的怯懦」解掉了你的「速食早餐袋」，所以关键素材已经离开战场。',
         ],
         samples: [
           { icon: '/static/images/item/速食早餐袋.webp', name: '被解掉的素材', description: '进入墓地后不能再作为场上素材。' },
           { icon: '/static/images/cards/card-back.svg', name: '墓地按钮', description: '左下或右上墓地区会显示数量。' },
+        ],
+      },
+      {
+        title: '为什么被拖慢一回合',
+        body: [
+          '薄荷已经可见，但素材必须是进入本回合前已经稳定在场的牌。',
+          '因为「速食早餐袋」被解掉，第 4 回合还不能直接让薄荷共鸣。',
+          '这一回合先部署「方斯」和蛋糕，等它们揭示并稳定后，再用鉴定师补第二层创生。',
+        ],
+        samples: [
+          { icon: '/static/images/item/方斯.webp', name: '方斯', description: '本回合先补资源。' },
+          { icon: '/static/images/item/来自「伊波恩」的蛋糕.webp', name: '蛋糕', description: '揭示后等到下回合才能作为稳定素材。' },
         ],
       },
     ],
@@ -389,6 +419,21 @@ function tutorialMechanicStage(state) {
   if (state.status !== 'playing') {
     return 'result';
   }
+  const turn = Number(state.turn || 1);
+  const nextExpectedAction = tutorialNextExpectedAction(state);
+  if (
+    turn === 3
+    && state.phase === 'planning'
+    && !state.selection
+    && !state.pending_target
+    && !materialSelection
+    && !presentationLocked
+    && pendingPlanningActions.length === 1
+    && nextExpectedAction?.kind === 'play_card'
+    && nextExpectedAction?.definitionId === 'tutorial_water_hesitation'
+  ) {
+    return 'clearance';
+  }
   if (
     state.phase !== 'planning'
     || state.selection
@@ -399,7 +444,6 @@ function tutorialMechanicStage(state) {
   ) {
     return '';
   }
-  const turn = Number(state.turn || 1);
   if (turn === 1) {
     return 'basics';
   }
@@ -559,7 +603,22 @@ function tutorialGuidanceModel(state) {
   }
   const esperName = cardNameForDefinition(next.definitionId);
   const materialNames = (next.materialDefinitionIds || []).map(cardNameForDefinition).join('、');
-  const esperSelector = `#esper-standby-list .esper-card[data-card-definition-id="${next.definitionId}"], .player-slots .board-card[data-card-definition-id="${next.definitionId}"]`;
+  const standbySelector = `#esper-standby-list .esper-card[data-card-definition-id="${next.definitionId}"]`;
+  const boardEsperSelector = `.player-slots .board-card[data-card-definition-id="${next.definitionId}"]`;
+  const esperInStandby = (state.player?.esper_standby || []).some((card) => cardDefinitionId(card) === next.definitionId);
+  const esperSelector = esperInStandby ? standbySelector : boardEsperSelector;
+  if (esperInStandby) {
+    return {
+      title: `第 ${turn} 回合：${esperName}共鸣`,
+      body: `拖动「${esperName}」到战场，选择 ${materialNames} 作为素材。其他素材会被教学锁定。`,
+      spotlights: [esperSelector],
+      placement: 'esper',
+      dragCue: {
+        from: esperSelector,
+        to: '.player-slots',
+      },
+    };
+  }
   return {
     title: `第 ${turn} 回合：${esperName}共鸣`,
     body: `点击「${esperName}」，选择 ${materialNames} 作为素材。其他素材会被教学锁定。`,
