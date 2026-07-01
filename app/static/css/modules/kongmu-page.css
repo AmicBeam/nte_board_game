@@ -309,11 +309,6 @@
 .kongmu-board {
     --cell: 38px;
     --gap: 3px;
-    --piece-separator:
-        drop-shadow(1px 0 0 rgba(2, 5, 10, 0.9))
-        drop-shadow(-1px 0 0 rgba(2, 5, 10, 0.9))
-        drop-shadow(0 1px 0 rgba(2, 5, 10, 0.9))
-        drop-shadow(0 -1px 0 rgba(2, 5, 10, 0.9));
     display: grid;
     grid-template-columns: calc(var(--cols) * var(--cell) + (var(--cols) - 1) * var(--gap));
     grid-template-rows: calc(var(--rows) * var(--cell) + (var(--rows) - 1) * var(--gap));
@@ -353,26 +348,73 @@
 }
 
 .kongmu-piece {
-    position: relative;
-    overflow: visible;
+    display: grid;
+    grid-template-columns: repeat(var(--piece-cols), minmax(0, 1fr));
+    grid-template-rows: repeat(var(--piece-rows), minmax(0, 1fr));
+    gap: var(--gap);
     min-width: 0;
     min-height: 0;
 }
 
-.kongmu-piece-icon {
+.kongmu-piece-cell {
+    position: relative;
+    overflow: hidden;
+    min-width: 0;
+    min-height: 0;
+    border-radius: 7px;
+    border: 2px solid rgba(255, 232, 165, 0.94);
+    background:
+        linear-gradient(145deg, rgba(255, 246, 174, 0.62), transparent 34%),
+        linear-gradient(180deg, #ffd36a 0%, #ffb33d 54%, #f18a22 100%);
+    box-shadow:
+        inset 0 0 0 1px rgba(118, 55, 7, 0.36),
+        inset 0 -7px 9px rgba(173, 70, 11, 0.24),
+        0 0 0 1px rgba(5, 8, 13, 0.92),
+        0 3px 8px rgba(0, 0, 0, 0.48);
+}
+
+.kongmu-piece-cell::before,
+.kongmu-piece-cell::after {
+    content: '';
     position: absolute;
-    object-fit: fill;
     pointer-events: none;
-    filter: var(--piece-separator) drop-shadow(0 3px 8px rgba(0,0,0,0.52));
 }
 
-.kongmu-piece.required .kongmu-piece-icon {
+.kongmu-piece-cell::before {
+    inset: 5px;
+    border-radius: 4px;
+    border: 1px solid rgba(255, 248, 190, 0.18);
+    background: linear-gradient(135deg, rgba(255,255,255,0.16), transparent 58%);
+}
+
+.kongmu-piece-cell::after {
+    inset: -45%;
+    background:
+        radial-gradient(circle at 20% 90%, transparent 43%, rgba(255,255,255,0.46) 44%, rgba(255,255,255,0.46) 46%, transparent 47%),
+        radial-gradient(circle at 90% 10%, transparent 49%, rgba(255,246,184,0.36) 50%, rgba(255,246,184,0.36) 52%, transparent 53%);
+    opacity: 0.72;
+}
+
+.kongmu-piece.required .kongmu-piece-cell {
     opacity: 0.7;
-    filter: grayscale(1) contrast(1.12) brightness(0.82) var(--piece-separator) drop-shadow(0 3px 8px rgba(0,0,0,0.45));
+    border-color: rgba(178, 184, 188, 0.58);
+    background:
+        linear-gradient(145deg, rgba(230, 234, 237, 0.3), transparent 34%),
+        linear-gradient(180deg, #9c9fa2 0%, #73777a 58%, #55595d 100%);
+    box-shadow:
+        inset 0 0 0 1px rgba(20, 24, 28, 0.42),
+        inset 0 -7px 9px rgba(22, 24, 28, 0.22),
+        0 0 0 1px rgba(4, 7, 12, 0.92),
+        0 3px 8px rgba(0, 0, 0, 0.44);
 }
 
-.kongmu-piece.optional-highlight .kongmu-piece-icon {
-    filter: saturate(1.15) var(--piece-separator) drop-shadow(0 0 10px rgba(255,191,87,0.34)) drop-shadow(0 3px 8px rgba(0,0,0,0.52));
+.kongmu-piece.optional-highlight .kongmu-piece-cell {
+    box-shadow:
+        inset 0 0 0 1px rgba(118, 55, 7, 0.36),
+        inset 0 -7px 9px rgba(173, 70, 11, 0.24),
+        0 0 0 1px rgba(5, 8, 13, 0.92),
+        0 0 10px rgba(255,191,87,0.26),
+        0 3px 8px rgba(0, 0, 0, 0.48);
 }
 
 .kongmu-empty-result {
