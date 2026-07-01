@@ -308,7 +308,12 @@
 
 .kongmu-board {
     --cell: 38px;
-    --gap: 6px;
+    --gap: 3px;
+    --piece-separator:
+        drop-shadow(1px 0 0 rgba(2, 5, 10, 0.9))
+        drop-shadow(-1px 0 0 rgba(2, 5, 10, 0.9))
+        drop-shadow(0 1px 0 rgba(2, 5, 10, 0.9))
+        drop-shadow(0 -1px 0 rgba(2, 5, 10, 0.9));
     display: grid;
     grid-template-columns: calc(var(--cols) * var(--cell) + (var(--cols) - 1) * var(--gap));
     grid-template-rows: calc(var(--rows) * var(--cell) + (var(--rows) - 1) * var(--gap));
@@ -358,16 +363,16 @@
     position: absolute;
     object-fit: fill;
     pointer-events: none;
-    filter: drop-shadow(0 3px 8px rgba(0,0,0,0.52));
+    filter: var(--piece-separator) drop-shadow(0 3px 8px rgba(0,0,0,0.52));
 }
 
 .kongmu-piece.required .kongmu-piece-icon {
     opacity: 0.7;
-    filter: grayscale(1) contrast(1.12) brightness(0.82) drop-shadow(0 3px 8px rgba(0,0,0,0.45));
+    filter: grayscale(1) contrast(1.12) brightness(0.82) var(--piece-separator) drop-shadow(0 3px 8px rgba(0,0,0,0.45));
 }
 
 .kongmu-piece.optional-highlight .kongmu-piece-icon {
-    filter: saturate(1.15) drop-shadow(0 0 10px rgba(255,191,87,0.34)) drop-shadow(0 3px 8px rgba(0,0,0,0.52));
+    filter: saturate(1.15) var(--piece-separator) drop-shadow(0 0 10px rgba(255,191,87,0.34)) drop-shadow(0 3px 8px rgba(0,0,0,0.52));
 }
 
 .kongmu-empty-result {
