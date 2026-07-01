@@ -1,9 +1,4 @@
 {
-  "source": "nanoka.cc",
-  "game": "nte",
-  "version": "1.2+476873",
-  "updated_at": "2026-07-01T07:31:58+00:00",
-  "source_url": "https://static.nanoka.cc/nte/1.2+476873/character.json",
   "characters": [
     {
       "id": "1003",

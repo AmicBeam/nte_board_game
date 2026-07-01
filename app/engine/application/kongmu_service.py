@@ -633,6 +633,8 @@ def get_kongmu_raw_data() -> dict[str, Any]:
     drives = load_json(KONGMU_DATA_DIR / 'drives.json').get('drives') or []
     cartridges = load_json(KONGMU_DATA_DIR / 'cartridges.json').get('cartridges') or []
     index_data = load_json(KONGMU_DATA_DIR / 'character_index.json')
+    source_meta_path = KONGMU_DATA_DIR / 'source_meta.json'
+    source_meta = load_json(source_meta_path) if source_meta_path.exists() else {}
     characters: list[dict[str, Any]] = []
     for index, record in enumerate(index_data.get('characters') or []):
         character_id = str(record.get('id') or '')
@@ -645,10 +647,10 @@ def get_kongmu_raw_data() -> dict[str, Any]:
 
     return {
         'meta': {
-            'source': index_data.get('source') or 'nanoka.cc',
-            'game': index_data.get('game') or GAME_KEY,
-            'version': index_data.get('version') or '',
-            'updated_at': index_data.get('updated_at') or '',
+            'source': source_meta.get('source') or index_data.get('source') or 'nanoka.cc',
+            'game': source_meta.get('game') or index_data.get('game') or GAME_KEY,
+            'version': source_meta.get('version') or index_data.get('version') or '',
+            'updated_at': source_meta.get('updated_at') or index_data.get('updated_at') or '',
             'character_count': len(characters),
             'cartridge_count': len(cartridges),
             'drive_count': len(drives),

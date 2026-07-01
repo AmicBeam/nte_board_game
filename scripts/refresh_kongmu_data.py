@@ -109,15 +109,6 @@ def write_json(path: Path, data: Any) -> None:
         handle.write('\n')
 
 
-def valid_cells_from_slots(slots: list[list[int]]) -> list[tuple[int, int]]:
-    cells: list[tuple[int, int]] = []
-    for y, row in enumerate(slots):
-        for x, value in enumerate(row):
-            if value != -1:
-                cells.append((x, y))
-    return cells
-
-
 def compact_family(entry: dict[str, Any]) -> list[dict[str, Any]]:
     family = entry.get('family') or []
     compacted: list[dict[str, Any]] = []
@@ -176,19 +167,6 @@ def build_console_data(raw: dict[str, Any], version: str, locale: str) -> tuple[
                     'aliases': sorted({name, display_name_without_quotes(name), str(entry.get('id') or key)}),
                     'icon': entry.get('icon'),
                     'synergy_geometry': synergy_geometry,
-                    'synergy': [
-                        {
-                            'id': geometry.get('id'),
-                            'name': geometry.get('name'),
-                            'label': GEOMETRY_LABELS.get(str(geometry.get('id')), str(geometry.get('id'))),
-                            'icon': geometry.get('icon'),
-                        }
-                        for geometry in geometry_entries
-                        if isinstance(geometry, dict)
-                    ],
-                    'conditions': set_effect.get('conditions') or [],
-                    'set_icon': set_effect.get('set_icon'),
-                    'family': compact_family(entry),
                 }
             )
 
@@ -202,7 +180,7 @@ def build_console_data(raw: dict[str, Any], version: str, locale: str) -> tuple[
         'updated_at': dt.datetime.now(dt.timezone.utc).replace(microsecond=0).isoformat(),
         'source_url': source_url(version, locale, 'console.json'),
     }
-    return {**common, 'drives': drives}, {**common, 'cartridges': cartridges}
+    return {**common, 'drives': drives}, {'cartridges': cartridges}
 
 
 def build_character_index(raw: dict[str, Any], version: str) -> dict[str, Any]:
@@ -228,40 +206,35 @@ def build_character_index(raw: dict[str, Any], version: str) -> dict[str, Any]:
             }
         )
     characters.sort(key=lambda item: item['id'])
-    return {
-        'source': 'nanoka.cc',
-        'game': GAME_KEY,
-        'version': version,
-        'updated_at': dt.datetime.now(dt.timezone.utc).replace(microsecond=0).isoformat(),
-        'source_url': version_root_url(version, 'character.json'),
-        'characters': characters,
-    }
+    return {'characters': characters}
 
 
-def extract_character(raw: dict[str, Any], version: str, locale: str) -> dict[str, Any]:
+def compact_character_stats(stats: Any) -> list[dict[str, Any]]:
+    compacted: list[dict[str, Any]] = []
+    for stat in stats or []:
+        if not isinstance(stat, dict):
+            continue
+        compacted.append(
+            {
+                key: stat.get(key)
+                for key in ('id_stats', 'name', 'value', 'b_show_percent')
+                if stat.get(key) not in (None, '')
+            }
+        )
+    return compacted
+
+
+def extract_character(raw: dict[str, Any]) -> dict[str, Any]:
     equip_slots = raw.get('equip_slots') or {}
     slots = equip_slots.get('slots') or []
     return {
-        'source': 'nanoka.cc',
-        'game': GAME_KEY,
-        'version': version,
-        'locale': locale,
-        'updated_at': dt.datetime.now(dt.timezone.utc).replace(microsecond=0).isoformat(),
-        'source_url': source_url(version, locale, f'character/{raw.get("id")}.json'),
         'id': str(raw.get('id') or ''),
-        'name': raw.get('name'),
-        'element': raw.get('element'),
-        'element_id': raw.get('element_id'),
-        'rarity': raw.get('rarity'),
-        'icon': raw.get('icon'),
         'equip_slots': {
-            'type_name': equip_slots.get('type_name'),
             'description_template': equip_slots.get('desc'),
             'special_desc': equip_slots.get('special_desc'),
             'owner_grid_count': equip_slots.get('owner_grid_count'),
-            'stats': equip_slots.get('stats') or [],
+            'stats': compact_character_stats(equip_slots.get('stats')),
             'slots': slots,
-            'valid_cell_count': len(valid_cells_from_slots(slots)),
         },
     }
 
@@ -300,8 +273,6 @@ def attach_cartridge_icons(cartridges_data: dict[str, Any], insecure: bool = Fal
         output_path = IMAGE_DIR / 'cartridges' / f'{cartridge_id}.webp'
         if download_if_missing(asset_url(icon), output_path, insecure=insecure):
             count += 1
-        cartridge['local_icon'] = f'images/kongmu/cartridges/{cartridge_id}.webp'
-        cartridge['asset_url'] = asset_url(icon)
     return count
 
 
@@ -353,7 +324,7 @@ def main() -> int:
         avatar_count = 0
         for record in character_index['characters']:
             detail = fetch_json(source_url(version, args.locale, f'character/{record["id"]}.json'), insecure=args.insecure)
-            write_json(CHARACTER_DIR / f'{record["id"]}.json', extract_character(detail, version, args.locale))
+            write_json(CHARACTER_DIR / f'{record["id"]}.json', extract_character(detail))
             if (
                 not args.skip_images
                 and args.download_character_avatars

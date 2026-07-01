@@ -1,18 +1,6 @@
 {
-  "source": "nanoka.cc",
-  "game": "nte",
-  "version": "1.2+476873",
-  "locale": "zh",
-  "updated_at": "2026-07-01T07:31:59+00:00",
-  "source_url": "https://static.nanoka.cc/nte/1.2+476873/zh/character/1008.json",
   "id": "1008",
-  "name": "翳",
-  "element": "Lakshana",
-  "element_id": "LAKSHANA",
-  "rarity": 4,
-  "icon": "/Game/UI/UI_Icon/AvatarImage/256/player_008_256",
   "equip_slots": {
-    "type_name": "「卡带」属性",
     "description_template": "每装配一个Ⅲ型驱动，使{0}增加{1}%",
     "special_desc": "Ⅲ型特化",
     "owner_grid_count": 3,
@@ -21,7 +9,6 @@
         "id_stats": "AtkUp",
         "name": "攻击力百分比",
         "value": 10,
-        "icon": "",
         "b_show_percent": true
       }
     ],
@@ -89,7 +76,6 @@
         -1,
         -1
       ]
-    ],
-    "valid_cell_count": 20
+    ]
   }
 }

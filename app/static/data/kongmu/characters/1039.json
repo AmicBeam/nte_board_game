@@ -1,18 +1,6 @@
 {
-  "source": "nanoka.cc",
-  "game": "nte",
-  "version": "1.2+476873",
-  "locale": "zh",
-  "updated_at": "2026-07-01T07:32:01+00:00",
-  "source_url": "https://static.nanoka.cc/nte/1.2+476873/zh/character/1039.json",
   "id": "1039",
-  "name": "法帝娅",
-  "element": "Psyche",
-  "element_id": "PSYCHE",
-  "rarity": 5,
-  "icon": "/Game/UI/UI_Icon/AvatarImage/256/player_027_256",
   "equip_slots": {
-    "type_name": "「卡带」属性",
     "description_template": "每装配一个Ⅱ型驱动，使{0}增加{1}%",
     "special_desc": "Ⅱ型特化",
     "owner_grid_count": 2,
@@ -21,7 +9,6 @@
         "id_stats": "HPMaxUp",
         "name": "生命值百分比",
         "value": 6,
-        "icon": "",
         "b_show_percent": true
       }
     ],
@@ -89,7 +76,6 @@
         -1,
         -1
       ]
-    ],
-    "valid_cell_count": 20
+    ]
   }
 }
