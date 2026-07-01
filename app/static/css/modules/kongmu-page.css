@@ -72,6 +72,18 @@
     grid-template-columns: repeat(auto-fill, minmax(144px, 1fr));
 }
 
+.kongmu-plan-actions {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: 14px;
+    padding-top: 14px;
+    border-top: 1px solid rgba(255,255,255,0.08);
+}
+
+.kongmu-plan-actions .primary-btn {
+    min-width: 150px;
+}
+
 .kongmu-select-card {
     position: relative;
     display: grid;
