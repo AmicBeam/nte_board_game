@@ -1,0 +1,95 @@
+{
+  "source": "nanoka.cc",
+  "game": "nte",
+  "version": "1.2+476873",
+  "locale": "zh",
+  "updated_at": "2026-07-01T07:32:03+00:00",
+  "source_url": "https://static.nanoka.cc/nte/1.2+476873/zh/character/1071.json",
+  "id": "1071",
+  "name": "卡厄斯",
+  "element": "Lakshana",
+  "element_id": "LAKSHANA",
+  "rarity": 5,
+  "icon": "/Game/UI/UI_Icon/AvatarImage/256/player_kaesi1_256",
+  "equip_slots": {
+    "type_name": "「卡带」属性",
+    "description_template": "每装配一个Ⅲ型驱动，使{0}增加{1}%",
+    "special_desc": "Ⅲ型特化",
+    "owner_grid_count": 3,
+    "stats": [
+      {
+        "id_stats": "CritDamageBase",
+        "name": "暴击伤害",
+        "value": 16,
+        "icon": "/Game/UI/UI_Icon/Attribute/icon_attri_baojishanghai",
+        "b_show_percent": true
+      }
+    ],
+    "slots": [
+      [
+        -1,
+        -1,
+        -1,
+        -1,
+        -1,
+        -1,
+        -1
+      ],
+      [
+        -1,
+        -1,
+        0,
+        0,
+        0,
+        0,
+        -1
+      ],
+      [
+        -1,
+        0,
+        0,
+        0,
+        0,
+        0,
+        -1
+      ],
+      [
+        -1,
+        0,
+        0,
+        0,
+        -1,
+        0,
+        -1
+      ],
+      [
+        -1,
+        0,
+        0,
+        -1,
+        -1,
+        0,
+        -1
+      ],
+      [
+        -1,
+        0,
+        0,
+        0,
+        0,
+        -1,
+        -1
+      ],
+      [
+        -1,
+        -1,
+        -1,
+        -1,
+        -1,
+        -1,
+        -1
+      ]
+    ],
+    "valid_cell_count": 20
+  }
+}

@@ -1,0 +1,979 @@
+{
+  "source": "nanoka.cc",
+  "game": "nte",
+  "version": "1.2+476873",
+  "locale": "zh",
+  "updated_at": "2026-07-01T07:31:53+00:00",
+  "source_url": "https://static.nanoka.cc/nte/1.2+476873/zh/console.json",
+  "cartridges": [
+    {
+      "id": "attack",
+      "name": "「影之信条」",
+      "aliases": [
+        "attack",
+        "「影之信条」",
+        "影之信条"
+      ],
+      "icon": "/Game/UI/UI_Icon/kongmu/256/UI_YH_kongmuicon__39",
+      "synergy_geometry": [
+        "EquipmentGeometry_Hen2",
+        "EquipmentGeometry_Shu2",
+        "EquipmentGeometry_Hen4",
+        "EquipmentGeometry_Z4"
+      ],
+      "synergy": [
+        {
+          "id": "EquipmentGeometry_Hen2",
+          "name": "Ⅱ型驱动",
+          "label": "II横",
+          "icon": "/Game/UI/UI/Equip/TipsIcon/UI_YH_kongmuicon2-gai_28"
+        },
+        {
+          "id": "EquipmentGeometry_Shu2",
+          "name": "Ⅱ型驱动",
+          "label": "II竖",
+          "icon": "/Game/UI/UI/Equip/TipsIcon/UI_YH_kongmuicon2-gai_27"
+        },
+        {
+          "id": "EquipmentGeometry_Hen4",
+          "name": "Ⅳ型驱动",
+          "label": "IV横",
+          "icon": "/Game/UI/UI/Equip/TipsIcon/UI_YH_kongmuicon2-gai_16"
+        },
+        {
+          "id": "EquipmentGeometry_Z4",
+          "name": "Ⅳ型驱动",
+          "label": "IVZ竖",
+          "icon": "/Game/UI/UI/Equip/TipsIcon/UI_YH_kongmuicon2-gai_20"
+        }
+      ],
+      "conditions": [
+        {
+          "condition": 2,
+          "desc": "史诗！[2]：攻击力提升10%。"
+        },
+        {
+          "condition": 4,
+          "desc": "传说！[4]：装备者释放「变轨技能」以后，攻击力增加25%，持续20秒。"
+        }
+      ],
+      "set_icon": "/Game/UI/UI/Equip/suit_white/UI_YH_kongmuicon4__16",
+      "family": [
+        {
+          "id": "Attack_blue",
+          "quality": "blue",
+          "rarity": 3,
+          "icon": "/Game/UI/UI_Icon/kongmu/256/UI_YH_kongmuicon__59"
+        },
+        {
+          "id": "Attack_purple",
+          "quality": "purple",
+          "rarity": 4,
+          "icon": "/Game/UI/UI_Icon/kongmu/256/UI_YH_kongmuicon__43"
+        },
+        {
+          "id": "Attack_orange",
+          "quality": "orange",
+          "rarity": 5,
+          "icon": "/Game/UI/UI_Icon/kongmu/256/UI_YH_kongmuicon__39"
+        }
+      ],
+      "local_icon": "images/kongmu/cartridges/attack.webp",
+      "asset_url": "https://static.nanoka.cc/assets/nte/Game/UI/UI_Icon/kongmu/256/UI_YH_kongmuicon__39.webp"
+    },
+    {
+      "id": "chaos",
+      "name": "「迪亚波罗斯」",
+      "aliases": [
+        "chaos",
+        "「迪亚波罗斯」",
+        "迪亚波罗斯"
+      ],
+      "icon": "/Game/UI/UI_Icon/kongmu/256/UI_YH_kongmuicon__07",
+      "synergy_geometry": [
+        "EquipmentGeometry_Shu2",
+        "EquipmentGeometry_ZhiJiao2",
+        "EquipmentGeometry_ZhiJiao4",
+        "EquipmentGeometry_Hen4"
+      ],
+      "synergy": [
+        {
+          "id": "EquipmentGeometry_Shu2",
+          "name": "Ⅱ型驱动",
+          "label": "II竖",
+          "icon": "/Game/UI/UI/Equip/TipsIcon/UI_YH_kongmuicon2-gai_27"
+        },
+        {
+          "id": "EquipmentGeometry_ZhiJiao2",
+          "name": "Ⅲ型驱动",
+          "label": "III角2",
+          "icon": "/Game/UI/UI/Equip/TipsIcon/UI_YH_kongmuicon2-gai_25"
+        },
+        {
+          "id": "EquipmentGeometry_ZhiJiao4",
+          "name": "Ⅲ型驱动",
+          "label": "III角4",
+          "icon": "/Game/UI/UI/Equip/TipsIcon/UI_YH_kongmuicon2-gai_23"
+        },
+        {
+          "id": "EquipmentGeometry_Hen4",
+          "name": "Ⅳ型驱动",
+          "label": "IV横",
+          "icon": "/Game/UI/UI/Equip/TipsIcon/UI_YH_kongmuicon2-gai_16"
+        }
+      ],
+      "conditions": [
+        {
+          "condition": 2,
+          "desc": "史诗！[2]：暗属性异能伤害提升10%。"
+        },
+        {
+          "condition": 4,
+          "desc": "传说！[4]：无视敌人12%暗属性异能抗性。当装备者参与触发「黯星」或「浊燃」反应之后则提升至无视敌人24%暗属性异能抗性，持续20秒。"
+        }
+      ],
+      "set_icon": "/Game/UI/UI/Equip/suit_white/UI_YH_kongmuicon4__07",
+      "family": [
+        {
+          "id": "Chaos_blue",
+          "quality": "blue",
+          "rarity": 3,
+          "icon": "/Game/UI/UI_Icon/kongmu/256/UI_YH_kongmuicon__27"
+        },
+        {
+          "id": "Chaos_purple",
+          "quality": "purple",
+          "rarity": 4,
+          "icon": "/Game/UI/UI_Icon/kongmu/256/UI_YH_kongmuicon__17"
+        },
+        {
+          "id": "Chaos_orange",
+          "quality": "orange",
+          "rarity": 5,
+          "icon": "/Game/UI/UI_Icon/kongmu/256/UI_YH_kongmuicon__07"
+        }
+      ],
+      "local_icon": "images/kongmu/cartridges/chaos.webp",
+      "asset_url": "https://static.nanoka.cc/assets/nte/Game/UI/UI_Icon/kongmu/256/UI_YH_kongmuicon__07.webp"
+    },
+    {
+      "id": "cosmos",
+      "name": "「失落光芒」",
+      "aliases": [
+        "cosmos",
+        "「失落光芒」",
+        "失落光芒"
+      ],
+      "icon": "/Game/UI/UI_Icon/kongmu/256/UI_YH_kongmuicon__03",
+      "synergy_geometry": [
+        "EquipmentGeometry_Hen2",
+        "EquipmentGeometry_ZhiJiao1",
+        "EquipmentGeometry_ZhiJiao3",
+        "EquipmentGeometry_Shu4"
+      ],
+      "synergy": [
+        {
+          "id": "EquipmentGeometry_Hen2",
+          "name": "Ⅱ型驱动",
+          "label": "II横",
+          "icon": "/Game/UI/UI/Equip/TipsIcon/UI_YH_kongmuicon2-gai_28"
+        },
+        {
+          "id": "EquipmentGeometry_ZhiJiao1",
+          "name": "Ⅲ型驱动",
+          "label": "III角1",
+          "icon": "/Game/UI/UI/Equip/TipsIcon/UI_YH_kongmuicon2-gai_26"
+        },
+        {
+          "id": "EquipmentGeometry_ZhiJiao3",
+          "name": "Ⅲ型驱动",
+          "label": "III角3",
+          "icon": "/Game/UI/UI/Equip/TipsIcon/UI_YH_kongmuicon2-gai_24"
+        },
+        {
+          "id": "EquipmentGeometry_Shu4",
+          "name": "Ⅳ型驱动",
+          "label": "IV竖",
+          "icon": "/Game/UI/UI/Equip/TipsIcon/UI_YH_kongmuicon2-gai_30"
+        }
+      ],
+      "conditions": [
+        {
+          "condition": 2,
+          "desc": "史诗！[2]：光属性异能伤害提升10%。"
+        },
+        {
+          "condition": 4,
+          "desc": "传说！[4]：装备者释放「极轨终结」后，造成的伤害将无视25%防御力，持续20秒，该效果不可叠加。"
+        }
+      ],
+      "set_icon": "/Game/UI/UI/Equip/suit_white/UI_YH_kongmuicon4__12",
+      "family": [
+        {
+          "id": "Cosmos_blue",
+          "quality": "blue",
+          "rarity": 3,
+          "icon": "/Game/UI/UI_Icon/kongmu/256/UI_YH_kongmuicon__23"
+        },
+        {
+          "id": "Cosmos_purple",
+          "quality": "purple",
+          "rarity": 4,
+          "icon": "/Game/UI/UI_Icon/kongmu/256/UI_YH_kongmuicon__13"
+        },
+        {
+          "id": "Cosmos_orange",
+          "quality": "orange",
+          "rarity": 5,
+          "icon": "/Game/UI/UI_Icon/kongmu/256/UI_YH_kongmuicon__03"
+        }
+      ],
+      "local_icon": "images/kongmu/cartridges/cosmos.webp",
+      "asset_url": "https://static.nanoka.cc/assets/nte/Game/UI/UI_Icon/kongmu/256/UI_YH_kongmuicon__03.webp"
+    },
+    {
+      "id": "cosmos_guide",
+      "name": "「失落光芒」",
+      "aliases": [
+        "cosmos_guide",
+        "「失落光芒」",
+        "失落光芒"
+      ],
+      "icon": "/Game/UI/UI_Icon/kongmu/256/UI_YH_kongmuicon__03",
+      "synergy_geometry": [
+        "EquipmentGeometry_Hen2",
+        "EquipmentGeometry_ZhiJiao1",
+        "EquipmentGeometry_ZhiJiao3",
+        "EquipmentGeometry_Shu4"
+      ],
+      "synergy": [
+        {
+          "id": "EquipmentGeometry_Hen2",
+          "name": "Ⅱ型驱动",
+          "label": "II横",
+          "icon": "/Game/UI/UI/Equip/TipsIcon/UI_YH_kongmuicon2-gai_28"
+        },
+        {
+          "id": "EquipmentGeometry_ZhiJiao1",
+          "name": "Ⅲ型驱动",
+          "label": "III角1",
+          "icon": "/Game/UI/UI/Equip/TipsIcon/UI_YH_kongmuicon2-gai_26"
+        },
+        {
+          "id": "EquipmentGeometry_ZhiJiao3",
+          "name": "Ⅲ型驱动",
+          "label": "III角3",
+          "icon": "/Game/UI/UI/Equip/TipsIcon/UI_YH_kongmuicon2-gai_24"
+        },
+        {
+          "id": "EquipmentGeometry_Shu4",
+          "name": "Ⅳ型驱动",
+          "label": "IV竖",
+          "icon": "/Game/UI/UI/Equip/TipsIcon/UI_YH_kongmuicon2-gai_30"
+        }
+      ],
+      "conditions": [
+        {
+          "condition": 2,
+          "desc": "史诗！[2]：光属性异能伤害提升10%。"
+        },
+        {
+          "condition": 4,
+          "desc": "传说！[4]：装备者释放「极轨终结」后，造成的伤害将无视25%防御力，持续20秒，该效果不可叠加。"
+        }
+      ],
+      "set_icon": "/Game/UI/UI/Equip/suit_white/UI_YH_kongmuicon4__12",
+      "family": [
+        {
+          "id": "Cosmos_guide_blue",
+          "quality": "blue",
+          "rarity": 3,
+          "icon": "/Game/UI/UI_Icon/kongmu/256/UI_YH_kongmuicon__23"
+        },
+        {
+          "id": "Cosmos_guide_orange",
+          "quality": "orange",
+          "rarity": 5,
+          "icon": "/Game/UI/UI_Icon/kongmu/256/UI_YH_kongmuicon__03"
+        }
+      ],
+      "local_icon": "images/kongmu/cartridges/cosmos_guide.webp",
+      "asset_url": "https://static.nanoka.cc/assets/nte/Game/UI/UI_Icon/kongmu/256/UI_YH_kongmuicon__03.webp"
+    },
+    {
+      "id": "get_efficiency",
+      "name": "「音速蓝刺猬」",
+      "aliases": [
+        "get_efficiency",
+        "「音速蓝刺猬」",
+        "音速蓝刺猬"
+      ],
+      "icon": "/Game/UI/UI_Icon/kongmu/256/UI_YH_kongmuicon__35",
+      "synergy_geometry": [
+        "EquipmentGeometry_ZhiJiao1",
+        "EquipmentGeometry_ZhiJiao2",
+        "EquipmentGeometry_ZhiJiao3",
+        "EquipmentGeometry_ZhiJiao4"
+      ],
+      "synergy": [
+        {
+          "id": "EquipmentGeometry_ZhiJiao1",
+          "name": "Ⅲ型驱动",
+          "label": "III角1",
+          "icon": "/Game/UI/UI/Equip/TipsIcon/UI_YH_kongmuicon2-gai_26"
+        },
+        {
+          "id": "EquipmentGeometry_ZhiJiao2",
+          "name": "Ⅲ型驱动",
+          "label": "III角2",
+          "icon": "/Game/UI/UI/Equip/TipsIcon/UI_YH_kongmuicon2-gai_25"
+        },
+        {
+          "id": "EquipmentGeometry_ZhiJiao3",
+          "name": "Ⅲ型驱动",
+          "label": "III角3",
+          "icon": "/Game/UI/UI/Equip/TipsIcon/UI_YH_kongmuicon2-gai_24"
+        },
+        {
+          "id": "EquipmentGeometry_ZhiJiao4",
+          "name": "Ⅲ型驱动",
+          "label": "III角4",
+          "icon": "/Game/UI/UI/Equip/TipsIcon/UI_YH_kongmuicon2-gai_23"
+        }
+      ],
+      "conditions": [
+        {
+          "condition": 2,
+          "desc": "史诗！[2]：充能效率提高12%。"
+        },
+        {
+          "condition": 4,
+          "desc": "传说！[4]：装备者释放「极轨终结」以后，全队角色获得15%攻击力提升(该效果不可叠加)，持续20秒。"
+        }
+      ],
+      "set_icon": "/Game/UI/UI/Equip/suit_white/UI_YH_kongmuicon4__14",
+      "family": [
+        {
+          "id": "GetEfficiency_blue",
+          "quality": "blue",
+          "rarity": 3,
+          "icon": "/Game/UI/UI_Icon/kongmu/256/UI_YH_kongmuicon__55"
+        },
+        {
+          "id": "GetEfficiency_purple",
+          "quality": "purple",
+          "rarity": 4,
+          "icon": "/Game/UI/UI_Icon/kongmu/256/UI_YH_kongmuicon__47"
+        },
+        {
+          "id": "GetEfficiency_orange",
+          "quality": "orange",
+          "rarity": 5,
+          "icon": "/Game/UI/UI_Icon/kongmu/256/UI_YH_kongmuicon__35"
+        }
+      ],
+      "local_icon": "images/kongmu/cartridges/get_efficiency.webp",
+      "asset_url": "https://static.nanoka.cc/assets/nte/Game/UI/UI_Icon/kongmu/256/UI_YH_kongmuicon__35.webp"
+    },
+    {
+      "id": "heal",
+      "name": "「缇娅的夜间酒馆」",
+      "aliases": [
+        "heal",
+        "「缇娅的夜间酒馆」",
+        "缇娅的夜间酒馆"
+      ],
+      "icon": "/Game/UI/UI_Icon/kongmu/256/UI_YH_kongmuicon__63",
+      "synergy_geometry": [
+        "EquipmentGeometry_Hen3",
+        "EquipmentGeometry_Shu3",
+        "EquipmentGeometry_ZhiJiao1",
+        "EquipmentGeometry_ZhiJiao2"
+      ],
+      "synergy": [
+        {
+          "id": "EquipmentGeometry_Hen3",
+          "name": "Ⅲ型驱动",
+          "label": "III横",
+          "icon": "/Game/UI/UI/Equip/TipsIcon/UI_YH_kongmuicon2-gai_18"
+        },
+        {
+          "id": "EquipmentGeometry_Shu3",
+          "name": "Ⅲ型驱动",
+          "label": "III竖",
+          "icon": "/Game/UI/UI/Equip/TipsIcon/UI_YH_kongmuicon2-gai_17"
+        },
+        {
+          "id": "EquipmentGeometry_ZhiJiao1",
+          "name": "Ⅲ型驱动",
+          "label": "III角1",
+          "icon": "/Game/UI/UI/Equip/TipsIcon/UI_YH_kongmuicon2-gai_26"
+        },
+        {
+          "id": "EquipmentGeometry_ZhiJiao2",
+          "name": "Ⅲ型驱动",
+          "label": "III角2",
+          "icon": "/Game/UI/UI/Equip/TipsIcon/UI_YH_kongmuicon2-gai_25"
+        }
+      ],
+      "conditions": [
+        {
+          "condition": 2,
+          "desc": "史诗！[2]：生命值提升10%。"
+        },
+        {
+          "condition": 4,
+          "desc": "传说！[4]：装备者的治疗效率提升20%。"
+        }
+      ],
+      "set_icon": "/Game/UI/UI/Equip/suit_white/UI_YH_kongmuicon4__18",
+      "family": [
+        {
+          "id": "Heal_blue",
+          "quality": "blue",
+          "rarity": 3,
+          "icon": "/Game/UI/UI_Icon/kongmu/256/UI_YH_kongmuicon__83"
+        },
+        {
+          "id": "Heal_purple",
+          "quality": "purple",
+          "rarity": 4,
+          "icon": "/Game/UI/UI_Icon/kongmu/256/UI_YH_kongmuicon__73"
+        },
+        {
+          "id": "Heal_orange",
+          "quality": "orange",
+          "rarity": 5,
+          "icon": "/Game/UI/UI_Icon/kongmu/256/UI_YH_kongmuicon__63"
+        }
+      ],
+      "local_icon": "images/kongmu/cartridges/heal.webp",
+      "asset_url": "https://static.nanoka.cc/assets/nte/Game/UI/UI_Icon/kongmu/256/UI_YH_kongmuicon__63.webp"
+    },
+    {
+      "id": "incantation",
+      "name": "「真红：双生蝶」",
+      "aliases": [
+        "incantation",
+        "「真红：双生蝶」",
+        "真红：双生蝶"
+      ],
+      "icon": "/Game/UI/UI_Icon/kongmu/256/UI_YH_kongmuicon__05",
+      "synergy_geometry": [
+        "EquipmentGeometry_Shu2",
+        "EquipmentGeometry_Hen3",
+        "EquipmentGeometry_ZhiJiao4",
+        "EquipmentGeometry_Z3"
+      ],
+      "synergy": [
+        {
+          "id": "EquipmentGeometry_Shu2",
+          "name": "Ⅱ型驱动",
+          "label": "II竖",
+          "icon": "/Game/UI/UI/Equip/TipsIcon/UI_YH_kongmuicon2-gai_27"
+        },
+        {
+          "id": "EquipmentGeometry_Hen3",
+          "name": "Ⅲ型驱动",
+          "label": "III横",
+          "icon": "/Game/UI/UI/Equip/TipsIcon/UI_YH_kongmuicon2-gai_18"
+        },
+        {
+          "id": "EquipmentGeometry_ZhiJiao4",
+          "name": "Ⅲ型驱动",
+          "label": "III角4",
+          "icon": "/Game/UI/UI/Equip/TipsIcon/UI_YH_kongmuicon2-gai_23"
+        },
+        {
+          "id": "EquipmentGeometry_Z3",
+          "name": "Ⅳ型驱动",
+          "label": "IVZ横",
+          "icon": "/Game/UI/UI/Equip/TipsIcon/UI_YH_kongmuicon2-gai_19"
+        }
+      ],
+      "conditions": [
+        {
+          "condition": 2,
+          "desc": "史诗！[2]：咒属性异能伤害提升10%。"
+        },
+        {
+          "condition": 4,
+          "desc": "传说！[4]：附近敌人每受到一次己方编队造成的咒属性异能伤害，则装备者攻击力提升6%，最多叠加6层，每层持续10秒，角色位于后台依旧生效。"
+        }
+      ],
+      "set_icon": "/Game/UI/UI/Equip/suit_white/UI_YH_kongmuicon4__10",
+      "family": [
+        {
+          "id": "Incantation_blue",
+          "quality": "blue",
+          "rarity": 3,
+          "icon": "/Game/UI/UI_Icon/kongmu/256/UI_YH_kongmuicon__25"
+        },
+        {
+          "id": "Incantation_purple",
+          "quality": "purple",
+          "rarity": 4,
+          "icon": "/Game/UI/UI_Icon/kongmu/256/UI_YH_kongmuicon__15"
+        },
+        {
+          "id": "Incantation_orange",
+          "quality": "orange",
+          "rarity": 5,
+          "icon": "/Game/UI/UI_Icon/kongmu/256/UI_YH_kongmuicon__05"
+        }
+      ],
+      "local_icon": "images/kongmu/cartridges/incantation.webp",
+      "asset_url": "https://static.nanoka.cc/assets/nte/Game/UI/UI_Icon/kongmu/256/UI_YH_kongmuicon__05.webp"
+    },
+    {
+      "id": "lakshana",
+      "name": "「街头拳王」",
+      "aliases": [
+        "lakshana",
+        "「街头拳王」",
+        "街头拳王"
+      ],
+      "icon": "/Game/UI/UI_Icon/kongmu/256/UI_YH_kongmuicon__01",
+      "synergy_geometry": [
+        "EquipmentGeometry_Hen2",
+        "EquipmentGeometry_Hen3",
+        "EquipmentGeometry_ZhiJiao3",
+        "EquipmentGeometry_Z3"
+      ],
+      "synergy": [
+        {
+          "id": "EquipmentGeometry_Hen2",
+          "name": "Ⅱ型驱动",
+          "label": "II横",
+          "icon": "/Game/UI/UI/Equip/TipsIcon/UI_YH_kongmuicon2-gai_28"
+        },
+        {
+          "id": "EquipmentGeometry_Hen3",
+          "name": "Ⅲ型驱动",
+          "label": "III横",
+          "icon": "/Game/UI/UI/Equip/TipsIcon/UI_YH_kongmuicon2-gai_18"
+        },
+        {
+          "id": "EquipmentGeometry_ZhiJiao3",
+          "name": "Ⅲ型驱动",
+          "label": "III角3",
+          "icon": "/Game/UI/UI/Equip/TipsIcon/UI_YH_kongmuicon2-gai_24"
+        },
+        {
+          "id": "EquipmentGeometry_Z3",
+          "name": "Ⅳ型驱动",
+          "label": "IVZ横",
+          "icon": "/Game/UI/UI/Equip/TipsIcon/UI_YH_kongmuicon2-gai_19"
+        }
+      ],
+      "conditions": [
+        {
+          "condition": 2,
+          "desc": "史诗！[2]：相属性异能伤害提升10%。"
+        },
+        {
+          "condition": 4,
+          "desc": "传说！[4]：暴击率提升14%。己方编队触发「延滞」或「浸染」之后，则暴击率额外提升14%，持续20秒。"
+        }
+      ],
+      "set_icon": "/Game/UI/UI/Equip/suit_white/UI_YH_kongmuicon4__11",
+      "family": [
+        {
+          "id": "Lakshana_blue",
+          "quality": "blue",
+          "rarity": 3,
+          "icon": "/Game/UI/UI_Icon/kongmu/256/UI_YH_kongmuicon__21"
+        },
+        {
+          "id": "Lakshana_purple",
+          "quality": "purple",
+          "rarity": 4,
+          "icon": "/Game/UI/UI_Icon/kongmu/256/UI_YH_kongmuicon__11"
+        },
+        {
+          "id": "Lakshana_orange",
+          "quality": "orange",
+          "rarity": 5,
+          "icon": "/Game/UI/UI_Icon/kongmu/256/UI_YH_kongmuicon__01"
+        }
+      ],
+      "local_icon": "images/kongmu/cartridges/lakshana.webp",
+      "asset_url": "https://static.nanoka.cc/assets/nte/Game/UI/UI_Icon/kongmu/256/UI_YH_kongmuicon__01.webp"
+    },
+    {
+      "id": "mag",
+      "name": "「小小大冒险」",
+      "aliases": [
+        "mag",
+        "「小小大冒险」",
+        "小小大冒险"
+      ],
+      "icon": "/Game/UI/UI_Icon/kongmu/256/UI_YH_kongmuicon__37",
+      "synergy_geometry": [
+        "EquipmentGeometry_Hen2",
+        "EquipmentGeometry_Shu2",
+        "EquipmentGeometry_Hen4",
+        "EquipmentGeometry_Z3"
+      ],
+      "synergy": [
+        {
+          "id": "EquipmentGeometry_Hen2",
+          "name": "Ⅱ型驱动",
+          "label": "II横",
+          "icon": "/Game/UI/UI/Equip/TipsIcon/UI_YH_kongmuicon2-gai_28"
+        },
+        {
+          "id": "EquipmentGeometry_Shu2",
+          "name": "Ⅱ型驱动",
+          "label": "II竖",
+          "icon": "/Game/UI/UI/Equip/TipsIcon/UI_YH_kongmuicon2-gai_27"
+        },
+        {
+          "id": "EquipmentGeometry_Hen4",
+          "name": "Ⅳ型驱动",
+          "label": "IV横",
+          "icon": "/Game/UI/UI/Equip/TipsIcon/UI_YH_kongmuicon2-gai_16"
+        },
+        {
+          "id": "EquipmentGeometry_Z3",
+          "name": "Ⅳ型驱动",
+          "label": "IVZ横",
+          "icon": "/Game/UI/UI/Equip/TipsIcon/UI_YH_kongmuicon2-gai_19"
+        }
+      ],
+      "conditions": [
+        {
+          "condition": 2,
+          "desc": "史诗！[2]：生命值提升10%。"
+        },
+        {
+          "condition": 4,
+          "desc": "传说！[4]：装备者每次降低血量时，生命值上限提升4%，最多叠加10层，每层持续10秒。释放「极轨终结」时，直接获得10层该效果。"
+        }
+      ],
+      "set_icon": "/Game/UI/UI/Equip/suit_white/UI_YH_kongmuicon4__15",
+      "family": [
+        {
+          "id": "Mag_blue",
+          "quality": "blue",
+          "rarity": 3,
+          "icon": "/Game/UI/UI_Icon/kongmu/256/UI_YH_kongmuicon__57"
+        },
+        {
+          "id": "Mag_purple",
+          "quality": "purple",
+          "rarity": 4,
+          "icon": "/Game/UI/UI_Icon/kongmu/256/UI_YH_kongmuicon__49"
+        },
+        {
+          "id": "Mag_orange",
+          "quality": "orange",
+          "rarity": 5,
+          "icon": "/Game/UI/UI_Icon/kongmu/256/UI_YH_kongmuicon__37"
+        }
+      ],
+      "local_icon": "images/kongmu/cartridges/mag.webp",
+      "asset_url": "https://static.nanoka.cc/assets/nte/Game/UI/UI_Icon/kongmu/256/UI_YH_kongmuicon__37.webp"
+    },
+    {
+      "id": "nature",
+      "name": "「森林萤火之心」",
+      "aliases": [
+        "nature",
+        "「森林萤火之心」",
+        "森林萤火之心"
+      ],
+      "icon": "/Game/UI/UI_Icon/kongmu/256/UI_YH_kongmuicon__09",
+      "synergy_geometry": [
+        "EquipmentGeometry_Hen2",
+        "EquipmentGeometry_Shu3",
+        "EquipmentGeometry_ZhiJiao1",
+        "EquipmentGeometry_Z4"
+      ],
+      "synergy": [
+        {
+          "id": "EquipmentGeometry_Hen2",
+          "name": "Ⅱ型驱动",
+          "label": "II横",
+          "icon": "/Game/UI/UI/Equip/TipsIcon/UI_YH_kongmuicon2-gai_28"
+        },
+        {
+          "id": "EquipmentGeometry_Shu3",
+          "name": "Ⅲ型驱动",
+          "label": "III竖",
+          "icon": "/Game/UI/UI/Equip/TipsIcon/UI_YH_kongmuicon2-gai_17"
+        },
+        {
+          "id": "EquipmentGeometry_ZhiJiao1",
+          "name": "Ⅲ型驱动",
+          "label": "III角1",
+          "icon": "/Game/UI/UI/Equip/TipsIcon/UI_YH_kongmuicon2-gai_26"
+        },
+        {
+          "id": "EquipmentGeometry_Z4",
+          "name": "Ⅳ型驱动",
+          "label": "IVZ竖",
+          "icon": "/Game/UI/UI/Equip/TipsIcon/UI_YH_kongmuicon2-gai_20"
+        }
+      ],
+      "conditions": [
+        {
+          "condition": 2,
+          "desc": "史诗！[2]：灵属性异能伤害提升10%。"
+        },
+        {
+          "condition": 4,
+          "desc": "传说！[4]：附近每有敌人受到由己方编队造成的灵属性异能伤害，则装备者暴击伤害提升8%，最多叠加7层，每层持续10秒，角色位于后台依旧生效。"
+        }
+      ],
+      "set_icon": "/Game/UI/UI/Equip/suit_white/UI_YH_kongmuicon4__08",
+      "family": [
+        {
+          "id": "Nature_blue",
+          "quality": "blue",
+          "rarity": 3,
+          "icon": "/Game/UI/UI_Icon/kongmu/256/UI_YH_kongmuicon__29"
+        },
+        {
+          "id": "Nature_purple",
+          "quality": "purple",
+          "rarity": 4,
+          "icon": "/Game/UI/UI_Icon/kongmu/256/UI_YH_kongmuicon__19"
+        },
+        {
+          "id": "Nature_orange",
+          "quality": "orange",
+          "rarity": 5,
+          "icon": "/Game/UI/UI_Icon/kongmu/256/UI_YH_kongmuicon__09"
+        }
+      ],
+      "local_icon": "images/kongmu/cartridges/nature.webp",
+      "asset_url": "https://static.nanoka.cc/assets/nte/Game/UI/UI_Icon/kongmu/256/UI_YH_kongmuicon__09.webp"
+    },
+    {
+      "id": "psyche",
+      "name": "「恶魔之血：诅咒」",
+      "aliases": [
+        "psyche",
+        "「恶魔之血：诅咒」",
+        "恶魔之血：诅咒"
+      ],
+      "icon": "/Game/UI/UI_Icon/kongmu/256/UI_YH_kongmuicon__31",
+      "synergy_geometry": [
+        "EquipmentGeometry_Shu2",
+        "EquipmentGeometry_Shu3",
+        "EquipmentGeometry_ZhiJiao2",
+        "EquipmentGeometry_Z4"
+      ],
+      "synergy": [
+        {
+          "id": "EquipmentGeometry_Shu2",
+          "name": "Ⅱ型驱动",
+          "label": "II竖",
+          "icon": "/Game/UI/UI/Equip/TipsIcon/UI_YH_kongmuicon2-gai_27"
+        },
+        {
+          "id": "EquipmentGeometry_Shu3",
+          "name": "Ⅲ型驱动",
+          "label": "III竖",
+          "icon": "/Game/UI/UI/Equip/TipsIcon/UI_YH_kongmuicon2-gai_17"
+        },
+        {
+          "id": "EquipmentGeometry_ZhiJiao2",
+          "name": "Ⅲ型驱动",
+          "label": "III角2",
+          "icon": "/Game/UI/UI/Equip/TipsIcon/UI_YH_kongmuicon2-gai_25"
+        },
+        {
+          "id": "EquipmentGeometry_Z4",
+          "name": "Ⅳ型驱动",
+          "label": "IVZ竖",
+          "icon": "/Game/UI/UI/Equip/TipsIcon/UI_YH_kongmuicon2-gai_20"
+        }
+      ],
+      "conditions": [
+        {
+          "condition": 2,
+          "desc": "史诗！[2]：魂属性异能伤害提升10%。"
+        },
+        {
+          "condition": 4,
+          "desc": "传说！[4]：造成的伤害提升18%。攻击受到「黯星」或「浸染」影响的单位时，伤害提升效果变为36%。"
+        }
+      ],
+      "set_icon": "/Game/UI/UI/Equip/suit_white/UI_YH_kongmuicon4__09",
+      "family": [
+        {
+          "id": "Psyche_blue",
+          "quality": "blue",
+          "rarity": 3,
+          "icon": "/Game/UI/UI_Icon/kongmu/256/UI_YH_kongmuicon__51"
+        },
+        {
+          "id": "Psyche_purple",
+          "quality": "purple",
+          "rarity": 4,
+          "icon": "/Game/UI/UI_Icon/kongmu/256/UI_YH_kongmuicon__41"
+        },
+        {
+          "id": "Psyche_orange",
+          "quality": "orange",
+          "rarity": 5,
+          "icon": "/Game/UI/UI_Icon/kongmu/256/UI_YH_kongmuicon__31"
+        }
+      ],
+      "local_icon": "images/kongmu/cartridges/psyche.webp",
+      "asset_url": "https://static.nanoka.cc/assets/nte/Game/UI/UI_Icon/kongmu/256/UI_YH_kongmuicon__31.webp"
+    },
+    {
+      "id": "psychically",
+      "name": "「静谧山庄」",
+      "aliases": [
+        "psychically",
+        "「静谧山庄」",
+        "静谧山庄"
+      ],
+      "icon": "/Game/UI/UI_Icon/kongmu/256/UI_YH_kongmuicon__61",
+      "synergy_geometry": [
+        "EquipmentGeometry_Hen2",
+        "EquipmentGeometry_Shu2",
+        "EquipmentGeometry_Shu4",
+        "EquipmentGeometry_Z4"
+      ],
+      "synergy": [
+        {
+          "id": "EquipmentGeometry_Hen2",
+          "name": "Ⅱ型驱动",
+          "label": "II横",
+          "icon": "/Game/UI/UI/Equip/TipsIcon/UI_YH_kongmuicon2-gai_28"
+        },
+        {
+          "id": "EquipmentGeometry_Shu2",
+          "name": "Ⅱ型驱动",
+          "label": "II竖",
+          "icon": "/Game/UI/UI/Equip/TipsIcon/UI_YH_kongmuicon2-gai_27"
+        },
+        {
+          "id": "EquipmentGeometry_Shu4",
+          "name": "Ⅳ型驱动",
+          "label": "IV竖",
+          "icon": "/Game/UI/UI/Equip/TipsIcon/UI_YH_kongmuicon2-gai_30"
+        },
+        {
+          "id": "EquipmentGeometry_Z4",
+          "name": "Ⅳ型驱动",
+          "label": "IVZ竖",
+          "icon": "/Game/UI/UI/Equip/TipsIcon/UI_YH_kongmuicon2-gai_20"
+        }
+      ],
+      "conditions": [
+        {
+          "condition": 2,
+          "desc": "史诗！[2]：心灵伤害提高10%。"
+        },
+        {
+          "condition": 4,
+          "desc": "传说！[4]：装备者普通攻击后，造成的心灵伤害提升12%，最多叠加3层，每层持续6秒。"
+        }
+      ],
+      "set_icon": "/Game/UI/UI/Equip/suit_white/UI_YH_kongmuicon4__17",
+      "family": [
+        {
+          "id": "Psychically_blue",
+          "quality": "blue",
+          "rarity": 3,
+          "icon": "/Game/UI/UI_Icon/kongmu/256/UI_YH_kongmuicon__81"
+        },
+        {
+          "id": "Psychically_purple",
+          "quality": "purple",
+          "rarity": 4,
+          "icon": "/Game/UI/UI_Icon/kongmu/256/UI_YH_kongmuicon__71"
+        },
+        {
+          "id": "Psychically_orange",
+          "quality": "orange",
+          "rarity": 5,
+          "icon": "/Game/UI/UI_Icon/kongmu/256/UI_YH_kongmuicon__61"
+        }
+      ],
+      "local_icon": "images/kongmu/cartridges/psychically.webp",
+      "asset_url": "https://static.nanoka.cc/assets/nte/Game/UI/UI_Icon/kongmu/256/UI_YH_kongmuicon__61.webp"
+    },
+    {
+      "id": "shield",
+      "name": "「守卫王国」",
+      "aliases": [
+        "shield",
+        "「守卫王国」",
+        "守卫王国"
+      ],
+      "icon": "/Game/UI/UI_Icon/kongmu/256/UI_YH_kongmuicon__33",
+      "synergy_geometry": [
+        "EquipmentGeometry_Hen3",
+        "EquipmentGeometry_Shu3",
+        "EquipmentGeometry_ZhiJiao3",
+        "EquipmentGeometry_ZhiJiao4"
+      ],
+      "synergy": [
+        {
+          "id": "EquipmentGeometry_Hen3",
+          "name": "Ⅲ型驱动",
+          "label": "III横",
+          "icon": "/Game/UI/UI/Equip/TipsIcon/UI_YH_kongmuicon2-gai_18"
+        },
+        {
+          "id": "EquipmentGeometry_Shu3",
+          "name": "Ⅲ型驱动",
+          "label": "III竖",
+          "icon": "/Game/UI/UI/Equip/TipsIcon/UI_YH_kongmuicon2-gai_17"
+        },
+        {
+          "id": "EquipmentGeometry_ZhiJiao3",
+          "name": "Ⅲ型驱动",
+          "label": "III角3",
+          "icon": "/Game/UI/UI/Equip/TipsIcon/UI_YH_kongmuicon2-gai_24"
+        },
+        {
+          "id": "EquipmentGeometry_ZhiJiao4",
+          "name": "Ⅲ型驱动",
+          "label": "III角4",
+          "icon": "/Game/UI/UI/Equip/TipsIcon/UI_YH_kongmuicon2-gai_23"
+        }
+      ],
+      "conditions": [
+        {
+          "condition": 2,
+          "desc": "史诗！[2]：防御力提升15%。"
+        },
+        {
+          "condition": 4,
+          "desc": "传说！[4]：装备者的护盾效果提升20%。"
+        }
+      ],
+      "set_icon": "/Game/UI/UI/Equip/suit_white/UI_YH_kongmuicon4__13",
+      "family": [
+        {
+          "id": "Shield_blue",
+          "quality": "blue",
+          "rarity": 3,
+          "icon": "/Game/UI/UI_Icon/kongmu/256/UI_YH_kongmuicon__53"
+        },
+        {
+          "id": "Shield_purple",
+          "quality": "purple",
+          "rarity": 4,
+          "icon": "/Game/UI/UI_Icon/kongmu/256/UI_YH_kongmuicon__45"
+        },
+        {
+          "id": "Shield_orange",
+          "quality": "orange",
+          "rarity": 5,
+          "icon": "/Game/UI/UI_Icon/kongmu/256/UI_YH_kongmuicon__33"
+        }
+      ],
+      "local_icon": "images/kongmu/cartridges/shield.webp",
+      "asset_url": "https://static.nanoka.cc/assets/nte/Game/UI/UI_Icon/kongmu/256/UI_YH_kongmuicon__33.webp"
+    }
+  ]
+}

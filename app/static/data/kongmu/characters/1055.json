@@ -1,0 +1,95 @@
+{
+  "source": "nanoka.cc",
+  "game": "nte",
+  "version": "1.2+476873",
+  "locale": "zh",
+  "updated_at": "2026-07-01T07:32:02+00:00",
+  "source_url": "https://static.nanoka.cc/nte/1.2+476873/zh/character/1055.json",
+  "id": "1055",
+  "name": "九原",
+  "element": "Nature",
+  "element_id": "NATURE",
+  "rarity": 5,
+  "icon": "/Game/UI/UI_Icon/AvatarImage/256/player_104_256",
+  "equip_slots": {
+    "type_name": "「卡带」属性",
+    "description_template": "每装配一个Ⅱ型驱动，使{0}增加{1}%",
+    "special_desc": "Ⅱ型特化",
+    "owner_grid_count": 2,
+    "stats": [
+      {
+        "id_stats": "CritBase",
+        "name": "暴击率",
+        "value": 6,
+        "icon": "/Game/UI/UI_Icon/Attribute/icon_attri_baoji",
+        "b_show_percent": true
+      }
+    ],
+    "slots": [
+      [
+        -1,
+        -1,
+        -1,
+        -1,
+        -1,
+        -1,
+        -1
+      ],
+      [
+        -1,
+        -1,
+        -1,
+        -1,
+        -1,
+        -1,
+        -1
+      ],
+      [
+        -1,
+        0,
+        0,
+        0,
+        0,
+        0,
+        -1
+      ],
+      [
+        -1,
+        0,
+        0,
+        0,
+        0,
+        0,
+        -1
+      ],
+      [
+        -1,
+        0,
+        0,
+        0,
+        0,
+        0,
+        -1
+      ],
+      [
+        -1,
+        0,
+        0,
+        0,
+        0,
+        0,
+        -1
+      ],
+      [
+        -1,
+        -1,
+        -1,
+        -1,
+        -1,
+        -1,
+        -1
+      ]
+    ],
+    "valid_cell_count": 20
+  }
+}
