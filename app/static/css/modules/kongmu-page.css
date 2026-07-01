@@ -348,26 +348,104 @@
 }
 
 .kongmu-piece {
-    position: relative;
-    overflow: visible;
+    display: grid;
+    grid-template-columns: repeat(var(--piece-cols), minmax(0, 1fr));
+    grid-template-rows: repeat(var(--piece-rows), minmax(0, 1fr));
+    gap: var(--gap);
     min-width: 0;
     min-height: 0;
 }
 
-.kongmu-piece-icon {
+.kongmu-piece-tile {
+    position: relative;
+    overflow: hidden;
+    min-width: 0;
+    min-height: 0;
+    border-radius: 7px;
+    border: 2px solid rgba(3, 6, 11, 0.9);
+    background:
+        linear-gradient(145deg, rgba(255, 247, 179, 0.52), transparent 36%),
+        linear-gradient(180deg, #ffd56c 0%, #ffba48 46%, #ef9228 100%);
+    box-shadow:
+        inset 0 0 0 1px rgba(112, 53, 6, 0.28),
+        inset 0 7px 10px rgba(255, 238, 154, 0.2),
+        inset 0 -7px 10px rgba(151, 63, 7, 0.2),
+        0 3px 8px rgba(0, 0, 0, 0.42);
+}
+
+.kongmu-piece-tile-shine,
+.kongmu-piece-edge {
     position: absolute;
-    object-fit: fill;
     pointer-events: none;
-    filter: drop-shadow(0 3px 8px rgba(0,0,0,0.52));
 }
 
-.kongmu-piece.required .kongmu-piece-icon {
+.kongmu-piece-tile-shine {
+    inset: 6px;
+    border-radius: 4px;
+    border: 1px solid rgba(255, 248, 202, 0.2);
+    background: linear-gradient(135deg, rgba(255,255,255,0.12), transparent 62%);
+}
+
+.kongmu-piece-edge {
+    border-radius: 999px;
+    background: rgba(255, 239, 178, 0.96);
+    box-shadow: 0 0 3px rgba(255, 215, 111, 0.18);
+}
+
+.kongmu-piece-edge.top,
+.kongmu-piece-edge.bottom {
+    left: 5px;
+    right: 5px;
+    height: 3px;
+}
+
+.kongmu-piece-edge.left,
+.kongmu-piece-edge.right {
+    top: 5px;
+    bottom: 5px;
+    width: 3px;
+}
+
+.kongmu-piece-edge.top {
+    top: 2px;
+}
+
+.kongmu-piece-edge.right {
+    right: 2px;
+}
+
+.kongmu-piece-edge.bottom {
+    bottom: 2px;
+}
+
+.kongmu-piece-edge.left {
+    left: 2px;
+}
+
+.kongmu-piece.required .kongmu-piece-tile {
     opacity: 0.7;
-    filter: grayscale(1) contrast(1.12) brightness(0.82) drop-shadow(0 3px 8px rgba(0,0,0,0.45));
+    background:
+        linear-gradient(145deg, rgba(230, 234, 237, 0.22), transparent 36%),
+        linear-gradient(180deg, #94989b 0%, #72777a 52%, #555a5f 100%);
+    box-shadow:
+        inset 0 0 0 1px rgba(22, 26, 30, 0.36),
+        inset 0 7px 10px rgba(232, 238, 240, 0.08),
+        inset 0 -7px 10px rgba(20, 23, 27, 0.2),
+        0 3px 8px rgba(0, 0, 0, 0.38);
 }
 
-.kongmu-piece.optional-highlight .kongmu-piece-icon {
-    filter: saturate(1.15) drop-shadow(0 0 10px rgba(255,191,87,0.34)) drop-shadow(0 3px 8px rgba(0,0,0,0.52));
+.kongmu-piece.required .kongmu-piece-edge {
+    background: rgba(219, 226, 228, 0.62);
+    box-shadow: none;
+}
+
+.kongmu-piece.optional-highlight .kongmu-piece-tile {
+    box-shadow:
+        inset 0 0 0 1px rgba(112, 53, 6, 0.28),
+        inset 0 7px 10px rgba(255, 238, 154, 0.2),
+        inset 0 -7px 10px rgba(151, 63, 7, 0.2),
+        0 0 10px rgba(255,191,87,0.24),
+        0 3px 8px rgba(0, 0, 0, 0.42);
 }
 
 .kongmu-empty-result {
