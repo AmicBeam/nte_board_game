@@ -461,6 +461,47 @@ def drive_icon_path(geometry: str) -> str:
     return f'images/kongmu/drive_icons/{geometry}.webp'
 
 
+def format_stat_value(value: Any) -> str:
+    if value is None:
+        return ''
+    if isinstance(value, float):
+        return f'{value:g}'
+    return str(value).strip()
+
+
+def kongmu_passive(equip_slots: dict[str, Any]) -> dict[str, Any]:
+    title = display_name_without_quotes(equip_slots.get('special_desc'))
+    template = str(equip_slots.get('description_template') or '').strip()
+    lines: list[str] = []
+
+    for stat in equip_slots.get('stats') or []:
+        if not isinstance(stat, dict):
+            continue
+        stat_name = str(stat.get('name') or stat.get('id_stats') or '').strip()
+        stat_value = format_stat_value(stat.get('value'))
+        if template:
+            line = template.replace('{0}', stat_name).replace('{1}', stat_value).strip()
+        elif stat_name and stat_value:
+            suffix = '%' if stat.get('b_show_percent') else ''
+            line = f'{stat_name}+{stat_value}{suffix}'
+        else:
+            line = stat_name or stat_value
+        if line:
+            lines.append(line)
+
+    text = '；'.join(lines)
+    if title and text:
+        text = f'{title}：{text}'
+    elif title:
+        text = title
+
+    return {
+        'title': title,
+        'lines': lines,
+        'text': text,
+    }
+
+
 def compact_character(record: dict[str, Any], detail: dict[str, Any] | None = None) -> dict[str, Any]:
     detail = detail or {}
     character_id = str(record.get('id') or detail.get('id') or '')
@@ -482,6 +523,7 @@ def compact_character(record: dict[str, Any], detail: dict[str, Any] | None = No
         'source_icon': source_avatar,
         'owner_grid_count': int(equip_slots.get('owner_grid_count') or 0),
         'owner_type_label': OWNER_TYPE_LABELS.get(int(equip_slots.get('owner_grid_count') or 0), ''),
+        'kongmu_passive': kongmu_passive(equip_slots),
     }
 
 

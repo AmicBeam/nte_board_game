@@ -171,6 +171,27 @@
     font-size: 22px;
 }
 
+.kongmu-result-side {
+    display: grid;
+    justify-items: end;
+    gap: 6px;
+    min-width: min(360px, 48%);
+}
+
+.kongmu-passive-line {
+    max-width: 100%;
+    color: #f3d49b;
+    font-size: 13px;
+    font-weight: 800;
+    line-height: 1.35;
+    text-align: right;
+    overflow-wrap: anywhere;
+}
+
+.kongmu-passive-line[hidden] {
+    display: none;
+}
+
 .kongmu-result-count {
     display: inline-flex;
     align-items: baseline;
@@ -193,7 +214,7 @@
 
 .kongmu-filter-row {
     display: grid;
-    grid-template-columns: 82px minmax(0, 1fr);
+    grid-template-columns: minmax(104px, auto) minmax(0, 1fr);
     align-items: center;
     gap: 12px;
     min-height: 58px;
@@ -379,6 +400,15 @@
 
     .kongmu-result-head {
         flex-direction: column;
+    }
+
+    .kongmu-result-side {
+        justify-items: start;
+        min-width: 100%;
+    }
+
+    .kongmu-passive-line {
+        text-align: left;
     }
 
     .kongmu-picker-panel,

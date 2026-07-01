@@ -18,6 +18,7 @@ const kongmuEls = {
   planBtn: document.getElementById('kongmu-plan-btn'),
   resultShell: document.getElementById('kongmu-result-shell'),
   resultTitle: document.getElementById('kongmu-result-title'),
+  passiveLine: document.getElementById('kongmu-passive-line'),
   visibleCount: document.getElementById('kongmu-visible-count'),
   totalCount: document.getElementById('kongmu-total-count'),
   filterPanel: document.getElementById('kongmu-filter-panel'),
@@ -193,8 +194,13 @@ function renderKongmuPlan() {
   if (!plan) return;
   const character = plan.character || {};
   const cartridge = plan.cartridge || {};
+  const passiveText = character.kongmu_passive?.text || '';
   kongmuEls.resultShell.hidden = false;
   kongmuEls.resultTitle.textContent = `${character.name || '-'} + ${cartridge.name || '-'}`;
+  if (kongmuEls.passiveLine) {
+    kongmuEls.passiveLine.textContent = passiveText;
+    kongmuEls.passiveLine.hidden = !passiveText;
+  }
   kongmuEls.totalCount.textContent = String(plan.result?.total_solution_count || 0);
   renderKongmuFilters();
   renderKongmuSolutions();
@@ -216,19 +222,26 @@ function renderKongmuFilters() {
   `);
 
   optionalRows.forEach((row) => {
-    rows.push(`
-      <div class="kongmu-filter-row" data-filter-row="${escapeAttr(row.grid_count)}">
-        <div class="kongmu-filter-row-title">${escapeHtml(row.label)}</div>
-        <div class="kongmu-drive-strip">
-          ${(row.options || []).map((drive) => driveOptionHtml(row, drive)).join('')}
+    const maxSelect = Math.max(1, Number(row.max_select || 1));
+    for (let slotIndex = 0; slotIndex < maxSelect; slotIndex += 1) {
+      rows.push(`
+        <div class="kongmu-filter-row" data-filter-row="${escapeAttr(row.grid_count)}" data-slot-index="${slotIndex}">
+          <div class="kongmu-filter-row-title">${escapeHtml(`${row.label} 筛选${slotIndex + 1}`)}</div>
+          <div class="kongmu-drive-strip">
+            ${(row.options || []).map((drive) => driveOptionHtml(row, drive, slotIndex)).join('')}
+          </div>
         </div>
-      </div>
-    `);
+      `);
+    }
   });
 
   kongmuEls.filterPanel.innerHTML = rows.join('');
   kongmuEls.filterPanel.querySelectorAll('.kongmu-drive-option').forEach((button) => {
-    button.addEventListener('click', () => toggleKongmuFilter(button.dataset.gridCount, button.dataset.geometry));
+    button.addEventListener('click', () => toggleKongmuFilter(
+      button.dataset.gridCount,
+      button.dataset.slotIndex,
+      button.dataset.geometry,
+    ));
   });
   bindImageFallbacks(kongmuEls.filterPanel);
 }
@@ -242,38 +255,32 @@ function driveChipHtml(drive) {
   `;
 }
 
-function driveOptionHtml(row, drive) {
-  const queue = kongmuState.filterQueues[Number(row.grid_count)] || [];
-  const selected = queue.includes(drive.geometry);
-  const countBadge = Number(drive.count || 0) > 1
-    ? `<span class="kongmu-drive-count">x${escapeHtml(drive.count)}</span>`
-    : '';
+function driveOptionHtml(row, drive, slotIndex) {
+  const slots = kongmuState.filterQueues[Number(row.grid_count)] || [];
+  const selected = slots[slotIndex] === drive.geometry;
   return `
     <button class="kongmu-drive-option${selected ? ' selected' : ''}" type="button"
       data-grid-count="${escapeAttr(row.grid_count)}"
+      data-slot-index="${escapeAttr(slotIndex)}"
       data-geometry="${escapeAttr(drive.geometry)}"
       title="${escapeAttr(drive.label || drive.name)}">
       ${imageHtml(drive.icon, drive.label || drive.name, '', drive.source_icon)}
-      ${countBadge}
     </button>
   `;
 }
 
-function toggleKongmuFilter(gridCountValue, geometry) {
+function toggleKongmuFilter(gridCountValue, slotIndexValue, geometry) {
   const gridCount = Number(gridCountValue);
+  const slotIndex = Number(slotIndexValue);
   const row = (kongmuState.plan?.result?.optional_rows || []).find((item) => Number(item.grid_count) === gridCount);
-  if (!row || !geometry) return;
-  const queue = kongmuState.filterQueues[gridCount] || [];
-  const existingIndex = queue.indexOf(geometry);
-  if (existingIndex >= 0) {
-    queue.splice(existingIndex, 1);
+  if (!row || !geometry || !Number.isInteger(slotIndex) || slotIndex < 0) return;
+  const slots = kongmuState.filterQueues[gridCount] || [];
+  if (slots[slotIndex] === geometry) {
+    slots[slotIndex] = '';
   } else {
-    queue.push(geometry);
-    while (queue.length > Number(row.max_select || 1)) {
-      queue.shift();
-    }
+    slots[slotIndex] = geometry;
   }
-  kongmuState.filterQueues[gridCount] = queue;
+  kongmuState.filterQueues[gridCount] = slots.slice(0, Number(row.max_select || 1));
   renderKongmuFilters();
   renderKongmuSolutions();
 }
@@ -292,14 +299,22 @@ function renderKongmuSolutions() {
 
 function kongmuSolutionMatches(solution) {
   const optionalCounts = solution.optional_counts || {};
-  for (const queue of Object.values(kongmuState.filterQueues)) {
-    for (const geometry of queue) {
-      if (!Number(optionalCounts[geometry] || 0)) {
-        return false;
-      }
+  const selectedCounts = selectedOptionalGeometryCounts();
+  for (const [geometry, count] of Object.entries(selectedCounts)) {
+    if (Number(optionalCounts[geometry] || 0) < count) {
+      return false;
     }
   }
   return true;
+}
+
+function selectedOptionalGeometryCounts() {
+  const counts = {};
+  Object.values(kongmuState.filterQueues).flat().forEach((geometry) => {
+    if (!geometry) return;
+    counts[geometry] = Number(counts[geometry] || 0) + 1;
+  });
+  return counts;
 }
 
 function renderKongmuSolution(solution, displayIndex) {
@@ -333,7 +348,7 @@ function renderKongmuBoard(slots, solution) {
 function pieceHtml(piece) {
   const drive = getDriveMap().get(piece.geometry) || {};
   const [minX, minY, maxX, maxY] = pieceBounds(piece);
-  const selectedGeometries = new Set(Object.values(kongmuState.filterQueues).flat());
+  const selectedGeometries = new Set(Object.keys(selectedOptionalGeometryCounts()));
   const classes = ['kongmu-piece'];
   if (piece.is_required_drive) classes.push('required');
   if (!piece.is_required_drive && selectedGeometries.has(piece.geometry)) classes.push('optional-highlight');
