@@ -379,7 +379,9 @@ function pieceHtml(piece) {
     <div class="${classes.join(' ')}"
       style="grid-column:${minX + 1} / span ${maxX - minX}; grid-row:${minY + 1} / span ${maxY - minY}"
       title="${escapeAttr(piece.label || drive.label || '')}">
-      ${imageHtml(drive.icon_url || drive.source_icon, piece.label || drive.label, 'kongmu-piece-icon', drive.source_icon, iconCropStyle(piece.geometry))}
+      <span class="kongmu-piece-frame">
+        ${imageHtml(drive.icon_url || drive.source_icon, piece.label || drive.label, 'kongmu-piece-icon', drive.source_icon, iconCropStyle(piece.geometry))}
+      </span>
     </div>
   `;
 }

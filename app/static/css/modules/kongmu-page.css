@@ -309,6 +309,7 @@
 .kongmu-board {
     --cell: 38px;
     --gap: 3px;
+    --piece-inset: 2px;
     display: grid;
     grid-template-columns: calc(var(--cols) * var(--cell) + (var(--cols) - 1) * var(--gap));
     grid-template-rows: calc(var(--rows) * var(--cell) + (var(--rows) - 1) * var(--gap));
@@ -352,6 +353,13 @@
     overflow: visible;
     min-width: 0;
     min-height: 0;
+}
+
+.kongmu-piece-frame {
+    position: absolute;
+    inset: var(--piece-inset);
+    overflow: hidden;
+    pointer-events: none;
 }
 
 .kongmu-piece-icon {
