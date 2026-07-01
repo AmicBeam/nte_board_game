@@ -362,17 +362,43 @@ function pieceHtml(piece) {
   const classes = ['kongmu-piece'];
   if (piece.is_required_drive) classes.push('required');
   if (!piece.is_required_drive && selectedGeometries.has(piece.geometry)) classes.push('optional-highlight');
-  const cells = (piece.cells || []).map((cell, index) => {
-    const x = Number(cell[0]) - minX + 1;
-    const y = Number(cell[1]) - minY + 1;
-    return `<span class="kongmu-piece-cell" style="grid-column:${x}; grid-row:${y}; --tile-index:${index}"></span>`;
-  }).join('');
   return `
     <div class="${classes.join(' ')}"
       style="grid-column:${minX + 1} / span ${pieceCols}; grid-row:${minY + 1} / span ${pieceRows}; --piece-cols:${pieceCols}; --piece-rows:${pieceRows}"
       title="${escapeAttr(piece.label || drive.label || '')}">
-      ${cells}
+      ${pieceShapeSvg(piece, minX, minY, pieceCols, pieceRows)}
     </div>
+  `;
+}
+
+function pieceShapeSvg(piece, minX, minY, pieceCols, pieceRows) {
+  const cells = (piece.cells || []).map((cell) => ({
+    x: Number(cell[0]) - minX,
+    y: Number(cell[1]) - minY,
+  }));
+  const occupied = new Set(cells.map((cell) => `${cell.x},${cell.y}`));
+  const tiles = cells.map((cell) => `
+    <rect class="kongmu-piece-tile" x="${cell.x}" y="${cell.y}" width="1" height="1" rx="0.12" ry="0.12"></rect>
+    <rect class="kongmu-piece-tile-gloss" x="${cell.x + 0.12}" y="${cell.y + 0.12}" width="0.76" height="0.76" rx="0.08" ry="0.08"></rect>
+  `).join('');
+  const outerEdges = cells.flatMap((cell) => {
+    const {x, y} = cell;
+    const edges = [];
+    if (!occupied.has(`${x},${y - 1}`)) edges.push([x, y, x + 1, y]);
+    if (!occupied.has(`${x + 1},${y}`)) edges.push([x + 1, y, x + 1, y + 1]);
+    if (!occupied.has(`${x},${y + 1}`)) edges.push([x + 1, y + 1, x, y + 1]);
+    if (!occupied.has(`${x - 1},${y}`)) edges.push([x, y + 1, x, y]);
+    return edges;
+  });
+  const edgeLines = outerEdges.map(([x1, y1, x2, y2]) => `
+    <line class="kongmu-piece-edge-shadow" x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}"></line>
+    <line class="kongmu-piece-edge-highlight" x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}"></line>
+  `).join('');
+  return `
+    <svg class="kongmu-piece-shape" viewBox="0 0 ${pieceCols} ${pieceRows}" aria-hidden="true" focusable="false">
+      ${tiles}
+      ${edgeLines}
+    </svg>
   `;
 }
 
