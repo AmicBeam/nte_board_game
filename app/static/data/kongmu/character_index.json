@@ -1,0 +1,298 @@
+{
+  "characters": [
+    {
+      "id": "1003",
+      "name": "早雾",
+      "names": {
+        "zh": "早雾",
+        "en": "Sakiri",
+        "ja": "早霧",
+        "ko": "사키리"
+      },
+      "element": "Incantation",
+      "element_id": "INCANTATION",
+      "rarity": 5,
+      "icon": "/Game/UI/UI_Icon/AvatarImage/256/player_003_256"
+    },
+    {
+      "id": "1004",
+      "name": "安魂曲",
+      "names": {
+        "zh": "安魂曲",
+        "en": "Lacrimosa",
+        "ja": "レクイエム",
+        "ko": "라크리모사"
+      },
+      "element": "Chaos",
+      "element_id": "CHAOS",
+      "rarity": 5,
+      "icon": "/Game/UI/UI_Icon/AvatarImage/256/player_004_256"
+    },
+    {
+      "id": "1008",
+      "name": "翳",
+      "names": {
+        "zh": "翳",
+        "en": "Skia",
+        "ja": "翳",
+        "ko": "스키아"
+      },
+      "element": "Lakshana",
+      "element_id": "LAKSHANA",
+      "rarity": 4,
+      "icon": "/Game/UI/UI_Icon/AvatarImage/256/player_008_256"
+    },
+    {
+      "id": "1010",
+      "name": "娜娜莉",
+      "names": {
+        "zh": "娜娜莉",
+        "en": "Nanally",
+        "ja": "ナナリ",
+        "ko": "나나리"
+      },
+      "element": "Nature",
+      "element_id": "NATURE",
+      "rarity": 5,
+      "icon": "/Game/UI/UI_Icon/AvatarImage/256/player_010_256"
+    },
+    {
+      "id": "1019",
+      "name": "薄荷",
+      "names": {
+        "zh": "薄荷",
+        "en": "Mint",
+        "ja": "ミント",
+        "ko": "민트"
+      },
+      "element": "Nature",
+      "element_id": "NATURE",
+      "rarity": 4,
+      "icon": "/Game/UI/UI_Icon/AvatarImage/256/player_019_256"
+    },
+    {
+      "id": "1020",
+      "name": "哈尼娅",
+      "names": {
+        "zh": "哈尼娅",
+        "en": "Haniel",
+        "ja": "ハニア",
+        "ko": "하니엘"
+      },
+      "element": "Psyche",
+      "element_id": "PSYCHE",
+      "rarity": 4,
+      "icon": "/Game/UI/UI_Icon/AvatarImage/256/player_020_256"
+    },
+    {
+      "id": "1021",
+      "name": "埃德嘉",
+      "names": {
+        "zh": "埃德嘉",
+        "en": "Edgar",
+        "ja": "エドガー",
+        "ko": "에드가"
+      },
+      "element": "Cosmos",
+      "element_id": "COSMOS",
+      "rarity": 4,
+      "icon": "/Game/UI/UI_Icon/AvatarImage/256/player_021_256"
+    },
+    {
+      "id": "1023",
+      "name": "白藏",
+      "names": {
+        "zh": "白藏",
+        "en": "Baicang",
+        "ja": "白蔵",
+        "ko": "백장"
+      },
+      "element": "Incantation",
+      "element_id": "INCANTATION",
+      "rarity": 5,
+      "icon": "/Game/UI/UI_Icon/AvatarImage/256/player_028_256"
+    },
+    {
+      "id": "1025",
+      "name": "哈索尔",
+      "names": {
+        "zh": "哈索尔",
+        "en": "Hathor",
+        "ja": "ハソール",
+        "ko": "하토르"
+      },
+      "element": "Lakshana",
+      "element_id": "LAKSHANA",
+      "rarity": 5,
+      "icon": "/Game/UI/UI_Icon/AvatarImage/256/player_012_256"
+    },
+    {
+      "id": "1033",
+      "name": "阿德勒",
+      "names": {
+        "zh": "阿德勒",
+        "en": "Adler",
+        "ja": "アドレー",
+        "ko": "아들러"
+      },
+      "element": "Incantation",
+      "element_id": "INCANTATION",
+      "rarity": 4,
+      "icon": "/Game/UI/UI_Icon/AvatarImage/256/player_015_256"
+    },
+    {
+      "id": "1039",
+      "name": "法帝娅",
+      "names": {
+        "zh": "法帝娅",
+        "en": "Fadia",
+        "ja": "ファルディーヤ",
+        "ko": "파디아"
+      },
+      "element": "Psyche",
+      "element_id": "PSYCHE",
+      "rarity": 5,
+      "icon": "/Game/UI/UI_Icon/AvatarImage/256/player_027_256"
+    },
+    {
+      "id": "1046",
+      "name": "「零」",
+      "names": {
+        "zh": "「零」",
+        "en": "Zero",
+        "ja": "「零」",
+        "ko": "「제로」"
+      },
+      "element": "Cosmos",
+      "element_id": "COSMOS",
+      "rarity": 5,
+      "icon": "/Game/UI/UI_Icon/AvatarImage/256/player_046_256"
+    },
+    {
+      "id": "1051",
+      "name": "「零」",
+      "names": {
+        "zh": "「零」",
+        "en": "Zero",
+        "ja": "「零」",
+        "ko": "「제로」"
+      },
+      "element": "Cosmos",
+      "element_id": "COSMOS",
+      "rarity": 5,
+      "icon": "/Game/UI/UI_Icon/AvatarImage/256/player_009_256"
+    },
+    {
+      "id": "1052",
+      "name": "浔",
+      "names": {
+        "zh": "浔",
+        "en": "Hotori",
+        "ja": "潯",
+        "ko": "호토리"
+      },
+      "element": "Cosmos",
+      "element_id": "COSMOS",
+      "rarity": 5,
+      "icon": "/Game/UI/UI_Icon/AvatarImage/256/player_013_256"
+    },
+    {
+      "id": "1054",
+      "name": "达芙蒂尔",
+      "names": {
+        "zh": "达芙蒂尔",
+        "en": "Daffodill",
+        "ja": "ダフォディール",
+        "ko": "다포딜"
+      },
+      "element": "Chaos",
+      "element_id": "CHAOS",
+      "rarity": 5,
+      "icon": "/Game/UI/UI_Icon/AvatarImage/256/player_005_256"
+    },
+    {
+      "id": "1055",
+      "name": "九原",
+      "names": {
+        "zh": "九原",
+        "en": "Jiuyuan",
+        "ja": "九原",
+        "ko": "구원"
+      },
+      "element": "Nature",
+      "element_id": "NATURE",
+      "rarity": 5,
+      "icon": "/Game/UI/UI_Icon/AvatarImage/256/player_104_256"
+    },
+    {
+      "id": "1070",
+      "name": "海月",
+      "names": {
+        "zh": "海月",
+        "en": "Aurelia",
+        "ja": "海月",
+        "ko": "우미츠키"
+      },
+      "element": "Psyche",
+      "element_id": "PSYCHE",
+      "rarity": 4,
+      "icon": "/Game/UI/UI_Icon/AvatarImage/256/player_haiyue_256"
+    },
+    {
+      "id": "1071",
+      "name": "卡厄斯",
+      "names": {
+        "zh": "卡厄斯",
+        "en": "Chaos",
+        "ja": "カオス",
+        "ko": "카오스"
+      },
+      "element": "Lakshana",
+      "element_id": "LAKSHANA",
+      "rarity": 5,
+      "icon": "/Game/UI/UI_Icon/AvatarImage/256/player_kaesi1_256"
+    },
+    {
+      "id": "1073",
+      "name": "小吱",
+      "names": {
+        "zh": "小吱",
+        "en": "Chiz",
+        "ja": "ちぃちゃん",
+        "ko": "치즈"
+      },
+      "element": "Cosmos",
+      "element_id": "COSMOS",
+      "rarity": 5,
+      "icon": "/Game/UI/UI_Icon/AvatarImage/256/player_073_256"
+    },
+    {
+      "id": "1075",
+      "name": "伊洛伊",
+      "names": {
+        "zh": "伊洛伊",
+        "en": "Iroi",
+        "ja": "イロヒ",
+        "ko": "일로이"
+      },
+      "element": "Nature",
+      "element_id": "NATURE",
+      "rarity": 5,
+      "icon": "/Game/UI/UI_Icon/AvatarImage/256/player_yiluoyi_256"
+    },
+    {
+      "id": "1076",
+      "name": "真红",
+      "names": {
+        "zh": "真红",
+        "en": "Shinku",
+        "ja": "真紅",
+        "ko": "신쿠"
+      },
+      "element": "Cosmos",
+      "element_id": "COSMOS",
+      "rarity": 5,
+      "icon": "/Game/UI/UI_Icon/AvatarImage/256/player_zhenhong_256"
+    }
+  ]
+}

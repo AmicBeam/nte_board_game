@@ -1,0 +1,428 @@
+.kongmu-page {
+    display: grid;
+    gap: 18px;
+}
+
+.kongmu-header {
+    min-height: 78px;
+    overflow: hidden;
+}
+
+.kongmu-header::after {
+    content: '';
+    position: absolute;
+    right: 22px;
+    bottom: -30px;
+    width: min(34vw, 500px);
+    height: 84px;
+    pointer-events: none;
+    background:
+        linear-gradient(90deg, transparent 0 12%, rgba(88,216,210,0.46) 12% 13%, transparent 13% 30%, rgba(255,191,87,0.34) 30% 31%, transparent 31% 100%),
+        linear-gradient(180deg, transparent, rgba(255,90,165,0.1));
+    transform: skewX(-24deg);
+}
+
+.kongmu-workbench {
+    display: grid;
+    grid-template-columns: minmax(360px, 0.92fr) minmax(360px, 1.08fr);
+    gap: 18px;
+    align-items: start;
+}
+
+.kongmu-picker-panel,
+.kongmu-result-shell {
+    padding: 20px;
+}
+
+.kongmu-search {
+    min-width: min(250px, 100%);
+}
+
+.kongmu-search input {
+    width: 100%;
+    min-height: 40px;
+    border: 1px solid rgba(255,255,255,0.14);
+    border-radius: var(--radius-sm);
+    background: rgba(7, 12, 20, 0.88);
+    color: var(--text);
+    padding: 9px 12px;
+    outline: none;
+}
+
+.kongmu-search input:focus {
+    border-color: rgba(88,216,210,0.6);
+    box-shadow: 0 0 0 3px rgba(88,216,210,0.1);
+}
+
+.kongmu-character-grid,
+.kongmu-cartridge-grid {
+    display: grid;
+    gap: 10px;
+    margin-top: 16px;
+    max-height: 520px;
+    overflow: auto;
+    padding-right: 4px;
+}
+
+.kongmu-character-grid {
+    grid-template-columns: repeat(auto-fill, minmax(118px, 1fr));
+}
+
+.kongmu-cartridge-grid {
+    grid-template-columns: repeat(auto-fill, minmax(144px, 1fr));
+}
+
+.kongmu-plan-actions {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: 14px;
+    padding-top: 14px;
+    border-top: 1px solid rgba(255,255,255,0.08);
+}
+
+.kongmu-plan-actions .primary-btn {
+    min-width: 150px;
+}
+
+.kongmu-select-card {
+    position: relative;
+    display: grid;
+    justify-items: center;
+    gap: 8px;
+    min-height: 146px;
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: var(--radius-md);
+    background: rgba(255,255,255,0.05);
+    color: var(--text);
+    padding: 14px 10px 12px;
+    transition: transform 0.16s ease, border-color 0.16s ease, background 0.16s ease, box-shadow 0.16s ease;
+}
+
+.kongmu-select-card:hover {
+    transform: translateY(-2px);
+    background: rgba(255,255,255,0.08);
+}
+
+.kongmu-select-card.selected {
+    border-color: rgba(88,216,210,0.78);
+    box-shadow: inset 0 0 0 1px rgba(88,216,210,0.2), 0 12px 26px rgba(36, 112, 132, 0.24);
+}
+
+.kongmu-select-card[hidden] {
+    display: none;
+}
+
+.kongmu-avatar,
+.kongmu-cartridge-icon {
+    width: 76px;
+    height: 76px;
+    border-radius: 8px;
+    object-fit: cover;
+    border: 1px solid rgba(255,255,255,0.15);
+    background: rgba(7, 12, 20, 0.72);
+    box-shadow: 0 10px 22px rgba(0, 0, 0, 0.28);
+}
+
+.kongmu-cartridge-icon {
+    padding: 6px;
+    object-fit: contain;
+}
+
+.kongmu-name {
+    max-width: 100%;
+    min-height: 22px;
+    color: #f7f9ff;
+    font-size: 14px;
+    font-weight: 800;
+    line-height: 1.25;
+    text-align: center;
+    overflow-wrap: anywhere;
+}
+
+.kongmu-elem-badge {
+    position: absolute;
+    top: 9px;
+    right: 9px;
+    width: 28px;
+    height: 28px;
+    border-radius: 999px;
+    display: grid;
+    place-items: center;
+    background: rgba(7, 14, 26, 0.78);
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    box-shadow: 0 8px 18px rgba(0, 0, 0, 0.25);
+}
+
+.kongmu-elem-badge img {
+    width: 18px;
+    height: 18px;
+    object-fit: contain;
+}
+
+.kongmu-result-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+    margin-bottom: 14px;
+}
+
+.kongmu-result-head h2 {
+    font-size: 22px;
+}
+
+.kongmu-result-side {
+    display: grid;
+    justify-items: end;
+    gap: 6px;
+    min-width: min(360px, 48%);
+}
+
+.kongmu-passive-line {
+    max-width: 100%;
+    color: #f3d49b;
+    font-size: 13px;
+    font-weight: 800;
+    line-height: 1.35;
+    text-align: right;
+    overflow-wrap: anywhere;
+}
+
+.kongmu-passive-line[hidden] {
+    display: none;
+}
+
+.kongmu-result-count {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 8px;
+    min-height: 46px;
+    color: var(--muted);
+}
+
+.kongmu-result-count strong {
+    color: var(--text);
+    font-size: 34px;
+    line-height: 1;
+}
+
+.kongmu-filter-panel {
+    display: grid;
+    gap: 10px;
+    margin-bottom: 16px;
+}
+
+.kongmu-filter-row {
+    display: grid;
+    grid-template-columns: minmax(104px, auto) minmax(0, 1fr);
+    align-items: center;
+    gap: 12px;
+    min-height: 58px;
+    padding: 10px;
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: var(--radius-md);
+    background: rgba(7, 12, 20, 0.46);
+}
+
+.kongmu-filter-row-title {
+    color: var(--muted);
+    font-size: 13px;
+    font-weight: 800;
+}
+
+.kongmu-drive-strip {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+}
+
+.kongmu-drive-chip,
+.kongmu-drive-option {
+    position: relative;
+    width: 46px;
+    height: 46px;
+    border-radius: 8px;
+    border: 1px solid rgba(255,255,255,0.12);
+    background: rgba(255,255,255,0.05);
+    display: grid;
+    place-items: center;
+    padding: 3px;
+}
+
+.kongmu-drive-option {
+    transition: transform 0.16s ease, border-color 0.16s ease, background 0.16s ease;
+}
+
+.kongmu-drive-option:hover {
+    transform: translateY(-1px);
+}
+
+.kongmu-drive-option.selected {
+    border-color: rgba(255,191,87,0.88);
+    background: rgba(255,191,87,0.13);
+    box-shadow: inset 0 0 0 1px rgba(255,191,87,0.2);
+}
+
+.kongmu-drive-chip img,
+.kongmu-drive-option img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    filter: drop-shadow(0 5px 10px rgba(0,0,0,0.34));
+}
+
+.kongmu-drive-count {
+    position: absolute;
+    right: -5px;
+    bottom: -5px;
+    min-width: 20px;
+    height: 20px;
+    border-radius: 999px;
+    display: grid;
+    place-items: center;
+    padding: 0 5px;
+    background: var(--amber);
+    color: var(--ink);
+    font-size: 11px;
+    font-weight: 900;
+    border: 1px solid rgba(0,0,0,0.2);
+}
+
+.kongmu-solution-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(276px, 1fr));
+    gap: 14px;
+    align-items: start;
+}
+
+.kongmu-solution {
+    position: relative;
+    min-height: 296px;
+    border: 1px solid rgba(255,255,255,0.09);
+    border-radius: var(--radius-md);
+    background: rgba(7, 12, 20, 0.48);
+    padding: 14px;
+    overflow: hidden;
+}
+
+.kongmu-board {
+    --cell: 38px;
+    --gap: 3px;
+    display: grid;
+    grid-template-columns: calc(var(--cols) * var(--cell) + (var(--cols) - 1) * var(--gap));
+    grid-template-rows: calc(var(--rows) * var(--cell) + (var(--rows) - 1) * var(--gap));
+    width: max-content;
+    margin: 16px auto 4px;
+}
+
+.kongmu-board-cells,
+.kongmu-board-pieces {
+    grid-area: 1 / 1;
+    display: grid;
+    grid-template-columns: repeat(var(--cols), var(--cell));
+    grid-template-rows: repeat(var(--rows), var(--cell));
+    gap: var(--gap);
+}
+
+.kongmu-board-pieces {
+    z-index: 2;
+    pointer-events: none;
+}
+
+.kongmu-slot {
+    width: var(--cell);
+    height: var(--cell);
+    border-radius: 5px;
+}
+
+.kongmu-slot.invalid {
+    opacity: 0.18;
+    border: 1px dashed rgba(255,255,255,0.08);
+}
+
+.kongmu-slot.valid {
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.07);
+    box-shadow: inset 0 0 0 1px rgba(0,0,0,0.16);
+}
+
+.kongmu-piece {
+    position: relative;
+    overflow: visible;
+    min-width: 0;
+    min-height: 0;
+}
+
+.kongmu-piece-icon {
+    position: absolute;
+    object-fit: fill;
+    pointer-events: none;
+    filter: drop-shadow(0 3px 8px rgba(0,0,0,0.52));
+}
+
+.kongmu-piece.required .kongmu-piece-icon {
+    opacity: 0.7;
+    filter: grayscale(1) contrast(1.12) brightness(0.82) drop-shadow(0 3px 8px rgba(0,0,0,0.45));
+}
+
+.kongmu-piece.optional-highlight .kongmu-piece-icon {
+    filter: saturate(1.15) drop-shadow(0 0 10px rgba(255,191,87,0.34)) drop-shadow(0 3px 8px rgba(0,0,0,0.52));
+}
+
+.kongmu-empty-result {
+    min-height: 96px;
+    display: grid;
+    place-items: center;
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: var(--radius-md);
+    background: rgba(7, 12, 20, 0.46);
+    color: var(--muted);
+}
+
+.kongmu-empty-result[hidden],
+.kongmu-result-shell[hidden] {
+    display: none;
+}
+
+@media (max-width: 1080px) {
+    .kongmu-workbench {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 720px) {
+    .kongmu-header,
+    .kongmu-result-head,
+    .kongmu-filter-row {
+        grid-template-columns: 1fr;
+    }
+
+    .kongmu-result-head {
+        flex-direction: column;
+    }
+
+    .kongmu-result-side {
+        justify-items: start;
+        min-width: 100%;
+    }
+
+    .kongmu-passive-line {
+        text-align: left;
+    }
+
+    .kongmu-picker-panel,
+    .kongmu-result-shell {
+        padding: 16px;
+    }
+
+    .kongmu-character-grid,
+    .kongmu-cartridge-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        max-height: none;
+    }
+
+    .kongmu-board {
+        --cell: min(34px, calc((100vw - 88px) / var(--cols)));
+    }
+}

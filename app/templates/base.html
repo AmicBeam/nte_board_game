@@ -9,7 +9,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="icon" href="{{ url_for('static', filename='images/brand/duel-icon.webp') }}" type="image/webp">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}">
-    {% if request.endpoint != 'main.login_page' %}
+    {% if request.endpoint not in ['main.login_page', 'main.kongmu_page'] %}
     <script>
         (function () {
             try {

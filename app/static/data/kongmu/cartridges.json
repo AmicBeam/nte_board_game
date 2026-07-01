@@ -1,0 +1,212 @@
+{
+  "cartridges": [
+    {
+      "id": "attack",
+      "name": "「影之信条」",
+      "aliases": [
+        "attack",
+        "「影之信条」",
+        "影之信条"
+      ],
+      "icon": "/Game/UI/UI_Icon/kongmu/256/UI_YH_kongmuicon__39",
+      "synergy_geometry": [
+        "EquipmentGeometry_Hen2",
+        "EquipmentGeometry_Shu2",
+        "EquipmentGeometry_Hen4",
+        "EquipmentGeometry_Z4"
+      ]
+    },
+    {
+      "id": "chaos",
+      "name": "「迪亚波罗斯」",
+      "aliases": [
+        "chaos",
+        "「迪亚波罗斯」",
+        "迪亚波罗斯"
+      ],
+      "icon": "/Game/UI/UI_Icon/kongmu/256/UI_YH_kongmuicon__07",
+      "synergy_geometry": [
+        "EquipmentGeometry_Shu2",
+        "EquipmentGeometry_ZhiJiao2",
+        "EquipmentGeometry_ZhiJiao4",
+        "EquipmentGeometry_Hen4"
+      ]
+    },
+    {
+      "id": "cosmos",
+      "name": "「失落光芒」",
+      "aliases": [
+        "cosmos",
+        "「失落光芒」",
+        "失落光芒"
+      ],
+      "icon": "/Game/UI/UI_Icon/kongmu/256/UI_YH_kongmuicon__03",
+      "synergy_geometry": [
+        "EquipmentGeometry_Hen2",
+        "EquipmentGeometry_ZhiJiao1",
+        "EquipmentGeometry_ZhiJiao3",
+        "EquipmentGeometry_Shu4"
+      ]
+    },
+    {
+      "id": "cosmos_guide",
+      "name": "「失落光芒」",
+      "aliases": [
+        "cosmos_guide",
+        "「失落光芒」",
+        "失落光芒"
+      ],
+      "icon": "/Game/UI/UI_Icon/kongmu/256/UI_YH_kongmuicon__03",
+      "synergy_geometry": [
+        "EquipmentGeometry_Hen2",
+        "EquipmentGeometry_ZhiJiao1",
+        "EquipmentGeometry_ZhiJiao3",
+        "EquipmentGeometry_Shu4"
+      ]
+    },
+    {
+      "id": "get_efficiency",
+      "name": "「音速蓝刺猬」",
+      "aliases": [
+        "get_efficiency",
+        "「音速蓝刺猬」",
+        "音速蓝刺猬"
+      ],
+      "icon": "/Game/UI/UI_Icon/kongmu/256/UI_YH_kongmuicon__35",
+      "synergy_geometry": [
+        "EquipmentGeometry_ZhiJiao1",
+        "EquipmentGeometry_ZhiJiao2",
+        "EquipmentGeometry_ZhiJiao3",
+        "EquipmentGeometry_ZhiJiao4"
+      ]
+    },
+    {
+      "id": "heal",
+      "name": "「缇娅的夜间酒馆」",
+      "aliases": [
+        "heal",
+        "「缇娅的夜间酒馆」",
+        "缇娅的夜间酒馆"
+      ],
+      "icon": "/Game/UI/UI_Icon/kongmu/256/UI_YH_kongmuicon__63",
+      "synergy_geometry": [
+        "EquipmentGeometry_Hen3",
+        "EquipmentGeometry_Shu3",
+        "EquipmentGeometry_ZhiJiao1",
+        "EquipmentGeometry_ZhiJiao2"
+      ]
+    },
+    {
+      "id": "incantation",
+      "name": "「真红：双生蝶」",
+      "aliases": [
+        "incantation",
+        "「真红：双生蝶」",
+        "真红：双生蝶"
+      ],
+      "icon": "/Game/UI/UI_Icon/kongmu/256/UI_YH_kongmuicon__05",
+      "synergy_geometry": [
+        "EquipmentGeometry_Shu2",
+        "EquipmentGeometry_Hen3",
+        "EquipmentGeometry_ZhiJiao4",
+        "EquipmentGeometry_Z3"
+      ]
+    },
+    {
+      "id": "lakshana",
+      "name": "「街头拳王」",
+      "aliases": [
+        "lakshana",
+        "「街头拳王」",
+        "街头拳王"
+      ],
+      "icon": "/Game/UI/UI_Icon/kongmu/256/UI_YH_kongmuicon__01",
+      "synergy_geometry": [
+        "EquipmentGeometry_Hen2",
+        "EquipmentGeometry_Hen3",
+        "EquipmentGeometry_ZhiJiao3",
+        "EquipmentGeometry_Z3"
+      ]
+    },
+    {
+      "id": "mag",
+      "name": "「小小大冒险」",
+      "aliases": [
+        "mag",
+        "「小小大冒险」",
+        "小小大冒险"
+      ],
+      "icon": "/Game/UI/UI_Icon/kongmu/256/UI_YH_kongmuicon__37",
+      "synergy_geometry": [
+        "EquipmentGeometry_Hen2",
+        "EquipmentGeometry_Shu2",
+        "EquipmentGeometry_Hen4",
+        "EquipmentGeometry_Z3"
+      ]
+    },
+    {
+      "id": "nature",
+      "name": "「森林萤火之心」",
+      "aliases": [
+        "nature",
+        "「森林萤火之心」",
+        "森林萤火之心"
+      ],
+      "icon": "/Game/UI/UI_Icon/kongmu/256/UI_YH_kongmuicon__09",
+      "synergy_geometry": [
+        "EquipmentGeometry_Hen2",
+        "EquipmentGeometry_Shu3",
+        "EquipmentGeometry_ZhiJiao1",
+        "EquipmentGeometry_Z4"
+      ]
+    },
+    {
+      "id": "psyche",
+      "name": "「恶魔之血：诅咒」",
+      "aliases": [
+        "psyche",
+        "「恶魔之血：诅咒」",
+        "恶魔之血：诅咒"
+      ],
+      "icon": "/Game/UI/UI_Icon/kongmu/256/UI_YH_kongmuicon__31",
+      "synergy_geometry": [
+        "EquipmentGeometry_Shu2",
+        "EquipmentGeometry_Shu3",
+        "EquipmentGeometry_ZhiJiao2",
+        "EquipmentGeometry_Z4"
+      ]
+    },
+    {
+      "id": "psychically",
+      "name": "「静谧山庄」",
+      "aliases": [
+        "psychically",
+        "「静谧山庄」",
+        "静谧山庄"
+      ],
+      "icon": "/Game/UI/UI_Icon/kongmu/256/UI_YH_kongmuicon__61",
+      "synergy_geometry": [
+        "EquipmentGeometry_Hen2",
+        "EquipmentGeometry_Shu2",
+        "EquipmentGeometry_Shu4",
+        "EquipmentGeometry_Z4"
+      ]
+    },
+    {
+      "id": "shield",
+      "name": "「守卫王国」",
+      "aliases": [
+        "shield",
+        "「守卫王国」",
+        "守卫王国"
+      ],
+      "icon": "/Game/UI/UI_Icon/kongmu/256/UI_YH_kongmuicon__33",
+      "synergy_geometry": [
+        "EquipmentGeometry_Hen3",
+        "EquipmentGeometry_Shu3",
+        "EquipmentGeometry_ZhiJiao3",
+        "EquipmentGeometry_ZhiJiao4"
+      ]
+    }
+  ]
+}

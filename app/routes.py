@@ -1,3 +1,7 @@
+from __future__ import annotations
+
+import threading
+
 from flask import Blueprint, g, jsonify, redirect, render_template, request, url_for
 
 from app.auth import login_with_code, token_required
@@ -13,6 +17,7 @@ from app.engine.game_service import (
     save_build,
 )
 from app.engine.application.analytics_service import get_duel_analytics_payload
+from app.engine.application.kongmu_service import get_kongmu_catalog_payload, plan_kongmu_layout
 from app.errors import AppError
 from app.room_service import (
     create_or_resume_solo_room,
@@ -28,6 +33,23 @@ from app.utils.logger import get_logger
 
 logger = get_logger('nte.routes')
 main_bp = Blueprint('main', __name__)
+_kongmu_plan_locks_guard = threading.Lock()
+_kongmu_plan_locks: dict[str, threading.Lock] = {}
+
+
+def _request_source_key() -> str:
+    forwarded_for = request.headers.get('X-Forwarded-For', '')
+    if forwarded_for:
+        return forwarded_for.split(',', 1)[0].strip() or 'unknown'
+    return request.remote_addr or 'unknown'
+
+
+def _acquire_kongmu_plan_lock(source_key: str) -> threading.Lock | None:
+    with _kongmu_plan_locks_guard:
+        lock = _kongmu_plan_locks.setdefault(source_key, threading.Lock())
+    if not lock.acquire(blocking=False):
+        return None
+    return lock
 
 
 def _preteam_avatar(filename: str) -> str:
@@ -99,6 +121,11 @@ def codex_page():
 @main_bp.get('/analytics')
 def analytics_page():
     return render_template('analytics.html')
+
+
+@main_bp.get('/kongmu')
+def kongmu_page():
+    return render_template('kongmu.html')
 
 
 @main_bp.get('/table')
@@ -223,6 +250,35 @@ def api_encyclopedia():
 @token_required
 def api_balance_analytics():
     return jsonify(get_duel_analytics_payload())
+
+
+@main_bp.get('/api/kongmu/catalog')
+def api_kongmu_catalog():
+    try:
+        return jsonify(get_kongmu_catalog_payload())
+    except AppError as exc:
+        return jsonify({'error': str(exc)}), 400
+    except Exception:
+        logger.exception('api_kongmu_catalog failed')
+        return jsonify({'error': '读取空幕数据时发生异常，请稍后重试。'}), 500
+
+
+@main_bp.post('/api/kongmu/plan')
+def api_kongmu_plan():
+    payload = request.get_json(silent=True) or {}
+    source_key = _request_source_key()
+    source_lock = _acquire_kongmu_plan_lock(source_key)
+    if source_lock is None:
+        return jsonify({'error': '同一来源已有空幕计算正在进行，请稍后再试。'}), 429
+    try:
+        return jsonify(plan_kongmu_layout(str(payload.get('character_id', '')), str(payload.get('cartridge_id', ''))))
+    except AppError as exc:
+        return jsonify({'error': str(exc)}), 400
+    except Exception:
+        logger.exception('api_kongmu_plan failed')
+        return jsonify({'error': '计算空幕方案时发生异常，请稍后重试。'}), 500
+    finally:
+        source_lock.release()
 
 
 @main_bp.post('/api/build/save')
