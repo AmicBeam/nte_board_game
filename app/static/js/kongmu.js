@@ -27,6 +27,21 @@ const kongmuEls = {
   solutionGrid: document.getElementById('kongmu-solution-grid'),
 };
 
+const kongmuIconCropBounds = {
+  Hen2: [55, 88, 199, 165],
+  Shu2: [89, 53, 166, 197],
+  Hen3: [30, 92, 223, 162],
+  Shu3: [92, 32, 162, 223],
+  ZhiJiao1: [54, 54, 199, 198],
+  ZhiJiao2: [54, 54, 199, 198],
+  ZhiJiao3: [55, 54, 199, 198],
+  ZhiJiao4: [55, 53, 199, 197],
+  Hen4: [18, 91, 238, 152],
+  Shu4: [97, 18, 157, 235],
+  Z3: [34, 62, 226, 193],
+  Z4: [63, 32, 194, 224],
+};
+
 bootstrapKongmu();
 
 async function bootstrapKongmu() {
@@ -356,49 +371,16 @@ function renderKongmuBoard(slots, solution) {
 function pieceHtml(piece) {
   const drive = getDriveMap().get(piece.geometry) || {};
   const [minX, minY, maxX, maxY] = pieceBounds(piece);
-  const pieceCols = maxX - minX;
-  const pieceRows = maxY - minY;
   const selectedGeometries = new Set(Object.keys(selectedOptionalGeometryCounts()));
   const classes = ['kongmu-piece'];
   if (piece.is_required_drive) classes.push('required');
   if (!piece.is_required_drive && selectedGeometries.has(piece.geometry)) classes.push('optional-highlight');
   return `
     <div class="${classes.join(' ')}"
-      style="grid-column:${minX + 1} / span ${pieceCols}; grid-row:${minY + 1} / span ${pieceRows}; --piece-cols:${pieceCols}; --piece-rows:${pieceRows}"
+      style="grid-column:${minX + 1} / span ${maxX - minX}; grid-row:${minY + 1} / span ${maxY - minY}"
       title="${escapeAttr(piece.label || drive.label || '')}">
-      ${pieceShapeSvg(piece, minX, minY, pieceCols, pieceRows)}
+      ${imageHtml(drive.icon_url || drive.source_icon, piece.label || drive.label, 'kongmu-piece-icon', drive.source_icon, iconCropStyle(piece.geometry))}
     </div>
-  `;
-}
-
-function pieceShapeSvg(piece, minX, minY, pieceCols, pieceRows) {
-  const cells = (piece.cells || []).map((cell) => ({
-    x: Number(cell[0]) - minX,
-    y: Number(cell[1]) - minY,
-  }));
-  const occupied = new Set(cells.map((cell) => `${cell.x},${cell.y}`));
-  const tiles = cells.map((cell) => `
-    <rect class="kongmu-piece-tile" x="${cell.x}" y="${cell.y}" width="1" height="1" rx="0.12" ry="0.12"></rect>
-    <rect class="kongmu-piece-tile-gloss" x="${cell.x + 0.12}" y="${cell.y + 0.12}" width="0.76" height="0.76" rx="0.08" ry="0.08"></rect>
-  `).join('');
-  const outerEdges = cells.flatMap((cell) => {
-    const {x, y} = cell;
-    const edges = [];
-    if (!occupied.has(`${x},${y - 1}`)) edges.push([x, y, x + 1, y]);
-    if (!occupied.has(`${x + 1},${y}`)) edges.push([x + 1, y, x + 1, y + 1]);
-    if (!occupied.has(`${x},${y + 1}`)) edges.push([x + 1, y + 1, x, y + 1]);
-    if (!occupied.has(`${x - 1},${y}`)) edges.push([x, y + 1, x, y]);
-    return edges;
-  });
-  const edgeLines = outerEdges.map(([x1, y1, x2, y2]) => `
-    <line class="kongmu-piece-edge-shadow" x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}"></line>
-    <line class="kongmu-piece-edge-highlight" x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}"></line>
-  `).join('');
-  return `
-    <svg class="kongmu-piece-shape" viewBox="0 0 ${pieceCols} ${pieceRows}" aria-hidden="true" focusable="false">
-      ${tiles}
-      ${edgeLines}
-    </svg>
   `;
 }
 
@@ -413,6 +395,19 @@ function pieceBounds(piece) {
   const xs = piece.cells.map((cell) => Number(cell[0]));
   const ys = piece.cells.map((cell) => Number(cell[1]));
   return [Math.min(...xs), Math.min(...ys), Math.max(...xs) + 1, Math.max(...ys) + 1];
+}
+
+function iconCropStyle(geometry) {
+  const key = String(geometry).replace('EquipmentGeometry_', '');
+  const [left, top, right, bottom] = kongmuIconCropBounds[key] || [0, 0, 256, 256];
+  const width = Math.max(1, right - left);
+  const height = Math.max(1, bottom - top);
+  return [
+    `left:${(-left / width * 100).toFixed(4)}%`,
+    `top:${(-top / height * 100).toFixed(4)}%`,
+    `width:${(256 / width * 100).toFixed(4)}%`,
+    `height:${(256 / height * 100).toFixed(4)}%`,
+  ].join('; ');
 }
 
 function imageHtml(src, alt, className = '', fallback = '', style = '') {
