@@ -58,6 +58,8 @@ ELEMENT_LABELS: dict[str, str] = {
     'PSYCHE': '魂',
 }
 
+CHARACTER_ELEMENT_SORT_ORDER = ['COSMOS', 'NATURE', 'INCANTATION', 'CHAOS', 'PSYCHE', 'LAKSHANA']
+
 OWNER_TYPE_LABELS = {
     2: 'II型',
     3: 'III型',
@@ -551,6 +553,28 @@ def compact_cartridge(cartridge: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def dedupe_cartridges(cartridges: Iterable[dict[str, Any]]) -> list[dict[str, Any]]:
+    deduped: list[dict[str, Any]] = []
+    seen_names: set[str] = set()
+    for cartridge in cartridges:
+        key = normalize_text(display_name_without_quotes(cartridge.get('name')))
+        if key and key in seen_names:
+            continue
+        if key:
+            seen_names.add(key)
+        deduped.append(cartridge)
+    return deduped
+
+
+def character_sort_key(item: dict[str, Any]) -> tuple[int, int]:
+    element_id = str(item['record'].get('element_id') or item['detail'].get('element_id') or '').upper()
+    try:
+        element_rank = CHARACTER_ELEMENT_SORT_ORDER.index(element_id)
+    except ValueError:
+        element_rank = len(CHARACTER_ELEMENT_SORT_ORDER)
+    return element_rank, int(item.get('source_index') or 0)
+
+
 def compact_drive(drive: dict[str, Any]) -> dict[str, Any]:
     geometry = str(drive.get('geometry') or '')
     return {
@@ -572,14 +596,14 @@ def get_kongmu_raw_data() -> dict[str, Any]:
     cartridges = load_json(KONGMU_DATA_DIR / 'cartridges.json').get('cartridges') or []
     index_data = load_json(KONGMU_DATA_DIR / 'character_index.json')
     characters: list[dict[str, Any]] = []
-    for record in index_data.get('characters') or []:
+    for index, record in enumerate(index_data.get('characters') or []):
         character_id = str(record.get('id') or '')
         detail_path = KONGMU_CHARACTER_DIR / f'{character_id}.json'
         if not detail_path.exists():
             continue
         detail = load_json(detail_path)
         detail['names'] = record.get('names') or {}
-        characters.append({'record': record, 'detail': detail})
+        characters.append({'record': record, 'detail': detail, 'source_index': index})
 
     return {
         'meta': {
@@ -608,12 +632,16 @@ def get_kongmu_catalog_payload() -> dict[str, Any]:
     raw = get_kongmu_raw_data()
     characters = [
         compact_character(item['record'], item['detail'])
-        for item in raw['characters']
+        for item in sorted(raw['characters'], key=character_sort_key)
     ]
-    cartridges = [compact_cartridge(item) for item in raw['cartridges']]
+    cartridges = [compact_cartridge(item) for item in dedupe_cartridges(raw['cartridges'])]
     drives = [compact_drive(item) for item in raw['drives']]
     return {
-        'meta': raw['meta'],
+        'meta': {
+            **raw['meta'],
+            'character_count': len(characters),
+            'cartridge_count': len(cartridges),
+        },
         'geometry_sort_order': GEOMETRY_SORT_ORDER,
         'geometry_labels': GEOMETRY_LABELS,
         'characters': characters,
@@ -635,7 +663,7 @@ def get_character_detail(character_id: str) -> tuple[dict[str, Any], dict[str, A
 
 def get_cartridge_detail(cartridge_id: str) -> dict[str, Any]:
     raw = get_kongmu_raw_data()
-    return resolve_record(raw['cartridges'], cartridge_id, ['name', 'aliases'])
+    return resolve_record(dedupe_cartridges(raw['cartridges']), cartridge_id, ['name', 'aliases'])
 
 
 def plan_kongmu_layout(character_id: str, cartridge_id: str) -> dict[str, Any]:
