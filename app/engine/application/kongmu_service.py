@@ -529,6 +529,20 @@ def compact_character(record: dict[str, Any], detail: dict[str, Any] | None = No
     }
 
 
+def compact_character_avatar_choice(record: dict[str, Any], detail: dict[str, Any] | None = None) -> dict[str, str]:
+    detail = detail or {}
+    character_id = str(record.get('id') or detail.get('id') or '')
+    character_name = record.get('name') or detail.get('name') or character_id
+    source_icon = record.get('icon') or detail.get('icon')
+    source_avatar = nanoka_icon_url(source_icon)
+    local_avatar = character_avatar_path(character_id, character_name, source_icon)
+    return {
+        'id': character_id,
+        'avatar': static_asset_url(local_avatar) if local_avatar else source_avatar,
+        'source_icon': source_avatar,
+    }
+
+
 def compact_cartridge(cartridge: dict[str, Any]) -> dict[str, Any]:
     cartridge_id = str(cartridge.get('id') or '')
     return {
@@ -563,6 +577,30 @@ def dedupe_cartridges(cartridges: Iterable[dict[str, Any]]) -> list[dict[str, An
         if key:
             seen_names.add(key)
         deduped.append(cartridge)
+    return deduped
+
+
+def dedupe_characters(characters: Iterable[dict[str, Any]]) -> list[dict[str, Any]]:
+    deduped: list[dict[str, Any]] = []
+    by_name: dict[str, dict[str, Any]] = {}
+    for character in characters:
+        name_key = normalize_text(display_name_without_quotes(character['record'].get('name') or character['detail'].get('name')))
+        if not name_key:
+            deduped.append(character)
+            continue
+        character_id = str(character['record'].get('id') or character['detail'].get('id') or '')
+        existing = by_name.get(name_key)
+        if existing is None:
+            merged_character = {
+                **character,
+                'merged_ids': [character_id],
+                'avatar_choice_items': [],
+            }
+            by_name[name_key] = merged_character
+            deduped.append(merged_character)
+            continue
+        existing['merged_ids'].append(character_id)
+        existing['avatar_choice_items'].append(character)
     return deduped
 
 
@@ -630,10 +668,18 @@ def get_drives_by_geometry() -> dict[str, dict[str, Any]]:
 @lru_cache(maxsize=1)
 def get_kongmu_catalog_payload() -> dict[str, Any]:
     raw = get_kongmu_raw_data()
-    characters = [
-        compact_character(item['record'], item['detail'])
-        for item in sorted(raw['characters'], key=character_sort_key)
-    ]
+    characters = []
+    for item in dedupe_characters(sorted(raw['characters'], key=character_sort_key)):
+        compacted = compact_character(item['record'], item['detail'])
+        merged_ids = [item_id for item_id in item.get('merged_ids', []) if item_id]
+        avatar_items = [item, *(item.get('avatar_choice_items') or [])]
+        avatar_choices = [
+            compact_character_avatar_choice(avatar_item['record'], avatar_item['detail'])
+            for avatar_item in avatar_items
+        ]
+        compacted['merged_ids'] = merged_ids or [compacted['id']]
+        compacted['avatar_choices'] = avatar_choices
+        characters.append(compacted)
     cartridges = [compact_cartridge(item) for item in dedupe_cartridges(raw['cartridges'])]
     drives = [compact_drive(item) for item in raw['drives']]
     return {

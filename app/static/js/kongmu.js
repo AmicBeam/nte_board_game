@@ -3,6 +3,7 @@ const kongmuState = {
   selectedCharacterId: '',
   selectedCartridgeId: '',
   plan: null,
+  avatarChoiceIndexes: {},
   filterQueues: {
     2: [],
     3: [],
@@ -85,7 +86,11 @@ function bindKongmuEvents() {
 
 function pickExistingId(records, id) {
   const value = String(id || '');
-  return records.some((record) => String(record.id) === value) ? value : '';
+  const record = records.find((item) => {
+    const ids = [item.id, ...(item.merged_ids || [])].map((itemId) => String(itemId));
+    return ids.includes(value);
+  });
+  return record ? String(record.id) : '';
 }
 
 function renderKongmuPickers() {
@@ -97,9 +102,11 @@ function renderCharacterCards() {
   const query = normalizeKongmuQuery(kongmuEls.characterSearch.value);
   const characters = kongmuState.catalog?.characters || [];
   kongmuEls.characterGrid.innerHTML = characters.map((character) => {
+    const avatar = pickCharacterAvatar(character);
     const haystack = normalizeKongmuQuery([
       character.name,
       character.id,
+      ...(character.merged_ids || []),
       character.element,
       ...(Object.values(character.names || {})),
     ].join(' '));
@@ -110,12 +117,28 @@ function renderCharacterCards() {
         <span class="kongmu-elem-badge" title="${escapeAttr(character.element || '')}">
           <img src="${escapeAttr(character.element_icon || '')}" alt="${escapeAttr(character.element || '')}" loading="lazy">
         </span>
-        ${imageHtml(character.avatar, character.name, 'kongmu-avatar', character.source_icon)}
+        ${imageHtml(avatar.avatar || character.avatar, character.name, 'kongmu-avatar', avatar.source_icon || character.source_icon)}
         <span class="kongmu-name">${escapeHtml(character.name)}</span>
       </button>
     `;
   }).join('');
   bindImageFallbacks(kongmuEls.characterGrid);
+}
+
+function pickCharacterAvatar(character) {
+  const choices = (character.avatar_choices || []).filter((choice) => choice && (choice.avatar || choice.source_icon));
+  if (!choices.length) {
+    return {
+      avatar: character.avatar,
+      source_icon: character.source_icon,
+    };
+  }
+  const key = String(character.id || character.name || '');
+  if (!Object.prototype.hasOwnProperty.call(kongmuState.avatarChoiceIndexes, key)) {
+    kongmuState.avatarChoiceIndexes[key] = Math.floor(Math.random() * choices.length);
+  }
+  const index = kongmuState.avatarChoiceIndexes[key] % choices.length;
+  return choices[index];
 }
 
 function renderCartridgeCards() {
