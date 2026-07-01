@@ -366,56 +366,135 @@ function pieceHtml(piece) {
     <div class="${classes.join(' ')}"
       style="grid-column:${minX + 1} / span ${pieceCols}; grid-row:${minY + 1} / span ${pieceRows}; --piece-cols:${pieceCols}; --piece-rows:${pieceRows}"
       title="${escapeAttr(piece.label || drive.label || '')}">
-      ${pieceTilesHtml(piece, minX, minY)}
+      ${pieceSvgHtml(piece, minX, minY, pieceCols, pieceRows)}
     </div>
   `;
 }
 
-function pieceTilesHtml(piece, minX, minY) {
+function pieceSvgHtml(piece, minX, minY, pieceCols, pieceRows) {
+  const cellSize = 100;
+  const gapSize = 8;
   const cells = (piece.cells || []).map((cell) => ({
     x: Number(cell[0]) - minX,
     y: Number(cell[1]) - minY,
   }));
   const occupied = new Set(cells.map((cell) => `${cell.x},${cell.y}`));
-  const bridges = [];
-  const tiles = cells.map((cell) => {
-    const edges = [];
-    if (!occupied.has(`${cell.x},${cell.y - 1}`)) edges.push('top');
-    if (!occupied.has(`${cell.x + 1},${cell.y}`)) edges.push('right');
-    if (!occupied.has(`${cell.x},${cell.y + 1}`)) edges.push('bottom');
-    if (!occupied.has(`${cell.x - 1},${cell.y}`)) edges.push('left');
-    const edgeSpans = edges.map((edge) => `<span class="kongmu-piece-edge ${edge}"></span>`).join('');
-    if (occupied.has(`${cell.x + 1},${cell.y}`)) {
-      bridges.push(pieceBridgeHtml('horizontal', cell.x, cell.y, occupied));
+  const gridCols = pieceCols * 2 - 1;
+  const gridRows = pieceRows * 2 - 1;
+  const widths = Array.from({length: gridCols}, (_, index) => (index % 2 === 0 ? cellSize : gapSize));
+  const heights = Array.from({length: gridRows}, (_, index) => (index % 2 === 0 ? cellSize : gapSize));
+  const xs = cumulativeOffsets(widths);
+  const ys = cumulativeOffsets(heights);
+  const filled = [];
+  const filledKeys = new Set();
+
+  for (let gy = 0; gy < gridRows; gy += 1) {
+    for (let gx = 0; gx < gridCols; gx += 1) {
+      if (!isPieceMicroCellFilled(gx, gy, occupied)) continue;
+      const rect = {gx, gy, x: xs[gx], y: ys[gy], width: widths[gx], height: heights[gy]};
+      filled.push(rect);
+      filledKeys.add(`${gx},${gy}`);
     }
-    if (occupied.has(`${cell.x},${cell.y + 1}`)) {
-      bridges.push(pieceBridgeHtml('vertical', cell.x, cell.y, occupied));
-    }
-    return `
-      <span class="kongmu-piece-tile" style="--x:${cell.x}; --y:${cell.y}">
-        <span class="kongmu-piece-tile-shine"></span>
-        ${edgeSpans}
-      </span>
-    `;
-  });
-  return `${bridges.join('')}${tiles.join('')}`;
+  }
+
+  const fillRects = filled.map((rect) => (
+    `<rect class="kongmu-piece-svg-fill" x="${rect.x}" y="${rect.y}" width="${rect.width}" height="${rect.height}" />`
+  )).join('');
+  const edgePaths = pieceBoundaryPaths(filled, filledKeys);
+  const seams = pieceSeamPaths(cells, occupied, cellSize, gapSize);
+  const shineRects = cells.map((cell) => {
+    const x = cell.x * (cellSize + gapSize) + 17;
+    const y = cell.y * (cellSize + gapSize) + 17;
+    return `<rect class="kongmu-piece-svg-shine" x="${x}" y="${y}" width="66" height="66" rx="12" ry="12" />`;
+  }).join('');
+  const width = pieceCols * cellSize + Math.max(0, pieceCols - 1) * gapSize;
+  const height = pieceRows * cellSize + Math.max(0, pieceRows - 1) * gapSize;
+
+  return `
+    <svg class="kongmu-piece-svg" viewBox="0 0 ${width} ${height}" aria-hidden="true" focusable="false">
+      <g class="kongmu-piece-svg-body">${fillRects}</g>
+      <path class="kongmu-piece-svg-edge-back" d="${edgePaths.back}" />
+      <path class="kongmu-piece-svg-edge-highlight" d="${edgePaths.highlight}" />
+      <path class="kongmu-piece-svg-seam" d="${seams}" />
+      <g>${shineRects}</g>
+    </svg>
+  `;
 }
 
-function pieceBridgeHtml(direction, x, y, occupied) {
-  const edges = [];
-  if (direction === 'horizontal') {
-    if (!occupied.has(`${x},${y - 1}`) && !occupied.has(`${x + 1},${y - 1}`)) edges.push('top');
-    if (!occupied.has(`${x},${y + 1}`) && !occupied.has(`${x + 1},${y + 1}`)) edges.push('bottom');
-  } else {
-    if (!occupied.has(`${x - 1},${y}`) && !occupied.has(`${x - 1},${y + 1}`)) edges.push('left');
-    if (!occupied.has(`${x + 1},${y}`) && !occupied.has(`${x + 1},${y + 1}`)) edges.push('right');
+function cumulativeOffsets(sizes) {
+  const offsets = [];
+  let current = 0;
+  sizes.forEach((size) => {
+    offsets.push(current);
+    current += size;
+  });
+  return offsets;
+}
+
+function isPieceMicroCellFilled(gx, gy, occupied) {
+  const evenX = gx % 2 === 0;
+  const evenY = gy % 2 === 0;
+  if (evenX && evenY) return occupied.has(`${gx / 2},${gy / 2}`);
+  if (!evenX && evenY) {
+    const left = (gx - 1) / 2;
+    const right = (gx + 1) / 2;
+    const y = gy / 2;
+    return occupied.has(`${left},${y}`) && occupied.has(`${right},${y}`);
   }
-  const edgeSpans = edges.map((edge) => `<span class="kongmu-piece-edge ${edge}"></span>`).join('');
-  return `
-    <span class="kongmu-piece-bridge ${direction}" style="--x:${x}; --y:${y}">
-      ${edgeSpans}
-    </span>
-  `;
+  if (evenX && !evenY) {
+    const x = gx / 2;
+    const top = (gy - 1) / 2;
+    const bottom = (gy + 1) / 2;
+    return occupied.has(`${x},${top}`) && occupied.has(`${x},${bottom}`);
+  }
+  const left = (gx - 1) / 2;
+  const right = (gx + 1) / 2;
+  const top = (gy - 1) / 2;
+  const bottom = (gy + 1) / 2;
+  return occupied.has(`${left},${top}`)
+    && occupied.has(`${right},${top}`)
+    && occupied.has(`${left},${bottom}`)
+    && occupied.has(`${right},${bottom}`);
+}
+
+function pieceBoundaryPaths(filled, filledKeys) {
+  const backInset = 5;
+  const highlightInset = 5;
+  const buildPath = (inset) => filled.map((rect) => {
+    const parts = [];
+    if (!filledKeys.has(`${rect.gx},${rect.gy - 1}`)) {
+      parts.push(`M ${rect.x} ${rect.y + inset} H ${rect.x + rect.width}`);
+    }
+    if (!filledKeys.has(`${rect.gx + 1},${rect.gy}`)) {
+      parts.push(`M ${rect.x + rect.width - inset} ${rect.y} V ${rect.y + rect.height}`);
+    }
+    if (!filledKeys.has(`${rect.gx},${rect.gy + 1}`)) {
+      parts.push(`M ${rect.x} ${rect.y + rect.height - inset} H ${rect.x + rect.width}`);
+    }
+    if (!filledKeys.has(`${rect.gx - 1},${rect.gy}`)) {
+      parts.push(`M ${rect.x + inset} ${rect.y} V ${rect.y + rect.height}`);
+    }
+    return parts.join(' ');
+  }).join(' ');
+  return {back: buildPath(backInset), highlight: buildPath(highlightInset)};
+}
+
+function pieceSeamPaths(cells, occupied, cellSize, gapSize) {
+  const seamInset = 12;
+  const paths = [];
+  cells.forEach((cell) => {
+    const baseX = cell.x * (cellSize + gapSize);
+    const baseY = cell.y * (cellSize + gapSize);
+    if (occupied.has(`${cell.x + 1},${cell.y}`)) {
+      const x = baseX + cellSize + gapSize / 2;
+      paths.push(`M ${x} ${baseY + seamInset} V ${baseY + cellSize - seamInset}`);
+    }
+    if (occupied.has(`${cell.x},${cell.y + 1}`)) {
+      const y = baseY + cellSize + gapSize / 2;
+      paths.push(`M ${baseX + seamInset} ${y} H ${baseX + cellSize - seamInset}`);
+    }
+  });
+  return paths.join(' ');
 }
 
 function getDriveMap() {

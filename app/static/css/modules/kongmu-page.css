@@ -353,150 +353,74 @@
     min-height: 0;
 }
 
-.kongmu-piece-tile {
-    position: absolute;
-    z-index: 2;
-    left: calc(var(--x) * (var(--cell) + var(--gap)));
-    top: calc(var(--y) * (var(--cell) + var(--gap)));
-    width: var(--cell);
-    height: var(--cell);
-    overflow: hidden;
-    border-radius: 7px;
-    border: 2px solid rgba(3, 6, 11, 0.9);
-    background:
-        linear-gradient(145deg, rgba(255, 247, 179, 0.52), transparent 36%),
-        linear-gradient(180deg, #ffd56c 0%, #ffba48 46%, #ef9228 100%);
-    box-shadow:
-        inset 0 0 0 1px rgba(112, 53, 6, 0.28),
-        inset 0 7px 10px rgba(255, 238, 154, 0.2),
-        inset 0 -7px 10px rgba(151, 63, 7, 0.2),
-        0 3px 8px rgba(0, 0, 0, 0.42);
+.kongmu-piece-svg {
+    display: block;
+    width: 100%;
+    height: 100%;
+    overflow: visible;
+    filter: drop-shadow(0 3px 8px rgba(0, 0, 0, 0.42));
 }
 
-.kongmu-piece-bridge {
-    position: absolute;
-    z-index: 1;
-    overflow: hidden;
-    background: rgba(5, 7, 10, 0.94);
-    box-shadow:
-        inset 0 1px 0 rgba(255, 255, 255, 0.05),
-        inset 0 -1px 0 rgba(0, 0, 0, 0.45);
+.kongmu-piece-svg-fill {
+    fill: #f4ae45;
 }
 
-.kongmu-piece-bridge.horizontal {
-    left: calc(var(--x) * (var(--cell) + var(--gap)) + var(--cell));
-    top: calc(var(--y) * (var(--cell) + var(--gap)));
-    width: var(--gap);
-    height: var(--cell);
+.kongmu-piece-svg-edge-back {
+    fill: none;
+    stroke: rgba(3, 6, 11, 0.96);
+    stroke-width: 10;
+    stroke-linecap: round;
+    stroke-linejoin: round;
 }
 
-.kongmu-piece-bridge.vertical {
-    left: calc(var(--x) * (var(--cell) + var(--gap)));
-    top: calc(var(--y) * (var(--cell) + var(--gap)) + var(--cell));
-    width: var(--cell);
-    height: var(--gap);
+.kongmu-piece-svg-edge-highlight {
+    fill: none;
+    stroke: rgba(255, 250, 222, 0.98);
+    stroke-width: 4.5;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    filter: drop-shadow(0 0 3px rgba(255, 225, 138, 0.24));
 }
 
-.kongmu-piece-tile-shine,
-.kongmu-piece-edge {
-    position: absolute;
-    pointer-events: none;
+.kongmu-piece-svg-seam {
+    fill: none;
+    stroke: rgba(22, 17, 12, 0.78);
+    stroke-width: 5;
+    stroke-linecap: round;
 }
 
-.kongmu-piece-tile-shine {
-    inset: 6px;
-    border-radius: 4px;
-    border: 1px solid rgba(255, 248, 202, 0.2);
-    background: linear-gradient(135deg, rgba(255,255,255,0.12), transparent 62%);
+.kongmu-piece-svg-shine {
+    fill: rgba(255, 238, 154, 0.08);
+    stroke: rgba(255, 248, 202, 0.18);
+    stroke-width: 2;
 }
 
-.kongmu-piece-edge {
-    border-radius: 999px;
-    z-index: 4;
-    background: rgba(255, 250, 222, 0.98);
-    box-shadow:
-        0 0 4px rgba(255, 225, 138, 0.32),
-        0 1px 1px rgba(0, 0, 0, 0.28);
+.kongmu-piece.required .kongmu-piece-svg {
+    opacity: 0.72;
 }
 
-.kongmu-piece-edge.top,
-.kongmu-piece-edge.bottom {
-    left: 2px;
-    right: 2px;
-    height: 4px;
+.kongmu-piece.required .kongmu-piece-svg-fill {
+    fill: #767b7e;
 }
 
-.kongmu-piece-edge.left,
-.kongmu-piece-edge.right {
-    top: 2px;
-    bottom: 2px;
-    width: 4px;
+.kongmu-piece.required .kongmu-piece-svg-edge-highlight {
+    stroke: rgba(219, 226, 228, 0.66);
+    filter: none;
 }
 
-.kongmu-piece-edge.top {
-    top: 1px;
+.kongmu-piece.required .kongmu-piece-svg-seam {
+    stroke: rgba(20, 23, 27, 0.62);
 }
 
-.kongmu-piece-edge.right {
-    right: 1px;
+.kongmu-piece.required .kongmu-piece-svg-shine {
+    fill: rgba(232, 238, 240, 0.04);
+    stroke: rgba(232, 238, 240, 0.1);
 }
 
-.kongmu-piece-edge.bottom {
-    bottom: 1px;
-}
-
-.kongmu-piece-edge.left {
-    left: 1px;
-}
-
-.kongmu-piece-bridge.horizontal .kongmu-piece-edge.top,
-.kongmu-piece-bridge.horizontal .kongmu-piece-edge.bottom {
-    left: -2px;
-    right: -2px;
-}
-
-.kongmu-piece-bridge.vertical .kongmu-piece-edge.left,
-.kongmu-piece-bridge.vertical .kongmu-piece-edge.right {
-    top: -2px;
-    bottom: -2px;
-}
-
-.kongmu-piece-bridge.horizontal .kongmu-piece-edge.left,
-.kongmu-piece-bridge.horizontal .kongmu-piece-edge.right,
-.kongmu-piece-bridge.vertical .kongmu-piece-edge.top,
-.kongmu-piece-bridge.vertical .kongmu-piece-edge.bottom {
-    display: none;
-}
-
-.kongmu-piece.required .kongmu-piece-tile {
-    opacity: 0.7;
-    background:
-        linear-gradient(145deg, rgba(230, 234, 237, 0.22), transparent 36%),
-        linear-gradient(180deg, #94989b 0%, #72777a 52%, #555a5f 100%);
-    box-shadow:
-        inset 0 0 0 1px rgba(22, 26, 30, 0.36),
-        inset 0 7px 10px rgba(232, 238, 240, 0.08),
-        inset 0 -7px 10px rgba(20, 23, 27, 0.2),
-        0 3px 8px rgba(0, 0, 0, 0.38);
-}
-
-.kongmu-piece.required .kongmu-piece-edge {
-    background: rgba(219, 226, 228, 0.62);
-    box-shadow: none;
-}
-
-.kongmu-piece.required .kongmu-piece-bridge {
-    opacity: 0.7;
-    background: rgba(6, 8, 11, 0.9);
-}
-
-.kongmu-piece.optional-highlight .kongmu-piece-tile {
-    box-shadow:
-        inset 0 0 0 1px rgba(112, 53, 6, 0.28),
-        inset 0 7px 10px rgba(255, 238, 154, 0.2),
-        inset 0 -7px 10px rgba(151, 63, 7, 0.2),
-        0 0 10px rgba(255,191,87,0.24),
-        0 3px 8px rgba(0, 0, 0, 0.42);
+.kongmu-piece.optional-highlight .kongmu-piece-svg {
+    filter:
+        drop-shadow(0 0 10px rgba(255, 191, 87, 0.24))
+        drop-shadow(0 3px 8px rgba(0, 0, 0, 0.42));
 }
 
 .kongmu-empty-result {
