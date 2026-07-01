@@ -348,19 +348,19 @@
 }
 
 .kongmu-piece {
-    display: grid;
-    grid-template-columns: repeat(var(--piece-cols), minmax(0, 1fr));
-    grid-template-rows: repeat(var(--piece-rows), minmax(0, 1fr));
-    gap: var(--gap);
+    position: relative;
     min-width: 0;
     min-height: 0;
 }
 
 .kongmu-piece-tile {
-    position: relative;
+    position: absolute;
+    z-index: 2;
+    left: calc(var(--x) * (var(--cell) + var(--gap)));
+    top: calc(var(--y) * (var(--cell) + var(--gap)));
+    width: var(--cell);
+    height: var(--cell);
     overflow: hidden;
-    min-width: 0;
-    min-height: 0;
     border-radius: 7px;
     border: 2px solid rgba(3, 6, 11, 0.9);
     background:
@@ -371,6 +371,30 @@
         inset 0 7px 10px rgba(255, 238, 154, 0.2),
         inset 0 -7px 10px rgba(151, 63, 7, 0.2),
         0 3px 8px rgba(0, 0, 0, 0.42);
+}
+
+.kongmu-piece-bridge {
+    position: absolute;
+    z-index: 1;
+    overflow: hidden;
+    background: rgba(5, 7, 10, 0.94);
+    box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.05),
+        inset 0 -1px 0 rgba(0, 0, 0, 0.45);
+}
+
+.kongmu-piece-bridge.horizontal {
+    left: calc(var(--x) * (var(--cell) + var(--gap)) + var(--cell));
+    top: calc(var(--y) * (var(--cell) + var(--gap)));
+    width: var(--gap);
+    height: var(--cell);
+}
+
+.kongmu-piece-bridge.vertical {
+    left: calc(var(--x) * (var(--cell) + var(--gap)));
+    top: calc(var(--y) * (var(--cell) + var(--gap)) + var(--cell));
+    width: var(--cell);
+    height: var(--gap);
 }
 
 .kongmu-piece-tile-shine,
@@ -388,38 +412,60 @@
 
 .kongmu-piece-edge {
     border-radius: 999px;
-    background: rgba(255, 239, 178, 0.96);
-    box-shadow: 0 0 3px rgba(255, 215, 111, 0.18);
+    z-index: 4;
+    background: rgba(255, 250, 222, 0.98);
+    box-shadow:
+        0 0 4px rgba(255, 225, 138, 0.32),
+        0 1px 1px rgba(0, 0, 0, 0.28);
 }
 
 .kongmu-piece-edge.top,
 .kongmu-piece-edge.bottom {
-    left: 5px;
-    right: 5px;
-    height: 3px;
+    left: 2px;
+    right: 2px;
+    height: 4px;
 }
 
 .kongmu-piece-edge.left,
 .kongmu-piece-edge.right {
-    top: 5px;
-    bottom: 5px;
-    width: 3px;
+    top: 2px;
+    bottom: 2px;
+    width: 4px;
 }
 
 .kongmu-piece-edge.top {
-    top: 2px;
+    top: 1px;
 }
 
 .kongmu-piece-edge.right {
-    right: 2px;
+    right: 1px;
 }
 
 .kongmu-piece-edge.bottom {
-    bottom: 2px;
+    bottom: 1px;
 }
 
 .kongmu-piece-edge.left {
-    left: 2px;
+    left: 1px;
+}
+
+.kongmu-piece-bridge.horizontal .kongmu-piece-edge.top,
+.kongmu-piece-bridge.horizontal .kongmu-piece-edge.bottom {
+    left: -2px;
+    right: -2px;
+}
+
+.kongmu-piece-bridge.vertical .kongmu-piece-edge.left,
+.kongmu-piece-bridge.vertical .kongmu-piece-edge.right {
+    top: -2px;
+    bottom: -2px;
+}
+
+.kongmu-piece-bridge.horizontal .kongmu-piece-edge.left,
+.kongmu-piece-bridge.horizontal .kongmu-piece-edge.right,
+.kongmu-piece-bridge.vertical .kongmu-piece-edge.top,
+.kongmu-piece-bridge.vertical .kongmu-piece-edge.bottom {
+    display: none;
 }
 
 .kongmu-piece.required .kongmu-piece-tile {
@@ -437,6 +483,11 @@
 .kongmu-piece.required .kongmu-piece-edge {
     background: rgba(219, 226, 228, 0.62);
     box-shadow: none;
+}
+
+.kongmu-piece.required .kongmu-piece-bridge {
+    opacity: 0.7;
+    background: rgba(6, 8, 11, 0.9);
 }
 
 .kongmu-piece.optional-highlight .kongmu-piece-tile {

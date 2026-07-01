@@ -377,20 +377,45 @@ function pieceTilesHtml(piece, minX, minY) {
     y: Number(cell[1]) - minY,
   }));
   const occupied = new Set(cells.map((cell) => `${cell.x},${cell.y}`));
-  return cells.map((cell) => {
+  const bridges = [];
+  const tiles = cells.map((cell) => {
     const edges = [];
     if (!occupied.has(`${cell.x},${cell.y - 1}`)) edges.push('top');
     if (!occupied.has(`${cell.x + 1},${cell.y}`)) edges.push('right');
     if (!occupied.has(`${cell.x},${cell.y + 1}`)) edges.push('bottom');
     if (!occupied.has(`${cell.x - 1},${cell.y}`)) edges.push('left');
     const edgeSpans = edges.map((edge) => `<span class="kongmu-piece-edge ${edge}"></span>`).join('');
+    if (occupied.has(`${cell.x + 1},${cell.y}`)) {
+      bridges.push(pieceBridgeHtml('horizontal', cell.x, cell.y, occupied));
+    }
+    if (occupied.has(`${cell.x},${cell.y + 1}`)) {
+      bridges.push(pieceBridgeHtml('vertical', cell.x, cell.y, occupied));
+    }
     return `
-      <span class="kongmu-piece-tile" style="grid-column:${cell.x + 1}; grid-row:${cell.y + 1}">
+      <span class="kongmu-piece-tile" style="--x:${cell.x}; --y:${cell.y}">
         <span class="kongmu-piece-tile-shine"></span>
         ${edgeSpans}
       </span>
     `;
-  }).join('');
+  });
+  return `${bridges.join('')}${tiles.join('')}`;
+}
+
+function pieceBridgeHtml(direction, x, y, occupied) {
+  const edges = [];
+  if (direction === 'horizontal') {
+    if (!occupied.has(`${x},${y - 1}`) && !occupied.has(`${x + 1},${y - 1}`)) edges.push('top');
+    if (!occupied.has(`${x},${y + 1}`) && !occupied.has(`${x + 1},${y + 1}`)) edges.push('bottom');
+  } else {
+    if (!occupied.has(`${x - 1},${y}`) && !occupied.has(`${x - 1},${y + 1}`)) edges.push('left');
+    if (!occupied.has(`${x + 1},${y}`) && !occupied.has(`${x + 1},${y + 1}`)) edges.push('right');
+  }
+  const edgeSpans = edges.map((edge) => `<span class="kongmu-piece-edge ${edge}"></span>`).join('');
+  return `
+    <span class="kongmu-piece-bridge ${direction}" style="--x:${x}; --y:${y}">
+      ${edgeSpans}
+    </span>
+  `;
 }
 
 function getDriveMap() {
