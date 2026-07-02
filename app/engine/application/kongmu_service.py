@@ -363,7 +363,8 @@ def drive_chip(geometry: str, count: int = 0) -> dict[str, Any]:
         'label': geometry_label(geometry),
         'name': drive.get('name') or geometry_label(geometry),
         'grid_count': int(drive.get('grid_count') or 0),
-        'icon': drive.get('icon_url') or '',
+        'icon': static_asset_url(filter_drive_icon_path(geometry)),
+        'source_icon': drive.get('icon_url') or '',
         'count': count,
     }
 
@@ -460,6 +461,10 @@ def cartridge_icon_path(cartridge_id: str) -> str:
 
 
 def drive_icon_path(geometry: str) -> str:
+    return f'images/kongmu/drive_icons/{geometry}.png'
+
+
+def filter_drive_icon_path(geometry: str) -> str:
     return f'images/kongmu/drive_icons/{geometry}.webp'
 
 
