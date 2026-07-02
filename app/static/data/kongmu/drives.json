@@ -43,7 +43,7 @@
           "icon": "/Game/UI/UI/Equip/fangkuai/Equip41"
         }
       ],
-      "local_icon": "images/kongmu/drive_icons/EquipmentGeometry_Hen2.webp",
+      "local_icon": "images/kongmu/drive_icons/EquipmentGeometry_Hen2.png",
       "asset_url": "https://static.nanoka.cc/assets/nte/Game/UI/UI/Equip/fangkuai/Equip41.webp"
     },
     {
@@ -83,7 +83,7 @@
           "icon": "/Game/UI/UI/Equip/fangkuai/Equip42"
         }
       ],
-      "local_icon": "images/kongmu/drive_icons/EquipmentGeometry_Shu2.webp",
+      "local_icon": "images/kongmu/drive_icons/EquipmentGeometry_Shu2.png",
       "asset_url": "https://static.nanoka.cc/assets/nte/Game/UI/UI/Equip/fangkuai/Equip42.webp"
     },
     {
@@ -127,7 +127,7 @@
           "icon": "/Game/UI/UI/Equip/fangkuai/Equip29"
         }
       ],
-      "local_icon": "images/kongmu/drive_icons/EquipmentGeometry_Hen3.webp",
+      "local_icon": "images/kongmu/drive_icons/EquipmentGeometry_Hen3.png",
       "asset_url": "https://static.nanoka.cc/assets/nte/Game/UI/UI/Equip/fangkuai/Equip29.webp"
     },
     {
@@ -171,7 +171,7 @@
           "icon": "/Game/UI/UI/Equip/fangkuai/Equip30"
         }
       ],
-      "local_icon": "images/kongmu/drive_icons/EquipmentGeometry_Shu3.webp",
+      "local_icon": "images/kongmu/drive_icons/EquipmentGeometry_Shu3.png",
       "asset_url": "https://static.nanoka.cc/assets/nte/Game/UI/UI/Equip/fangkuai/Equip30.webp"
     },
     {
@@ -215,7 +215,7 @@
           "icon": "/Game/UI/UI/Equip/fangkuai/Equip31"
         }
       ],
-      "local_icon": "images/kongmu/drive_icons/EquipmentGeometry_ZhiJiao1.webp",
+      "local_icon": "images/kongmu/drive_icons/EquipmentGeometry_ZhiJiao1.png",
       "asset_url": "https://static.nanoka.cc/assets/nte/Game/UI/UI/Equip/fangkuai/Equip31.webp"
     },
     {
@@ -259,7 +259,7 @@
           "icon": "/Game/UI/UI/Equip/fangkuai/Equip32"
         }
       ],
-      "local_icon": "images/kongmu/drive_icons/EquipmentGeometry_ZhiJiao2.webp",
+      "local_icon": "images/kongmu/drive_icons/EquipmentGeometry_ZhiJiao2.png",
       "asset_url": "https://static.nanoka.cc/assets/nte/Game/UI/UI/Equip/fangkuai/Equip32.webp"
     },
     {
@@ -303,7 +303,7 @@
           "icon": "/Game/UI/UI/Equip/fangkuai/Equip33"
         }
       ],
-      "local_icon": "images/kongmu/drive_icons/EquipmentGeometry_ZhiJiao3.webp",
+      "local_icon": "images/kongmu/drive_icons/EquipmentGeometry_ZhiJiao3.png",
       "asset_url": "https://static.nanoka.cc/assets/nte/Game/UI/UI/Equip/fangkuai/Equip33.webp"
     },
     {
@@ -347,7 +347,7 @@
           "icon": "/Game/UI/UI/Equip/fangkuai/Equip34"
         }
       ],
-      "local_icon": "images/kongmu/drive_icons/EquipmentGeometry_ZhiJiao4.webp",
+      "local_icon": "images/kongmu/drive_icons/EquipmentGeometry_ZhiJiao4.png",
       "asset_url": "https://static.nanoka.cc/assets/nte/Game/UI/UI/Equip/fangkuai/Equip34.webp"
     },
     {
@@ -395,7 +395,7 @@
           "icon": "/Game/UI/UI/Equip/fangkuai/Equip39"
         }
       ],
-      "local_icon": "images/kongmu/drive_icons/EquipmentGeometry_Hen4.webp",
+      "local_icon": "images/kongmu/drive_icons/EquipmentGeometry_Hen4.png",
       "asset_url": "https://static.nanoka.cc/assets/nte/Game/UI/UI/Equip/fangkuai/Equip39.webp"
     },
     {
@@ -443,7 +443,7 @@
           "icon": "/Game/UI/UI/Equip/fangkuai/Equip40"
         }
       ],
-      "local_icon": "images/kongmu/drive_icons/EquipmentGeometry_Shu4.webp",
+      "local_icon": "images/kongmu/drive_icons/EquipmentGeometry_Shu4.png",
       "asset_url": "https://static.nanoka.cc/assets/nte/Game/UI/UI/Equip/fangkuai/Equip40.webp"
     },
     {
@@ -491,7 +491,7 @@
           "icon": "/Game/UI/UI/Equip/fangkuai/Equip36"
         }
       ],
-      "local_icon": "images/kongmu/drive_icons/EquipmentGeometry_Z3.webp",
+      "local_icon": "images/kongmu/drive_icons/EquipmentGeometry_Z3.png",
       "asset_url": "https://static.nanoka.cc/assets/nte/Game/UI/UI/Equip/fangkuai/Equip36.webp"
     },
     {
@@ -539,7 +539,7 @@
           "icon": "/Game/UI/UI/Equip/fangkuai/Equip37"
         }
       ],
-      "local_icon": "images/kongmu/drive_icons/EquipmentGeometry_Z4.webp",
+      "local_icon": "images/kongmu/drive_icons/EquipmentGeometry_Z4.png",
       "asset_url": "https://static.nanoka.cc/assets/nte/Game/UI/UI/Equip/fangkuai/Equip37.webp"
     }
   ]

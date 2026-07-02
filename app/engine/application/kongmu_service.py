@@ -460,7 +460,7 @@ def cartridge_icon_path(cartridge_id: str) -> str:
 
 
 def drive_icon_path(geometry: str) -> str:
-    return f'images/kongmu/drive_icons/{geometry}.webp'
+    return f'images/kongmu/drive_icons/{geometry}.png'
 
 
 def format_stat_value(value: Any) -> str:
