@@ -1,4 +1,4 @@
-{% extends 'base.html' %}
+{% extends 'common/base.html' %}
 {% block title %}登录{% endblock %}
 {% block body %}
 <main class="auth-page">
@@ -25,6 +25,6 @@
 <script>
     window.NTE_IS_DEV_ENV = {{ 'true' if config['IS_DEV_ENV'] else 'false' }};
 </script>
-<script src="{{ url_for('static', filename='js/common.js') }}"></script>
-<script src="{{ url_for('static', filename='js/login.js') }}"></script>
+<script src="{{ url_for('static', filename='common/js/common.js') }}"></script>
+<script src="{{ url_for('static', filename='card_game/js/login.js') }}"></script>
 {% endblock %}

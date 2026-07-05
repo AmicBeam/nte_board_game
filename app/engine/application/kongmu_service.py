@@ -11,7 +11,7 @@ from app.errors import AppError
 
 
 APP_ROOT = Path(__file__).resolve().parents[2]
-KONGMU_DATA_DIR = APP_ROOT / 'static' / 'data' / 'kongmu'
+KONGMU_DATA_DIR = APP_ROOT / 'static' / 'kongmu' / 'data'
 KONGMU_CHARACTER_DIR = KONGMU_DATA_DIR / 'characters'
 
 STATIC_BASE = 'https://static.nanoka.cc'
@@ -447,25 +447,25 @@ def character_avatar_path(character_id: str, name: str | None = None, source_ico
 
     source_stem = icon_stem(source_icon)
     if source_stem:
-        source_path = APP_ROOT / 'static' / 'images' / 'kongmu' / 'characters' / f'{source_stem}.webp'
+        source_path = APP_ROOT / 'static' / 'kongmu' / 'images' / 'characters' / f'{source_stem}.webp'
         if source_path.exists():
-            return f'images/kongmu/characters/{source_stem}.webp'
-    id_path = APP_ROOT / 'static' / 'images' / 'kongmu' / 'characters' / f'{character_id}.webp'
+            return f'kongmu/images/characters/{source_stem}.webp'
+    id_path = APP_ROOT / 'static' / 'kongmu' / 'images' / 'characters' / f'{character_id}.webp'
     if id_path.exists():
-        return f'images/kongmu/characters/{character_id}.webp'
+        return f'kongmu/images/characters/{character_id}.webp'
     return ''
 
 
 def cartridge_icon_path(cartridge_id: str) -> str:
-    return f'images/kongmu/cartridges/{cartridge_id}.webp'
+    return f'kongmu/images/cartridges/{cartridge_id}.webp'
 
 
 def drive_icon_path(geometry: str) -> str:
-    return f'images/kongmu/drive_icons/{geometry}.png'
+    return f'kongmu/images/drive_icons/{geometry}.png'
 
 
 def filter_drive_icon_path(geometry: str) -> str:
-    return f'images/kongmu/drive_icons/{geometry}.webp'
+    return f'kongmu/images/drive_icons/{geometry}.webp'
 
 
 def format_stat_value(value: Any) -> str:

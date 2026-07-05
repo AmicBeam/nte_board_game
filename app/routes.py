@@ -95,48 +95,48 @@ def favicon():
 
 @main_bp.get('/home')
 def home():
-    return render_template('index.html')
+    return render_template('card_game/index.html')
 
 
 @main_bp.get('/login')
 def login_page():
-    return render_template('login.html')
+    return render_template('card_game/login.html')
 
 
 @main_bp.get('/profile')
 def profile_page():
-    return render_template('profile.html')
+    return render_template('card_game/profile.html')
 
 
 @main_bp.get('/build')
 def build_page():
-    return render_template('build.html')
+    return render_template('card_game/build.html')
 
 
 @main_bp.get('/codex')
 def codex_page():
-    return render_template('codex.html')
+    return render_template('card_game/codex.html')
 
 
 @main_bp.get('/analytics')
 def analytics_page():
-    return render_template('analytics.html')
+    return render_template('card_game/analytics.html')
 
 
 @main_bp.get('/kongmu')
 def kongmu_page():
-    return render_template('kongmu.html')
+    return render_template('kongmu/index.html')
 
 
 @main_bp.get('/table')
 def table_page():
-    return render_template('table.html')
+    return render_template('card_game/table.html')
 
 
 @main_bp.get('/preteam')
 def preteam_page():
     return render_template(
-        'preteam.html',
+        'preteam/index.html',
         main_candidates=PRETEAM_MAIN_CANDIDATES,
         teammates=PRETEAM_TEAMMATES,
     )

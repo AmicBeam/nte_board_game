@@ -6,7 +6,7 @@ from typing import Any
 
 JsonDict = dict[str, Any]
 
-ANALYTICS_DATA_PATH = Path(__file__).resolve().parents[2] / 'static' / 'data' / 'duel_analytics_latest.json'
+ANALYTICS_DATA_PATH = Path(__file__).resolve().parents[2] / 'static' / 'card_game' / 'data' / 'duel_analytics_latest.json'
 
 
 def get_duel_analytics_payload() -> JsonDict:

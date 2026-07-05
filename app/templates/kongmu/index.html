@@ -1,4 +1,4 @@
-{% extends 'base.html' %}
+{% extends 'common/base.html' %}
 {% block title %}空幕规划器{% endblock %}
 {% block body %}
 <main class="kongmu-page">
@@ -64,5 +64,5 @@
         <div class="kongmu-solution-grid" id="kongmu-solution-grid"></div>
     </section>
 </main>
-<script src="{{ url_for('static', filename='js/kongmu.js') }}"></script>
+<script src="{{ url_for('static', filename='kongmu/js/kongmu.js') }}"></script>
 {% endblock %}

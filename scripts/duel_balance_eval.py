@@ -47,7 +47,7 @@ DECK_LABELS = {
     'discord_control': '失谐',
 }
 
-ANALYTICS_OUTPUT_PATH = PROJECT_ROOT / 'app' / 'static' / 'data' / 'duel_analytics_latest.json'
+ANALYTICS_OUTPUT_PATH = PROJECT_ROOT / 'app' / 'static' / 'card_game' / 'data' / 'duel_analytics_latest.json'
 
 
 def configure_eval_runtime() -> None:

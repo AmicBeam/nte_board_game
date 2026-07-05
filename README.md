@@ -144,8 +144,8 @@ QQ 号就是账号，机器人会回传一个网页登录密码。
 
 ```bash
 python3 -m unittest tests.test_solo_room_flow
-node --check app/static/js/table.js
-node --check app/static/js/build.js
+node --check app/static/card_game/js/table.js
+node --check app/static/card_game/js/build.js
 ```
 
 ## 部署说明

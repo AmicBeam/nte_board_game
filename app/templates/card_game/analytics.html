@@ -1,4 +1,4 @@
-{% extends 'base.html' %}
+{% extends 'common/base.html' %}
 {% block title %}异象对决数据看板{% endblock %}
 {% block body %}
 <main class="analytics-page">
@@ -57,6 +57,6 @@
         </div>
     </section>
 </main>
-<script src="{{ url_for('static', filename='js/common.js') }}"></script>
-<script src="{{ url_for('static', filename='js/analytics.js') }}"></script>
+<script src="{{ url_for('static', filename='common/js/common.js') }}"></script>
+<script src="{{ url_for('static', filename='card_game/js/analytics.js') }}"></script>
 {% endblock %}

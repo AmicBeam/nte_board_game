@@ -1,4 +1,4 @@
-{% extends 'base.html' %}
+{% extends 'common/base.html' %}
 {% block title %}异象对决{% endblock %}
 {% block body %}
 <main class="duel-page">
@@ -127,6 +127,6 @@
     <div class="card-drag-ghost" id="card-drag-ghost" aria-hidden="true"></div>
     <div class="duel-toast" id="duel-toast" aria-hidden="true"></div>
 </main>
-<script src="{{ url_for('static', filename='js/common.js') }}"></script>
-<script src="{{ url_for('static', filename='js/table.js') }}"></script>
+<script src="{{ url_for('static', filename='common/js/common.js') }}"></script>
+<script src="{{ url_for('static', filename='card_game/js/table.js') }}"></script>
 {% endblock %}

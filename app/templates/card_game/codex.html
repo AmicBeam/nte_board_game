@@ -1,4 +1,4 @@
-{% extends 'base.html' %}
+{% extends 'common/base.html' %}
 {% block title %}空间档案{% endblock %}
 {% block body %}
 <main class="codex-page">
@@ -17,6 +17,6 @@
         <div class="codex-grid" id="codex-grid"></div>
     </section>
 </main>
-<script src="{{ url_for('static', filename='js/common.js') }}"></script>
-<script src="{{ url_for('static', filename='js/codex.js') }}"></script>
+<script src="{{ url_for('static', filename='common/js/common.js') }}"></script>
+<script src="{{ url_for('static', filename='card_game/js/codex.js') }}"></script>
 {% endblock %}

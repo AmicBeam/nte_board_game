@@ -473,7 +473,7 @@
 - `app/engine/application/run_state.py`：读取与持久化教程进度，仍然只负责对局快照适配。
 - `app/engine/game_service.py`：在提交部署草稿和完成部署时调用教程步骤校验，不承载卡牌规则。
 - `app/engine/projection/public_state.py`：向前端投影 `tutorial` 字段，包括当前弹窗、遮罩、框选、允许动作和已显示异能者。
-- `app/static/js/table.js`：渲染弹窗、遮罩和框选；屏蔽非法点击；不计算规则。
+- `app/static/card_game/js/table.js`：渲染弹窗、遮罩和框选；屏蔽非法点击；不计算规则。
 
 公开状态建议：
 

@@ -43,7 +43,7 @@
 python3 scripts/duel_balance_eval.py --samples 4 --output /private/tmp/nte_triad_eval.json
 ```
 
-脚本默认写入 `app/static/data/duel_analytics_latest.json`，刷新 `/analytics` 即可查看本轮看板。`--focus triad` 仅为兼容旧命令保留；`--basic` 和旧 full 轮不再保留。
+脚本默认写入 `app/static/card_game/data/duel_analytics_latest.json`，刷新 `/analytics` 即可查看本轮看板。`--focus triad` 仅为兼容旧命令保留；`--basic` 和旧 full 轮不再保留。
 
 ## 看板验收指标
 
