@@ -1,0 +1,206 @@
+{% extends 'common/base.html' %}
+{% block title %}异环排轴计算{% endblock %}
+{% block body %}
+<main class="shaft-page" data-active-page="{{ active_shaft_page }}">
+    <section class="glass-card panel-header shaft-header">
+        <div>
+            <p class="eyebrow">Shaft Lab</p>
+            <h1>异环排轴计算</h1>
+        </div>
+        <nav class="shaft-page-tabs" aria-label="排轴模块">
+            <a class="shaft-page-tab" data-shaft-page-link="build" href="{{ url_for('main.shaft_page', page='build') }}">配装</a>
+            <a class="shaft-page-tab" data-shaft-page-link="rotation" href="{{ url_for('main.shaft_page', page='rotation') }}">排轴</a>
+            <a class="shaft-page-tab" data-shaft-page-link="plaza" href="{{ url_for('main.shaft_page', page='plaza') }}">广场</a>
+        </nav>
+        <div class="header-actions">
+            <a class="secondary-btn" href="{{ url_for('main.home') }}">主界面</a>
+            <a class="secondary-btn" href="{{ url_for('main.login_page') }}" id="shaft-login-link">登录</a>
+            <button class="primary-btn" id="shaft-run-btn" type="button">计算</button>
+        </div>
+    </section>
+
+    <section class="glass-card shaft-panel shaft-command-panel">
+        <div class="shaft-title-fields">
+            <label>
+                <span>标题</span>
+                <input id="shaft-title-input" type="text" maxlength="80" value="未命名排轴">
+            </label>
+            <label>
+                <span>备注</span>
+                <input id="shaft-description-input" type="text" maxlength="800">
+            </label>
+        </div>
+        <div class="shaft-command-actions">
+            <button class="secondary-btn" id="shaft-reset-btn" type="button">重置</button>
+            <button class="secondary-btn" id="shaft-save-btn" type="button">保存</button>
+            <button class="primary-btn" id="shaft-publish-btn" type="button">上传</button>
+        </div>
+    </section>
+
+    <section class="shaft-view" data-shaft-view="build">
+        <section class="shaft-build-layout">
+            <section class="glass-card shaft-panel shaft-team-panel">
+                <div class="section-title-row">
+                    <h2>配装</h2>
+                    <span class="shaft-data-version" id="shaft-data-version">-</span>
+                </div>
+                <div class="shaft-team-slots" id="shaft-team-slots"></div>
+            </section>
+
+            <aside class="glass-card shaft-panel shaft-build-side">
+                <section class="shaft-team-bonus-panel">
+                    <div class="section-title-row">
+                        <h2>全队面板</h2>
+                        <span>全队生效</span>
+                    </div>
+                    <div class="shaft-team-bonus-grid" id="shaft-team-bonus-grid"></div>
+                </section>
+
+                <section class="shaft-enemy-panel">
+                    <div class="section-title-row">
+                        <h2>敌人</h2>
+                    </div>
+                    <div class="shaft-enemy-grid">
+                        <label>
+                            <span>等级</span>
+                            <input id="shaft-enemy-level" type="number" min="1" max="120" step="1">
+                        </label>
+                        <label class="shaft-checkline">
+                            <input id="shaft-enemy-track-outside" type="checkbox">
+                            <span>轨外之境</span>
+                        </label>
+                    </div>
+                    <div class="shaft-weakness-row" id="shaft-weakness-row"></div>
+                </section>
+
+                <section class="shaft-result-panel">
+                    <div class="section-title-row">
+                        <h2>总览</h2>
+                        <span class="shaft-status" id="shaft-status">待计算</span>
+                    </div>
+                    <div class="shaft-result-grid">
+                        <div class="shaft-stat-card">
+                            <span>直伤</span>
+                            <strong id="shaft-direct-damage">0</strong>
+                        </div>
+                        <div class="shaft-stat-card">
+                            <span>倾陷伤害</span>
+                            <strong id="shaft-stagger-damage">0</strong>
+                        </div>
+                        <div class="shaft-stat-card">
+                            <span>总伤</span>
+                            <strong id="shaft-total-damage">0</strong>
+                        </div>
+                        <div class="shaft-stat-card">
+                            <span>DPS</span>
+                            <strong id="shaft-dps">0</strong>
+                        </div>
+                    </div>
+                    <div class="shaft-contribution-list" id="shaft-contribution-list"></div>
+                </section>
+
+                <section class="shaft-build-panel-card">
+                    <div class="section-title-row">
+                        <h2>角色面板</h2>
+                    </div>
+                    <div id="shaft-build-panel"></div>
+                </section>
+            </aside>
+        </section>
+    </section>
+
+    <section class="shaft-view" data-shaft-view="rotation">
+        <section class="shaft-rotation-layout">
+            <aside class="glass-card shaft-panel shaft-command-library">
+                <div class="section-title-row">
+                    <div>
+                        <span class="shaft-panel-kicker">控制面板</span>
+                        <h2>队伍与命令</h2>
+                    </div>
+                    <select id="shaft-library-slot"></select>
+                </div>
+                <div class="shaft-team-dock" id="shaft-team-dock"></div>
+                <div class="shaft-library-toolbar">
+                    <label class="shaft-search">
+                        <span class="sr-only">搜索动作</span>
+                        <input id="shaft-command-search" type="search" placeholder="搜索动作">
+                    </label>
+                    <div class="shaft-command-type-tabs" id="shaft-command-type-tabs"></div>
+                </div>
+                <div class="shaft-command-list" id="shaft-command-list"></div>
+            </aside>
+
+            <section class="glass-card shaft-panel shaft-axis-panel">
+                <div class="shaft-axis-toolbar">
+                    <div>
+                        <span class="shaft-panel-kicker">轴工作区</span>
+                        <h2>动作轴</h2>
+                    </div>
+                    <div class="shaft-editor-actions">
+                        <label class="shaft-loop-toggle" title="开启后，轴尾仍在持续的增益会在下一轮轴开头继续生效">
+                            <input id="shaft-loop-enabled" type="checkbox">
+                            <span>循环轴</span>
+                        </label>
+                        <button class="secondary-btn" id="shaft-undo-btn" type="button">撤销</button>
+                        <button class="secondary-btn" id="shaft-redo-btn" type="button">重做</button>
+                        <button class="secondary-btn" id="shaft-copy-step-btn" type="button">复制</button>
+                        <button class="secondary-btn" id="shaft-paste-step-btn" type="button">粘贴</button>
+                        <button class="secondary-btn" id="shaft-delete-step-btn" type="button">删除</button>
+                        <button class="secondary-btn" id="shaft-reflow-btn" type="button">重排</button>
+                    </div>
+                </div>
+                <div class="shaft-timeline-shell">
+                    <div class="shaft-time-ruler" id="shaft-time-ruler"></div>
+                    <div class="shaft-timeline" id="shaft-timeline"></div>
+                </div>
+                <div class="shaft-context-menu" id="shaft-context-menu" hidden></div>
+            </section>
+
+            <aside class="glass-card shaft-panel shaft-detail-panel">
+                <div class="section-title-row">
+                    <div>
+                        <span class="shaft-panel-kicker">输出与明细</span>
+                        <h2>详情</h2>
+                    </div>
+                    <span id="shaft-selected-badge" class="shaft-status">未选择</span>
+                </div>
+                <div class="shaft-workbench-summary" id="shaft-workbench-summary"></div>
+                <div class="shaft-step-detail" id="shaft-step-detail"></div>
+            </aside>
+        </section>
+
+    </section>
+
+    <section class="shaft-view" data-shaft-view="plaza">
+        <section class="shaft-market-layout">
+            <section class="glass-card shaft-panel shaft-market-panel">
+                <div class="section-title-row">
+                    <h2>排轴广场</h2>
+                    <button class="secondary-btn" id="shaft-market-refresh-btn" type="button">刷新</button>
+                </div>
+                <div class="shaft-market-filters">
+                    <select id="shaft-market-character-filter"></select>
+                    <select id="shaft-market-sort">
+                        <option value="dps">DPS</option>
+                        <option value="likes">点赞</option>
+                        <option value="favorites">收藏</option>
+                        <option value="new">最新</option>
+                    </select>
+                </div>
+                <div class="shaft-market-list" id="shaft-market-list"></div>
+                <button class="secondary-btn shaft-load-more" id="shaft-market-more-btn" type="button" hidden>更多</button>
+            </section>
+
+            <aside class="glass-card shaft-panel shaft-my-axis-panel">
+                <div class="section-title-row">
+                    <h2>我的排轴</h2>
+                    <button class="secondary-btn" id="shaft-my-refresh-btn" type="button">刷新</button>
+                </div>
+                <div class="shaft-market-list compact" id="shaft-my-axis-list"></div>
+            </aside>
+        </section>
+    </section>
+</main>
+<script src="{{ url_for('static', filename='common/js/common.js') }}"></script>
+<script src="{{ url_for('static', filename='shaft/js/shaft.js') }}"></script>
+{% endblock %}

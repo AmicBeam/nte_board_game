@@ -1,0 +1,580 @@
+[
+  {
+    "id": "cartridge_f4282fad3f",
+    "name": "失落光芒",
+    "detail": "10光伤；Q后20秒减防25",
+    "modifiers": {
+      "element_dmg": 0.1,
+      "atk_pct": 0.0,
+      "hp_pct": 0.0,
+      "def_pct": 0.0,
+      "energy_recharge": 0.0,
+      "harmony_strength": 0.0,
+      "stagger_strength": 0.0,
+      "mind_dmg": 0.0,
+      "def_ignore": 0.0,
+      "res_down": 0.0,
+      "crit_rate": 0.0,
+      "crit_dmg": 0.0,
+      "all_dmg": 0.0,
+      "basic_dmg": 0.0,
+      "skill_dmg": 0.0,
+      "ultimate_dmg": 0.0
+    },
+    "shape_counts": {
+      "type2": 1,
+      "type3": 2,
+      "type4": 1
+    },
+    "passive_counts": {
+      "type2": 5,
+      "type3": 4,
+      "type4": 3
+    },
+    "source_row": 3
+  },
+  {
+    "id": "cartridge_2f40014b04",
+    "name": "迪亚波罗斯",
+    "detail": "10暗伤；无视12抗性，触发暗反应后翻倍，20秒",
+    "modifiers": {
+      "element_dmg": 0.1,
+      "atk_pct": 0.0,
+      "hp_pct": 0.0,
+      "def_pct": 0.0,
+      "energy_recharge": 0.0,
+      "harmony_strength": 0.0,
+      "stagger_strength": 0.0,
+      "mind_dmg": 0.0,
+      "def_ignore": 0.0,
+      "res_down": 0.12,
+      "crit_rate": 0.0,
+      "crit_dmg": 0.0,
+      "all_dmg": 0.0,
+      "basic_dmg": 0.0,
+      "skill_dmg": 0.0,
+      "ultimate_dmg": 0.0
+    },
+    "shape_counts": {
+      "type2": 1,
+      "type3": 2,
+      "type4": 1
+    },
+    "passive_counts": {
+      "type2": 5,
+      "type3": 4,
+      "type4": 3
+    },
+    "source_row": 4
+  },
+  {
+    "id": "cartridge_bb71141f17",
+    "name": "恶魔之血：诅咒",
+    "detail": "10魂伤；18增伤，处于魂反应翻倍",
+    "modifiers": {
+      "element_dmg": 0.1,
+      "atk_pct": 0.0,
+      "hp_pct": 0.0,
+      "def_pct": 0.0,
+      "energy_recharge": 0.0,
+      "harmony_strength": 0.0,
+      "stagger_strength": 0.0,
+      "mind_dmg": 0.0,
+      "def_ignore": 0.0,
+      "res_down": 0.0,
+      "crit_rate": 0.0,
+      "crit_dmg": 0.0,
+      "all_dmg": 0.18,
+      "basic_dmg": 0.0,
+      "skill_dmg": 0.0,
+      "ultimate_dmg": 0.0
+    },
+    "shape_counts": {
+      "type2": 1,
+      "type3": 2,
+      "type4": 1
+    },
+    "passive_counts": {
+      "type2": 5,
+      "type3": 4,
+      "type4": 3
+    },
+    "source_row": 5
+  },
+  {
+    "id": "cartridge_9229a5376c",
+    "name": "街头拳王",
+    "detail": "10相伤；14暴击，相反应翻倍，20秒",
+    "modifiers": {
+      "element_dmg": 0.1,
+      "atk_pct": 0.0,
+      "hp_pct": 0.0,
+      "def_pct": 0.0,
+      "energy_recharge": 0.0,
+      "harmony_strength": 0.0,
+      "stagger_strength": 0.0,
+      "mind_dmg": 0.0,
+      "def_ignore": 0.0,
+      "res_down": 0.0,
+      "crit_rate": 0.14,
+      "crit_dmg": 0.0,
+      "all_dmg": 0.0,
+      "basic_dmg": 0.0,
+      "skill_dmg": 0.0,
+      "ultimate_dmg": 0.0
+    },
+    "shape_counts": {
+      "type2": 1,
+      "type3": 2,
+      "type4": 1
+    },
+    "passive_counts": {
+      "type2": 5,
+      "type3": 4,
+      "type4": 3
+    },
+    "source_row": 6
+  },
+  {
+    "id": "cartridge_4aad5bf505",
+    "name": "【借】街头拳王",
+    "detail": "10相伤；14暴击，相反应翻倍，20秒",
+    "modifiers": {
+      "element_dmg": 0.0,
+      "atk_pct": 0.0,
+      "hp_pct": 0.0,
+      "def_pct": 0.0,
+      "energy_recharge": 0.0,
+      "harmony_strength": 0.0,
+      "stagger_strength": 0.0,
+      "mind_dmg": 0.0,
+      "def_ignore": 0.0,
+      "res_down": 0.0,
+      "crit_rate": 0.14,
+      "crit_dmg": 0.0,
+      "all_dmg": 0.0,
+      "basic_dmg": 0.0,
+      "skill_dmg": 0.0,
+      "ultimate_dmg": 0.0
+    },
+    "shape_counts": {
+      "type2": 1,
+      "type3": 2,
+      "type4": 1
+    },
+    "passive_counts": {
+      "type2": 5,
+      "type3": 4,
+      "type4": 3
+    },
+    "source_row": 7
+  },
+  {
+    "id": "cartridge_29793225a0",
+    "name": "森林萤火之心",
+    "detail": "10灵伤；8暴伤*7，10秒",
+    "modifiers": {
+      "element_dmg": 0.1,
+      "atk_pct": 0.0,
+      "hp_pct": 0.0,
+      "def_pct": 0.0,
+      "energy_recharge": 0.0,
+      "harmony_strength": 0.0,
+      "stagger_strength": 0.0,
+      "mind_dmg": 0.0,
+      "def_ignore": 0.0,
+      "res_down": 0.0,
+      "crit_rate": 0.0,
+      "crit_dmg": 0.56,
+      "all_dmg": 0.0,
+      "basic_dmg": 0.0,
+      "skill_dmg": 0.0,
+      "ultimate_dmg": 0.0
+    },
+    "shape_counts": {
+      "type2": 1,
+      "type3": 2,
+      "type4": 1
+    },
+    "passive_counts": {
+      "type2": 5,
+      "type3": 4,
+      "type4": 3
+    },
+    "source_row": 8
+  },
+  {
+    "id": "cartridge_4b18287a72",
+    "name": "【借】森林萤火之心",
+    "detail": "8暴伤*7，10秒",
+    "modifiers": {
+      "element_dmg": 0.0,
+      "atk_pct": 0.0,
+      "hp_pct": 0.0,
+      "def_pct": 0.0,
+      "energy_recharge": 0.0,
+      "harmony_strength": 0.0,
+      "stagger_strength": 0.0,
+      "mind_dmg": 0.0,
+      "def_ignore": 0.0,
+      "res_down": 0.0,
+      "crit_rate": 0.0,
+      "crit_dmg": 0.56,
+      "all_dmg": 0.0,
+      "basic_dmg": 0.0,
+      "skill_dmg": 0.0,
+      "ultimate_dmg": 0.0
+    },
+    "shape_counts": {
+      "type2": 1,
+      "type3": 2,
+      "type4": 1
+    },
+    "passive_counts": {
+      "type2": 5,
+      "type3": 4,
+      "type4": 3
+    },
+    "source_row": 9
+  },
+  {
+    "id": "cartridge_505ea4a58f",
+    "name": "真红：双生蝶",
+    "detail": "10咒伤；6攻击*6，10秒",
+    "modifiers": {
+      "element_dmg": 0.1,
+      "atk_pct": 0.36,
+      "hp_pct": 0.0,
+      "def_pct": 0.0,
+      "energy_recharge": 0.0,
+      "harmony_strength": 0.0,
+      "stagger_strength": 0.0,
+      "mind_dmg": 0.0,
+      "def_ignore": 0.0,
+      "res_down": 0.0,
+      "crit_rate": 0.0,
+      "crit_dmg": 0.0,
+      "all_dmg": 0.0,
+      "basic_dmg": 0.0,
+      "skill_dmg": 0.0,
+      "ultimate_dmg": 0.0
+    },
+    "shape_counts": {
+      "type2": 1,
+      "type3": 2,
+      "type4": 1
+    },
+    "passive_counts": {
+      "type2": 5,
+      "type3": 4,
+      "type4": 3
+    },
+    "source_row": 10
+  },
+  {
+    "id": "cartridge_34c7f76ee2",
+    "name": "缇娅的夜间酒馆",
+    "detail": "10生命；20%治疗效率",
+    "modifiers": {
+      "element_dmg": 0.0,
+      "atk_pct": 0.0,
+      "hp_pct": 0.1,
+      "def_pct": 0.0,
+      "energy_recharge": 0.0,
+      "harmony_strength": 0.0,
+      "stagger_strength": 0.0,
+      "mind_dmg": 0.0,
+      "def_ignore": 0.0,
+      "res_down": 0.0,
+      "crit_rate": 0.0,
+      "crit_dmg": 0.0,
+      "all_dmg": 0.0,
+      "basic_dmg": 0.0,
+      "skill_dmg": 0.0,
+      "ultimate_dmg": 0.0
+    },
+    "shape_counts": {
+      "type2": 0,
+      "type3": 4,
+      "type4": 0
+    },
+    "passive_counts": {
+      "type2": 4,
+      "type3": 6,
+      "type4": 2
+    },
+    "source_row": 11
+  },
+  {
+    "id": "cartridge_36ddda5659",
+    "name": "守卫王国",
+    "detail": "15防御；20%护盾强效",
+    "modifiers": {
+      "element_dmg": 0.0,
+      "atk_pct": 0.0,
+      "hp_pct": 0.0,
+      "def_pct": 0.15,
+      "energy_recharge": 0.0,
+      "harmony_strength": 0.0,
+      "stagger_strength": 0.0,
+      "mind_dmg": 0.0,
+      "def_ignore": 0.0,
+      "res_down": 0.0,
+      "crit_rate": 0.0,
+      "crit_dmg": 0.0,
+      "all_dmg": 0.0,
+      "basic_dmg": 0.0,
+      "skill_dmg": 0.0,
+      "ultimate_dmg": 0.0
+    },
+    "shape_counts": {
+      "type2": 0,
+      "type3": 4,
+      "type4": 0
+    },
+    "passive_counts": {
+      "type2": 4,
+      "type3": 6,
+      "type4": 2
+    },
+    "source_row": 12
+  },
+  {
+    "id": "cartridge_823bb4c4eb",
+    "name": "音速蓝刺猬",
+    "detail": "12充能；Q后全队15%攻击，20秒",
+    "modifiers": {
+      "element_dmg": 0.0,
+      "atk_pct": 0.0,
+      "hp_pct": 0.0,
+      "def_pct": 0.0,
+      "energy_recharge": 0.12,
+      "harmony_strength": 0.0,
+      "stagger_strength": 0.0,
+      "mind_dmg": 0.0,
+      "def_ignore": 0.0,
+      "res_down": 0.0,
+      "crit_rate": 0.0,
+      "crit_dmg": 0.0,
+      "all_dmg": 0.0,
+      "basic_dmg": 0.0,
+      "skill_dmg": 0.0,
+      "ultimate_dmg": 0.0
+    },
+    "shape_counts": {
+      "type2": 0,
+      "type3": 4,
+      "type4": 0
+    },
+    "passive_counts": {
+      "type2": 4,
+      "type3": 6,
+      "type4": 2
+    },
+    "source_row": 13
+  },
+  {
+    "id": "cartridge_1d257dca56",
+    "name": "静谧山庄",
+    "detail": "10心灵；普攻叠心灵伤12*3，6秒",
+    "modifiers": {
+      "element_dmg": 0.0,
+      "atk_pct": 0.0,
+      "hp_pct": 0.0,
+      "def_pct": 0.0,
+      "energy_recharge": 0.0,
+      "harmony_strength": 0.0,
+      "stagger_strength": 0.0,
+      "mind_dmg": 0.45999999999999996,
+      "def_ignore": 0.0,
+      "res_down": 0.0,
+      "crit_rate": 0.0,
+      "crit_dmg": 0.0,
+      "all_dmg": 0.0,
+      "basic_dmg": 0.0,
+      "skill_dmg": 0.0,
+      "ultimate_dmg": 0.0
+    },
+    "shape_counts": {
+      "type2": 2,
+      "type3": 0,
+      "type4": 2
+    },
+    "passive_counts": {
+      "type2": 6,
+      "type3": 2,
+      "type4": 4
+    },
+    "source_row": 14
+  },
+  {
+    "id": "cartridge_097acfc8f6",
+    "name": "影之信条",
+    "detail": "10攻击；E后25攻击，20秒",
+    "modifiers": {
+      "element_dmg": 0.0,
+      "atk_pct": 0.35,
+      "hp_pct": 0.0,
+      "def_pct": 0.0,
+      "energy_recharge": 0.0,
+      "harmony_strength": 0.0,
+      "stagger_strength": 0.0,
+      "mind_dmg": 0.0,
+      "def_ignore": 0.0,
+      "res_down": 0.0,
+      "crit_rate": 0.0,
+      "crit_dmg": 0.0,
+      "all_dmg": 0.0,
+      "basic_dmg": 0.0,
+      "skill_dmg": 0.0,
+      "ultimate_dmg": 0.0
+    },
+    "shape_counts": {
+      "type2": 2,
+      "type3": 0,
+      "type4": 2
+    },
+    "passive_counts": {
+      "type2": 6,
+      "type3": 2,
+      "type4": 4
+    },
+    "source_row": 15
+  },
+  {
+    "id": "cartridge_9d67cf1e6f",
+    "name": "二型散件",
+    "detail": "10攻击",
+    "modifiers": {
+      "element_dmg": 0.0,
+      "atk_pct": 0.1,
+      "hp_pct": 0.0,
+      "def_pct": 0.0,
+      "energy_recharge": 0.0,
+      "harmony_strength": 0.0,
+      "stagger_strength": 0.0,
+      "mind_dmg": 0.0,
+      "def_ignore": 0.0,
+      "res_down": 0.0,
+      "crit_rate": 0.0,
+      "crit_dmg": 0.0,
+      "all_dmg": 0.0,
+      "basic_dmg": 0.0,
+      "skill_dmg": 0.0,
+      "ultimate_dmg": 0.0
+    },
+    "shape_counts": {
+      "type2": 10,
+      "type3": 0,
+      "type4": 0
+    },
+    "passive_counts": {
+      "type2": 10,
+      "type3": 0,
+      "type4": 0
+    },
+    "source_row": 16
+  },
+  {
+    "id": "cartridge_7983d1fbd7",
+    "name": "三型散件",
+    "detail": "10属伤",
+    "modifiers": {
+      "element_dmg": 0.1,
+      "atk_pct": 0.0,
+      "hp_pct": 0.0,
+      "def_pct": 0.0,
+      "energy_recharge": 0.0,
+      "harmony_strength": 0.0,
+      "stagger_strength": 0.0,
+      "mind_dmg": 0.0,
+      "def_ignore": 0.0,
+      "res_down": 0.0,
+      "crit_rate": 0.0,
+      "crit_dmg": 0.0,
+      "all_dmg": 0.0,
+      "basic_dmg": 0.0,
+      "skill_dmg": 0.0,
+      "ultimate_dmg": 0.0
+    },
+    "shape_counts": {
+      "type2": 0,
+      "type3": 2,
+      "type4": 0
+    },
+    "passive_counts": {
+      "type2": 7,
+      "type3": 6,
+      "type4": 3
+    },
+    "source_row": 17
+  },
+  {
+    "id": "cartridge_547c92e56f",
+    "name": "生命散件",
+    "detail": "10生命",
+    "modifiers": {
+      "element_dmg": 0.0,
+      "atk_pct": 0.0,
+      "hp_pct": 0.1,
+      "def_pct": 0.0,
+      "energy_recharge": 0.0,
+      "harmony_strength": 0.0,
+      "stagger_strength": 0.0,
+      "mind_dmg": 0.0,
+      "def_ignore": 0.0,
+      "res_down": 0.0,
+      "crit_rate": 0.0,
+      "crit_dmg": 0.0,
+      "all_dmg": 0.0,
+      "basic_dmg": 0.0,
+      "skill_dmg": 0.0,
+      "ultimate_dmg": 0.0
+    },
+    "shape_counts": {
+      "type2": 2,
+      "type3": 0,
+      "type4": 0
+    },
+    "passive_counts": {
+      "type2": 10,
+      "type3": 5,
+      "type4": 4
+    },
+    "source_row": 18
+  },
+  {
+    "id": "cartridge_868dbc2c5c",
+    "name": "小小大冒险",
+    "detail": "10生命；降低生命时4*10%生命上限，每层10秒",
+    "modifiers": {
+      "element_dmg": 0.0,
+      "atk_pct": 0.0,
+      "hp_pct": 0.1,
+      "def_pct": 0.0,
+      "energy_recharge": 0.0,
+      "harmony_strength": 0.0,
+      "stagger_strength": 0.0,
+      "mind_dmg": 0.0,
+      "def_ignore": 0.0,
+      "res_down": 0.0,
+      "crit_rate": 0.0,
+      "crit_dmg": 0.0,
+      "all_dmg": 0.0,
+      "basic_dmg": 0.0,
+      "skill_dmg": 0.0,
+      "ultimate_dmg": 0.0
+    },
+    "shape_counts": {
+      "type2": 2,
+      "type3": 0,
+      "type4": 2
+    },
+    "passive_counts": {
+      "type2": 6,
+      "type3": 2,
+      "type4": 4
+    },
+    "source_row": 19
+  }
+]

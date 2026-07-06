@@ -36,7 +36,8 @@ body {
     color: var(--text);
 }
 
-body:has(.main-page) {
+body:has(.main-page),
+body:has(.portal-page) {
     background-image:
         linear-gradient(90deg, rgba(5, 8, 14, 0.28), rgba(5, 8, 14, 0.08) 42%, rgba(5, 8, 14, 0.34)),
         linear-gradient(180deg, rgba(5, 8, 14, 0.02), rgba(5, 8, 14, 0.38)),
@@ -90,7 +91,7 @@ h1, h2, h3, p { margin: 0; }
     padding: 24px 0 40px;
 }
 
-.landing-page, .auth-page, .build-page, .table-page, .main-page, .codex-page { display: grid; gap: 18px; }
+.landing-page, .auth-page, .build-page, .table-page, .main-page, .codex-page, .portal-page { display: grid; gap: 18px; }
 
 .glass-card {
     position: relative;
@@ -181,6 +182,89 @@ body:has(.build-page) .glass-card {
     min-width: 0;
     display: grid;
     gap: 6px;
+}
+
+.portal-page {
+    min-height: calc(100vh - 56px);
+    align-content: center;
+}
+
+.portal-header {
+    align-items: flex-end;
+}
+
+.portal-heading {
+    display: grid;
+    gap: 8px;
+    max-width: 760px;
+}
+
+.portal-module-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 14px;
+}
+
+.portal-module-card {
+    min-height: 260px;
+    padding: 18px;
+    display: grid;
+    align-content: space-between;
+    gap: 14px;
+    overflow: hidden;
+    transition: transform 0.16s ease, border-color 0.16s ease, background 0.16s ease;
+}
+
+.portal-module-card::after {
+    content: '';
+    position: absolute;
+    right: -42px;
+    bottom: -48px;
+    width: 160px;
+    height: 160px;
+    border: 1px solid rgba(88, 216, 210, 0.18);
+    transform: rotate(28deg);
+    pointer-events: none;
+}
+
+.portal-module-card.featured {
+    grid-column: span 2;
+    background:
+        linear-gradient(135deg, rgba(88,216,210,0.14), rgba(255,191,87,0.08)),
+        var(--panel);
+}
+
+.portal-module-card:hover {
+    transform: translateY(-3px);
+    border-color: rgba(88,216,210,0.48);
+    background: rgba(18, 28, 42, 0.92);
+}
+
+.portal-module-kicker,
+.portal-module-action {
+    color: var(--primary);
+    font-size: 12px;
+    font-weight: 900;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+}
+
+.portal-module-card strong {
+    display: block;
+    font-size: clamp(24px, 2vw, 34px);
+    line-height: 1.1;
+}
+
+.portal-module-card p {
+    max-width: 420px;
+    color: var(--muted);
+    line-height: 1.55;
+}
+
+.portal-module-action {
+    color: var(--amber);
+    letter-spacing: 0;
+    text-transform: none;
 }
 
 .combat-topbar,
@@ -281,6 +365,12 @@ select {
     background: rgba(255,255,255,0.065);
     color: var(--text);
     border-color: rgba(255,255,255,0.12);
+}
+
+.secondary-btn.danger-btn {
+    color: #fff7fb;
+    border-color: rgba(255, 98, 98, 0.45);
+    background: linear-gradient(135deg, rgba(255, 98, 98, 0.92), rgba(255, 90, 165, 0.82));
 }
 
 .primary-btn:hover,

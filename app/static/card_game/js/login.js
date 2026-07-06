@@ -4,6 +4,16 @@ const loginBtn = document.getElementById('login-btn');
 const loginFeedback = document.getElementById('login-feedback');
 const loginForm = document.getElementById('login-form');
 
+function safeLoginRedirectTarget() {
+  const params = new URLSearchParams(window.location.search);
+  const target = params.get('next') || window.localStorage.getItem('nte_login_redirect') || '';
+  if (!isSafeLoginTarget(target)) {
+    return '';
+  }
+  const url = new URL(target, window.location.origin);
+  return `${url.pathname}${url.search}${url.hash}`;
+}
+
 async function login(event) {
   event?.preventDefault();
   loginBtn.disabled = true;
@@ -23,6 +33,12 @@ async function login(event) {
     }
     window.localStorage.setItem('nte_token', payload.token);
     loginFeedback.textContent = `登录成功，欢迎 ${payload.player.nickname}。`;
+    const redirectTarget = safeLoginRedirectTarget();
+    if (redirectTarget) {
+      window.localStorage.removeItem('nte_login_redirect');
+      window.location.href = redirectTarget;
+      return;
+    }
     try {
       const stateResponse = await fetch('/api/game/state?optional=1', {
         headers: { Authorization: `Bearer ${payload.token}`, 'X-Log-Id': nextLogId() },

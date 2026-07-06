@@ -1,0 +1,650 @@
+# 异环组队 DPS 轴计算模块设计
+
+日期：2026-07-05
+
+状态：实现中，待公式与角色机制继续核对。本文只规划 `/shaft` 网页模块、DPS 轴计算、市场与数据落库方式；不改动现有异象对决牌桌规则。
+
+## 背景与参考
+
+目标是在现有 Flask 站点中新增 `/shaft` 模块，用于计算异环角色组队 DPS。玩家可以按 0.1 秒精度编辑动作轴，查看直伤、倾陷伤害、总伤害、DPS、角色贡献、实时面板与伤害明细，并把自己的轴上传到在线市场，支持点赞、收藏和按角色筛选。
+
+本轮已分析两个参考来源：
+
+- `异环云配队.xlsx`：本地路径 `/Users/bytedance/Downloads/异环云配队.xlsx`。工作簿版本标注为 `异环云配队 V0.2.7`，作者标注为“静默之光”。它是公式和初始数据的主要参考。
+- `eclairtle/EndfieldToolbox`：已克隆到 `/private/tmp/endfield_toolbox_ref`，commit `dd2214efb3b540e01d350df525474d4f1bdb273b`。该项目是 Vue 浏览器构筑与轴计算沙盒，核心分层为构筑快照、命令解析、时间线编译、运行时模拟。仓库没有 license 文件，`package.json` 也没有 `license` 字段，因此本项目只借鉴架构概念，不复制代码。
+
+## 模块边界
+
+`/shaft` 是独立网页工具，不进入异象对决牌桌规则层。
+
+- 可以复用现有玩家登录态、头像、角色图片、`common/base.html`、基础样式和静态资源组织方式。
+- 不复用 `GameRun`、房间、对局快照或异步对局持久化。
+- 轴计算属于工具计算，不影响玩家卡牌构筑和牌桌战斗状态。
+- 市场上传和点赞必须登录；收藏不要求登录。上传、点赞、收藏都必须同步写库成功后再返回，不走异步队列。
+- 玩家可以把排轴保存为自己的私有草稿，不上传到市场；上传只是把私有轴发布为公开市场轴。
+
+建议新增目录：
+
+| 路径 | 职责 |
+| --- | --- |
+| `app/shaft/` | shaft 独立领域层，包含数据加载、面板计算、伤害公式、时间线编译、模拟器和校验 |
+| `app/engine/application/shaft_service.py` | Flask 路由调用的应用服务，负责鉴权玩家上下文、调用 shaft 计算器和 DAO |
+| `app/static/shaft/` | shaft 页面 JS/CSS |
+| `app/templates/shaft/index.html` | shaft 主页面 |
+| `app/static/shaft/data/` | 从 xlsx 导出的只读角色、动作、装备、增益和 source meta JSON |
+| `scripts/import_shaft_xlsx.py` | 离线导入 xlsx 到静态 JSON 的脚本 |
+
+## xlsx 数据结构结论
+
+工作簿共 10 张表：
+
+| 表名 | 尺寸 | 作用 |
+| --- | ---: | --- |
+| `云配队` | 36 x 55 | 输入与汇总页，选择 4 名角色、弧盘、卡带、觉醒、轴动作、敌人参数、全队 buff 和输出统计 |
+| `配装` | 23 x 57 | 每名角色的常驻面板计算，汇总角色基础、弧盘、卡带、空幕、觉醒和部分开关 |
+| `增益` | 56 x 17 | buff/debuff 表，列为最终、减防、减抗、攻击%、攻击、生命%、生命、防御%、防御、环合强度、倾陷效率、自充效率等；xlsx 原列名“精通”在网页中统一显示为“环合强度” |
+| `中间` | 41 x 29 | 聚合统计和常量，按角色汇总伤害、倾陷、回能、环合，并保存反应系数、主词条常量等 |
+| `动作` | 160 x 24 | 动作库，按角色 + 动作名定义伤害类型、倍率、合轴时间、回能、环合、倾陷和动作自带加成 |
+| `角色` | 22 x 34 | 角色基础属性、属性类型、星级、基础暴击/暴伤和角色固有加成 |
+| `天赋` | 27 x 9 | 天赋激活状态和部分角色机制参数 |
+| `弧盘` | 58 x 42 | 弧盘基础攻击、适配类型、词条和被动加成 |
+| `卡带` | 20 x 28 | 卡带增伤、词条、型号数量和 2/3/4 型被动数量 |
+| `计算` | 31 x 622 | 核心公式区。前 42 列为全局/角色基础中间量，从 `AQ` 开始每 29 列一个动作块，共 20 个动作槽位 |
+
+`计算` 页动作块结构：
+
+| 相对列 | 含义 |
+| ---: | --- |
+| 0 | 动作名，从 `云配队!J:AC` 读取 |
+| 1 | 匹配到的 `动作` 表行号 |
+| 2-5 | 当前动作结算时的攻击、生命、防御、环合强度 |
+| 6-7 | 伤害类型、额外标签 |
+| 8-11 | 攻击倍率、生命倍率、防御倍率、固定伤害 |
+| 12-15 | 倾陷、环合、回能、能量返还 |
+| 16 | 总回能 |
+| 17 | 基础区 |
+| 18 | 增伤区 |
+| 19-21 | 暴击、暴伤、双暴区 |
+| 22-23 | 抗性值、抗性区 |
+| 24-25 | 减防、防御区 |
+| 26-28 | 时间、伤害、总伤害 |
+
+动作块第 26 行是本动作之前累计生效的 buff/debuff 总计；第 28-31 行是倾陷和环合反应伤害。
+
+## 数据导入方案
+
+运行时不直接读取 `/Users/bytedance/Downloads/异环云配队.xlsx`。xlsx 只是离线导入参考；导入后数据由本项目保存到 `app/static/shaft/data/` 的静态 JSON，并随代码一起维护。线上计算、市场展示和页面 catalog 都只读取项目内保存的数据，不实时依赖用户下载目录或 xlsx 文件。
+
+建议导出文件：
+
+| JSON | 来源 | 用途 |
+| --- | --- | --- |
+| `source_meta.json` | 工作簿名称、版本、导入时间、sheet 尺寸、源文件 hash | 页面展示和公式回归定位 |
+| `characters.json` | `角色` + 本项目角色图片映射 | 角色基础属性、属性、星级、图标 |
+| `actions.json` | `动作` | 可摆放动作库 |
+| `buffs.json` | `增益` | buff/debuff 定义 |
+| `arcs.json` | `弧盘` | 弧盘数据 |
+| `cartridges.json` | `卡带` | 卡带数据 |
+| `formula_constants.json` | `中间` 与固定全局参数 | 等级、防御、反应、主词条和副词条常量 |
+| `starter_axis.json` | `云配队` 当前示例轴 | 默认示例，便于验算 |
+
+导入脚本需要保留 xlsx 单元格来源，例如 `source_cell: "动作!E11"`，方便后续和表格对照。导入脚本只在维护数据时运行，不在 Flask 请求链路中运行。
+
+## 构筑与实时面板
+
+第一版只支持角色 80 级和弧盘 80 级，不提供角色等级、弧盘等级的自由输入。常驻面板来自 `配装` 页，可翻译为以下模型：
+
+```json
+{
+  "character_id": "zhenhong",
+  "level": 80,
+  "awakening": 0,
+  "bond_level": 0,
+  "bond_full": false,
+  "arc_id": "穿过胭红蜃景",
+  "arc_level": 80,
+  "cartridge_id": "失落光芒",
+  "kongmu": {
+    "main_stat": "环合强度",
+    "bonus_value": 10,
+    "bonus_stat": "攻击",
+    "passive_type": "3型被动",
+    "passive_stacks": 4
+  },
+  "substat_counts": {
+    "all_dmg": 0,
+    "crit_rate": 0,
+    "crit_dmg": 0,
+    "harmony_strength": 0,
+    "stagger_strength": 0,
+    "atk_pct": 0,
+    "flat_atk": 0,
+    "hp_pct": 0,
+    "flat_hp": 0,
+    "def_pct": 0,
+    "flat_def": 0
+  },
+  "toggles": {
+    "talent_a": true
+  }
+}
+```
+
+配装页副词条使用“词条数”输入，网页不让玩家直接填最终百分比或固定值。每格词条的加成量如下：
+
+| 副词条 | 单格加成 |
+| --- | ---: |
+| 全伤 | 1% / B |
+| 暴击 | 1% / B |
+| 暴伤 | 2% / B |
+| 环合强度 | 6 / B |
+| 倾陷强度 | 6 / B |
+| 攻击% | 1.25% / B |
+| 攻击 | 8 / B |
+| 生命% | 1.25% / B |
+| 生命 | 100 / B |
+| 防御% | 1.75% / B |
+| 防御 | 8 / B |
+
+常驻面板计算顺序：
+
+1. 基础攻击 = 角色 80 级攻击 + 弧盘 80 级攻击。
+2. 大攻击区 = 角色攻击% + 弧盘攻击% + 卡带攻击% + 主词条/空幕/觉醒/羁绊/天赋/副词条词条数等百分比。
+3. 小攻击区 = 弧盘/角色/家具/副词条词条数等固定攻击。
+4. 面板攻击 = 基础攻击 * (1 + 大攻击区) + 小攻击区。
+5. 生命、防御同理。
+6. 暴击、暴伤、属伤、充能、环合强度、倾陷强度分别由角色基础 + 弧盘 + 卡带 + 主词条/空幕/天赋/副词条词条数组成。
+
+觉醒与羁绊：
+
+- 页面需要提供觉醒输入，第一版作为构筑字段和 hash 外练度字段保留；具体觉醒节点的数值效果等角色机制补齐后再进入计算。
+- 页面需要提供羁绊配置。导入脚本会把 xlsx `配装` 页的羁绊摘要解析为通用面板加成，例如 `4暴击`、`5攻击`、`5生命`、`8防御`。
+- 羁绊属于练度，不进入公开发布去重 hash；同一动作轴、角色、弧盘和卡带，即使觉醒/羁绊不同，也视为重复市场轴。
+
+轴中实时面板不是重新计算静态构筑，而是在动作结算点叠加当前已生效状态：
+
+```text
+实时攻击 = 基础攻击 * (1 + 常驻大攻击区 + 运行时攻击%) + 常驻小攻击区 + 运行时固定攻击
+实时生命 = 基础生命 * (1 + 常驻大生命区 + 运行时生命%) + 常驻小生命区 + 运行时固定生命
+实时防御 = 基础防御 * (1 + 常驻大防御区 + 运行时防御%) + 常驻小防御区 + 运行时固定防御
+实时环合强度 = 常驻环合强度 + 运行时环合强度
+```
+
+## Buff 控制体系方案
+
+buff/debuff 不再由玩家在页面手动填写名称和覆盖率，而是由代码内置的规则触发。页面只负责展示“谁触发了什么、当前作用给谁、影响哪些动作、何时结束”，不提供配置入口。第一版建议拆成三层：静态定义、事件触发、运行时状态。
+
+### 静态定义
+
+所有 buff 放入项目内数据或代码注册表，例如 `app/static/shaft/data/buffs.json` 或后端 `app/shaft/buffs.py`。定义本身不跟玩家练度绑定，只描述触发、目标、持续、叠层和数值效果：
+
+```json
+{
+  "id": "nanali_e_crit_damage",
+  "name": "娜娜莉 E 暴伤",
+  "priority": 100,
+  "trigger": {
+    "event": "action_start",
+    "source": {
+      "character_names": ["娜娜莉"],
+      "action_names": ["e"],
+      "placements": ["foreground"]
+    },
+    "conditions": [
+      {"type": "resource_at_least", "resource": "噩梦", "value": 0}
+    ]
+  },
+  "target": {
+    "slots": ["team"],
+    "character_names": [],
+    "action_names": [],
+    "action_types": ["普攻", "E", "Q"],
+    "tags": ["追击"],
+    "placements": ["foreground", "background"]
+  },
+  "duration": {
+    "type": "time",
+    "ticks": 100,
+    "loop_carry": true
+  },
+  "stacking": {
+    "mode": "refresh",
+    "max_stacks": 1
+  },
+  "effects": {
+    "crit_dmg": 0.3
+  }
+}
+```
+
+字段口径：
+
+- `trigger.event` 支持 `action_start`、`action_hit`、`action_end`、`front_change`、`resource_change`、`reaction`、`loop_start`。
+- `source` 用角色、动作名、动作类型、标签和前后台位置过滤触发动作，不依赖玩家输入的 buff 名。
+- `conditions` 用结构化条件描述待补机制，例如资源层数、敌人弱点、是否轨外之境、是否循环轴、前一个动作、动作命中段数。
+- `target` 同时过滤角色和动作。一个 buff 可以只影响指定角色、指定动作、指定标签、指定前后台位置。
+- `duration` 支持按时间、按动作次数、按命中次数、按资源存在状态结束。循环轴时只有 `loop_carry: true` 的持续状态允许从轴尾结转到轴头。
+- `stacking` 支持 `refresh`、`extend`、`replace`、`independent`、`add_stack`，并统一设置 `max_stacks`。
+- `effects` 只写可计算字段，如 `atk_pct`、`flat_atk`、`crit_rate`、`crit_dmg`、`all_dmg`、`basic_dmg`、`skill_dmg`、`ultimate_dmg`、`def_down`、`res_down`、`harmony_strength`、`stagger_strength`、`damage_taken_pct`。
+
+### 事件触发
+
+模拟器按 0.1 秒 tick 排序动作，但 buff 不需要每 tick 重算。只在离散事件点执行：
+
+1. 进入动作前生成 `action_start`，用于启动 buff、消耗资源、切换前台状态。
+2. 计算伤害前生成 `action_hit`，用于命中前加成、按段数叠层、按动作类型筛选加成。
+3. 伤害和资源结算后生成 `resource_change`，用于由能量、环合、噩梦、罪状等资源触发的规则。
+4. 动作结束生成 `action_end`，用于结束状态或触发后续状态。
+5. 循环轴开启时，在轴头补发 `loop_start`，只处理轴尾仍未结束且允许结转的状态。
+
+同一 tick 内按 `priority` 从小到大执行；同优先级按动作轴顺序执行。这样 0 秒动作也有稳定结算顺序。
+
+### 运行时状态
+
+运行时只保存已经触发的实例，不保存玩家手填配置：
+
+```json
+{
+  "instance_id": "nanali_e_crit_damage:slot2:42",
+  "definition_id": "nanali_e_crit_damage",
+  "name": "娜娜莉 E 暴伤",
+  "owner_slot": 2,
+  "source_step_id": "step_014",
+  "start_tick": 42,
+  "end_tick": 142,
+  "stack_count": 1,
+  "remaining_actions": null,
+  "target_snapshot": {
+    "slots": [0, 1, 2, 3],
+    "action_types": ["普攻", "E", "Q"]
+  },
+  "effects": {
+    "crit_dmg": 0.3
+  }
+}
+```
+
+动作结算时先取当前动作的基础面板，再筛选所有激活实例：时间窗口命中、目标角色命中、动作过滤命中后，将 `effects` 合并到实时面板。详情面板展示 `applied_buffs` 和 `triggered_buffs`，用于调试为什么这次伤害吃到了某个状态。
+
+### 与循环轴的关系
+
+非循环轴只计算 `[0, 轴尾]`。循环轴开启时，轴尾未结束的状态会按以下规则处理：
+
+- `loop_carry: false`：轴尾结束，不结转。
+- `loop_carry: true` 且剩余时间大于 0：复制一份运行时实例到轴头，`start_tick` 变为 0，`end_tick` 等于剩余 tick。
+- 按动作次数或命中次数结束的状态，只有定义明确允许 `loop_carry` 时才结转剩余次数。
+- 结转状态只影响下一轮轴头，不改变轴本体 hash；市场去重仍只看动作轴、角色、弧盘、卡带。
+
+### UI 边界
+
+页面不再展示“触发增益配置”面板。排轴页只展示三类信息：
+
+- 动作详情：本次动作吃到的 buff、触发出的 buff、结束时间或剩余次数。
+- 时间轴提示：可选显示持续状态条，用细色带叠在角色行背景，不允许遮挡动作卡。
+- 总览：汇总主要 buff 覆盖率、触发次数和循环轴结转状态，用于排查轴是否按预期运转。
+
+页面展示“实时面板”时，按 0.1 秒采样生成曲线；实际伤害计算只需在动作命中/结算事件处求一次面板。
+
+## 伤害公式映射
+
+xlsx 中普通动作伤害可拆为以下步骤。
+
+全局等级与敌人参数：
+
+```text
+角色等级因子 = 6 * 角色等级 + 600
+敌人防御因子 = 6 * 怪物等级 + 600 - 轨外之境修正
+怪物抗性 = 云配队输入
+怪物弱点属性 = 云配队输入
+弱点减抗 = 云配队输入
+```
+
+单次动作：
+
+```text
+基础区 = 实时攻击 * 攻击倍率%
+       + 实时生命 * 生命倍率%
+       + 实时防御 * 防御倍率%
+       + 固定伤害
+
+增伤区 = 动作类型增伤
+       + 属性/全伤/额外标签增伤
+       + 运行时增伤
+       + 对敌类型等条件增伤
+
+暴击率采用 xlsx 同款期望计算：DOT 动作为 50%，否则 min(常驻暴击 + 运行时暴击, 100%)
+暴伤 = 常驻暴伤 + 运行时暴伤
+双暴区 = max(1 + 暴击率 * 暴伤, 1)
+
+抗性值 = 1 - 怪物抗性 + 弱点匹配减抗 + 角色/状态减抗
+抗性区 = 抗性值 < 1 ? 抗性值 : 2 - 1 / 抗性值
+
+减防 = min(常驻减防 + 运行时减防, 100%)
+防御区 = 心灵标签 ? 1 :
+  角色等级因子 / (角色等级因子 + 敌人防御因子 * max(1 - 减防, 0))
+
+单次伤害 = 基础区 * (
+  伤害类型为真伤
+    ? 1
+    : (1 + 增伤区) * 双暴区 * 抗性区 * 防御区 * 反应增幅 * (1 + 最终增伤)
+)
+
+总伤害 = 单次伤害 * 动作重复次数
+```
+
+倾陷、环合与反应：
+
+- 动作表提供每个动作的倾陷、环合、回能、能量返还和合轴时间。
+- `中间` 页按 `计算` 第 1 行的 `q/h/y/t/d/s` 标记汇总：`q` 倾陷、`h` 环合、`y` 回能、`t` 时间、`d` 单次伤害、`s` 总伤害。
+- 反应环合强度默认取“全队最高”，也可以指定角色。
+- 增幅提升公式为 `0.2 * 环合强度 / (环合强度 + 180)`。
+- 剧变增幅公式为 `环合强度 / 600`。
+- 反应防御区继续使用等级/敌防公式。
+- 创生、浊燃、黯星分别有独立基础量和倍率；浊燃额外读取浊燃暴伤。
+
+这些公式应落到 Python 中，并用 xlsx 当前示例轴做快照回归测试：直伤、倾陷伤害、总伤害、DPS、各角色贡献、单动作伤害都需要和 xlsx 缓存值在可接受误差内一致。
+
+## 0.1 秒轴模型
+
+内部统一使用整数 tick：
+
+```text
+tick = round(seconds * 10)
+seconds = tick / 10
+```
+
+用户编辑的轴不是 0.1 秒逐帧状态表，而是动作事件列表：
+
+```json
+{
+  "axis_version": 1,
+  "duration_ticks": 600,
+  "team": [
+    {"slot": 0, "character_id": "zhenhong"},
+    {"slot": 1, "character_id": "protagonist"},
+    {"slot": 2, "character_id": "nanali"},
+    {"slot": 3, "character_id": "yi"}
+  ],
+  "character_builds": {
+    "zhenhong": {
+      "character_id": "zhenhong",
+      "arc_id": "arc_zhenhong",
+      "cartridge_id": "cartridge_light",
+      "awakening": 0,
+      "bond_full": true,
+      "substat_counts": {"all_dmg": 30, "crit_rate": 30, "crit_dmg": 30, "atk_pct": 30}
+    }
+  },
+  "steps": [
+    {
+      "id": "step_001",
+      "slot": 0,
+      "action_id": "zhenhong_long_5a",
+      "start_tick": 0,
+      "repeat": 1,
+      "tags": []
+    }
+  ],
+  "enemy": {
+    "level": 90,
+    "track_outside": true,
+    "weakness_elements": ["光", "灵"]
+  },
+  "options": {
+    "reaction_mastery_policy": "team_max",
+    "crit_mode": "expected",
+    "switch_loss_ticks": 2,
+    "front_state_enabled": true
+  }
+}
+```
+
+`team` 只表示当前 4 个槽位站了谁；角色配装本体保存在 `character_builds` 中，并按 `character_id` 索引。玩家在配装页修改真红后，配置写回 `character_builds.zhenhong`；将槽位切到卡厄斯时读取 `character_builds.kaesi`，再切回真红时恢复真红之前的副词条、弧盘、卡带、觉醒与羁绊。市场去重 hash 不读取 `character_builds` 中的练度字段，仍只判定动作轴、角色选择、弧盘选择和卡带选择。
+
+编译阶段输出按时间排序的 `CompiledEvent[]`：
+
+- `action_start`
+- `damage_hit`
+- `apply_status`
+- `expire_status`
+- `reaction`
+- `energy_change`
+- `personal_resource_change`
+- `front_state_change`
+- `snapshot`
+
+精度策略：
+
+- 用户输入、拖拽和市场存储使用 0.1 秒。
+- 公式计算可以保留浮点秒和原始动作合轴时间，但落库和展示使用 tick。
+- 同一个 tick 不能有两个前台动作开始节点；标记为 `is_background_damage` 的后台伤害动作不占用前台动作开始节点，可以与前台动作或其他后台伤害同 tick。
+- 异环存在大量耗时为 0 秒的动作；0 秒动作仍然拥有动作开始节点，仍然触发前台状态、CD、能量、个人资源和动作触发 buff。
+- 0 秒动作在 UI 中使用固定视觉宽度，且该动作所在时间轴的可视范围需要随之膨胀；该视觉宽度不参与真实轴长、DPS 分母或伤害计算。
+- 每次切换前台角色默认有 0.2 秒损耗，即 `switch_loss_ticks = 2`。当某个前台动作开始节点的角色不同于当前前台角色，且上一段前台动作耗时大于 0 时，编译器插入一次切人损耗；0 秒动作衔接下一个动作时不插入这次损耗。UI 需要可视化切人损耗，并在前台动作起点冲突时提示玩家调整。
+- 事件同 tick 排序按 `action_start -> resource/cooldown check -> apply_status -> damage_hit -> reaction -> snapshot` 稳定执行。
+
+## 前台状态与资源
+
+在 EndfieldToolbox 排轴能力的基础上，shaft 增加“前台状态”。
+
+- 前台状态是可配置能力，默认开启。
+- 每次产生前台动作开始节点时，前台状态切换到该动作角色身上；后台伤害动作不切换前台状态。
+- 前台状态一定覆盖动作左端点；由于后续动作可以在当前动作结束前开始，前台状态不保证覆盖动作右端点。
+- UI 用特殊背景色标识前台状态区间；动作条本身仍显示原动作时长。
+- 部分动作或 buff 可以读取“动作开始时是否为前台”“命中时是否仍为前台”“持续期间前台是否切走”等条件。
+
+资源模型预留两层：
+
+| 资源 | 作用 |
+| --- | --- |
+| 全队能量 | 终结技消耗与获得的共享资源 |
+| 个人资源 | 每名角色独立资源，名称和上限按角色定义，第一版只预留字段 |
+
+动作资源规则：
+
+- 战技没有能量要求，只受 CD 限制。
+- 终结技有能量要求；能量不足时不能开始。
+- 普攻、援护、特殊动作可以有 0 能量、0 CD，也可以产生能量或个人资源。
+- 动作定义预留 `personal_resource_cost`、`personal_resource_gain`、`personal_resource_required`，用于后续角色机制。
+
+动作定义建议：
+
+```json
+{
+  "id": "zhenhong_e",
+  "character_id": "zhenhong",
+  "action_type": "E",
+  "duration_ticks": 0,
+  "cooldown_ticks": 120,
+  "energy_cost": 0,
+  "energy_gain": 8,
+  "personal_resource_cost": {},
+  "personal_resource_gain": {},
+  "triggers": ["zhenhong_e_buff"]
+}
+```
+
+## 在线市场数据模型
+
+现有数据库使用 Peewee + SQLite。建议新增模型：
+
+### `ShaftAxis`
+
+| 字段 | 类型 | 说明 |
+| --- | --- | --- |
+| `id` | AutoField | 主键 |
+| `owner` | ForeignKey(Player) | 上传者 |
+| `title` | CharField(80) | 标题 |
+| `description` | TextField | 简介 |
+| `visibility` | CharField | `public/private/unlisted`，市场只展示 public |
+| `source_version` | CharField | 数据源版本，例如 `xlsx-v0.2.7` |
+| `team_json` | TextField | 4 人队伍与构筑摘要 |
+| `axis_json` | TextField | 轴步骤 |
+| `enemy_json` | TextField | 敌人配置 |
+| `result_json` | TextField | 最近一次计算结果快照 |
+| `duration_ticks` | IntegerField | 轴长 |
+| `direct_damage` | IntegerField | 直伤排序与总览缓存 |
+| `stagger_damage` | IntegerField | 倾陷伤害排序与总览缓存 |
+| `total_damage` | IntegerField | 总伤害排序用缓存，等于直伤 + 倾陷伤害 |
+| `dps_x100` | IntegerField | DPS * 100，避免 SQLite 浮点排序误差 |
+| `like_count` | IntegerField | 点赞缓存 |
+| `favorite_count` | IntegerField | 收藏缓存 |
+| `dedupe_hash` | CharField(64) | 发布去重 hash |
+| `forked_from` | ForeignKey(ShaftAxis) nullable | 二次发布来源 |
+| `created_at` | DateTimeField | 创建时间 |
+| `updated_at` | DateTimeField | 更新时间 |
+| `published_at` | DateTimeField nullable | 公开发布时间 |
+
+`visibility = private` 表示玩家保存自己的排轴但不上传市场；`visibility = public` 才进入市场。保存私有轴和上传公开轴都使用同一张表，避免草稿和市场轴来回转换时丢字段。
+
+发布去重：
+
+- 二次发布时必须计算 `dedupe_hash`，公开市场中已有相同 hash 时拒绝上传。
+- hash 的规范化输入只包含动作轴、角色选择、弧盘选择、卡带选择。
+- hash 不判定具体练度，不包含副词条词条数、觉醒、角色等级、弧盘等级、buff 开关、标题、简介、作者、点赞、收藏和计算结果。
+- 规范化时需要排序 JSON key、统一 tick 整数、去掉临时 step id，避免同一轴因为前端随机 ID 不同而绕过重复判断。
+
+### `ShaftAxisCharacter`
+
+用于市场按角色筛选，不只靠 JSON LIKE。
+
+| 字段 | 类型 | 说明 |
+| --- | --- | --- |
+| `axis` | ForeignKey(ShaftAxis) | 轴 |
+| `character_id` | CharField(64) | 角色 ID |
+| `slot` | IntegerField | 队伍位置 |
+
+索引：`(character_id, axis)`、`(axis, slot)`。
+
+### `ShaftAxisLike`
+
+点赞必须登录。
+
+| 字段 | 类型 | 说明 |
+| --- | --- | --- |
+| `axis` | ForeignKey(ShaftAxis) | 轴 |
+| `player` | ForeignKey(Player) | 玩家 |
+| `created_at` | DateTimeField | 时间 |
+
+唯一索引：`(axis, player)`。
+
+### `ShaftAxisFavorite`
+
+收藏不要求登录。表结构建议：
+
+| 字段 | 类型 | 说明 |
+| --- | --- | --- |
+| `axis` | ForeignKey(ShaftAxis) | 轴 |
+| `player` | ForeignKey(Player) nullable | 登录玩家 |
+| `visitor_key` | CharField(64) | 未登录收藏的浏览器标识 |
+| `created_at` | DateTimeField | 时间 |
+
+唯一性：
+
+- 登录收藏：唯一索引 `(axis, player)`。
+- 未登录收藏：唯一索引 `(axis, visitor_key)`。
+- `visitor_key` 由前端保存在 localStorage，首次收藏时生成；登录后可以选择把匿名收藏合并到账号。
+
+### 可选：`ShaftAxisRevision`
+
+如果希望保留玩家修改历史，增加 revision 表；第一版可以暂缓，只在 `ShaftAxis` 保存最新版本。
+
+## API 草案
+
+公开页面：
+
+- `GET /shaft`：默认进入排轴页。
+- `GET /shaft/build`：配装子页面。
+- `GET /shaft/rotation`：排轴子页面。
+- `GET /shaft/market`：市场子页面。
+
+只读 API：
+
+- `GET /api/shaft/catalog`：角色、动作、弧盘、卡带、buff、公式版本。
+- `POST /api/shaft/simulate`：输入 axis payload，返回计算结果；可允许未登录试算。
+- `GET /api/shaft/market`：市场列表。参数：`character_id`、`sort=dps|likes|new`、`page`、`page_size`。
+- `GET /api/shaft/axes/<axis_id>`：轴详情。
+- `POST /api/shaft/axes/<axis_id>/favorite`，`DELETE /api/shaft/axes/<axis_id>/favorite`：收藏或取消收藏，登录和未登录都可用；未登录时使用 `visitor_key`。
+
+登录 API：
+
+- `POST /api/shaft/axes`：保存自己的私有轴，或发布为公开市场轴。
+- `PUT /api/shaft/axes/<axis_id>`：更新自己的轴。
+- `DELETE /api/shaft/axes/<axis_id>`：删除或下架自己的轴。
+- `POST /api/shaft/axes/<axis_id>/like`，`DELETE /api/shaft/axes/<axis_id>/like`。
+- `GET /api/shaft/me/axes`：我的轴。
+- `GET /api/shaft/me/favorites`：我的收藏。
+
+服务端每次保存公开轴时重新计算结果，不信任前端提交的 `result_json`、`dps_x100` 和 `character_ids`。发布公开轴时还必须计算 `dedupe_hash`，命中重复公开轴则返回明确错误。
+
+## 前端页面草案
+
+`/shaft` 第一屏应是实际工具，不做营销页。页面拆成三个独立子页面，但共享当前队伍、动作轴、敌人和计算结果状态：
+
+| 页面 | 路径 | 职责 |
+| --- | --- | --- |
+| 配装 | `/shaft/build` | 选择 4 名角色、弧盘、卡带、觉醒、羁绊、副词条词条数和敌人配置，并查看角色实时面板与总览 |
+| 排轴 | `/shaft/rotation` | 0.1 秒动作轴编辑器，包含动作库、时刻线、插入模式、前台状态、动作详情和触发 buff 预览 |
+| 市场 | `/shaft/market` | 浏览公开轴、按角色筛选、排序、点赞、收藏、读取到编辑器，并管理自己的私有/公开轴 |
+
+配装页：
+
+- 队伍区以 4 个槽位为核心，每个槽位可选角色、弧盘、卡带、觉醒、羁绊和副词条词条数。
+- 敌人只配置等级、是否轨外之境和多选弱点，不选择具体敌人。
+- 总览分开展示总伤害、直伤、倾陷伤害、DPS、轴长和角色贡献。
+
+排轴页需要达到参考项目级别的操作密度和可视反馈：
+
+- 左侧动作库按当前槽位、动作类型和搜索词筛选，动作条目可一键加入当前插入位置。
+- 中间时刻线使用 0.1 秒刻度；动作条按真实 start/end 放置，0 秒动作有固定视觉宽度并撑开可视时间轴。
+- 支持插入到当前游标、插入到选中动作之后、按当前动作顺序重排时间。
+- 同一 tick 的前台动作开始冲突需要在模拟结果中产生警告；后台伤害动作可以与前台动作同 tick。
+- 点击动作条或明细行会选中动作，并在右侧详情面板展示动作数据、实时面板、单次直伤、倾陷伤害、命中的 buff/debuff 和校验警告。
+- 前台状态以时间背景色显示；后台伤害动作不切换前台状态。
+
+市场页：
+
+- 市场列表支持角色筛选和 `DPS / 最新 / 点赞` 排序。
+- 点赞需要登录；收藏不需要登录，未登录时用浏览器 visitor key 去重。
+- 玩家可以保存自己的私有排轴，也可以发布到市场；发布时做去重 hash 比对。
+
+前端只做输入、渲染和交互，不自行实现伤害公式。所有计算走 `/api/shaft/simulate`。
+
+## 计算器分层
+
+参考 EndfieldToolbox 的分层，但实现为 Python 后端：
+
+| 层 | 输入 | 输出 | 职责 |
+| --- | --- | --- | --- |
+| Data Catalog | 静态 JSON | 规范化定义 | 加载角色、动作、装备、buff、常量 |
+| Build Snapshot | team build | `CharacterSnapshot[]` | 计算常驻面板和初始 modifier |
+| Timeline Compiler | axis steps | `CompiledEvent[]` | 0.1 秒排序、动作展开、状态持续时间、重复次数 |
+| Runtime Simulator | snapshots + events + enemy | `SimulationResult` | 运行时状态、实时面板、伤害、回能、倾陷、环合 |
+| Result Projection | simulation | API JSON | 汇总 DPS、直伤、倾陷伤害、贡献、明细和 UI 可展示数据 |
+
+## 校验与测试
+
+第一轮验收建议：
+
+1. 导入 xlsx 当前示例队伍和 20 个动作槽。
+2. 后端模拟器输出与 xlsx 缓存值对齐：
+   - 总伤害。
+   - 直伤与倾陷伤害拆分。
+   - 轴长。
+   - DPS。
+   - 每名角色贡献伤害。
+   - 前 3 个动作的单次直伤、总伤害、倾陷、回能、环合。
+3. 市场接口验证：
+   - 未登录可浏览公开市场。
+   - 登录可保存私有轴、上传公开轴、更新、下架自己的轴。
+   - 点赞必须登录且幂等，不能重复计数。
+   - 收藏不要求登录且幂等，未登录时按 `visitor_key` 去重。
+   - 二次发布相同 hash 的轴会被拒绝。
+   - 按角色筛选走 `ShaftAxisCharacter`，不是 JSON 模糊匹配。
+
+## 待核对问题
+
+1. `/api/shaft/simulate` 是否允许未登录用户试算？我建议允许试算，但保存私有轴、上传、点赞必须登录。
+2. 市场排序第一版是否只需要 `DPS / 最新 / 点赞`？收藏数可展示但不作为默认排序。
+3. 数据导入是否以 `异环云配队 V0.2.7` 为第一版真源？如果后续 xlsx 更新，需要用 `source_version` 做兼容。
+4. 动作触发 buff 的具体生效条件尚未补全，需要后续按角色机制逐条确认。

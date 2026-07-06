@@ -2,7 +2,20 @@ from flask import Flask, g, request
 
 from app.config import IS_DEV_ENV, SECRET_KEY
 from app.db import init_db
-from app.models import AccessToken, DeckBuild, GameRun, LoginCode, Player, PlayerTutorial, Room, RoomMember
+from app.models import (
+    AccessToken,
+    DeckBuild,
+    GameRun,
+    LoginCode,
+    Player,
+    PlayerTutorial,
+    Room,
+    RoomMember,
+    ShaftAxis,
+    ShaftAxisCharacter,
+    ShaftAxisFavorite,
+    ShaftAxisLike,
+)
 from app.utils.logger import get_logger, setup_logging
 
 
@@ -12,7 +25,20 @@ def create_app() -> Flask:
     app = Flask(__name__)
     app.config['SECRET_KEY'] = SECRET_KEY
     app.config['IS_DEV_ENV'] = IS_DEV_ENV
-    init_db([Player, PlayerTutorial, LoginCode, AccessToken, DeckBuild, Room, RoomMember, GameRun])
+    init_db([
+        Player,
+        PlayerTutorial,
+        LoginCode,
+        AccessToken,
+        DeckBuild,
+        Room,
+        RoomMember,
+        GameRun,
+        ShaftAxis,
+        ShaftAxisCharacter,
+        ShaftAxisLike,
+        ShaftAxisFavorite,
+    ])
 
     @app.before_request
     def attach_log_id():

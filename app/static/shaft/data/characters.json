@@ -1,0 +1,942 @@
+[
+  {
+    "id": "char_dd034941ef",
+    "name": "主角",
+    "element": "光",
+    "rarity": "S",
+    "level": 80,
+    "avatar": "/static/images/characters/avatar/鉴定师.webp",
+    "portrait": "/static/images/characters/portrait/鉴定师.webp",
+    "base_stats": {
+      "atk": 676.0,
+      "hp": 15150.0,
+      "def": 909.0
+    },
+    "modifiers": {
+      "crit_rate": 0.05,
+      "crit_dmg": 0.5,
+      "atk_pct": 0.0,
+      "flat_atk": 0.0,
+      "hp_pct": 0.0,
+      "flat_hp": 0.0,
+      "def_pct": 0.0,
+      "flat_def": 0.0,
+      "def_ignore": 0.0,
+      "res_down": 0.0,
+      "energy_recharge": 0.0,
+      "harmony_strength": 0.0,
+      "stagger_strength": 0.0,
+      "basic_dmg": 0.25,
+      "element_dmg": 0.0,
+      "follow_dmg": 0.0,
+      "mind_dmg": 0.0,
+      "attach_dmg": 0.5,
+      "skill_dmg": 0.0,
+      "ultimate_dmg": 0.0,
+      "all_dmg": 0.0
+    },
+    "bond_bonus": {
+      "label": "5攻击",
+      "modifiers": {
+        "crit_rate": 0.0,
+        "atk_pct": 0.05,
+        "hp_pct": 0.0,
+        "def_pct": 0.0
+      }
+    },
+    "source_row": 3
+  },
+  {
+    "id": "char_b52cc8f160",
+    "name": "真红",
+    "element": "光",
+    "rarity": "S",
+    "level": 80,
+    "avatar": "/static/kongmu/images/characters/player_zhenhong_256.webp",
+    "portrait": "/static/kongmu/images/characters/player_zhenhong_256.webp",
+    "base_stats": {
+      "atk": 636.0,
+      "hp": 16119.6,
+      "def": 896.9
+    },
+    "modifiers": {
+      "crit_rate": 0.05,
+      "crit_dmg": 0.5,
+      "atk_pct": 0.0,
+      "flat_atk": 0.0,
+      "hp_pct": 0.0,
+      "flat_hp": 0.0,
+      "def_pct": 0.0,
+      "flat_def": 0.0,
+      "def_ignore": 0.0,
+      "res_down": 0.0,
+      "energy_recharge": 0.0,
+      "harmony_strength": 0.0,
+      "stagger_strength": 0.0,
+      "basic_dmg": 0.0,
+      "element_dmg": 0.0,
+      "follow_dmg": 0.0,
+      "mind_dmg": 0.0,
+      "attach_dmg": 0.0,
+      "skill_dmg": 0.0,
+      "ultimate_dmg": 0.0,
+      "all_dmg": 0.0
+    },
+    "bond_bonus": {
+      "label": "4暴击",
+      "modifiers": {
+        "crit_rate": 0.04,
+        "atk_pct": 0.0,
+        "hp_pct": 0.0,
+        "def_pct": 0.0
+      }
+    },
+    "source_row": 4
+  },
+  {
+    "id": "char_15f458f7ef",
+    "name": "浔",
+    "element": "光",
+    "rarity": "S",
+    "level": 80,
+    "avatar": "/static/images/characters/avatar/浔.webp",
+    "portrait": "/static/images/characters/portrait/浔.webp",
+    "base_stats": {
+      "atk": 652.0,
+      "hp": 16119.6,
+      "def": 848.4
+    },
+    "modifiers": {
+      "crit_rate": 0.05,
+      "crit_dmg": 0.5,
+      "atk_pct": 0.0,
+      "flat_atk": 0.0,
+      "hp_pct": 0.0,
+      "flat_hp": 0.0,
+      "def_pct": 0.0,
+      "flat_def": 0.0,
+      "def_ignore": 0.0,
+      "res_down": 0.0,
+      "energy_recharge": 0.0,
+      "harmony_strength": 0.0,
+      "stagger_strength": 0.0,
+      "basic_dmg": 0.0,
+      "element_dmg": 0.0,
+      "follow_dmg": 0.0,
+      "mind_dmg": 0.0,
+      "attach_dmg": 0.0,
+      "skill_dmg": 0.0,
+      "ultimate_dmg": 0.0,
+      "all_dmg": 0.0
+    },
+    "bond_bonus": {
+      "label": "4暴击",
+      "modifiers": {
+        "crit_rate": 0.04,
+        "atk_pct": 0.0,
+        "hp_pct": 0.0,
+        "def_pct": 0.0
+      }
+    },
+    "source_row": 5
+  },
+  {
+    "id": "char_4f917797cb",
+    "name": "小吱",
+    "element": "光",
+    "rarity": "S",
+    "level": 80,
+    "avatar": "/static/images/characters/avatar/小吱.webp",
+    "portrait": "/static/images/characters/portrait/小吱.webp",
+    "base_stats": {
+      "atk": 660.0,
+      "hp": 15513.6,
+      "def": 909.0
+    },
+    "modifiers": {
+      "crit_rate": 0.05,
+      "crit_dmg": 0.5,
+      "atk_pct": 0.0,
+      "flat_atk": 0.0,
+      "hp_pct": 0.0,
+      "flat_hp": 0.0,
+      "def_pct": 0.0,
+      "flat_def": 0.0,
+      "def_ignore": 0.0,
+      "res_down": 0.1,
+      "energy_recharge": 0.0,
+      "harmony_strength": 0.0,
+      "stagger_strength": 0.0,
+      "basic_dmg": 0.0,
+      "element_dmg": 0.15,
+      "follow_dmg": 0.0,
+      "mind_dmg": 0.0,
+      "attach_dmg": 0.0,
+      "skill_dmg": 0.0,
+      "ultimate_dmg": 0.0,
+      "all_dmg": 0.0
+    },
+    "bond_bonus": {
+      "label": "5攻击",
+      "modifiers": {
+        "crit_rate": 0.0,
+        "atk_pct": 0.05,
+        "hp_pct": 0.0,
+        "def_pct": 0.0
+      }
+    },
+    "source_row": 6
+  },
+  {
+    "id": "char_31c5130304",
+    "name": "埃德嘉",
+    "element": "光",
+    "rarity": "A",
+    "level": 80,
+    "avatar": "/static/images/characters/avatar/埃德嘉.webp",
+    "portrait": "/static/images/characters/portrait/埃德嘉.webp",
+    "base_stats": {
+      "atk": 421.0,
+      "hp": 16362.0,
+      "def": 824.2
+    },
+    "modifiers": {
+      "crit_rate": 0.05,
+      "crit_dmg": 0.5,
+      "atk_pct": 0.0,
+      "flat_atk": 0.0,
+      "hp_pct": 0.0,
+      "flat_hp": 0.0,
+      "def_pct": 0.0,
+      "flat_def": 0.0,
+      "def_ignore": 0.0,
+      "res_down": 0.0,
+      "energy_recharge": 0.0,
+      "harmony_strength": 0.0,
+      "stagger_strength": 0.0,
+      "basic_dmg": 0.0,
+      "element_dmg": 0.0,
+      "follow_dmg": 0.0,
+      "mind_dmg": 0.0,
+      "attach_dmg": 0.0,
+      "skill_dmg": 0.0,
+      "ultimate_dmg": 0.0,
+      "all_dmg": 0.0
+    },
+    "bond_bonus": {
+      "label": "5生命",
+      "modifiers": {
+        "crit_rate": 0.0,
+        "atk_pct": 0.0,
+        "hp_pct": 0.05,
+        "def_pct": 0.0
+      }
+    },
+    "source_row": 7
+  },
+  {
+    "id": "char_a01c39f576",
+    "name": "伊洛伊",
+    "element": "灵",
+    "rarity": "S",
+    "level": 80,
+    "avatar": "/static/kongmu/images/characters/player_yiluoyi_256.webp",
+    "portrait": "/static/kongmu/images/characters/player_yiluoyi_256.webp",
+    "base_stats": {
+      "atk": 596.0,
+      "hp": 17210.4,
+      "def": 909.0
+    },
+    "modifiers": {
+      "crit_rate": 0.05,
+      "crit_dmg": 0.5,
+      "atk_pct": 0.0,
+      "flat_atk": 0.0,
+      "hp_pct": 0.0,
+      "flat_hp": 0.0,
+      "def_pct": 0.0,
+      "flat_def": 0.0,
+      "def_ignore": 0.0,
+      "res_down": 0.0,
+      "energy_recharge": 0.0,
+      "harmony_strength": 0.0,
+      "stagger_strength": 0.0,
+      "basic_dmg": 0.0,
+      "element_dmg": 0.0,
+      "follow_dmg": 0.0,
+      "mind_dmg": 0.0,
+      "attach_dmg": 0.0,
+      "skill_dmg": 0.0,
+      "ultimate_dmg": 0.0,
+      "all_dmg": 0.0
+    },
+    "bond_bonus": {
+      "label": "4暴击",
+      "modifiers": {
+        "crit_rate": 0.04,
+        "atk_pct": 0.0,
+        "hp_pct": 0.0,
+        "def_pct": 0.0
+      }
+    },
+    "source_row": 8
+  },
+  {
+    "id": "char_bdc43f82c6",
+    "name": "娜娜莉",
+    "element": "灵",
+    "rarity": "S",
+    "level": 80,
+    "avatar": "/static/images/characters/avatar/娜娜莉.webp",
+    "portrait": "/static/images/characters/portrait/娜娜莉.webp",
+    "base_stats": {
+      "atk": 636.0,
+      "hp": 15998.4,
+      "def": 909.0
+    },
+    "modifiers": {
+      "crit_rate": 0.05,
+      "crit_dmg": 0.5,
+      "atk_pct": 0.0,
+      "flat_atk": 0.0,
+      "hp_pct": 0.0,
+      "flat_hp": 0.0,
+      "def_pct": 0.0,
+      "flat_def": 0.0,
+      "def_ignore": 0.0,
+      "res_down": 0.0,
+      "energy_recharge": 0.0,
+      "harmony_strength": 0.0,
+      "stagger_strength": 0.0,
+      "basic_dmg": 0.0,
+      "element_dmg": 0.0,
+      "follow_dmg": 0.0,
+      "mind_dmg": 0.0,
+      "attach_dmg": 0.0,
+      "skill_dmg": 0.0,
+      "ultimate_dmg": 0.0,
+      "all_dmg": 0.0
+    },
+    "bond_bonus": {
+      "label": "4暴击",
+      "modifiers": {
+        "crit_rate": 0.04,
+        "atk_pct": 0.0,
+        "hp_pct": 0.0,
+        "def_pct": 0.0
+      }
+    },
+    "source_row": 9
+  },
+  {
+    "id": "char_b2e3b2bf7a",
+    "name": "九原",
+    "element": "灵",
+    "rarity": "S",
+    "level": 80,
+    "avatar": "/static/images/characters/avatar/九原.webp",
+    "portrait": "/static/images/characters/portrait/九原.webp",
+    "base_stats": {
+      "atk": 652.0,
+      "hp": 15634.8,
+      "def": 909.0
+    },
+    "modifiers": {
+      "crit_rate": 0.05,
+      "crit_dmg": 0.5,
+      "atk_pct": 0.0,
+      "flat_atk": 0.0,
+      "hp_pct": 0.0,
+      "flat_hp": 0.0,
+      "def_pct": 0.0,
+      "flat_def": 0.0,
+      "def_ignore": 0.0,
+      "res_down": 0.0,
+      "energy_recharge": 0.0,
+      "harmony_strength": 0.0,
+      "stagger_strength": 0.0,
+      "basic_dmg": 0.0,
+      "element_dmg": 0.0,
+      "follow_dmg": 0.0,
+      "mind_dmg": 0.0,
+      "attach_dmg": 0.0,
+      "skill_dmg": 0.0,
+      "ultimate_dmg": 0.0,
+      "all_dmg": 0.0
+    },
+    "bond_bonus": {
+      "label": "5攻击",
+      "modifiers": {
+        "crit_rate": 0.0,
+        "atk_pct": 0.05,
+        "hp_pct": 0.0,
+        "def_pct": 0.0
+      }
+    },
+    "source_row": 10
+  },
+  {
+    "id": "char_dda9fae1ef",
+    "name": "薄荷",
+    "element": "灵",
+    "rarity": "A",
+    "level": 80,
+    "avatar": "/static/images/characters/avatar/薄荷.webp",
+    "portrait": "/static/images/characters/portrait/薄荷.webp",
+    "base_stats": {
+      "atk": 596.0,
+      "hp": 12120.0,
+      "def": 727.2
+    },
+    "modifiers": {
+      "crit_rate": 0.17,
+      "crit_dmg": 0.75,
+      "atk_pct": 0.15,
+      "flat_atk": 0.0,
+      "hp_pct": 0.0,
+      "flat_hp": 0.0,
+      "def_pct": 0.2,
+      "flat_def": 0.0,
+      "def_ignore": 0.0,
+      "res_down": 0.0,
+      "energy_recharge": 0.0,
+      "harmony_strength": 0.0,
+      "stagger_strength": 0.0,
+      "basic_dmg": 0.06,
+      "element_dmg": 0.0,
+      "follow_dmg": 0.0,
+      "mind_dmg": 0.4,
+      "attach_dmg": 0.0,
+      "skill_dmg": 0.0,
+      "ultimate_dmg": 0.0,
+      "all_dmg": 0.0
+    },
+    "bond_bonus": {
+      "label": "5攻击",
+      "modifiers": {
+        "crit_rate": 0.0,
+        "atk_pct": 0.05,
+        "hp_pct": 0.0,
+        "def_pct": 0.0
+      }
+    },
+    "source_row": 11
+  },
+  {
+    "id": "char_701295143d",
+    "name": "白藏",
+    "element": "咒",
+    "rarity": "S",
+    "level": 80,
+    "avatar": "/static/images/characters/avatar/白藏.webp",
+    "portrait": "/static/images/characters/portrait/白藏.webp",
+    "base_stats": {
+      "atk": 644.0,
+      "hp": 16604.4,
+      "def": 799.9
+    },
+    "modifiers": {
+      "crit_rate": 0.2,
+      "crit_dmg": 0.5,
+      "atk_pct": 0.2,
+      "flat_atk": 0.0,
+      "hp_pct": 0.0,
+      "flat_hp": 0.0,
+      "def_pct": 0.0,
+      "flat_def": 0.0,
+      "def_ignore": 0.0,
+      "res_down": 0.0,
+      "energy_recharge": 0.0,
+      "harmony_strength": 0.0,
+      "stagger_strength": 0.0,
+      "basic_dmg": 0.0,
+      "element_dmg": 0.0,
+      "follow_dmg": 0.0,
+      "mind_dmg": 0.0,
+      "attach_dmg": 0.0,
+      "skill_dmg": 0.0,
+      "ultimate_dmg": 0.0,
+      "all_dmg": 0.0
+    },
+    "bond_bonus": {
+      "label": "4暴击",
+      "modifiers": {
+        "crit_rate": 0.04,
+        "atk_pct": 0.0,
+        "hp_pct": 0.0,
+        "def_pct": 0.0
+      }
+    },
+    "source_row": 12
+  },
+  {
+    "id": "char_1895e259be",
+    "name": "早雾",
+    "element": "咒",
+    "rarity": "S",
+    "level": 80,
+    "avatar": "/static/images/characters/avatar/早雾.webp",
+    "portrait": "/static/images/characters/portrait/早雾.webp",
+    "base_stats": {
+      "atk": 620.0,
+      "hp": 16483.2,
+      "def": 909.0
+    },
+    "modifiers": {
+      "crit_rate": 0.05,
+      "crit_dmg": 0.5,
+      "atk_pct": 0.0,
+      "flat_atk": 0.0,
+      "hp_pct": 0.0,
+      "flat_hp": 0.0,
+      "def_pct": 0.0,
+      "flat_def": 0.0,
+      "def_ignore": 0.0,
+      "res_down": 0.0,
+      "energy_recharge": 0.0,
+      "harmony_strength": 0.0,
+      "stagger_strength": 0.0,
+      "basic_dmg": 0.0,
+      "element_dmg": 0.0,
+      "follow_dmg": 0.0,
+      "mind_dmg": 0.0,
+      "attach_dmg": 0.0,
+      "skill_dmg": 0.0,
+      "ultimate_dmg": 0.0,
+      "all_dmg": 0.0
+    },
+    "bond_bonus": {
+      "label": "5攻击",
+      "modifiers": {
+        "crit_rate": 0.0,
+        "atk_pct": 0.05,
+        "hp_pct": 0.0,
+        "def_pct": 0.0
+      }
+    },
+    "source_row": 13
+  },
+  {
+    "id": "char_6f46705fd1",
+    "name": "阿德勒",
+    "element": "咒",
+    "rarity": "A",
+    "level": 80,
+    "avatar": "/static/images/characters/avatar/阿德勒.webp",
+    "portrait": "/static/images/characters/portrait/阿德勒.webp",
+    "base_stats": {
+      "atk": 437.0,
+      "hp": 14301.6,
+      "def": 993.8
+    },
+    "modifiers": {
+      "crit_rate": 0.05,
+      "crit_dmg": 0.5,
+      "atk_pct": 0.0,
+      "flat_atk": 0.0,
+      "hp_pct": 0.0,
+      "flat_hp": 0.0,
+      "def_pct": 0.2,
+      "flat_def": 0.0,
+      "def_ignore": 0.0,
+      "res_down": 0.0,
+      "energy_recharge": 0.0,
+      "harmony_strength": 0.0,
+      "stagger_strength": 0.0,
+      "basic_dmg": 0.0,
+      "element_dmg": 0.0,
+      "follow_dmg": 0.0,
+      "mind_dmg": 0.0,
+      "attach_dmg": 0.0,
+      "skill_dmg": 0.0,
+      "ultimate_dmg": 0.0,
+      "all_dmg": 0.0
+    },
+    "bond_bonus": {
+      "label": "8防御",
+      "modifiers": {
+        "crit_rate": 0.0,
+        "atk_pct": 0.0,
+        "hp_pct": 0.0,
+        "def_pct": 0.08
+      }
+    },
+    "source_row": 14
+  },
+  {
+    "id": "char_c78f7a08d5",
+    "name": "安魂曲",
+    "element": "暗",
+    "rarity": "S",
+    "level": 80,
+    "avatar": "/static/images/characters/avatar/安魂曲.webp",
+    "portrait": "/static/images/characters/portrait/安魂曲.webp",
+    "base_stats": {
+      "atk": 636.0,
+      "hp": 15998.4,
+      "def": 909.0
+    },
+    "modifiers": {
+      "crit_rate": 0.05,
+      "crit_dmg": 0.5,
+      "atk_pct": 0.0,
+      "flat_atk": 0.0,
+      "hp_pct": 0.0,
+      "flat_hp": 0.0,
+      "def_pct": 0.0,
+      "flat_def": 0.0,
+      "def_ignore": 0.0,
+      "res_down": 0.0,
+      "energy_recharge": 0.0,
+      "harmony_strength": 0.0,
+      "stagger_strength": 0.0,
+      "basic_dmg": 0.0,
+      "element_dmg": 0.0,
+      "follow_dmg": 0.0,
+      "mind_dmg": 0.0,
+      "attach_dmg": 0.0,
+      "skill_dmg": 0.0,
+      "ultimate_dmg": 0.0,
+      "all_dmg": 0.0
+    },
+    "bond_bonus": {
+      "label": "4暴击",
+      "modifiers": {
+        "crit_rate": 0.04,
+        "atk_pct": 0.0,
+        "hp_pct": 0.0,
+        "def_pct": 0.0
+      }
+    },
+    "source_row": 15
+  },
+  {
+    "id": "char_e8ad982185",
+    "name": "达芙蒂尔",
+    "element": "暗",
+    "rarity": "S",
+    "level": 80,
+    "avatar": "/static/images/characters/avatar/达芙蒂尔.webp",
+    "portrait": "/static/images/characters/portrait/达芙蒂尔.webp",
+    "base_stats": {
+      "atk": 644.0,
+      "hp": 16180.2,
+      "def": 872.6
+    },
+    "modifiers": {
+      "crit_rate": 0.05,
+      "crit_dmg": 0.5,
+      "atk_pct": 0.0,
+      "flat_atk": 0.0,
+      "hp_pct": 0.0,
+      "flat_hp": 0.0,
+      "def_pct": 0.0,
+      "flat_def": 0.0,
+      "def_ignore": 0.0,
+      "res_down": 0.0,
+      "energy_recharge": 0.0,
+      "harmony_strength": 0.0,
+      "stagger_strength": 60.0,
+      "basic_dmg": 0.1,
+      "element_dmg": 0.0,
+      "follow_dmg": 0.0,
+      "mind_dmg": 0.0,
+      "attach_dmg": 0.0,
+      "skill_dmg": 0.0,
+      "ultimate_dmg": 0.0,
+      "all_dmg": 0.0
+    },
+    "bond_bonus": {
+      "label": "5攻击",
+      "modifiers": {
+        "crit_rate": 0.0,
+        "atk_pct": 0.05,
+        "hp_pct": 0.0,
+        "def_pct": 0.0
+      }
+    },
+    "source_row": 16
+  },
+  {
+    "id": "char_caa6c2e5a8",
+    "name": "法帝娅",
+    "element": "魂",
+    "rarity": "S",
+    "level": 80,
+    "avatar": "/static/images/characters/avatar/法帝娅.webp",
+    "portrait": "/static/images/characters/portrait/法帝娅.webp",
+    "base_stats": {
+      "atk": 596.0,
+      "hp": 17089.2,
+      "def": 909.0
+    },
+    "modifiers": {
+      "crit_rate": 0.05,
+      "crit_dmg": 0.5,
+      "atk_pct": 0.0,
+      "flat_atk": 0.0,
+      "hp_pct": 0.0,
+      "flat_hp": 0.0,
+      "def_pct": 0.0,
+      "flat_def": 0.0,
+      "def_ignore": 0.0,
+      "res_down": 0.0,
+      "energy_recharge": 0.0,
+      "harmony_strength": 0.0,
+      "stagger_strength": 0.0,
+      "basic_dmg": 0.0,
+      "element_dmg": 0.0,
+      "follow_dmg": 0.0,
+      "mind_dmg": 0.0,
+      "attach_dmg": 0.0,
+      "skill_dmg": 0.0,
+      "ultimate_dmg": 0.0,
+      "all_dmg": 0.0
+    },
+    "bond_bonus": {
+      "label": "5生命",
+      "modifiers": {
+        "crit_rate": 0.0,
+        "atk_pct": 0.0,
+        "hp_pct": 0.05,
+        "def_pct": 0.0
+      }
+    },
+    "source_row": 17
+  },
+  {
+    "id": "char_699966e2e7",
+    "name": "海月",
+    "element": "魂",
+    "rarity": "A",
+    "level": 80,
+    "avatar": "/static/images/characters/avatar/海月.webp",
+    "portrait": "/static/images/characters/portrait/海月.webp",
+    "base_stats": {
+      "atk": 604.0,
+      "hp": 11877.6,
+      "def": 727.2
+    },
+    "modifiers": {
+      "crit_rate": 0.2,
+      "crit_dmg": 0.5,
+      "atk_pct": 0.0,
+      "flat_atk": 0.0,
+      "hp_pct": 0.0,
+      "flat_hp": 0.0,
+      "def_pct": 0.2,
+      "flat_def": 0.0,
+      "def_ignore": 0.0,
+      "res_down": 0.0,
+      "energy_recharge": 0.0,
+      "harmony_strength": 0.0,
+      "stagger_strength": 0.0,
+      "basic_dmg": 0.0,
+      "element_dmg": 0.0,
+      "follow_dmg": 0.0,
+      "mind_dmg": 0.0,
+      "attach_dmg": 0.0,
+      "skill_dmg": 0.0,
+      "ultimate_dmg": 0.0,
+      "all_dmg": 0.0
+    },
+    "bond_bonus": {
+      "label": "5攻击",
+      "modifiers": {
+        "crit_rate": 0.0,
+        "atk_pct": 0.05,
+        "hp_pct": 0.0,
+        "def_pct": 0.0
+      }
+    },
+    "source_row": 18
+  },
+  {
+    "id": "char_e0a4292b4e",
+    "name": "哈尼娅",
+    "element": "魂",
+    "rarity": "A",
+    "level": 80,
+    "avatar": "/static/images/characters/avatar/哈尼娅.webp",
+    "portrait": "/static/images/characters/portrait/哈尼娅.webp",
+    "base_stats": {
+      "atk": 493.0,
+      "hp": 13695.6,
+      "def": 848.4
+    },
+    "modifiers": {
+      "crit_rate": 0.05,
+      "crit_dmg": 0.5,
+      "atk_pct": 0.0,
+      "flat_atk": 0.0,
+      "hp_pct": 0.0,
+      "flat_hp": 0.0,
+      "def_pct": 0.0,
+      "flat_def": 0.0,
+      "def_ignore": 0.0,
+      "res_down": 0.0,
+      "energy_recharge": 0.0,
+      "harmony_strength": 0.0,
+      "stagger_strength": 0.0,
+      "basic_dmg": 0.0,
+      "element_dmg": 0.0,
+      "follow_dmg": 0.0,
+      "mind_dmg": 0.0,
+      "attach_dmg": 0.0,
+      "skill_dmg": 0.0,
+      "ultimate_dmg": 0.0,
+      "all_dmg": 0.0
+    },
+    "bond_bonus": {
+      "label": "5攻击",
+      "modifiers": {
+        "crit_rate": 0.0,
+        "atk_pct": 0.05,
+        "hp_pct": 0.0,
+        "def_pct": 0.0
+      }
+    },
+    "source_row": 19
+  },
+  {
+    "id": "char_d38b672525",
+    "name": "卡厄斯",
+    "element": "相",
+    "rarity": "S",
+    "level": 80,
+    "avatar": "/static/images/characters/avatar/卡厄斯.webp",
+    "portrait": "/static/images/characters/portrait/卡厄斯.webp",
+    "base_stats": {
+      "atk": 636.0,
+      "hp": 15756.0,
+      "def": 921.1
+    },
+    "modifiers": {
+      "crit_rate": 0.05,
+      "crit_dmg": 0.5,
+      "atk_pct": 0.0,
+      "flat_atk": 0.0,
+      "hp_pct": 0.0,
+      "flat_hp": 0.0,
+      "def_pct": 0.0,
+      "flat_def": 0.0,
+      "def_ignore": 0.0,
+      "res_down": 0.0,
+      "energy_recharge": 0.0,
+      "harmony_strength": 0.0,
+      "stagger_strength": 0.0,
+      "basic_dmg": 0.3,
+      "element_dmg": 0.0,
+      "follow_dmg": 0.0,
+      "mind_dmg": 0.0,
+      "attach_dmg": 0.0,
+      "skill_dmg": 0.0,
+      "ultimate_dmg": 0.0,
+      "all_dmg": 0.0
+    },
+    "bond_bonus": {
+      "label": "4暴击",
+      "modifiers": {
+        "crit_rate": 0.04,
+        "atk_pct": 0.0,
+        "hp_pct": 0.0,
+        "def_pct": 0.0
+      }
+    },
+    "source_row": 20
+  },
+  {
+    "id": "char_912dbfe17c",
+    "name": "哈索尔",
+    "element": "相",
+    "rarity": "S",
+    "level": 80,
+    "avatar": "/static/images/characters/avatar/哈索尔.webp",
+    "portrait": "/static/images/characters/portrait/哈索尔.webp",
+    "base_stats": {
+      "atk": 644.0,
+      "hp": 15998.4,
+      "def": 883.8
+    },
+    "modifiers": {
+      "crit_rate": 0.05,
+      "crit_dmg": 0.5,
+      "atk_pct": 0.0,
+      "flat_atk": 0.0,
+      "hp_pct": 0.0,
+      "flat_hp": 0.0,
+      "def_pct": 0.0,
+      "flat_def": 0.0,
+      "def_ignore": 0.0,
+      "res_down": 0.0,
+      "energy_recharge": 0.0,
+      "harmony_strength": 0.0,
+      "stagger_strength": 0.0,
+      "basic_dmg": 0.0,
+      "element_dmg": 0.0,
+      "follow_dmg": 0.0,
+      "mind_dmg": 0.0,
+      "attach_dmg": 0.0,
+      "skill_dmg": 0.0,
+      "ultimate_dmg": 0.0,
+      "all_dmg": 0.0
+    },
+    "bond_bonus": {
+      "label": "4暴击",
+      "modifiers": {
+        "crit_rate": 0.04,
+        "atk_pct": 0.0,
+        "hp_pct": 0.0,
+        "def_pct": 0.0
+      }
+    },
+    "source_row": 21
+  },
+  {
+    "id": "char_7578b18979",
+    "name": "翳",
+    "element": "相",
+    "rarity": "A",
+    "level": 80,
+    "avatar": "/static/images/characters/avatar/翳.webp",
+    "portrait": "/static/images/characters/portrait/翳.webp",
+    "base_stats": {
+      "atk": 557.0,
+      "hp": 13332.0,
+      "def": 666.6
+    },
+    "modifiers": {
+      "crit_rate": 0.15,
+      "crit_dmg": 0.5,
+      "atk_pct": 0.0,
+      "flat_atk": 0.0,
+      "hp_pct": 0.0,
+      "flat_hp": 0.0,
+      "def_pct": 0.0,
+      "flat_def": 0.0,
+      "def_ignore": 0.0,
+      "res_down": 0.0,
+      "energy_recharge": 0.0,
+      "harmony_strength": 0.0,
+      "stagger_strength": 0.0,
+      "basic_dmg": 0.08,
+      "element_dmg": 0.0,
+      "follow_dmg": 0.0,
+      "mind_dmg": 0.0,
+      "attach_dmg": 0.0,
+      "skill_dmg": 0.0,
+      "ultimate_dmg": 0.0,
+      "all_dmg": 0.0
+    },
+    "bond_bonus": {
+      "label": "5攻击",
+      "modifiers": {
+        "crit_rate": 0.0,
+        "atk_pct": 0.05,
+        "hp_pct": 0.0,
+        "def_pct": 0.0
+      }
+    },
+    "source_row": 22
+  }
+]

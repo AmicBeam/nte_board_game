@@ -9,15 +9,27 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="icon" href="{{ url_for('static', filename='images/brand/duel-icon.webp') }}" type="image/webp">
     <link rel="stylesheet" href="{{ url_for('static', filename='common/css/app.css') }}">
-    {% if request.endpoint not in ['main.login_page', 'main.kongmu_page'] %}
+    {% if request.endpoint not in ['main.default_page', 'main.login_page', 'main.kongmu_page', 'main.shaft_page'] %}
     <script>
         (function () {
+            function currentRelativeUrl() {
+                return window.location.pathname + window.location.search + window.location.hash;
+            }
+            function loginUrlForCurrentPage() {
+                var target = currentRelativeUrl();
+                try {
+                    window.localStorage.setItem('nte_login_redirect', target);
+                } catch (error) {
+                    // query 参数仍可用于登录后回跳。
+                }
+                return "{{ url_for('main.login_page') }}" + "?next=" + encodeURIComponent(target);
+            }
             try {
                 if (!window.localStorage.getItem('nte_token')) {
-                    window.location.replace("{{ url_for('main.login_page') }}");
+                    window.location.replace(loginUrlForCurrentPage());
                 }
             } catch (error) {
-                window.location.replace("{{ url_for('main.login_page') }}");
+                window.location.replace(loginUrlForCurrentPage());
             }
         }());
     </script>

@@ -18,6 +18,18 @@ from app.engine.game_service import (
 )
 from app.engine.application.analytics_service import get_duel_analytics_payload
 from app.engine.application.kongmu_service import get_kongmu_catalog_payload, plan_kongmu_layout
+from app.engine.application.shaft_service import (
+    delete_shaft_axis,
+    get_shaft_axis,
+    get_shaft_catalog_payload,
+    list_my_shaft_axes,
+    list_shaft_market,
+    optional_player_from_token,
+    save_shaft_axis,
+    set_shaft_axis_favorite,
+    set_shaft_axis_like,
+    simulate_shaft_axis,
+)
 from app.errors import AppError
 from app.room_service import (
     create_or_resume_solo_room,
@@ -42,6 +54,27 @@ def _request_source_key() -> str:
     if forwarded_for:
         return forwarded_for.split(',', 1)[0].strip() or 'unknown'
     return request.remote_addr or 'unknown'
+
+
+def _optional_current_player():
+    header = request.headers.get('Authorization', '')
+    token = header.replace('Bearer ', '', 1).strip() if header.startswith('Bearer ') else ''
+    return optional_player_from_token(token)
+
+
+def _shaft_visitor_key(payload: dict[str, object] | None = None) -> str:
+    return (
+        request.headers.get('X-Shaft-Visitor-Key')
+        or request.args.get('visitor_key')
+        or str((payload or {}).get('visitor_key') or '')
+    )
+
+
+def _request_int_arg(name: str, default: int) -> int:
+    try:
+        return int(request.args.get(name, str(default)) or default)
+    except (TypeError, ValueError):
+        return default
 
 
 def _acquire_kongmu_plan_lock(source_key: str) -> threading.Lock | None:
@@ -85,7 +118,7 @@ PRETEAM_TEAMMATES: list[dict[str, object]] = [
 
 @main_bp.get('/')
 def default_page():
-    return redirect(url_for('main.login_page'))
+    return render_template('index.html')
 
 
 @main_bp.get('/favicon.ico')
@@ -126,6 +159,16 @@ def analytics_page():
 @main_bp.get('/kongmu')
 def kongmu_page():
     return render_template('kongmu/index.html')
+
+
+@main_bp.get('/shaft')
+@main_bp.get('/shaft/<page>')
+def shaft_page(page: str = 'rotation'):
+    if page == 'market':
+        page = 'plaza'
+    if page not in {'build', 'rotation', 'plaza'}:
+        page = 'rotation'
+    return render_template('shaft/index.html', active_shaft_page=page)
 
 
 @main_bp.get('/table')
@@ -279,6 +322,170 @@ def api_kongmu_plan():
         return jsonify({'error': '计算空幕方案时发生异常，请稍后重试。'}), 500
     finally:
         source_lock.release()
+
+
+@main_bp.get('/api/shaft/catalog')
+def api_shaft_catalog():
+    try:
+        return jsonify(get_shaft_catalog_payload())
+    except AppError as exc:
+        return jsonify({'error': str(exc)}), 400
+    except Exception:
+        logger.exception('api_shaft_catalog failed')
+        return jsonify({'error': '读取排轴数据时发生异常，请稍后重试。'}), 500
+
+
+@main_bp.post('/api/shaft/simulate')
+def api_shaft_simulate():
+    payload = request.get_json(silent=True) or {}
+    try:
+        return jsonify(simulate_shaft_axis(payload))
+    except AppError as exc:
+        return jsonify({'error': str(exc)}), 400
+    except Exception:
+        logger.exception('api_shaft_simulate failed')
+        return jsonify({'error': '计算排轴时发生异常，请稍后重试。'}), 500
+
+
+@main_bp.get('/api/shaft/market')
+def api_shaft_market():
+    try:
+        return jsonify(list_shaft_market(
+            character_id=str(request.args.get('character_id', '')).strip(),
+            sort=str(request.args.get('sort', 'dps')).strip(),
+            page=_request_int_arg('page', 1),
+            page_size=_request_int_arg('page_size', 20),
+            player=_optional_current_player(),
+            visitor_key=_shaft_visitor_key(),
+        ))
+    except AppError as exc:
+        return jsonify({'error': str(exc)}), 400
+    except Exception:
+        logger.exception('api_shaft_market failed')
+        return jsonify({'error': '读取排轴广场时发生异常，请稍后重试。'}), 500
+
+
+@main_bp.get('/api/shaft/axes/<int:axis_id>')
+def api_shaft_axis(axis_id: int):
+    try:
+        return jsonify(get_shaft_axis(
+            axis_id,
+            player=_optional_current_player(),
+            visitor_key=_shaft_visitor_key(),
+        ))
+    except AppError as exc:
+        return jsonify({'error': str(exc)}), 400
+    except Exception:
+        logger.exception('api_shaft_axis failed axis_id=%s', axis_id)
+        return jsonify({'error': '读取排轴详情时发生异常，请稍后重试。'}), 500
+
+
+@main_bp.post('/api/shaft/axes')
+@token_required
+def api_shaft_save_axis():
+    payload = request.get_json(silent=True) or {}
+    try:
+        return jsonify(save_shaft_axis(g.current_player, payload))
+    except AppError as exc:
+        return jsonify({'error': str(exc)}), 400
+    except Exception:
+        logger.exception('api_shaft_save_axis failed')
+        return jsonify({'error': '保存排轴时发生异常，请稍后重试。'}), 500
+
+
+@main_bp.put('/api/shaft/axes/<int:axis_id>')
+@token_required
+def api_shaft_update_axis(axis_id: int):
+    payload = request.get_json(silent=True) or {}
+    try:
+        return jsonify(save_shaft_axis(g.current_player, payload, axis_id=axis_id))
+    except AppError as exc:
+        return jsonify({'error': str(exc)}), 400
+    except Exception:
+        logger.exception('api_shaft_update_axis failed axis_id=%s', axis_id)
+        return jsonify({'error': '更新排轴时发生异常，请稍后重试。'}), 500
+
+
+@main_bp.delete('/api/shaft/axes/<int:axis_id>')
+@token_required
+def api_shaft_delete_axis(axis_id: int):
+    try:
+        return jsonify(delete_shaft_axis(g.current_player, axis_id))
+    except AppError as exc:
+        return jsonify({'error': str(exc)}), 400
+    except Exception:
+        logger.exception('api_shaft_delete_axis failed axis_id=%s', axis_id)
+        return jsonify({'error': '删除排轴时发生异常，请稍后重试。'}), 500
+
+
+@main_bp.get('/api/shaft/me/axes')
+@token_required
+def api_shaft_my_axes():
+    try:
+        return jsonify(list_my_shaft_axes(g.current_player))
+    except AppError as exc:
+        return jsonify({'error': str(exc)}), 400
+    except Exception:
+        logger.exception('api_shaft_my_axes failed')
+        return jsonify({'error': '读取我的排轴时发生异常，请稍后重试。'}), 500
+
+
+@main_bp.post('/api/shaft/axes/<int:axis_id>/like')
+@token_required
+def api_shaft_like_axis(axis_id: int):
+    try:
+        return jsonify(set_shaft_axis_like(g.current_player, axis_id, True))
+    except AppError as exc:
+        return jsonify({'error': str(exc)}), 400
+    except Exception:
+        logger.exception('api_shaft_like_axis failed axis_id=%s', axis_id)
+        return jsonify({'error': '点赞排轴时发生异常，请稍后重试。'}), 500
+
+
+@main_bp.delete('/api/shaft/axes/<int:axis_id>/like')
+@token_required
+def api_shaft_unlike_axis(axis_id: int):
+    try:
+        return jsonify(set_shaft_axis_like(g.current_player, axis_id, False))
+    except AppError as exc:
+        return jsonify({'error': str(exc)}), 400
+    except Exception:
+        logger.exception('api_shaft_unlike_axis failed axis_id=%s', axis_id)
+        return jsonify({'error': '取消点赞时发生异常，请稍后重试。'}), 500
+
+
+@main_bp.post('/api/shaft/axes/<int:axis_id>/favorite')
+def api_shaft_favorite_axis(axis_id: int):
+    payload = request.get_json(silent=True) or {}
+    try:
+        return jsonify(set_shaft_axis_favorite(
+            axis_id=axis_id,
+            favorited=True,
+            player=_optional_current_player(),
+            visitor_key=_shaft_visitor_key(payload),
+        ))
+    except AppError as exc:
+        return jsonify({'error': str(exc)}), 400
+    except Exception:
+        logger.exception('api_shaft_favorite_axis failed axis_id=%s', axis_id)
+        return jsonify({'error': '收藏排轴时发生异常，请稍后重试。'}), 500
+
+
+@main_bp.delete('/api/shaft/axes/<int:axis_id>/favorite')
+def api_shaft_unfavorite_axis(axis_id: int):
+    payload = request.get_json(silent=True) or {}
+    try:
+        return jsonify(set_shaft_axis_favorite(
+            axis_id=axis_id,
+            favorited=False,
+            player=_optional_current_player(),
+            visitor_key=_shaft_visitor_key(payload),
+        ))
+    except AppError as exc:
+        return jsonify({'error': str(exc)}), 400
+    except Exception:
+        logger.exception('api_shaft_unfavorite_axis failed axis_id=%s', axis_id)
+        return jsonify({'error': '取消收藏时发生异常，请稍后重试。'}), 500
 
 
 @main_bp.post('/api/build/save')

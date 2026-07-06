@@ -1,0 +1,341 @@
+{
+  "substat_units": {
+    "all_dmg": {
+      "label": "全伤",
+      "unit_value": 0.01,
+      "kind": "percent"
+    },
+    "crit_rate": {
+      "label": "暴击",
+      "unit_value": 0.01,
+      "kind": "percent"
+    },
+    "crit_dmg": {
+      "label": "暴伤",
+      "unit_value": 0.02,
+      "kind": "percent"
+    },
+    "harmony_strength": {
+      "label": "环合强度",
+      "unit_value": 6,
+      "kind": "flat"
+    },
+    "stagger_strength": {
+      "label": "倾陷强度",
+      "unit_value": 6,
+      "kind": "flat"
+    },
+    "atk_pct": {
+      "label": "攻击%",
+      "unit_value": 0.0125,
+      "kind": "percent"
+    },
+    "flat_atk": {
+      "label": "攻击",
+      "unit_value": 8,
+      "kind": "flat"
+    },
+    "hp_pct": {
+      "label": "生命%",
+      "unit_value": 0.0125,
+      "kind": "percent"
+    },
+    "flat_hp": {
+      "label": "生命",
+      "unit_value": 100,
+      "kind": "flat"
+    },
+    "def_pct": {
+      "label": "防御%",
+      "unit_value": 0.0175,
+      "kind": "percent"
+    },
+    "flat_def": {
+      "label": "防御",
+      "unit_value": 8,
+      "kind": "flat"
+    }
+  },
+  "cartridge_main_stat_options": {
+    "属伤": {
+      "label": "属伤",
+      "modifier_key": "element_dmg",
+      "unit_value": 0.375,
+      "kind": "percent"
+    },
+    "暴击": {
+      "label": "暴击",
+      "modifier_key": "crit_rate",
+      "unit_value": 0.3,
+      "kind": "percent"
+    },
+    "暴伤": {
+      "label": "暴伤",
+      "modifier_key": "crit_dmg",
+      "unit_value": 0.6,
+      "kind": "percent"
+    },
+    "精通": {
+      "label": "环合强度",
+      "modifier_key": "harmony_strength",
+      "unit_value": 180,
+      "kind": "flat"
+    },
+    "倾陷": {
+      "label": "倾陷强度",
+      "modifier_key": "stagger_strength",
+      "unit_value": 180,
+      "kind": "flat"
+    },
+    "攻击": {
+      "label": "攻击%",
+      "modifier_key": "atk_pct",
+      "unit_value": 0.375,
+      "kind": "percent"
+    },
+    "生命": {
+      "label": "生命%",
+      "modifier_key": "hp_pct",
+      "unit_value": 0.375,
+      "kind": "percent"
+    },
+    "防御": {
+      "label": "防御%",
+      "modifier_key": "def_pct",
+      "unit_value": 0.525,
+      "kind": "percent"
+    },
+    "治疗": {
+      "label": "治疗",
+      "modifier_key": "",
+      "unit_value": 0,
+      "kind": "flat"
+    }
+  },
+  "curtain_bonus_stat_options": {
+    "属伤": {
+      "label": "属伤",
+      "modifier_key": "element_dmg",
+      "kind": "percent"
+    },
+    "暴击": {
+      "label": "暴击",
+      "modifier_key": "crit_rate",
+      "kind": "percent"
+    },
+    "暴伤": {
+      "label": "暴伤",
+      "modifier_key": "crit_dmg",
+      "kind": "percent"
+    },
+    "充能": {
+      "label": "充能",
+      "modifier_key": "energy_recharge",
+      "kind": "percent"
+    },
+    "攻击": {
+      "label": "攻击%",
+      "modifier_key": "atk_pct",
+      "kind": "percent"
+    },
+    "生命": {
+      "label": "生命%",
+      "modifier_key": "hp_pct",
+      "kind": "percent"
+    },
+    "防御": {
+      "label": "防御%",
+      "modifier_key": "def_pct",
+      "kind": "percent"
+    },
+    "精通": {
+      "label": "环合强度",
+      "modifier_key": "harmony_strength",
+      "kind": "percent"
+    },
+    "倾陷": {
+      "label": "倾陷强度",
+      "modifier_key": "stagger_strength",
+      "kind": "percent"
+    }
+  },
+  "default_build_options": {
+    "char_dd034941ef": {
+      "cartridge_main_stat": "精通",
+      "curtain_bonus": {
+        "value": 10,
+        "stat": "攻击",
+        "passive_type": "type3"
+      }
+    },
+    "char_b52cc8f160": {
+      "cartridge_main_stat": "暴击",
+      "curtain_bonus": {
+        "value": 16,
+        "stat": "暴伤",
+        "passive_type": "type3"
+      }
+    },
+    "char_15f458f7ef": {
+      "cartridge_main_stat": "属伤",
+      "curtain_bonus": {
+        "value": 10,
+        "stat": "属伤",
+        "passive_type": "type3"
+      }
+    },
+    "char_4f917797cb": {
+      "cartridge_main_stat": "属伤",
+      "curtain_bonus": {
+        "value": 10,
+        "stat": "属伤",
+        "passive_type": "type3"
+      }
+    },
+    "char_31c5130304": {
+      "cartridge_main_stat": "治疗",
+      "curtain_bonus": {
+        "value": 10,
+        "stat": "生命",
+        "passive_type": "type3"
+      }
+    },
+    "char_a01c39f576": {
+      "cartridge_main_stat": "攻击",
+      "curtain_bonus": {
+        "value": 10,
+        "stat": "攻击",
+        "passive_type": "type3"
+      }
+    },
+    "char_bdc43f82c6": {
+      "cartridge_main_stat": "暴击",
+      "curtain_bonus": {
+        "value": 5,
+        "stat": "暴击",
+        "passive_type": "type2"
+      }
+    },
+    "char_b2e3b2bf7a": {
+      "cartridge_main_stat": "属伤",
+      "curtain_bonus": {
+        "value": 5,
+        "stat": "暴击",
+        "passive_type": "type2"
+      }
+    },
+    "char_dda9fae1ef": {
+      "cartridge_main_stat": "属伤",
+      "curtain_bonus": {
+        "value": 8,
+        "stat": "暴击",
+        "passive_type": "type3"
+      }
+    },
+    "char_701295143d": {
+      "cartridge_main_stat": "属伤",
+      "curtain_bonus": {
+        "value": 8,
+        "stat": "暴击",
+        "passive_type": "type3"
+      }
+    },
+    "char_1895e259be": {
+      "cartridge_main_stat": "属伤",
+      "curtain_bonus": {
+        "value": 8,
+        "stat": "属伤",
+        "passive_type": "type3"
+      }
+    },
+    "char_6f46705fd1": {
+      "cartridge_main_stat": "属伤",
+      "curtain_bonus": {
+        "value": 12,
+        "stat": "防御",
+        "passive_type": "type3"
+      }
+    },
+    "char_c78f7a08d5": {
+      "cartridge_main_stat": "属伤",
+      "curtain_bonus": {
+        "value": 10,
+        "stat": "属伤",
+        "passive_type": "type3"
+      }
+    },
+    "char_e8ad982185": {
+      "cartridge_main_stat": "暴击",
+      "curtain_bonus": {
+        "value": 10,
+        "stat": "属伤",
+        "passive_type": "type3"
+      }
+    },
+    "char_caa6c2e5a8": {
+      "cartridge_main_stat": "生命",
+      "curtain_bonus": {
+        "value": 6,
+        "stat": "生命",
+        "passive_type": "type2"
+      }
+    },
+    "char_699966e2e7": {
+      "cartridge_main_stat": "暴伤",
+      "curtain_bonus": {
+        "value": 10,
+        "stat": "攻击",
+        "passive_type": "type3"
+      }
+    },
+    "char_e0a4292b4e": {
+      "cartridge_main_stat": "倾陷",
+      "curtain_bonus": {
+        "value": 10,
+        "stat": "攻击",
+        "passive_type": "type3"
+      }
+    },
+    "char_d38b672525": {
+      "cartridge_main_stat": "属伤",
+      "curtain_bonus": {
+        "value": 16,
+        "stat": "暴伤",
+        "passive_type": "type3"
+      }
+    },
+    "char_912dbfe17c": {
+      "cartridge_main_stat": "属伤",
+      "curtain_bonus": {
+        "value": 10,
+        "stat": "攻击",
+        "passive_type": "type3"
+      }
+    },
+    "char_7578b18979": {
+      "cartridge_main_stat": "倾陷",
+      "curtain_bonus": {
+        "value": 10,
+        "stat": "攻击",
+        "passive_type": "type3"
+      }
+    }
+  },
+  "elements": [
+    "光",
+    "灵",
+    "咒",
+    "暗",
+    "魂",
+    "相"
+  ],
+  "default_enemy": {
+    "level": 90,
+    "track_outside": false,
+    "weakness_elements": [
+      "光"
+    ]
+  },
+  "switch_loss_ticks": 2,
+  "damage_formula": "base * (1 + dmg_bonus) * crit_expected * resistance * defense"
+}

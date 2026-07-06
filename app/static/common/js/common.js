@@ -10,10 +10,53 @@ function clearToken() {
   window.localStorage.removeItem('nte_token');
 }
 
+function currentRelativeUrl() {
+  return `${window.location.pathname}${window.location.search}${window.location.hash}`;
+}
+
+function isSafeLoginTarget(target) {
+  if (!target) {
+    return false;
+  }
+  try {
+    const url = new URL(target, window.location.origin);
+    return url.origin === window.location.origin && url.pathname !== '/login';
+  } catch (error) {
+    return false;
+  }
+}
+
+function rememberLoginRedirect(target = currentRelativeUrl()) {
+  if (!isSafeLoginTarget(target)) {
+    return '';
+  }
+  const url = new URL(target, window.location.origin);
+  const relative = `${url.pathname}${url.search}${url.hash}`;
+  try {
+    window.localStorage.setItem('nte_login_redirect', relative);
+  } catch (error) {
+    // localStorage 不可用时仍然可以通过 query 参数回跳。
+  }
+  return relative;
+}
+
+function loginUrlForTarget(target = currentRelativeUrl()) {
+  const relative = rememberLoginRedirect(target);
+  return relative ? `/login?next=${encodeURIComponent(relative)}` : '/login';
+}
+
+function loginUrlForCurrentPage() {
+  return loginUrlForTarget(currentRelativeUrl());
+}
+
 function redirectToLogin() {
+  if (typeof window.NTE_BEFORE_LOGIN_REDIRECT === 'function') {
+    window.NTE_BEFORE_LOGIN_REDIRECT();
+  }
+  const loginUrl = loginUrlForCurrentPage();
   clearToken();
   if (window.location.pathname !== '/login') {
-    window.location.replace('/login');
+    window.location.replace(loginUrl);
   }
 }
 

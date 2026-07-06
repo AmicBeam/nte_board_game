@@ -1,0 +1,46 @@
+{% extends 'common/base.html' %}
+{% block title %}异环工具主页{% endblock %}
+{% block body %}
+<main class="portal-page">
+    <section class="glass-card panel-header portal-header">
+        <div class="portal-heading">
+            <p class="eyebrow">NTE Tools</p>
+            <h1>异环工具主页</h1>
+            <p class="subtle">从这里进入卡牌桌游、空幕计算、预配队和排轴计算。</p>
+        </div>
+        <div class="header-actions">
+            <a class="secondary-btn" href="{{ url_for('main.login_page') }}" data-login-link>登录</a>
+            <a class="secondary-btn" href="{{ url_for('main.profile_page') }}">账号设置</a>
+        </div>
+    </section>
+
+    <section class="portal-module-grid" aria-label="模块入口">
+        <a class="glass-card portal-module-card featured" href="{{ url_for('main.home') }}">
+            <span class="portal-module-kicker">Card Table</span>
+            <strong>卡牌桌游</strong>
+            <p>进入异象对决牌桌、构筑、空间档案和对局数据。</p>
+            <span class="portal-module-action">进入桌游</span>
+        </a>
+        <a class="glass-card portal-module-card" href="{{ url_for('main.kongmu_page') }}">
+            <span class="portal-module-kicker">Kongmu</span>
+            <strong>空幕</strong>
+            <p>计算角色空幕与卡带搭配，快速查看可用方案。</p>
+            <span class="portal-module-action">打开空幕</span>
+        </a>
+        <a class="glass-card portal-module-card" href="{{ url_for('main.preteam_page') }}">
+            <span class="portal-module-kicker">Preteam</span>
+            <strong>预配队</strong>
+            <p>浏览主 C、队友和属性搭配，保存配队思路。</p>
+            <span class="portal-module-action">进入配队</span>
+        </a>
+        <a class="glass-card portal-module-card" href="{{ url_for('main.shaft_page', page='rotation') }}">
+            <span class="portal-module-kicker">Shaft Lab</span>
+            <strong>排轴计算</strong>
+            <p>编辑动作轴、计算输出，并在排轴广场查看已发布方案。</p>
+            <span class="portal-module-action">编辑排轴</span>
+        </a>
+    </section>
+</main>
+<script src="{{ url_for('static', filename='common/js/common.js') }}"></script>
+<script src="{{ url_for('static', filename='common/js/portal.js') }}"></script>
+{% endblock %}
