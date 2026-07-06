@@ -1,0 +1,95 @@
+app/__init__.py
+  s_b0dcfca8e39ab5::t_98a9d44102c683 5-18,28-41
+app/engine/application/shaft_service.py
+  s_b0dcfca8e39ab5::t_e505b2380ffecd 1-852
+app/models.py
+  s_b0dcfca8e39ab5::t_88e98aaeee57a2 94-162
+app/routes.py
+  s_cb0d46bfa2b36c::t_e2b0958eb628b7 21-32,59-79,121,164-173,327-490
+app/shaft/__init__.py
+  s_b0dcfca8e39ab5::t_58e1491d909b0b 1-2
+app/shaft/catalog.py
+  s_b0dcfca8e39ab5::t_cf0c7d763b6de3 1-50
+app/shaft/simulator.py
+  s_b0dcfca8e39ab5::t_1810af85145945 1-967
+app/static/card_game/js/login.js
+  s_cb0d46bfa2b36c::t_60839d74db3a41 7-16,36-41
+app/static/common/css/app.css
+  s_b0dcfca8e39ab5::t_b00aaa3b216b18 8
+app/static/common/css/foundation.css
+  s_cb0d46bfa2b36c::t_fd4dce26c5d58a 39-40,94,187-269,370-375
+app/static/common/css/responsive.css
+  s_b0dcfca8e39ab5::t_ea9ff112c7104f 3-6,35-46
+app/static/common/js/common.js
+  s_cb0d46bfa2b36c::t_cc4100289f2110 13-51,53-56,59
+app/static/common/js/portal.js
+  s_cb0d46bfa2b36c::t_abbb6ec8da8e9f 1-12
+app/static/shaft/css/shaft-page.css
+  s_b0dcfca8e39ab5::t_5703eb13b6ca14 1-2162
+app/static/shaft/data/actions.json
+  s_b0dcfca8e39ab5::t_c66284c94ff540 1-8171
+app/static/shaft/data/arcs.json
+  s_b0dcfca8e39ab5::t_f5714d89c130e6 1-2130
+app/static/shaft/data/cartridges.json
+  s_b0dcfca8e39ab5::t_523611617ff084 1-580
+app/static/shaft/data/characters.json
+  s_b0dcfca8e39ab5::t_553dad821c2eed 1-942
+app/static/shaft/data/formula_constants.json
+  s_b0dcfca8e39ab5::t_1b88c5b8e69147 1-341
+app/static/shaft/data/source_meta.json
+  s_b0dcfca8e39ab5::t_3b8d17977b860a 1-56
+app/static/shaft/data/starter_axis.json
+  s_b0dcfca8e39ab5::t_f76dba2148438a 1-773
+app/static/shaft/js/shaft.js
+  s_b0dcfca8e39ab5::t_572da08caaaf04 1-3449
+app/templates/card_game/index.html
+  s_cb0d46bfa2b36c::t_7699efe7056578 21
+app/templates/common/base.html
+  s_cb0d46bfa2b36c::t_96fe798aad2b53 12,15-26,29,32
+app/templates/index.html
+  s_cb0d46bfa2b36c::t_4302d9e5da138e 1-46
+app/templates/shaft/index.html
+  s_b0dcfca8e39ab5::t_c5aad62ea4d149 1-206
+docs/shaft-character-actions.md
+  s_b0dcfca8e39ab5::t_08f4fc6a32ea16 1-310
+docs/shaft-module-design.md
+  s_b0dcfca8e39ab5::t_111e153169ddaf 1-650
+scripts/import_shaft_xlsx.py
+  s_b0dcfca8e39ab5::t_85567fa6be1a21 1-619
+tests/test_shaft_simulator.py
+  s_efc9130efeb830::t_ceff7a6c197e0c 1-115
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.5",
+  "base_commit_sha": "f1b6814fcada11423fed21d5d948715e6d08ad09",
+  "prompts": {},
+  "sessions": {
+    "s_b0dcfca8e39ab5": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f3250-1447-7301-a937-5a8406a6ffe5",
+        "model": "unknown"
+      },
+      "human_author": "AmicBeam <1425257712@qq.com>"
+    },
+    "s_cb0d46bfa2b36c": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f36d7-36eb-7272-8185-488e7f285ebd",
+        "model": "unknown"
+      },
+      "human_author": "AmicBeam <1425257712@qq.com>"
+    },
+    "s_efc9130efeb830": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f36da-2c4b-7a62-8ad8-fe39c74bd180",
+        "model": "unknown"
+      },
+      "human_author": "AmicBeam <1425257712@qq.com>"
+    }
+  },
+  "attestation_metadata": {},
+  "remote_transcripts": {}
+}
