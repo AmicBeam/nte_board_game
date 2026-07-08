@@ -331,10 +331,8 @@
   ],
   "default_enemy": {
     "level": 90,
-    "track_outside": false,
-    "weakness_elements": [
-      "光"
-    ]
+    "track_outside": true,
+    "weakness_elements": []
   },
   "switch_loss_ticks": 2,
   "damage_formula": "base * (1 + dmg_bonus) * crit_expected * resistance * defense"

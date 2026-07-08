@@ -1236,7 +1236,7 @@
             <span class="shaft-command-type">${escapeHtml(action.action_type || '动作')}</span>
             <strong class="shaft-command-name">${escapeHtml(action.name)}</strong>
           </div>
-          <span class="shaft-command-meta">${ticksToSeconds(action.duration_ticks)}s · 回能 ${formatNumber(action.energy_gain || 0, 1)}${isBackgroundAction(action) ? ' · 后台' : ''}</span>
+          <span class="shaft-command-meta">${ticksToSeconds(action.duration_ticks)}s · ${formatNumber(action.hit_count || 0, 0)}段 · 回能 ${formatNumber(action.energy_gain || 0, 1)}${isBackgroundAction(action) ? ' · 后台' : ''}</span>
         </div>
         <button class="secondary-btn" data-library-action="${escapeHtml(action.id)}" data-library-slot="${state.librarySlot}" type="button">加入</button>
       </article>
@@ -1714,7 +1714,24 @@
           const qInstant = detail.q_instant_release ? `q-instant-release q-instant-${detail.q_instant_release_kind || 'release'}` : '';
           const top = 18 + entry.laneIndex * 38;
           const durationLabel = Number(detail.duration_ticks || 0) > 0 ? `<em>${ticksToSeconds(detail.duration_ticks)}s</em>` : '';
+          const triggeredBuffNames = Array.from(new Set((detail.triggered_buffs || [])
+            .map((buff) => String(buff?.name || '').trim())
+            .filter(Boolean)));
+          const buffLineTop = Math.max(4, top - 10);
+          const buffLineWidth = Math.max(22, entry.cardWidth);
+          const buffTooltip = triggeredBuffNames.length ? `触发增益：${triggeredBuffNames.join('、')}` : '';
+          const buffLine = triggeredBuffNames.length ? `
+            <span
+              class="shaft-buff-trigger-line ${isSelected ? 'selected' : ''}"
+              data-step-id="${escapeHtml(detail.step_id)}"
+              tabindex="0"
+              style="left:${entry.startPx}px; top:${buffLineTop}px; width:${buffLineWidth}px; --slot-color:${color}"
+              title="${escapeHtml(buffTooltip)}"
+              aria-label="${escapeHtml(buffTooltip)}"
+            ></span>
+          ` : '';
           return `
+            ${buffLine}
             <span class="shaft-action-bar ${actionTypeClass(detail.action_type)} ${detail.is_background_damage ? 'background-damage' : ''} ${basicBackground} ${frontStart} ${qInstant} ${selected} ${dragging}" data-step-id="${escapeHtml(detail.step_id)}" style="left:${entry.startPx}px; top:${top}px; width:${entry.cardWidth}px; --slot-color:${color}" title="${escapeHtml(detail.action_name)}${detail.q_instant_release ? ' · Q即时释放' : ''}">
               <span>${escapeHtml(detail.action_name)}</span>
               ${durationLabel}
@@ -1776,6 +1793,22 @@
     const specialStats = [];
     const nightmareStacks = detail?.nightmare_stacks ?? action.nightmare_stacks;
     const sinRecovery = detail?.sin_recovery ?? action.sin_recovery;
+    const hitCount = detail?.hit_count ?? action.hit_count;
+    const expectedCriticalHits = detail?.expected_critical_hits;
+    const appliedEnemyDebuffs = (detail?.applied_enemy_debuffs || []).join('、');
+    if (hitCount !== undefined && hitCount !== null) {
+      specialStats.push(`<div class="shaft-detail-kv"><span>伤害段数</span><strong>${formatNumber(hitCount, 0)}</strong></div>`);
+    }
+    const actionSelfAllDmg = Number(action.self_modifiers?.all_dmg || 0);
+    if (actionSelfAllDmg) {
+      specialStats.push(`<div class="shaft-detail-kv"><span>动作自增伤</span><strong>${formatNumber(actionSelfAllDmg * 100, 1)}%</strong></div>`);
+    }
+    if (expectedCriticalHits !== undefined && expectedCriticalHits !== null && Number(expectedCriticalHits) > 0) {
+      specialStats.push(`<div class="shaft-detail-kv"><span>期望暴击段</span><strong>${formatNumber(expectedCriticalHits, 2)}</strong></div>`);
+    }
+    if (appliedEnemyDebuffs) {
+      specialStats.push(`<div class="shaft-detail-kv"><span>挂载状态</span><strong>${escapeHtml(appliedEnemyDebuffs)}</strong></div>`);
+    }
     if (nightmareStacks !== undefined && nightmareStacks !== null) {
       specialStats.push(`<div class="shaft-detail-kv"><span>噩梦层数</span><strong>${formatNumber(nightmareStacks, 0)}</strong></div>`);
     }

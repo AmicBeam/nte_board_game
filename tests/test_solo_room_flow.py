@@ -150,6 +150,52 @@ class RoomFlowTestCase(unittest.TestCase):
 
 
 class SoloRoomFlowTest(RoomFlowTestCase):
+    def test_portal_and_shaft_plaza_routes_render(self) -> None:
+        portal = self.client.get('/')
+        self.assertEqual(portal.status_code, 200)
+        portal_html = portal.get_data(as_text=True)
+        self.assertIn('卡牌桌游', portal_html)
+        self.assertIn('空幕', portal_html)
+        self.assertIn('预配队', portal_html)
+        self.assertIn('排轴计算', portal_html)
+        self.assertIn('/shaft/rotation', portal_html)
+
+        legacy_plaza = self.client.get('/shaft/market')
+        self.assertEqual(legacy_plaza.status_code, 200)
+        plaza_html = legacy_plaza.get_data(as_text=True)
+        self.assertIn('data-active-page="plaza"', plaza_html)
+        self.assertIn('排轴广场', plaza_html)
+
+    def test_shaft_empty_axis_can_be_simulated_saved_and_deleted(self) -> None:
+        token = self._issue_login_and_get_token('shaft-empty-axis')
+        catalog = self._get('/api/shaft/catalog')
+        axis = dict(catalog['starter_axis'])
+        axis['steps'] = []
+        axis['buff_rules'] = []
+
+        simulated = self._post('/api/shaft/simulate', axis)
+        self.assertEqual(simulated['axis']['steps'], [])
+        self.assertEqual(simulated['result']['details'], [])
+        self.assertEqual(simulated['result']['summary']['total_damage'], 0)
+
+        saved = self._post('/api/shaft/axes', {
+            'title': '空白排轴',
+            'visibility': 'private',
+            'axis': axis,
+        }, token=token)
+        self.assertEqual(saved['axis']['steps'], [])
+        axis_id = saved['id']
+
+        mine = self._get('/api/shaft/me/axes', token=token)
+        self.assertEqual([item['id'] for item in mine['items']], [axis_id])
+
+        response = self.client.delete(f'/api/shaft/axes/{axis_id}', headers=self._auth_headers(token))
+        self.assertEqual(response.status_code, 200, response.get_data(as_text=True))
+        self.assertEqual(response.get_json(), {'ok': True})
+
+        mine_after = self._get('/api/shaft/me/axes', token=token)
+        self.assertEqual(mine_after['items'], [])
+
     def test_balance_analytics_requires_login(self) -> None:
         payload = self._get('/api/analytics/balance', expected_status=401)
 
@@ -738,6 +784,20 @@ class DuelRuleTimingTest(RoomFlowTestCase):
         self.assertTrue(prepared)
         pending = rules._public_pending_target(snapshot['sides'][rules.SIDE_A], snapshot)
         self.assertEqual(pending['target_instance_ids'], [consumable['instance_id']])
+
+    def test_tomato_counts_as_murk_material_for_adler(self) -> None:
+        rules = self._rules()
+        tomato = self._card_instance('discord_tomato', 'tomato', turn=1)
+        tomato_100 = self._card_instance('discord_tomato_100', 'tomato-100', turn=1)
+        adler = self._card_instance('adler', 'adler', revealed=False, turn=2)
+        snapshot = self._snapshot_with_cards([tomato, tomato_100])
+        snapshot['phase'] = 'planning'
+        snapshot['turn'] = 2
+        location = snapshot['locations'][0]
+
+        selected = rules._material_cards_for_esper(snapshot, rules.SIDE_A, location, adler)
+
+        self.assertEqual([card['definition_id'] for card in selected], ['discord_tomato', 'discord_tomato_100'])
 
     def test_draw_skips_when_hand_limit_is_reached(self) -> None:
         rules = self._rules()

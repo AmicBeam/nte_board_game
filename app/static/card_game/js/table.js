@@ -2019,7 +2019,7 @@ function materialCandidates(location, esperCard = null) {
     if (requirements.length && !requirements.some((requirement) => materialMatchesRequirement(card, requirement))) {
       return false;
     }
-    if (!requirements.length && requiredAttribute && materialAttribute(card) !== requiredAttribute) {
+    if (!requirements.length && requiredAttribute && !materialHasAttribute(card, requiredAttribute)) {
       return false;
     }
     return !card.reserved_as_material_for;
@@ -2072,12 +2072,12 @@ function expandedMaterialRequirements(requirements) {
 }
 
 function materialMatchesRequirement(card, requirement) {
-  if (requirement.attribute && materialAttribute(card) !== requirement.attribute) {
+  if (requirement.attribute && !materialHasAttribute(card, requirement.attribute)) {
     return false;
   }
   if (Array.isArray(requirement.attributes)) {
     const options = requirement.attributes.map((attribute) => String(attribute || '')).filter(Boolean);
-    if (options.length && !options.includes(materialAttribute(card))) {
+    if (options.length && !options.some((attribute) => materialHasAttribute(card, attribute))) {
       return false;
     }
   }
@@ -2113,6 +2113,19 @@ function materialRequirements(card) {
 
 function materialAttribute(card) {
   return String(card?.attribute || card?.element || '').trim();
+}
+
+function materialAttributes(card) {
+  const attributes = [materialAttribute(card)];
+  if (Array.isArray(card?.material_attributes)) {
+    attributes.push(...card.material_attributes.map((attribute) => String(attribute || '').trim()));
+  }
+  return [...new Set(attributes.filter(Boolean))];
+}
+
+function materialHasAttribute(card, attribute) {
+  const normalized = String(attribute || '').trim();
+  return Boolean(normalized) && materialAttributes(card).includes(normalized);
 }
 
 function esperMaterialCost(card) {

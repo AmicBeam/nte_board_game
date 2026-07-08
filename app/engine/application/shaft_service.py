@@ -44,11 +44,13 @@ MODIFIER_KEYS = (
     'def_pct',
     'flat_def',
     'def_down',
+    'def_ignore',
     'res_down',
     'energy_recharge',
     'harmony_strength',
     'stagger_strength',
     'basic_dmg',
+    'dodge_counter_dmg',
     'element_dmg',
     'follow_dmg',
     'mind_dmg',
@@ -117,10 +119,20 @@ def _normalize_enemy(raw: Any, catalog: dict[str, Any]) -> dict[str, Any]:
     weakness = enemy.get('weakness_elements')
     if not isinstance(weakness, list):
         weakness = defaults.get('weakness_elements') or []
+    debuffs = enemy.get('debuffs') if isinstance(enemy.get('debuffs'), dict) else {}
+    hp_ratio = enemy.get('hp_ratio')
+    if hp_ratio is None and enemy.get('hp_percent') is not None:
+        hp_ratio = _num(enemy.get('hp_percent'), 100) / 100
     return {
         'level': max(1, min(120, _int(enemy.get('level'), _int(defaults.get('level'), 90)))),
         'track_outside': bool(enemy.get('track_outside', defaults.get('track_outside', False))),
         'weakness_elements': [str(item) for item in weakness if str(item) in ELEMENTS],
+        'debuffs': {
+            str(name): max(0, min(6000, _int(end_tick)))
+            for name, end_tick in debuffs.items()
+            if str(name) in {'延滞', '黯星', '浸染', '覆纹', '浊燃'}
+        },
+        'hp_ratio': max(0.0, min(1.0, _num(hp_ratio, 1.0))),
     }
 
 
@@ -535,6 +547,7 @@ def get_shaft_catalog_payload() -> dict[str, Any]:
         'actions': catalog['actions'],
         'actions_by_character': catalog['actions_by_character'],
         'arcs': catalog['arcs'],
+        'buffs': catalog['buffs'],
         'cartridges': catalog['cartridges'],
         'formula_constants': catalog['formula_constants'],
         'source_meta': catalog['source_meta'],

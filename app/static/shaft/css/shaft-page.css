@@ -1684,6 +1684,49 @@ body.shaft-dragging .shaft-action-bar {
     pointer-events: none;
 }
 
+.shaft-buff-trigger-line {
+    position: absolute;
+    z-index: 6;
+    min-width: 22px;
+    height: 10px;
+    border-radius: 999px;
+    cursor: help;
+    pointer-events: auto;
+    background:
+        radial-gradient(circle, color-mix(in srgb, var(--slot-color) 86%, white 14%) 0 3px, transparent 3.5px) left 2px center / 10px 10px no-repeat,
+        radial-gradient(circle, color-mix(in srgb, var(--slot-color) 86%, white 14%) 0 3px, transparent 3.5px) right 2px center / 10px 10px no-repeat;
+}
+
+.shaft-buff-trigger-line::before {
+    content: '';
+    position: absolute;
+    left: 9px;
+    right: 9px;
+    top: 4px;
+    height: 1px;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--slot-color) 82%, white 10%);
+    box-shadow: 0 0 10px color-mix(in srgb, var(--slot-color) 50%, transparent);
+}
+
+.shaft-buff-trigger-line:hover,
+.shaft-buff-trigger-line:focus-visible,
+.shaft-buff-trigger-line.selected {
+    filter: brightness(1.16);
+}
+
+.shaft-buff-trigger-line:hover::before,
+.shaft-buff-trigger-line:focus-visible::before,
+.shaft-buff-trigger-line.selected::before {
+    top: 3px;
+    height: 2px;
+}
+
+.shaft-buff-trigger-line:focus-visible {
+    outline: 2px solid rgba(255,255,255,0.72);
+    outline-offset: 2px;
+}
+
 .shaft-action-bar {
     top: 24px;
     z-index: 4;

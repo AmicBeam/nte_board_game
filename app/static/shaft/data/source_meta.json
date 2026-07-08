@@ -48,7 +48,7 @@
   "notes": [
     "运行时只读取项目内静态 JSON，不读取 xlsx。",
     "xlsx 原“精通”字段在网页中显示为“环合强度”。",
-    "动作数据已按 docs/shaft-character-actions.md 拆分 5a/3z，并写入 Q 耗能与个人资源字段。",
+    "动作数据已按 docs/shaft-character-actions.md 拆分 5a/3z，并写入 Q 耗能、个人资源字段与 hit_count 伤害段数。",
     "只有 a2-a5 普攻链动作允许玩家拖为后台；a1 与其他动作不允许手动切后台。",
     "默认轴副词条已由 xlsx 配装页 36-46 列按每格词条值换算为词条数。",
     "默认轴保存了 xlsx 配装页的全角色配置档，切换角色时按 character_id 恢复配置。"

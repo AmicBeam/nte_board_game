@@ -6,11 +6,30 @@ from copy import deepcopy
 from typing import Any
 
 from app.errors import RuleValidationError
+from app.shaft.buffs import (
+    active_buff_applies,
+    active_buff_resets_on_action_start,
+    activate_buff,
+    buff_effects,
+    buff_summary,
+    event_matches_rule,
+    legacy_buff_rules_from_axis,
+    registered_buff_rules,
+    stack_gain_for_rule,
+    trigger_cooldown_ticks,
+)
 from app.shaft.catalog import get_record_map, load_shaft_catalog
 
 
 ELEMENTS = ('光', '灵', '咒', '暗', '魂', '相')
 ZERO_ACTION_VISUAL_TICKS = 2
+ENEMY_DEBUFF_DURATIONS = {
+    '延滞': 50,
+    '黯星': 50,
+    '浸染': 120,
+    '覆纹': 120,
+    '浊燃': 150,
+}
 TEAM_PANEL_BONUS_DEFAULTS = {
     'version': 2.0,
     'furniture_crit_dmg': 0.04,
@@ -71,6 +90,7 @@ def _mods() -> dict[str, float]:
         'harmony_strength': 0,
         'stagger_strength': 0,
         'basic_dmg': 0,
+        'dodge_counter_dmg': 0,
         'element_dmg': 0,
         'follow_dmg': 0,
         'mind_dmg': 0,
@@ -236,6 +256,8 @@ def _action_type_bonus(action: dict[str, Any], mods: dict[str, float]) -> float:
     total = mods['all_dmg']
     if action_type == '普攻' or damage_type == '普攻':
         total += mods['basic_dmg']
+    if action_type == '闪反' or damage_type == '闪反':
+        total += mods['dodge_counter_dmg']
     if action_type == 'E' or damage_type == 'E':
         total += mods['skill_dmg']
     if action_type == 'Q' or damage_type == 'Q':
@@ -368,10 +390,20 @@ def _normalize_enemy(enemy: dict[str, Any] | None) -> dict[str, Any]:
     weakness = raw.get('weakness_elements')
     if not isinstance(weakness, list):
         weakness = []
+    debuffs = raw.get('debuffs') if isinstance(raw.get('debuffs'), dict) else {}
+    hp_ratio = raw.get('hp_ratio')
+    if hp_ratio is None and raw.get('hp_percent') is not None:
+        hp_ratio = _num(raw.get('hp_percent'), 100) / 100
     return {
         'level': max(1, min(120, _int(raw.get('level'), 90))),
         'track_outside': bool(raw.get('track_outside')),
         'weakness_elements': [str(item) for item in weakness if str(item) in ELEMENTS],
+        'debuffs': {
+            str(name): max(0, _int(end_tick))
+            for name, end_tick in debuffs.items()
+            if str(name) in ENEMY_DEBUFF_DURATIONS
+        },
+        'hp_ratio': max(0.0, min(1.0, _num(hp_ratio, 1.0))),
     }
 
 
@@ -499,6 +531,55 @@ def _is_support_action(action: dict[str, Any]) -> bool:
 
 def _is_q_action(action: dict[str, Any]) -> bool:
     return str(action.get('action_type') or '') == 'Q' or str(action.get('damage_type') or '') == 'Q'
+
+
+def _action_tags(action: dict[str, Any]) -> set[str]:
+    tags = {str(tag) for tag in (action.get('tags') if isinstance(action.get('tags'), list) else []) if str(tag)}
+    extra_tag = str(action.get('extra_tag') or '')
+    if extra_tag:
+        tags.add(extra_tag)
+    return tags
+
+
+def _action_hit_count(action: dict[str, Any]) -> int:
+    return max(0, _int(action.get('hit_count')))
+
+
+def _action_enemy_debuffs(action: dict[str, Any]) -> set[str]:
+    tags = _action_tags(action)
+    debuffs = {
+        tag.split(':', 1)[1]
+        for tag in tags
+        if tag.startswith('enemy_debuff:') and tag.split(':', 1)[1] in ENEMY_DEBUFF_DURATIONS
+    }
+    debuffs.update(tag for tag in tags if tag in ENEMY_DEBUFF_DURATIONS)
+    return debuffs
+
+
+def _active_enemy_debuffs(enemy_debuffs: dict[str, int], tick: int) -> dict[str, int]:
+    return {
+        name: end_tick
+        for name, end_tick in enemy_debuffs.items()
+        if tick < _int(end_tick)
+    }
+
+
+def _apply_enemy_debuffs(enemy_debuffs: dict[str, int], action: dict[str, Any], tick: int) -> list[str]:
+    applied = []
+    for debuff in sorted(_action_enemy_debuffs(action)):
+        end_tick = tick + ENEMY_DEBUFF_DURATIONS[debuff]
+        enemy_debuffs[debuff] = max(_int(enemy_debuffs.get(debuff)), end_tick)
+        applied.append(debuff)
+    return applied
+
+
+def _expected_critical_hits(action: dict[str, Any], calc: dict[str, Any]) -> float:
+    hit_count = _action_hit_count(action)
+    if hit_count <= 0:
+        return 0.0
+    panel = calc.get('panel') if isinstance(calc.get('panel'), dict) else {}
+    rate = 0.5 if str(action.get('extra_tag') or '') == 'DOT' else min(1.0, max(0.0, _num(panel.get('crit_rate'))))
+    return hit_count * rate
 
 
 def _validate_steps(steps: list[dict[str, Any]], actions_by_id: dict[str, dict[str, Any]]) -> None:
@@ -638,6 +719,13 @@ def simulate_axis(axis_payload: dict[str, Any]) -> dict[str, Any]:
     }
     enemy = _normalize_enemy(axis_payload.get('enemy'))
     options = axis_payload.get('options') if isinstance(axis_payload.get('options'), dict) else {}
+    enemy_debuffs: dict[str, int] = {
+        str(name): max(0, _int(end_tick))
+        for name, end_tick in (enemy.get('debuffs') if isinstance(enemy.get('debuffs'), dict) else {}).items()
+        if str(name) in ENEMY_DEBUFF_DURATIONS
+    }
+    fons_full = options.get('fons_full')
+    fons_full = True if fons_full is None else bool(fons_full)
     switch_loss_ticks = max(0, _int(options.get('switch_loss_ticks'), _int(catalog['formula_constants'].get('switch_loss_ticks'), 2)))
 
     details = []
@@ -654,7 +742,7 @@ def simulate_axis(axis_payload: dict[str, Any]) -> dict[str, Any]:
     for slot, resources in personal_resources.items():
         raw_resources = initial_personal_resources.get(str(slot), initial_personal_resources.get(slot, {}))
         resources.update(_resource_map(raw_resources))
-    buff_rules = axis_payload.get('buff_rules') if isinstance(axis_payload.get('buff_rules'), list) else []
+    buff_rules = registered_buff_rules(team_payload, catalog) + legacy_buff_rules_from_axis(axis_payload.get('buff_rules'))
     ordered_steps = sorted(steps, key=lambda item: (_int(item.get('start_tick')), _int(item.get('slot'))))
     scheduled_steps: list[dict[str, Any]] = []
     schedule_front_slot: int | None = None
@@ -707,26 +795,84 @@ def simulate_axis(axis_payload: dict[str, Any]) -> dict[str, Any]:
 
     loop_duration_ticks = max(scheduled_last_tick, 1)
     active_buffs: list[dict[str, Any]] = []
+    buff_trigger_cooldowns: dict[tuple[int, str], int] = {}
+
+    def trigger_tick_for_rule(rule: dict[str, Any], start_tick: int, end_tick: int) -> int:
+        trigger = rule.get('trigger') if isinstance(rule.get('trigger'), dict) else {}
+        event = str(trigger.get('event') or '')
+        return end_tick if event == 'action_end' else start_tick
+
+    def trigger_buffs_for_event(
+        event: str,
+        trigger_tick: int,
+        step: dict[str, Any],
+        action: dict[str, Any],
+        snapshot: dict[str, Any],
+        is_background: bool,
+        extra_context: dict[str, Any] | None = None,
+    ) -> list[dict[str, Any]]:
+        triggered: list[dict[str, Any]] = []
+        context = {
+            'enemy': enemy,
+            'snapshot': snapshot,
+            'tick': trigger_tick,
+            'action_tags': sorted(_action_tags(action)),
+            'hit_count': _action_hit_count(action),
+            'enemy_debuffs': _active_enemy_debuffs(enemy_debuffs, trigger_tick),
+            'applied_enemy_debuffs': [],
+            'fons_full': fons_full,
+        }
+        if extra_context:
+            context.update(extra_context)
+        for rule in buff_rules:
+            if not event_matches_rule(rule, event, step, action, snapshot, is_background, context):
+                continue
+            cooldown_ticks = trigger_cooldown_ticks(rule)
+            cooldown_key = (_int(rule.get('owner_slot')), str(rule.get('id') or ''))
+            if cooldown_ticks > 0 and trigger_tick < buff_trigger_cooldowns.get(cooldown_key, 0):
+                continue
+            instance = activate_buff(active_buffs, rule, trigger_tick, stack_gain_for_rule(rule, context))
+            if instance is not None:
+                if cooldown_ticks > 0:
+                    buff_trigger_cooldowns[cooldown_key] = trigger_tick + cooldown_ticks
+                triggered.append(buff_summary(instance))
+        return triggered
+
     if bool(options.get('loop_enabled')) and loop_duration_ticks > 0:
         for scheduled in scheduled_steps:
             step = scheduled['step']
             action = scheduled['action']
+            slot = _int(scheduled.get('slot'))
+            snapshot = snapshots.get(slot)
+            if snapshot is None:
+                continue
             start_tick = _int(scheduled.get('start_tick'))
+            end_tick = _int(scheduled.get('end_tick'))
+            is_background = bool(scheduled.get('is_background'))
             for rule in buff_rules:
-                if not isinstance(rule, dict) or not _rule_matches_trigger(rule, step, action):
+                trigger = rule.get('trigger') if isinstance(rule.get('trigger'), dict) else {}
+                event = str(trigger.get('event') or '')
+                duration = rule.get('duration') if isinstance(rule.get('duration'), dict) else {}
+                if not bool(duration.get('loop_carry')):
                     continue
-                buff_start = start_tick + max(0, _int(rule.get('delay_ticks')))
-                buff_end = buff_start + max(0, _int(rule.get('duration_ticks')))
-                carried_start = max(0, buff_start - loop_duration_ticks)
-                carried_end = buff_end - loop_duration_ticks
-                if carried_end <= carried_start:
+                trigger_tick = trigger_tick_for_rule(rule, start_tick, end_tick)
+                context = {
+                    'enemy': enemy,
+                    'snapshot': snapshot,
+                    'tick': trigger_tick,
+                    'action_tags': sorted(_action_tags(action)),
+                    'hit_count': _action_hit_count(action),
+                    'enemy_debuffs': _active_enemy_debuffs(enemy_debuffs, trigger_tick),
+                    'applied_enemy_debuffs': [],
+                    'fons_full': fons_full,
+                }
+                if not event_matches_rule(rule, event, step, action, snapshot, is_background, context):
                     continue
-                active_buffs.append({
-                    'rule': rule,
-                    'start_tick': carried_start,
-                    'end_tick': carried_end,
-                    'looped': True,
-                })
+                carried_trigger_tick = trigger_tick - loop_duration_ticks
+                instance = activate_buff(active_buffs, rule, carried_trigger_tick, stack_gain_for_rule(rule, context))
+                if instance is not None:
+                    instance['start_tick'] = max(0, _int(instance.get('start_tick')))
+                    instance['looped'] = True
 
     last_tick = 0
 
@@ -751,21 +897,22 @@ def simulate_axis(axis_payload: dict[str, Any]) -> dict[str, Any]:
         slot_energy = energy_by_slot.get(slot, initial_energy)
         if energy_cost > slot_energy:
             warnings.append('终结技能量不足。')
-        active_buffs = [buff for buff in active_buffs if start_tick < _int(buff.get('end_tick'))]
+        enemy_debuffs = _active_enemy_debuffs(enemy_debuffs, start_tick)
+        active_buffs = [
+            buff
+            for buff in active_buffs
+            if start_tick < _int(buff.get('end_tick')) and not active_buff_resets_on_action_start(buff, step, is_background)
+        ]
+        triggered_buffs = trigger_buffs_for_event('action_start', start_tick, step, action, snapshot, is_background)
         applied_buffs = []
         buff_modifiers = _mods()
         for buff in active_buffs:
             if start_tick < _int(buff.get('start_tick')) or start_tick >= _int(buff.get('end_tick')):
                 continue
-            rule = buff.get('rule') if isinstance(buff.get('rule'), dict) else {}
-            if not _rule_applies_to_step(rule, step, action):
+            if not active_buff_applies(buff, step, action, snapshot, is_background):
                 continue
-            _merge_mods(buff_modifiers, rule.get('modifiers'))
-            applied_buffs.append({
-                'rule_id': rule.get('id') or '',
-                'name': rule.get('name') or '',
-                'end_tick': _int(buff.get('end_tick')),
-            })
+            _merge_mods(buff_modifiers, buff_effects(buff))
+            applied_buffs.append(buff_summary(buff))
         slot_resources = personal_resources.setdefault(slot, {})
         for resource_key, cost in _resource_map(action.get('personal_resource_cost')).items():
             if slot_resources.get(resource_key, 0) < cost:
@@ -775,6 +922,21 @@ def simulate_axis(axis_payload: dict[str, Any]) -> dict[str, Any]:
             slot_resources[resource_key] = slot_resources.get(resource_key, 0) + gain
         slot_energy = max(0, slot_energy - energy_cost)
         calc = _calculate_action_damage(snapshot, action, enemy, buff_modifiers)
+        expected_critical_hits = _expected_critical_hits(action, calc)
+        applied_enemy_debuffs = _apply_enemy_debuffs(enemy_debuffs, action, start_tick)
+        triggered_buffs.extend(trigger_buffs_for_event(
+            'action_hit',
+            start_tick,
+            step,
+            action,
+            snapshot,
+            is_background,
+            {
+                'expected_critical_hits': expected_critical_hits,
+                'applied_enemy_debuffs': applied_enemy_debuffs,
+                'enemy_debuffs': _active_enemy_debuffs(enemy_debuffs, start_tick),
+            },
+        ))
         direct_damage += calc['direct_damage']
         total_stagger += calc['stagger_amount']
         harmony_by_slot[slot] = harmony_by_slot.get(slot, 0.0) + calc['harmony']
@@ -797,25 +959,7 @@ def simulate_axis(axis_payload: dict[str, Any]) -> dict[str, Any]:
                 'visual_end_tick': visual_end_tick,
                 'order': len(front_events),
             })
-        triggered_buffs = []
-        for rule in buff_rules:
-            if not isinstance(rule, dict) or not _rule_matches_trigger(rule, step, action):
-                continue
-            buff_start = start_tick + max(0, _int(rule.get('delay_ticks')))
-            buff_end = buff_start + max(0, _int(rule.get('duration_ticks')))
-            if buff_end <= buff_start:
-                continue
-            active_buffs.append({
-                'rule': rule,
-                'start_tick': buff_start,
-                'end_tick': buff_end,
-            })
-            triggered_buffs.append({
-                'rule_id': rule.get('id') or '',
-                'name': rule.get('name') or '',
-                'start_tick': buff_start,
-                'end_tick': buff_end,
-            })
+        triggered_buffs.extend(trigger_buffs_for_event('action_end', end_tick, step, action, snapshot, is_background))
         last_tick = max(last_tick, end_tick, visual_end_tick, start_tick)
         details.append({
             'step_id': step.get('id') or '',
@@ -840,6 +984,11 @@ def simulate_axis(axis_payload: dict[str, Any]) -> dict[str, Any]:
             'q_instant_release_anchor_step_id': scheduled.get('q_instant_release_anchor_step_id') or '',
             'is_background_damage': is_background,
             'is_basic_background': _is_basic_background_override(step, action),
+            'action_tags': sorted(_action_tags(action)),
+            'hit_count': _action_hit_count(action),
+            'expected_critical_hits': expected_critical_hits,
+            'applied_enemy_debuffs': applied_enemy_debuffs,
+            'enemy_debuffs': _active_enemy_debuffs(enemy_debuffs, start_tick),
             'direct_damage': calc['direct_damage'],
             'stagger_amount': calc['stagger_amount'],
             'harmony': calc['harmony'],
