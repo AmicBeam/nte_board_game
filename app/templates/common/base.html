@@ -9,7 +9,8 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="icon" href="{{ url_for('static', filename='images/brand/duel-icon.webp') }}" type="image/webp">
     <link rel="stylesheet" href="{{ url_for('static', filename='common/css/app.css') }}">
-    {% if request.endpoint not in ['main.default_page', 'main.login_page', 'main.kongmu_page', 'main.shaft_page'] %}
+    {% set login_guard_exempt_endpoints = ['main.default_page', 'main.login_page', 'main.kongmu_page'] %}
+    {% if request.endpoint not in login_guard_exempt_endpoints and (request.endpoint != 'main.shaft_page' or config['SHAFT_LOGIN_REQUIRED']) %}
     <script>
         (function () {
             function currentRelativeUrl() {

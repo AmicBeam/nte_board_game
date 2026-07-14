@@ -1,6 +1,6 @@
 from flask import Flask, g, request
 
-from app.config import IS_DEV_ENV, SECRET_KEY
+from app.config import DUEL_SUPPORT_GROUP, IS_DEV_ENV, SECRET_KEY, SHAFT_LOGIN_REQUIRED, SHAFT_SUPPORT_GROUP
 from app.db import init_db
 from app.models import (
     AccessToken,
@@ -25,6 +25,9 @@ def create_app() -> Flask:
     app = Flask(__name__)
     app.config['SECRET_KEY'] = SECRET_KEY
     app.config['IS_DEV_ENV'] = IS_DEV_ENV
+    app.config['DUEL_SUPPORT_GROUP'] = DUEL_SUPPORT_GROUP
+    app.config['SHAFT_SUPPORT_GROUP'] = SHAFT_SUPPORT_GROUP
+    app.config['SHAFT_LOGIN_REQUIRED'] = SHAFT_LOGIN_REQUIRED
     init_db([
         Player,
         PlayerTutorial,
