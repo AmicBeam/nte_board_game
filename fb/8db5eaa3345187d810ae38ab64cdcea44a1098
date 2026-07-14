@@ -1,0 +1,27 @@
+app/__init__.py
+  s_68a92e3513dd08::t_09ecaa09ad9f78 3,28-30
+app/config.py
+  s_68a92e3513dd08::t_63ecb0003fb93a 14-16
+app/templates/card_game/login.html
+  s_68a92e3513dd08::t_9002cd5d142fd4 4-5,10
+app/templates/common/base.html
+  s_68a92e3513dd08::t_857351e078814e 12-13
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "fb8db5eaa3345187d810ae38ab64cdcea44a1098",
+  "prompts": {},
+  "sessions": {
+    "s_68a92e3513dd08": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f6077-23a7-79d0-82cb-5a695d379e0c",
+        "model": "unknown"
+      },
+      "human_author": "AmicBeam <1425257712@qq.com>"
+    }
+  },
+  "attestation_metadata": {},
+  "remote_transcripts": {}
+}
