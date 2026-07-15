@@ -19,7 +19,7 @@
 ## 验证命令
 
 ```bash
-python3 -m py_compile app/engine/ai/scoring.py tests/test_solo_room_flow.py
+python3 -m py_compile app/modules/card_game/engine/ai/scoring.py tests/test_solo_room_flow.py
 python3 -m unittest tests.test_solo_room_flow
 python3 scripts/duel_balance_eval.py --focus triad --samples 8 --seed 20260616 --write-dashboard --output /private/tmp/nte_triad_eval_yi_delay_penalty_20260616.json
 ```

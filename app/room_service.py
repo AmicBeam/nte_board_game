@@ -14,7 +14,7 @@ from app.dao import (
     update_room_status,
 )
 from app.db import atomic_transaction
-from app.engine.game_service import get_run_state_for_room, reset_run_for_room, start_or_resume_run_for_room
+from app.modules.card_game.engine.game_service import get_run_state_for_room, reset_run_for_room, start_or_resume_run_for_room
 from app.errors import RuleValidationError
 from app.models import Player, Room
 

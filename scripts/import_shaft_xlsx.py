@@ -11,7 +11,7 @@ import openpyxl
 
 
 ROOT = Path(__file__).resolve().parents[1]
-DEFAULT_OUTPUT_DIR = ROOT / 'app' / 'static' / 'shaft' / 'data'
+DEFAULT_OUTPUT_DIR = ROOT / 'app' / 'modules' / 'shaft' / 'static' / 'data'
 ELEMENTS = ['光', '灵', '咒', '暗', '魂', '相']
 
 CHARACTER_IMAGE_OVERRIDES = {
@@ -30,7 +30,7 @@ CHARACTER_IMAGE_OVERRIDES = {
 }
 
 SUBSTAT_UNITS = {
-    'all_dmg': {'label': '全伤', 'unit_value': 0.01, 'kind': 'percent'},
+    'all_dmg': {'label': '通伤', 'unit_value': 0.01, 'kind': 'percent'},
     'crit_rate': {'label': '暴击', 'unit_value': 0.01, 'kind': 'percent'},
     'crit_dmg': {'label': '暴伤', 'unit_value': 0.02, 'kind': 'percent'},
     'harmony_strength': {'label': '环合强度', 'unit_value': 6, 'kind': 'flat'},
@@ -177,6 +177,11 @@ def parse_bond_bonus(value: Any) -> dict[str, Any]:
 def extract_characters(wb_values: Any) -> list[dict[str, Any]]:
     ws = wb_values['角色']
     build_ws = wb_values['配装']
+    adaptation_by_name = {
+        str(normalize_value(build_ws.cell(row, 1).value) or ''): normalize_value(build_ws.cell(row, 3).value) or ''
+        for row in range(3, build_ws.max_row + 1)
+        if normalize_value(build_ws.cell(row, 1).value)
+    }
     bond_by_name = {
         str(normalize_value(build_ws.cell(row, 1).value) or ''): parse_bond_bonus(build_ws.cell(row, 57).value)
         for row in range(3, build_ws.max_row + 1)
@@ -192,6 +197,7 @@ def extract_characters(wb_values: Any) -> list[dict[str, Any]]:
             'id': stable_id('char', str(name)),
             'name': name,
             'element': normalize_value(ws.cell(row, 2).value) or '',
+            'adaptation': adaptation_by_name.get(str(name), ''),
             'rarity': normalize_value(ws.cell(row, 3).value) or '',
             'level': 80,
             'avatar': images['avatar'],
@@ -228,6 +234,36 @@ def extract_characters(wb_values: Any) -> list[dict[str, Any]]:
             'source_row': row,
         })
     return records
+
+
+def normalize_awakening_character_name(value: Any) -> str:
+    name = str(normalize_value(value) or '').replace('「', '').replace('」', '').strip()
+    if name in {'零', '鉴定师'}:
+        return '主角'
+    return name
+
+
+def extract_awakenings(wb_values: Any) -> dict[str, list[dict[str, str]]]:
+    if '角色觉醒' not in wb_values.sheetnames:
+        return {}
+    ws = wb_values['角色觉醒']
+    awakenings: dict[str, list[dict[str, str]]] = {}
+    seen: set[tuple[str, str, str]] = set()
+    for row in range(2, ws.max_row + 1):
+        character_name = normalize_awakening_character_name(ws.cell(row, 1).value)
+        title = str(normalize_value(ws.cell(row, 2).value) or '')
+        description = web_text(ws.cell(row, 3).value)
+        if not character_name or not title or not description:
+            continue
+        identity = (character_name, title, description)
+        if identity in seen:
+            continue
+        seen.add(identity)
+        awakenings.setdefault(character_name, []).append({
+            'title': title,
+            'description': description,
+        })
+    return awakenings
 
 
 def extract_arcs(wb_values: Any) -> list[dict[str, Any]]:
@@ -565,6 +601,7 @@ def main() -> int:
     wb_values = openpyxl.load_workbook(args.xlsx_path, data_only=True, read_only=False)
 
     characters = extract_characters(wb_values)
+    awakenings = extract_awakenings(wb_values)
     arcs = extract_arcs(wb_values)
     cartridges = extract_cartridges(wb_values)
     actions = extract_actions(wb_values, characters)
@@ -605,6 +642,8 @@ def main() -> int:
 
     write_json(args.output_dir / 'source_meta.json', source_meta)
     write_json(args.output_dir / 'characters.json', characters)
+    if awakenings:
+        write_json(args.output_dir / 'awakenings.json', awakenings)
     write_json(args.output_dir / 'arcs.json', arcs)
     write_json(args.output_dir / 'cartridges.json', cartridges)
     write_json(args.output_dir / 'actions.json', actions)

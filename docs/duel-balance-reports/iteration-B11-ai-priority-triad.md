@@ -17,7 +17,7 @@
 ## 验证范围
 
 ```bash
-python3 -m py_compile app/engine/ai/player.py app/content/duel_decks.py tests/test_solo_room_flow.py
+python3 -m py_compile app/modules/card_game/engine/ai/player.py app/modules/card_game/content/duel_decks.py tests/test_solo_room_flow.py
 python3 -m unittest tests.test_solo_room_flow
 python3 scripts/duel_balance_eval.py --focus triad --samples 8 --write-dashboard --output /private/tmp/nte_triad_eval_after_ai_priority.json
 ```

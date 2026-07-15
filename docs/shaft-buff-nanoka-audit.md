@@ -79,7 +79,7 @@
 
 ## 角色被动
 
-当前 `app/static/shaft/data/buffs.json` 中没有 `provider.kind == "character"` 的条目；角色被动/觉醒未进入集中 buff 注册。`characters.json` 里存在静态 `modifiers`，其中不少实际来自条件型被动或觉醒，继续作为常驻面板会误算。
+当前 `app/modules/shaft/static/data/buffs.json` 中没有 `provider.kind == "character"` 的条目；角色被动/觉醒未进入集中 buff 注册。`characters.json` 里存在静态 `modifiers`，其中不少实际来自条件型被动或觉醒，继续作为常驻面板会误算。
 
 | 角色 | Nanoka 站点要点 | 我方现状 | 结论 |
 | --- | --- | --- | --- |

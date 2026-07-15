@@ -12,9 +12,9 @@ from typing import Any
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
-DATA_DIR = PROJECT_ROOT / 'app' / 'static' / 'kongmu' / 'data'
+DATA_DIR = PROJECT_ROOT / 'app' / 'modules' / 'kongmu' / 'static' / 'data'
 CHARACTER_DIR = DATA_DIR / 'characters'
-IMAGE_DIR = PROJECT_ROOT / 'app' / 'static' / 'kongmu' / 'images'
+IMAGE_DIR = PROJECT_ROOT / 'app' / 'modules' / 'kongmu' / 'static' / 'images'
 SHARED_AVATAR_DIR = PROJECT_ROOT / 'app' / 'static' / 'images' / 'characters' / 'avatar'
 
 STATIC_BASE = 'https://static.nanoka.cc'

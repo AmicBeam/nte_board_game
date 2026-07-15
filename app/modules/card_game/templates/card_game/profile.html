@@ -1,0 +1,44 @@
+{% extends 'common/base.html' %}
+{% block title %}账号设置{% endblock %}
+{% block head %}<link rel="stylesheet" href="{{ url_for('card_game_module.static', filename='css/build-page.css') }}">{% endblock %}
+{% block body %}
+<main class="build-page profile-page">
+    <section class="glass-card panel-header">
+        <div>
+            <p class="eyebrow">Profile</p>
+            <h1>修改密码 / 用户名</h1>
+            <p class="subtle">用户名最多保留 8 个汉字。密码修改后立即生效，旧密码失效。</p>
+        </div>
+        <div class="header-actions">
+            <a class="secondary-btn" href="{{ url_for('main.card_game_home') }}">主界面</a>
+            <a class="secondary-btn" href="{{ url_for('main.build_page') }}">构筑页</a>
+        </div>
+    </section>
+    <section class="glass-card account-panel">
+        <div class="section-title-row">
+            <div>
+                <h2>账号设置</h2>
+            </div>
+            <div class="note-box compact-note">
+                <strong id="account-display-name">未登录</strong>
+                <p id="account-display-id">账号：-</p>
+            </div>
+        </div>
+        <div class="account-grid">
+            <label class="field-label">
+                <span>用户名</span>
+                <input id="nickname-input" maxlength="8" placeholder="最多 8 个汉字">
+            </label>
+            <button class="secondary-btn" id="save-nickname-btn" type="button">修改用户名</button>
+            <label class="field-label">
+                <span>新密码</span>
+                <input id="password-input" maxlength="16" placeholder="输入新的网页登录密码">
+            </label>
+            <button class="secondary-btn" id="save-password-btn" type="button">修改密码</button>
+        </div>
+        <div id="account-feedback" class="note-box"></div>
+    </section>
+</main>
+<script src="{{ url_for('static', filename='common/js/common.js') }}"></script>
+<script src="{{ url_for('card_game_module.static', filename='js/profile.js') }}"></script>
+{% endblock %}

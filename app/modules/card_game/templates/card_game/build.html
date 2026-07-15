@@ -1,0 +1,133 @@
+{% extends 'common/base.html' %}
+{% block title %}构筑{% endblock %}
+{% block head %}<link rel="stylesheet" href="{{ url_for('card_game_module.static', filename='css/build-page.css') }}">{% endblock %}
+{% block body %}
+<main class="build-page">
+    <section class="glass-card panel-header build-command">
+        <div class="build-command-title">
+            <p class="eyebrow">构筑设置</p>
+            <h1>出战构筑</h1>
+        </div>
+        <p class="subtle build-command-copy">选择 10 到 20 张异象道具组成主牌组；并单独选择最多 4 名异能者作为待命区。</p>
+        <div class="header-actions">
+            <button class="icon-btn tutorial-help-btn" data-tutorial-open="build" type="button" aria-label="打开构筑手册" title="打开手册">
+                <span aria-hidden="true">?</span>
+                <span class="sr-only">打开构筑手册</span>
+            </button>
+            <button class="secondary-btn" id="prebuilt-preview-btn" type="button">预组预览</button>
+            <a class="secondary-btn" href="{{ url_for('main.card_game_home') }}">取消</a>
+            <button class="primary-btn" id="save-build-btn">保存</button>
+        </div>
+    </section>
+    <section class="glass-card build-workbench">
+        <section class="build-catalog-panel" id="catalog-drop-zone" aria-label="卡册">
+            <div class="section-title-row build-panel-title">
+                <div>
+                    <h2>卡册</h2>
+                    <p class="subtle">单击卡牌，或拖入右侧加入构筑。</p>
+                </div>
+                <div class="build-filters" aria-label="卡牌筛选">
+                    <label class="build-search">
+                        <span class="sr-only">搜索卡牌</span>
+                        <input id="catalog-search" type="search" placeholder="搜索卡名 / 效果">
+                    </label>
+                    <label class="build-filter-select build-type-filter">
+                        <span>类型</span>
+                        <select id="type-filter">
+                            <option value="all">全部</option>
+                            <option value="esper">异能者</option>
+                            <option value="anomaly_item">异象道具</option>
+                        </select>
+                    </label>
+                    <label class="build-filter-select">
+                        <span>费用</span>
+                        <select id="cost-filter">
+                            <option value="all">全部</option>
+                            <option value="0">0</option>
+                            <option value="1">1</option>
+                            <option value="2">2</option>
+                            <option value="3">3</option>
+                            <option value="4">4</option>
+                            <option value="5">5</option>
+                            <option value="6">6+</option>
+                        </select>
+                    </label>
+                    <label class="build-filter-select">
+                        <span>战力</span>
+                        <select id="power-filter">
+                            <option value="all">全部</option>
+                            <option value="0-1">0-1</option>
+                            <option value="2-3">2-3</option>
+                            <option value="4-6">4-6</option>
+                            <option value="7+">7+</option>
+                        </select>
+                    </label>
+                    <label class="build-filter-select">
+                        <span>属性</span>
+                        <select id="material-filter">
+                            <option value="all">全部</option>
+                            <option value="灵">灵</option>
+                            <option value="光">光</option>
+                            <option value="相">相</option>
+                            <option value="咒">咒</option>
+                            <option value="暗">暗</option>
+                            <option value="魂">魂</option>
+                        </select>
+                    </label>
+                    <label class="build-filter-select">
+                        <span>类别</span>
+                        <select id="category-filter">
+                            <option value="all">全部</option>
+                        </select>
+                    </label>
+                </div>
+            </div>
+            <div class="build-card-grid" id="catalog-grid"></div>
+        </section>
+        <aside class="build-deck-panel" id="deck-drop-zone" aria-label="构筑集">
+            <div class="section-title-row build-panel-title">
+                <div>
+                    <h2>构筑集</h2>
+                    <p id="deck-count" class="subtle">已选择 0 / 10-20 张</p>
+                </div>
+                <button class="secondary-btn" id="clear-build-btn" type="button">清空</button>
+            </div>
+            <section class="deck-zone build-deck-esper-zone" data-zone="esper">
+                <div class="deck-zone-title">
+                    <h3>异能者待命区</h3>
+                    <span id="esper-count">0 / 4</span>
+                </div>
+                <div class="deck-slots esper-slots" id="esper-list" data-zone="esper"></div>
+            </section>
+            <div class="deck-zones">
+                <section class="deck-zone" data-zone="reserve">
+                    <div class="deck-zone-title">
+                        <h3>主牌组</h3>
+                        <span id="reserve-count">0 / 20</span>
+                    </div>
+                    <div class="deck-slots" id="reserve-list" data-zone="reserve"></div>
+                </section>
+            </div>
+        </aside>
+    </section>
+    <aside class="build-card-preview" id="build-card-preview" aria-hidden="true"></aside>
+    <div class="build-drag-ghost" id="build-drag-ghost" aria-hidden="true"></div>
+    <div class="build-toast" id="build-toast" aria-hidden="true"></div>
+    <section class="prebuilt-preview-layer" id="prebuilt-preview-layer" aria-hidden="true">
+        <div class="prebuilt-preview-dialog" role="dialog" aria-modal="true" aria-labelledby="prebuilt-preview-title">
+            <div class="prebuilt-preview-head">
+                <div>
+                    <p class="eyebrow">预设套牌</p>
+                    <h2 id="prebuilt-preview-title">预组预览</h2>
+                </div>
+                <button class="preview-close" id="prebuilt-preview-close" type="button" aria-label="关闭预组预览">×</button>
+            </div>
+            <div class="prebuilt-preview-tabs" id="prebuilt-preview-tabs" role="tablist" aria-label="预组列表"></div>
+            <div class="prebuilt-preview-summary" id="prebuilt-preview-summary"></div>
+            <div class="prebuilt-preview-body" id="prebuilt-preview-body"></div>
+        </div>
+    </section>
+</main>
+<script src="{{ url_for('static', filename='common/js/common.js') }}"></script>
+<script src="{{ url_for('card_game_module.static', filename='js/build.js') }}"></script>
+{% endblock %}

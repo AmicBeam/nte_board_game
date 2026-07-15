@@ -18,7 +18,7 @@
 ## 验证命令
 
 ```bash
-python3 -m py_compile app/content/items/genesis_urban_energy.py app/content/items/genesis_refresh_charge.py app/content/items/genesis_breakfast_bag.py app/content/items/genesis_nest_shard.py app/content/items/delay_commute_bag.py app/content/items/genesis_eborn_cake.py app/content/items/genesis_chip_washer.py app/content/items/delay_mind_sync.py app/content/items/delay_recruit_fear.py app/content/items/murk_fantasy_delusion.py app/content/characters/chaos.py tests/test_solo_room_flow.py
+python3 -m py_compile app/modules/card_game/content/items/genesis_urban_energy.py app/modules/card_game/content/items/genesis_refresh_charge.py app/modules/card_game/content/items/genesis_breakfast_bag.py app/modules/card_game/content/items/genesis_nest_shard.py app/modules/card_game/content/items/delay_commute_bag.py app/modules/card_game/content/items/genesis_eborn_cake.py app/modules/card_game/content/items/genesis_chip_washer.py app/modules/card_game/content/items/delay_mind_sync.py app/modules/card_game/content/items/delay_recruit_fear.py app/modules/card_game/content/items/murk_fantasy_delusion.py app/modules/card_game/content/characters/chaos.py tests/test_solo_room_flow.py
 python3 -m unittest tests.test_solo_room_flow
 python3 scripts/duel_balance_eval.py --focus triad --samples 8 --seed 20260616 --write-dashboard --output /private/tmp/nte_triad_eval_card_updates_20260616.json
 ```

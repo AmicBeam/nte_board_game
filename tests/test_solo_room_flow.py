@@ -136,17 +136,17 @@ class RoomFlowTestCase(unittest.TestCase):
 
     def _solo_test_run_context(self) -> ExitStack:
         stack = ExitStack()
-        stack.enter_context(patch('app.engine.setup.snapshot_factory.random.shuffle', side_effect=lambda value: None))
+        stack.enter_context(patch('app.modules.card_game.engine.setup.snapshot_factory.random.shuffle', side_effect=lambda value: None))
         stack.enter_context(self._fixed_battlefield_patch())
         return stack
 
     def _fixed_battlefield_patch(self, trait_id: str = 'mirror_archive'):
-        battlefields = importlib.import_module('app.engine.setup.battlefields')
+        battlefields = importlib.import_module('app.modules.card_game.engine.setup.battlefields')
         trait = next(
             item for item in battlefields.BATTLEFIELD_TRAITS
             if item['id'] == trait_id
         )
-        return patch('app.engine.setup.snapshot_factory.BATTLEFIELD_TRAITS', [trait])
+        return patch('app.modules.card_game.engine.setup.snapshot_factory.BATTLEFIELD_TRAITS', [trait])
 
 
 class SoloRoomFlowTest(RoomFlowTestCase):
@@ -158,7 +158,13 @@ class SoloRoomFlowTest(RoomFlowTestCase):
         self.assertIn('空幕', portal_html)
         self.assertIn('预配队', portal_html)
         self.assertIn('排轴计算', portal_html)
+        self.assertIn('/card-game', portal_html)
         self.assertIn('/shaft/rotation', portal_html)
+
+        card_game = self.client.get('/card-game')
+        self.assertEqual(card_game.status_code, 200)
+        self.assertIn('异象对决', card_game.get_data(as_text=True))
+        self.assertEqual(self.client.get('/home').status_code, 404)
 
         legacy_plaza = self.client.get('/shaft/market')
         self.assertEqual(legacy_plaza.status_code, 200)
@@ -166,17 +172,15 @@ class SoloRoomFlowTest(RoomFlowTestCase):
         self.assertIn('data-active-page="plaza"', plaza_html)
         self.assertIn('排轴广场', plaza_html)
 
-    def test_shaft_empty_axis_can_be_simulated_saved_and_deleted(self) -> None:
+    def test_shaft_empty_axis_can_be_saved_and_deleted(self) -> None:
         token = self._issue_login_and_get_token('shaft-empty-axis')
         catalog = self._get('/api/shaft/catalog')
         axis = dict(catalog['starter_axis'])
         axis['steps'] = []
         axis['buff_rules'] = []
 
-        simulated = self._post('/api/shaft/simulate', axis)
-        self.assertEqual(simulated['axis']['steps'], [])
-        self.assertEqual(simulated['result']['details'], [])
-        self.assertEqual(simulated['result']['summary']['total_damage'], 0)
+        simulate_response = self.client.post('/api/shaft/simulate', json=axis)
+        self.assertEqual(simulate_response.status_code, 404)
 
         saved = self._post('/api/shaft/axes', {
             'title': '空白排轴',
@@ -203,7 +207,7 @@ class SoloRoomFlowTest(RoomFlowTestCase):
 
     def test_balance_analytics_reports_missing_data(self) -> None:
         token = self._issue_login_and_get_token('analytics-missing-data')
-        analytics_module = importlib.import_module('app.engine.application.analytics_service')
+        analytics_module = importlib.import_module('app.modules.card_game.engine.application.analytics_service')
         missing_path = Path(self.temp_dir.name) / 'missing-analytics.json'
 
         with patch.object(analytics_module, 'ANALYTICS_DATA_PATH', missing_path):
@@ -215,7 +219,7 @@ class SoloRoomFlowTest(RoomFlowTestCase):
 
     def test_balance_analytics_returns_latest_dashboard_data(self) -> None:
         token = self._issue_login_and_get_token('analytics-latest-data')
-        analytics_module = importlib.import_module('app.engine.application.analytics_service')
+        analytics_module = importlib.import_module('app.modules.card_game.engine.application.analytics_service')
         data_path = Path(self.temp_dir.name) / 'duel_analytics_latest.json'
         data_path.write_text(
             (
@@ -258,7 +262,7 @@ class SoloRoomFlowTest(RoomFlowTestCase):
 
     def test_prebuilt_preview_decks_use_standard_card_order(self) -> None:
         token = self._issue_login_and_get_token('prebuilt-preview-order')
-        build_service = importlib.import_module('app.engine.application.build_service')
+        build_service = importlib.import_module('app.modules.card_game.engine.application.build_service')
 
         catalog = self._get('/api/catalog', token=token)
 
@@ -297,7 +301,7 @@ class SoloRoomFlowTest(RoomFlowTestCase):
             value.reverse()
 
         with self._fixed_battlefield_patch():
-            with patch('app.engine.setup.snapshot_factory.random.shuffle', side_effect=reverse_shuffle):
+            with patch('app.modules.card_game.engine.setup.snapshot_factory.random.shuffle', side_effect=reverse_shuffle):
                 state = self._post('/api/room/start', token=token)
 
         hand_ids = [card['definition_id'] for card in state['player']['hand']]
@@ -352,7 +356,7 @@ class SoloRoomFlowTest(RoomFlowTestCase):
         self.assertTrue(run_payload['opponent']['is_ai'])
         self.assertEqual(len(run_payload['locations']), 1)
         self.assertEqual(run_payload['locations'][0]['id'], 'main_battlefield')
-        constants = importlib.import_module('app.content.common.constants')
+        constants = importlib.import_module('app.modules.card_game.content.common.constants')
         self.assertEqual(constants.LOCATION_CARD_LIMIT, 7)
         self.assertEqual(run_payload['locations'][0]['capacity'], constants.LOCATION_CARD_LIMIT)
         self.assertEqual(run_payload['current_actor_uid'], 'solo-room-start')
@@ -366,14 +370,14 @@ class SoloRoomFlowTest(RoomFlowTestCase):
         token = self._issue_login_and_get_token('hollow-theater-draw')
         self._save_default_build(token)
         self._post('/api/room/create', {'mode': 'solo'}, token=token)
-        battlefields = importlib.import_module('app.engine.setup.battlefields')
+        battlefields = importlib.import_module('app.modules.card_game.engine.setup.battlefields')
         hollow_theater = next(
             trait for trait in battlefields.BATTLEFIELD_TRAITS
             if trait['id'] == 'hollow_theater'
         )
 
         with self._solo_test_run_context():
-            with patch('app.engine.setup.snapshot_factory.BATTLEFIELD_TRAITS', [hollow_theater]):
+            with patch('app.modules.card_game.engine.setup.snapshot_factory.BATTLEFIELD_TRAITS', [hollow_theater]):
                 state = self._post('/api/room/start', token=token)
 
         self.assertEqual(state['locations'][0]['name'], '战场：呼啸环线')
@@ -397,7 +401,7 @@ class SoloRoomFlowTest(RoomFlowTestCase):
             value.sort(key=lambda card: 0 if card.get('definition_id') == 'genesis_chip_washer' else 1)
 
         with self._fixed_battlefield_patch():
-            with patch('app.engine.setup.snapshot_factory.random.shuffle', side_effect=chip_washer_first):
+            with patch('app.modules.card_game.engine.setup.snapshot_factory.random.shuffle', side_effect=chip_washer_first):
                 self._post('/api/room/start', token=token)
                 state = self._post('/api/game/end-turn', token=token)
 
@@ -652,16 +656,16 @@ class SoloRoomFlowTest(RoomFlowTestCase):
 
 class _RuleModules:
     def __init__(self) -> None:
-        self.runtime = importlib.import_module('app.engine.flow.turn_flow')
-        self.board = importlib.import_module('app.engine.rules.board_state')
-        self.declarations = importlib.import_module('app.engine.rules.declarations')
-        self.harmony = importlib.import_module('app.engine.rules.harmony')
-        self.materials = importlib.import_module('app.engine.rules.materials')
-        self.reveal = importlib.import_module('app.engine.flow.reveal_flow')
-        self.build = importlib.import_module('app.engine.application.build_service')
-        self.run_state = importlib.import_module('app.engine.application.run_state')
-        self.factory = importlib.import_module('app.engine.setup.snapshot_factory')
-        self.projection = importlib.import_module('app.engine.projection.public_state')
+        self.runtime = importlib.import_module('app.modules.card_game.engine.flow.turn_flow')
+        self.board = importlib.import_module('app.modules.card_game.engine.rules.board_state')
+        self.declarations = importlib.import_module('app.modules.card_game.engine.rules.declarations')
+        self.harmony = importlib.import_module('app.modules.card_game.engine.rules.harmony')
+        self.materials = importlib.import_module('app.modules.card_game.engine.rules.materials')
+        self.reveal = importlib.import_module('app.modules.card_game.engine.flow.reveal_flow')
+        self.build = importlib.import_module('app.modules.card_game.engine.application.build_service')
+        self.run_state = importlib.import_module('app.modules.card_game.engine.application.run_state')
+        self.factory = importlib.import_module('app.modules.card_game.engine.setup.snapshot_factory')
+        self.projection = importlib.import_module('app.modules.card_game.engine.projection.public_state')
         self.errors = importlib.import_module('app.errors')
 
     def __getattr__(self, name: str):
@@ -985,7 +989,7 @@ class DuelRuleTimingTest(RoomFlowTestCase):
 
     def test_common_role_material_box_is_tagged_and_not_constructible(self) -> None:
         rules = self._rules()
-        loader = importlib.import_module('app.content.loader')
+        loader = importlib.import_module('app.modules.card_game.content.loader')
         card = rules._card_by_id()['delay_common_role_material_box']
 
         ok, message = loader.validate_duel_deck_card_ids(['delay_common_role_material_box'] * 10)
@@ -1006,7 +1010,7 @@ class DuelRuleTimingTest(RoomFlowTestCase):
 
     def test_yi_esper_score_drops_without_current_delay(self) -> None:
         rules = self._rules()
-        scoring = importlib.import_module('app.engine.ai.scoring')
+        scoring = importlib.import_module('app.modules.card_game.engine.ai.scoring')
         yi = self._card_instance('yi', 'yi', revealed=False)
         material = self._card_instance('delay_mind_sync', 'mind', turn=1)
         snapshot = self._snapshot_with_cards([material])
@@ -1052,7 +1056,7 @@ class DuelRuleTimingTest(RoomFlowTestCase):
 
     def test_yi_esper_score_accepts_same_turn_protagonist_delay_setup(self) -> None:
         rules = self._rules()
-        scoring = importlib.import_module('app.engine.ai.scoring')
+        scoring = importlib.import_module('app.modules.card_game.engine.ai.scoring')
         protagonist = self._card_instance('protagonist', 'protagonist', revealed=False)
         yi = self._card_instance('yi', 'yi', revealed=False)
         wish = self._card_instance('delay_first_wish', 'wish', turn=1)
@@ -1124,7 +1128,7 @@ class DuelRuleTimingTest(RoomFlowTestCase):
 
     def test_murk_ai_prioritizes_requiem_when_ace_is_ready(self) -> None:
         rules = self._rules()
-        loader = importlib.import_module('app.content.loader')
+        loader = importlib.import_module('app.modules.card_game.content.loader')
         murk_deck = loader.get_duel_deck('murk_burn')
         self.assertIsNotNone(murk_deck)
         materials = [
@@ -1977,7 +1981,7 @@ class DuoRoomFlowTest(RoomFlowTestCase):
 
     def _duo_test_run_context(self) -> ExitStack:
         stack = ExitStack()
-        stack.enter_context(patch('app.engine.setup.snapshot_factory.random.shuffle', side_effect=lambda value: None))
+        stack.enter_context(patch('app.modules.card_game.engine.setup.snapshot_factory.random.shuffle', side_effect=lambda value: None))
         stack.enter_context(self._fixed_battlefield_patch())
         return stack
 

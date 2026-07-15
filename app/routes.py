@@ -6,7 +6,7 @@ from flask import Blueprint, g, jsonify, redirect, render_template, request, url
 
 from app.auth import login_with_code, token_required
 from app.dao import is_tutorial_completed, mark_tutorial_completed, update_player_nickname, update_player_password
-from app.engine.game_service import (
+from app.modules.card_game.engine.game_service import (
     choose_cards,
     declaration_preview,
     declaration_previews,
@@ -16,19 +16,21 @@ from app.engine.game_service import (
     retreat,
     save_build,
 )
-from app.engine.application.analytics_service import get_duel_analytics_payload
-from app.engine.application.kongmu_service import get_kongmu_catalog_payload, plan_kongmu_layout
-from app.engine.application.shaft_service import (
+from app.modules.card_game.engine.application.analytics_service import get_duel_analytics_payload
+from app.modules.kongmu.service import get_kongmu_catalog_payload, plan_kongmu_layout
+from app.modules.preteam.catalog import MAIN_CANDIDATES as PRETEAM_MAIN_CANDIDATES
+from app.modules.preteam.catalog import TEAMMATES as PRETEAM_TEAMMATES
+from app.modules.shaft.service import (
     delete_shaft_axis,
     get_shaft_axis,
     get_shaft_catalog_payload,
+    list_favorite_shaft_axes,
     list_my_shaft_axes,
     list_shaft_market,
     optional_player_from_token,
     save_shaft_axis,
     set_shaft_axis_favorite,
     set_shaft_axis_like,
-    simulate_shaft_axis,
 )
 from app.errors import AppError
 from app.room_service import (
@@ -85,37 +87,6 @@ def _acquire_kongmu_plan_lock(source_key: str) -> threading.Lock | None:
     return lock
 
 
-def _preteam_avatar(filename: str) -> str:
-    return f'images/characters/avatar/{filename}'
-
-
-PRETEAM_MAIN_CANDIDATES: list[dict[str, object]] = [
-    {'id': 'nanali', 'name': '娜娜莉', 'image': _preteam_avatar('娜娜莉.webp'), 'elem': '灵', 'char_key': 'nanali'},
-    {'id': 'xiaozhi', 'name': '小吱', 'image': _preteam_avatar('小吱.webp'), 'elem': '光', 'char_key': 'xiaozhi'},
-    {'id': 'baicang', 'name': '白藏', 'image': _preteam_avatar('白藏.webp'), 'elem': '咒', 'char_key': 'baicang'},
-    {'id': 'requiem', 'name': '安魂曲', 'image': _preteam_avatar('安魂曲.webp'), 'elem': '暗', 'char_key': 'requiem'},
-    {'id': 'hasuoerM', 'name': '哈索尔', 'image': _preteam_avatar('哈索尔.webp'), 'elem': '相', 'char_key': 'hasuoer'},
-    {'id': 'haiyue', 'name': '海月', 'image': _preteam_avatar('海月.webp'), 'elem': '魂', 'char_key': 'haiyue'},
-    {'id': 'bohe', 'name': '薄荷', 'image': _preteam_avatar('薄荷.webp'), 'elem': '灵', 'char_key': 'bohe'},
-]
-
-PRETEAM_TEAMMATES: list[dict[str, object]] = [
-    {'id': 'zhujue', 'name': '主角', 'image': _preteam_avatar('鉴定师.webp'), 'elem': '光', 'char_key': 'zhujue'},
-    {'id': 'xun', 'name': '浔', 'image': _preteam_avatar('浔.webp'), 'elem': '光', 'char_key': 'xun'},
-    {'id': 'aidejia', 'name': '埃德嘉', 'image': _preteam_avatar('埃德嘉.webp'), 'elem': '光', 'char_key': 'aidejia'},
-    {'id': 'jiuyuan', 'name': '九原', 'image': _preteam_avatar('九原.webp'), 'elem': '灵', 'char_key': 'jiuyuan'},
-    {'id': 'boheT', 'name': '薄荷', 'image': _preteam_avatar('薄荷.webp'), 'elem': '灵', 'char_key': 'bohe'},
-    {'id': 'nanaliT', 'name': '娜娜莉', 'image': _preteam_avatar('娜娜莉.webp'), 'elem': '灵', 'char_key': 'nanali'},
-    {'id': 'zaowu', 'name': '早雾', 'image': _preteam_avatar('早雾.webp'), 'elem': '咒', 'char_key': 'zaowu'},
-    {'id': 'adele', 'name': '阿德勒', 'image': _preteam_avatar('阿德勒.webp'), 'elem': '咒', 'char_key': 'adele'},
-    {'id': 'dafutier0', 'name': '达芙蒂尔', 'image': _preteam_avatar('达芙蒂尔.webp'), 'elem': '暗', 'char_key': 'dafutier'},
-    {'id': 'fatiya', 'name': '法帝娅', 'image': _preteam_avatar('法帝娅.webp'), 'elem': '魂', 'char_key': 'fatiya'},
-    {'id': 'haniya', 'name': '哈尼娅', 'image': _preteam_avatar('哈尼娅.webp'), 'elem': '魂', 'char_key': 'haniya'},
-    {'id': 'hasuoer', 'name': '哈索尔', 'image': _preteam_avatar('哈索尔.webp'), 'elem': '相', 'char_key': 'hasuoer'},
-    {'id': 'yiT', 'name': '翳', 'image': _preteam_avatar('翳.webp'), 'elem': '相', 'char_key': 'yi'},
-]
-
-
 @main_bp.get('/')
 def default_page():
     return render_template('index.html')
@@ -126,8 +97,8 @@ def favicon():
     return redirect(url_for('static', filename='images/brand/duel-icon.webp'))
 
 
-@main_bp.get('/home')
-def home():
+@main_bp.get('/card-game')
+def card_game_home():
     return render_template('card_game/index.html')
 
 
@@ -335,23 +306,11 @@ def api_shaft_catalog():
         return jsonify({'error': '读取排轴数据时发生异常，请稍后重试。'}), 500
 
 
-@main_bp.post('/api/shaft/simulate')
-def api_shaft_simulate():
-    payload = request.get_json(silent=True) or {}
-    try:
-        return jsonify(simulate_shaft_axis(payload))
-    except AppError as exc:
-        return jsonify({'error': str(exc)}), 400
-    except Exception:
-        logger.exception('api_shaft_simulate failed')
-        return jsonify({'error': '计算排轴时发生异常，请稍后重试。'}), 500
-
-
 @main_bp.get('/api/shaft/market')
 def api_shaft_market():
     try:
         return jsonify(list_shaft_market(
-            character_id=str(request.args.get('character_id', '')).strip(),
+            character_ids=[value.strip() for value in request.args.getlist('character_id') if value.strip()][:4],
             sort=str(request.args.get('sort', 'dps')).strip(),
             page=_request_int_arg('page', 1),
             page_size=_request_int_arg('page_size', 20),
@@ -428,6 +387,18 @@ def api_shaft_my_axes():
     except Exception:
         logger.exception('api_shaft_my_axes failed')
         return jsonify({'error': '读取我的排轴时发生异常，请稍后重试。'}), 500
+
+
+@main_bp.get('/api/shaft/me/favorites')
+@token_required
+def api_shaft_my_favorites():
+    try:
+        return jsonify(list_favorite_shaft_axes(g.current_player))
+    except AppError as exc:
+        return jsonify({'error': str(exc)}), 400
+    except Exception:
+        logger.exception('api_shaft_my_favorites failed')
+        return jsonify({'error': '读取收藏排轴时发生异常，请稍后重试。'}), 500
 
 
 @main_bp.post('/api/shaft/axes/<int:axis_id>/like')
