@@ -2,6 +2,16 @@
   const ELEMENTS = ['光', '灵', '咒', '暗', '魂', '相'];
   const SLOT_COLORS = ['#58d8d2', '#ffbf57', '#ff5aa5', '#77e36f'];
   const ACTION_CONTRIBUTION_COLORS = ['#58d8d2', '#ffbf57', '#ff5aa5', '#77e36f', '#b28cff', '#62b7ff', '#ff7a63', '#d8e26a'];
+  const ACTION_TYPE_COLORS = {
+    '普攻': '#58d8d2',
+    'E': '#62b7ff',
+    'Q': '#b28cff',
+    '援护': '#ffbf57',
+    '闪反': '#77e36f',
+    '下落': '#ff7a63',
+    '环合': '#ff5aa5',
+    '其他': '#b9c6d8',
+  };
   const DAMAGE_SOURCE_COLORS = {
     '创生': '#4fdcc8',
     '浊燃': '#ff665c',
@@ -72,6 +82,11 @@
     skill: 10,
     ultimate: 10,
     support: 10,
+  };
+  const actionAnalysisState = {
+    slot: null,
+    dimension: 'action',
+    view: 'donut',
   };
   const CURTAIN_PASSIVE_TYPES = [
     { key: 'type2', label: '2型被动' },
@@ -356,6 +371,209 @@
       return fallback;
     }
     return `${entry.title || '未命名'}\n${entry.description || '暂无描述'}`;
+  }
+
+  function mechanismConfigurationConditionMatches(condition, member, awakeningNodes) {
+    const type = String(condition?.type || '');
+    if (type === 'awakening_min') {
+      const level = Math.round(numberValue(condition.min, condition.value));
+      return awakeningNodes.has(level);
+    }
+    if (type === 'awakening_max') {
+      const nextLevel = Math.round(numberValue(condition.max, condition.value)) + 1;
+      return !awakeningNodes.has(nextLevel);
+    }
+    if (type === 'owner_character_id') {
+      return (condition.ids || []).map(String).includes(String(member?.character_id || ''));
+    }
+    return type !== 'unsupported';
+  }
+
+  function mechanismEffectLabel(key) {
+    const labels = {
+      atk_pct: '攻击',
+      flat_atk: '固定攻击',
+      hp_pct: '生命',
+      flat_hp: '固定生命',
+      def_pct: '防御',
+      flat_def: '固定防御',
+      crit_rate: '暴击率',
+      crit_dmg: '暴击伤害',
+      def_ignore: '无视防御',
+      def_down: '防御降低',
+      res_down: '抗性降低',
+      energy_recharge: '充能效率',
+      harmony_strength: '环合强度',
+      stagger_strength: '倾陷强度',
+      basic_dmg: '普攻伤害',
+      dodge_counter_dmg: '闪避反击伤害',
+      skill_dmg: '变轨技伤害',
+      ultimate_dmg: '终结技伤害',
+      follow_dmg: '追击伤害',
+      mind_dmg: '心灵伤害',
+      attach_dmg: '附着伤害',
+      element_dmg: '属性伤害',
+      all_dmg: '伤害',
+      final_dmg: '最终伤害',
+    };
+    return labels[key] || (String(key).startsWith('res_down_') ? `${String(key).slice('res_down_'.length)}属性抗性降低` : '');
+  }
+
+  function mechanismEffectValue(key, value) {
+    const flatKeys = new Set(['flat_atk', 'flat_hp', 'flat_def', 'harmony_strength', 'stagger_strength']);
+    return flatKeys.has(key)
+      ? formatNumber(value, Number.isInteger(Number(value)) ? 0 : 1)
+      : `${formatNumber(Number(value) * 100, 1)}%`;
+  }
+
+  function mechanismTriggerText(rule) {
+    const trigger = rule?.trigger || {};
+    const source = trigger.source || {};
+    const actionTypeLabels = { E: '变轨技', Q: '终结技', '普攻': '普攻', '援护': '援护技' };
+    const actionTypes = (source.action_types || []).map((type) => actionTypeLabels[type] || type);
+    const actionNames = source.action_names || [];
+    const actionLabel = [...actionTypes, ...actionNames].join('或');
+    if (trigger.event === 'passive') return '常驻';
+    if (trigger.event === 'front_time') return '前台驻场时';
+    if (trigger.event === 'reaction_trigger') {
+      const reactions = (trigger.conditions || [])
+        .filter((condition) => condition?.type === 'reaction_type')
+        .flatMap((condition) => condition.reactions || []);
+      return reactions.length ? `触发${reactions.join('或')}时` : '触发环合时';
+    }
+    if (trigger.event === 'action_hit') return actionLabel ? `${actionLabel}命中后` : '攻击命中后';
+    if (trigger.event === 'action_end') return actionLabel ? `${actionLabel}结束后` : '动作结束后';
+    if (trigger.event === 'action_start') return actionLabel ? `施放${actionLabel}时` : '满足动作条件时';
+    return '';
+  }
+
+  function mechanismTargetText(rule) {
+    const target = rule?.target || {};
+    const scopeLabels = {
+      team: '全队',
+      other_team: '其他队友',
+      front: '前台角色',
+      front_registrar: '自身在前台时',
+      front_non_registrar: '其他前台角色',
+    };
+    const parts = [];
+    if (scopeLabels[target.scope]) parts.push(scopeLabels[target.scope]);
+    if ((target.elements || []).length) parts.push(`${target.elements.join('或')}属性`);
+    if ((target.action_types || []).length) parts.push(target.action_types.join('或'));
+    if ((target.action_names || []).length) parts.push(target.action_names.join('或'));
+    if ((target.tags || []).length) parts.push(target.tags.join('或'));
+    return parts.join('');
+  }
+
+  function mechanismRuleSummary(rule) {
+    if (rule?.description) {
+      return String(rule.description);
+    }
+    const stacking = rule?.stacking || {};
+    const maxStacks = Math.max(1, Math.round(numberValue(stacking.max_stacks, 1)));
+    const effects = Object.entries(rule?.effects || {})
+      .filter(([key, value]) => mechanismEffectLabel(key) && Number(value))
+      .map(([key, value]) => {
+        const amount = mechanismEffectValue(key, value);
+        return stacking.mode === 'add_stack' || stacking.mode === 'independent'
+          ? `${mechanismEffectLabel(key)}每层${Number(value) >= 0 ? '+' : ''}${amount}`
+          : `${mechanismEffectLabel(key)}${Number(value) >= 0 ? '+' : ''}${amount}`;
+      });
+    const dynamicEffects = Object.values(rule?.dynamic_effects || {}).map((dynamic) => {
+      const key = dynamic?.effect_key || '';
+      const perValue = numberValue(dynamic?.per_count, dynamic?.per_interval);
+      const maximum = numberValue(dynamic?.max_count);
+      if (!mechanismEffectLabel(key) || !perValue) return '';
+      return `${mechanismEffectLabel(key)}每层${perValue >= 0 ? '+' : ''}${mechanismEffectValue(key, perValue)}${maximum > 1 ? `，最多${formatNumber(maximum, 0)}层` : ''}`;
+    }).filter(Boolean);
+    const parts = [mechanismTriggerText(rule), mechanismTargetText(rule), [...effects, ...dynamicEffects].join('、')].filter(Boolean);
+    if (maxStacks > 1 && effects.length) {
+      parts.push(`最多${maxStacks}层`);
+    }
+    const duration = rule?.duration || {};
+    const durationTicks = Math.max(0, numberValue(duration.ticks));
+    if (duration.type === 'time' && durationTicks > 1 && durationTicks < BUFF_DURATION_LABEL_LIMIT_TICKS) {
+      parts.push(`持续${formatNumber(durationTicks / 10, durationTicks % 10 ? 1 : 0)}秒`);
+    }
+    return parts.join('，') || '按该机制规则触发';
+  }
+
+  function activeMechanismGroups(member) {
+    const selectedProviders = {
+      character: String(member?.character_id || ''),
+      arc: String(member?.arc_id || ''),
+      cartridge: String(member?.cartridge_id || ''),
+    };
+    const awakeningNodes = new Set(normalizeAwakeningNodes(member?.awakening_nodes, member?.awakening));
+    const rulesByKind = { character: [], arc: [], cartridge: [] };
+    (state.catalog?.buffs || []).forEach((rule) => {
+      const provider = (rule?.providers || []).find((item) => {
+        const kind = String(item?.kind || '');
+        return Object.prototype.hasOwnProperty.call(selectedProviders, kind) &&
+          String(item?.id || '') === selectedProviders[kind];
+      });
+      if (!provider) {
+        return;
+      }
+      const conditions = [
+        ...(rule?.trigger?.conditions || []),
+        ...(rule?.target?.conditions || []),
+      ];
+      if (!conditions.every((condition) => mechanismConfigurationConditionMatches(condition, member, awakeningNodes))) {
+        return;
+      }
+      const activeRule = clone(rule);
+      if (String(provider.kind) === 'arc') {
+        const refinedEffects = arcRefinementRecord(member)?.buff_effects?.[String(rule.id || '')];
+        if (refinedEffects && typeof refinedEffects === 'object') {
+          activeRule.effects = clone(refinedEffects);
+        }
+      }
+      rulesByKind[String(provider.kind)].push(activeRule);
+    });
+
+    const sourceNames = {
+      character: getCharacterMap().get(member?.character_id)?.name || member?.character_name || '角色',
+      arc: getArcMap().get(member?.arc_id)?.name || '弧盘',
+      cartridge: getCartridgeMap().get(member?.cartridge_id)?.name || '卡带',
+    };
+    const sourceLabels = { character: '角色', arc: '弧盘', cartridge: '卡带' };
+    return ['character', 'arc', 'cartridge']
+      .map((kind) => ({
+        kind,
+        label: sourceLabels[kind],
+        sourceName: sourceNames[kind],
+        rules: rulesByKind[kind],
+      }))
+      .filter((group) => group.rules.length);
+  }
+
+  function activeMechanismTooltipHtml(member, character) {
+    const groups = activeMechanismGroups(member);
+    const total = groups.reduce((sum, group) => sum + group.rules.length, 0);
+    const groupHtml = groups.map((group) => `
+      <span class="shaft-mechanism-group">
+        <strong>${escapeHtml(group.label)} · ${escapeHtml(group.sourceName)}</strong>
+        ${group.rules.map((rule) => `
+          <span class="shaft-mechanism-item">
+            <b>• ${escapeHtml(rule.name || rule.id || '未命名机制')}</b>
+            <small>${escapeHtml(mechanismRuleSummary(rule))}</small>
+          </span>
+        `).join('')}
+      </span>
+    `).join('');
+    const name = character?.name || member?.character_name || '该角色';
+    return `
+      <button class="shaft-mechanism-tooltip" type="button"
+        aria-label="查看${escapeHtml(name)}当前激活机制，共${total}项"
+        aria-describedby="shaft-mechanisms-${Number(member?.slot || 0)}">
+        <span class="shaft-mechanism-icon" aria-hidden="true">!</span>
+        <span class="shaft-mechanism-popover" id="shaft-mechanisms-${Number(member?.slot || 0)}" role="tooltip">
+          <strong class="shaft-mechanism-title">当前激活机制 · ${total}</strong>
+          ${groupHtml || '<span class="shaft-mechanism-empty">当前配装没有启用 buff 机制</span>'}
+        </span>
+      </button>
+    `;
   }
 
   function getActionMap() {
@@ -1370,8 +1588,13 @@
     state.compareSnapshot = {
       saved_at: Date.now(),
       summary: clone(result.summary || {}),
+      damage_by_slot: clone(result.damage_by_slot || []),
+      damage_by_action_by_slot: clone(result.damage_by_action_by_slot || []),
     };
     renderResults();
+    if ($('shaft-action-contribution-dialog')?.open) {
+      renderActionContributionAnalysis();
+    }
     persistAxisDraft();
     setStatus('已保存对比快照');
   }
@@ -1501,6 +1724,7 @@
       const mainStat = normalizeCartridgeMainStat(member.cartridge_main_stat, member.character_id);
       const curtainBonus = normalizeCurtainBonus(member.curtain_bonus, member.character_id);
       const curtainResult = curtainBonusResultText(member);
+      const mechanismTooltip = activeMechanismTooltipHtml(member, character);
       const mainStatSelect = Object.entries(mainStatOptions()).map(([key, meta]) => `
         <option value="${escapeHtml(key)}" ${key === mainStat ? 'selected' : ''}>${escapeHtml(meta.label || key)}</option>
       `).join('');
@@ -1535,12 +1759,15 @@
           </section>
           <section class="shaft-member-editor">
             <div class="shaft-loadout-grid">
-              <label>
-                <span>角色</span>
-                <select data-slot="${member.slot}" data-field="character_id">
-                  ${optionHtml(characters, member.character_id)}
-                </select>
-              </label>
+              <div class="shaft-character-select">
+                <label>
+                  <span>角色</span>
+                  <select data-slot="${member.slot}" data-field="character_id">
+                    ${optionHtml(characters, member.character_id)}
+                  </select>
+                </label>
+                ${mechanismTooltip}
+              </div>
               <label>
                 <span>弧盘</span>
                 <select data-slot="${member.slot}" data-field="arc_id">
@@ -1840,7 +2067,7 @@
         <span>${escapeHtml(item.character_name)}</span>
         <div class="shaft-contribution-bar"><span style="width: ${Math.max(0, Math.min(100, Number(item.percent || 0)))}%; --contribution-color:${SLOT_COLORS[Number(item.slot) % SLOT_COLORS.length]}"></span></div>
         <span>${formatNumber(item.percent || 0, 1)}%</span>
-        <button class="secondary-btn shaft-action-contribution-btn" data-action-contribution-slot="${Number(item.slot)}" type="button" ${Number(item.damage || 0) > 0 ? '' : 'disabled'}>动作占比</button>
+        <button class="secondary-btn shaft-action-contribution-btn" data-action-contribution-slot="${Number(item.slot)}" type="button" ${Number(item.damage || 0) > 0 ? '' : 'disabled'}>分析详情</button>
       </div>
     `).join('');
     const sourceRows = (result?.damage_by_source || []).map((item) => `
@@ -1857,11 +2084,22 @@
     renderWorkbenchSummary();
   }
 
-  function actionContributionForSlot(slot) {
-    const result = freshResult();
+  function actionContributionForSlot(slot, result = freshResult()) {
     const projected = (result?.damage_by_action_by_slot || []).find((item) => Number(item.slot) === Number(slot));
     if (projected) {
-      return projected;
+      const actionMap = getActionMap();
+      return {
+        ...projected,
+        actions: (projected.actions || []).map((item) => {
+          const action = actionMap.get(item.action_id) || {};
+          return {
+            ...item,
+            action_type: item.action_type || action.action_type || '其他',
+            damage_type: item.damage_type || action.damage_type || item.action_type || action.action_type || '其他',
+            damage_element: item.damage_element || action.damage_element || '',
+          };
+        }),
+      };
     }
     const details = (result?.details || []).filter((detail) => Number(detail.slot) === Number(slot));
     const actions = new Map();
@@ -1870,6 +2108,9 @@
       const current = actions.get(key) || {
         action_id: detail.action_id,
         action_name: detail.action_name,
+        action_type: detail.action_type || '其他',
+        damage_type: detail.damage_type || detail.action_type || '其他',
+        damage_element: detail.damage_element || '',
         damage: 0,
       };
       current.damage += Number(detail.direct_damage || 0);
@@ -1887,64 +2128,293 @@
     };
   }
 
+  function actionContributionGroups(contribution, dimension) {
+    const actions = contribution?.actions || [];
+    if (dimension === 'action') {
+      return actions.map((action, index) => ({
+        key: action.action_id || action.action_name || String(index),
+        label: action.action_name || '未命名动作',
+        detail: action.damage_type || action.action_type || '其他',
+        damage: Number(action.damage || 0),
+        percent: Number(action.percent || 0),
+        color: ACTION_CONTRIBUTION_COLORS[index % ACTION_CONTRIBUTION_COLORS.length],
+      }));
+    }
+    const groups = new Map();
+    actions.forEach((action) => {
+      const label = String(action.damage_type || action.action_type || '其他');
+      const current = groups.get(label) || {
+        key: label,
+        label,
+        detail: '合并同类型动作',
+        damage: 0,
+        actionCount: 0,
+      };
+      current.damage += Number(action.damage || 0);
+      current.actionCount += 1;
+      groups.set(label, current);
+    });
+    const total = Number(contribution?.total_damage || 0);
+    return Array.from(groups.values())
+      .filter((item) => item.damage > 0)
+      .sort((left, right) => right.damage - left.damage || left.label.localeCompare(right.label, 'zh-CN'))
+      .map((item, index) => ({
+        ...item,
+        detail: `${item.actionCount} 个动作`,
+        percent: total > 0 ? item.damage / total * 100 : 0,
+        color: ACTION_TYPE_COLORS[item.label] || ACTION_CONTRIBUTION_COLORS[index % ACTION_CONTRIBUTION_COLORS.length],
+      }));
+  }
+
+  function mergeActionAnalysisComparison(currentGroups, baselineGroups) {
+    const baselineMap = new Map((baselineGroups || []).map((item) => [String(item.key), item]));
+    const currentKeys = new Set(currentGroups.map((item) => String(item.key)));
+    const merged = currentGroups.map((item) => {
+      const baseline = baselineMap.get(String(item.key));
+      return {
+        ...item,
+        baselineDamage: Number(baseline?.damage || 0),
+        baselinePercent: Number(baseline?.percent || 0),
+        damageDelta: Number(item.damage || 0) - Number(baseline?.damage || 0),
+        percentDelta: Number(item.percent || 0) - Number(baseline?.percent || 0),
+        isNew: !baseline,
+      };
+    });
+    (baselineGroups || []).forEach((item) => {
+      if (currentKeys.has(String(item.key))) return;
+      merged.push({
+        ...item,
+        damage: 0,
+        percent: 0,
+        baselineDamage: Number(item.damage || 0),
+        baselinePercent: Number(item.percent || 0),
+        damageDelta: -Number(item.damage || 0),
+        percentDelta: -Number(item.percent || 0),
+        isRemoved: true,
+      });
+    });
+    return merged;
+  }
+
+  function actionAnalysisDeltaText(value, digits = 0, suffix = '') {
+    const raw = Number(value || 0);
+    const numeric = Math.abs(raw) < (0.5 * (10 ** -digits)) ? 0 : raw;
+    const sign = numeric > 0 ? '+' : '';
+    return `${sign}${formatNumber(numeric, digits)}${suffix}`;
+  }
+
+  function actionAnalysisDeltaTone(value) {
+    const numeric = Number(value || 0);
+    if (Math.abs(numeric) < 0.005) return '';
+    return numeric > 0 ? 'is-up' : 'is-down';
+  }
+
+  function polarPoint(radius, angle) {
+    const radians = (angle - 90) * Math.PI / 180;
+    return {
+      x: 50 + radius * Math.cos(radians),
+      y: 50 + radius * Math.sin(radians),
+    };
+  }
+
+  function donutSegmentPath(startAngle, endAngle) {
+    const safeEnd = Math.min(endAngle, startAngle + 359.999);
+    const outerStart = polarPoint(44, startAngle);
+    const outerEnd = polarPoint(44, safeEnd);
+    const innerEnd = polarPoint(25, safeEnd);
+    const innerStart = polarPoint(25, startAngle);
+    const largeArc = safeEnd - startAngle > 180 ? 1 : 0;
+    return [
+      `M ${outerStart.x} ${outerStart.y}`,
+      `A 44 44 0 ${largeArc} 1 ${outerEnd.x} ${outerEnd.y}`,
+      `L ${innerEnd.x} ${innerEnd.y}`,
+      `A 25 25 0 ${largeArc} 0 ${innerStart.x} ${innerStart.y}`,
+      'Z',
+    ].join(' ');
+  }
+
   function actionContributionPie(actions) {
-    const radius = 21;
-    const circumference = 2 * Math.PI * radius;
-    let offset = 0;
-    const segments = actions.map((action, index) => {
-      const length = circumference * Math.max(0, Math.min(100, Number(action.percent || 0))) / 100;
-      const segment = `
-        <circle
-          cx="50" cy="50" r="${radius}"
-          fill="none"
-          stroke="${ACTION_CONTRIBUTION_COLORS[index % ACTION_CONTRIBUTION_COLORS.length]}"
-          stroke-width="42"
-          stroke-dasharray="${length} ${Math.max(0, circumference - length)}"
-          stroke-dashoffset="${-offset}"
+    const groups = actions;
+    let angle = 0;
+    const segments = groups.map((group, index) => {
+      const sweep = Math.max(0, Math.min(100, Number(group.percent || 0))) * 3.6;
+      const startAngle = angle;
+      const endAngle = angle + sweep;
+      const middle = (startAngle + endAngle) / 2;
+      angle = endAngle;
+      return `
+        <path
+          class="shaft-action-contribution-segment"
+          data-analysis-index="${index}"
+          d="${donutSegmentPath(startAngle, endAngle)}"
+          fill="${group.color}"
+          style="--explode-x:${(Math.sin(middle * Math.PI / 180) * 2.4).toFixed(2)}px;--explode-y:${(-Math.cos(middle * Math.PI / 180) * 2.4).toFixed(2)}px"
+          tabindex="0"
+          role="button"
+          aria-label="${escapeHtml(group.label)}，${formatNumber(group.percent || 0, 1)}%"
         >
-          <title>${escapeHtml(action.action_name)} ${formatNumber(action.percent || 0, 1)}%</title>
-        </circle>
+          <title>${escapeHtml(group.label)} ${formatNumber(group.percent || 0, 1)}%</title>
+        </path>
       `;
-      offset += length;
-      return segment;
     }).join('');
     return `
       <svg class="shaft-action-contribution-pie" viewBox="0 0 100 100" role="img" aria-label="角色各动作伤害贡献饼图">
-        <g transform="rotate(-90 50 50)">${segments}</g>
+        ${segments}
       </svg>
     `;
   }
 
-  function openActionContribution(slot, trigger = null) {
-    const dialog = $('shaft-action-contribution-dialog');
+  function actionContributionBars(groups, hasComparison = false) {
+    return `
+      <div class="shaft-action-analysis-bars" role="img" aria-label="伤害贡献排行图">
+        ${groups.map((group, index) => `
+          <div class="shaft-action-analysis-bar" data-analysis-index="${index}" tabindex="0">
+            <div>
+              <span>${escapeHtml(group.label)}</span>
+              <b>${formatNumber(group.percent || 0, 1)}%</b>
+            </div>
+            <i>
+              ${hasComparison ? `<em style="left:${Math.max(0, Math.min(100, Number(group.baselinePercent || 0)))}%" title="快照占比 ${formatNumber(group.baselinePercent || 0, 1)}%"></em>` : ''}
+              <span style="width:${Math.max(0, Number(group.percent || 0))}%;--action-color:${group.color}"></span>
+            </i>
+          </div>
+        `).join('')}
+      </div>
+    `;
+  }
+
+  function renderActionContributionAnalysis() {
     const content = $('shaft-action-contribution-content');
-    const contribution = actionContributionForSlot(slot);
-    if (!dialog || !content || !contribution) {
+    const contribution = actionContributionForSlot(actionAnalysisState.slot);
+    if (!content || !contribution) {
       return;
     }
-    const actions = contribution.actions || [];
-    $('shaft-action-contribution-title').textContent = `${contribution.character_name || memberName(slot)} · 动作贡献`;
-    content.innerHTML = actions.length ? `
-      <div class="shaft-action-contribution-body">
-        <div class="shaft-action-contribution-chart">
-          ${actionContributionPie(actions)}
-          <strong>${formatNumber(contribution.total_damage || 0)}</strong>
-          <span>角色总伤</span>
+    const currentGroups = actionContributionGroups(contribution, actionAnalysisState.dimension);
+    if (!currentGroups.length) {
+      content.innerHTML = '<div class="shaft-empty">该角色当前没有造成动作伤害</div>';
+      return;
+    }
+    const snapshotHasDetails = Array.isArray(state.compareSnapshot?.damage_by_action_by_slot);
+    const baselineContribution = snapshotHasDetails
+      ? actionContributionForSlot(actionAnalysisState.slot, {
+        damage_by_action_by_slot: state.compareSnapshot.damage_by_action_by_slot,
+      })
+      : null;
+    const baselineGroups = baselineContribution
+      ? actionContributionGroups(baselineContribution, actionAnalysisState.dimension)
+      : [];
+    const hasComparison = Boolean(baselineContribution);
+    const groups = hasComparison
+      ? mergeActionAnalysisComparison(currentGroups, baselineGroups)
+      : currentGroups;
+    const top = currentGroups[0];
+    const topThreePercent = currentGroups.slice(0, 3).reduce((sum, item) => sum + Number(item.percent || 0), 0);
+    const baselineTopThreePercent = baselineGroups.slice(0, 3).reduce((sum, item) => sum + Number(item.percent || 0), 0);
+    const baselineTopMap = new Map(baselineGroups.map((item) => [String(item.key), item]));
+    const topBaseline = baselineTopMap.get(String(top.key));
+    const totalDelta = Number(contribution.total_damage || 0) - Number(baselineContribution?.total_damage || 0);
+    const countDelta = currentGroups.length - baselineGroups.length;
+    const chart = actionAnalysisState.view === 'bars'
+      ? actionContributionBars(groups, hasComparison)
+      : actionContributionPie(currentGroups);
+    const snapshotTime = state.compareSnapshot?.saved_at
+      ? new Date(state.compareSnapshot.saved_at).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
+      : '';
+    content.innerHTML = `
+      <div class="shaft-action-analysis-toolbar">
+        <div class="shaft-action-analysis-switch" role="tablist" aria-label="分析维度">
+          <button class="${actionAnalysisState.dimension === 'action' ? 'is-active' : ''}" data-analysis-dimension="action" type="button" role="tab" aria-selected="${actionAnalysisState.dimension === 'action'}">动作明细</button>
+          <button class="${actionAnalysisState.dimension === 'type' ? 'is-active' : ''}" data-analysis-dimension="type" type="button" role="tab" aria-selected="${actionAnalysisState.dimension === 'type'}">合并伤害类型</button>
+        </div>
+        <div class="shaft-action-analysis-switch shaft-action-analysis-view-switch" aria-label="图表类型">
+          <button class="${actionAnalysisState.view === 'donut' ? 'is-active' : ''}" data-analysis-view="donut" type="button">环形占比</button>
+          <button class="${actionAnalysisState.view === 'bars' ? 'is-active' : ''}" data-analysis-view="bars" type="button">排行条形</button>
+        </div>
+      </div>
+      ${hasComparison ? `
+        <div class="shaft-action-analysis-snapshot">
+          <div>
+            <span>对比快照 · ${escapeHtml(snapshotTime)}</span>
+            <strong>${formatNumber(baselineContribution.total_damage || 0)} → ${formatNumber(contribution.total_damage || 0)}</strong>
+          </div>
+          <b class="${actionAnalysisDeltaTone(totalDelta)}">${actionAnalysisDeltaText(totalDelta)}</b>
+          <small>排行图中的竖线表示快照占比</small>
+        </div>
+      ` : `
+        <div class="shaft-action-analysis-snapshot shaft-action-analysis-snapshot-empty">
+          <span>${state.compareSnapshot ? '当前快照仅包含总览数据，请重新保存以分析动作变化' : '保存当前结果为快照后，可分析每个动作和伤害类型的变化'}</span>
+          <button class="secondary-btn" data-save-action-snapshot type="button">${state.compareSnapshot ? '更新快照' : '保存当前快照'}</button>
+        </div>
+      `}
+      <div class="shaft-action-analysis-kpis">
+        <div><span>角色总伤</span><strong>${formatNumber(contribution.total_damage || 0)}</strong>${hasComparison ? `<small class="${actionAnalysisDeltaTone(totalDelta)}">较快照 ${actionAnalysisDeltaText(totalDelta)}</small>` : ''}</div>
+        <div><span>${actionAnalysisState.dimension === 'action' ? '有效动作' : '伤害类型'}</span><strong>${currentGroups.length}</strong>${hasComparison ? `<small class="${actionAnalysisDeltaTone(countDelta)}">较快照 ${actionAnalysisDeltaText(countDelta)}</small>` : ''}</div>
+        <div><span>最高贡献</span><strong>${formatNumber(top.percent || 0, 1)}%</strong><small>${escapeHtml(top.label)}${hasComparison ? ` · ${actionAnalysisDeltaText(Number(top.percent || 0) - Number(topBaseline?.percent || 0), 1, 'pp')}` : ''}</small></div>
+        <div><span>前三集中度</span><strong>${formatNumber(topThreePercent, 1)}%</strong>${hasComparison ? `<small class="${actionAnalysisDeltaTone(topThreePercent - baselineTopThreePercent)}">较快照 ${actionAnalysisDeltaText(topThreePercent - baselineTopThreePercent, 1, 'pp')}</small>` : ''}</div>
+      </div>
+      <div class="shaft-action-contribution-body" data-analysis-chart-root>
+        <div class="shaft-action-contribution-chart shaft-action-contribution-chart-${actionAnalysisState.view}">
+          ${chart}
+          ${actionAnalysisState.view === 'donut' ? `
+            <div class="shaft-action-chart-center">
+              <strong data-analysis-center-value>${formatNumber(contribution.total_damage || 0)}</strong>
+              <span data-analysis-center-label>角色总伤</span>
+            </div>
+          ` : ''}
         </div>
         <div class="shaft-action-contribution-legend">
-          ${actions.map((action, index) => `
-            <div class="shaft-action-contribution-item">
-              <i style="--action-color:${ACTION_CONTRIBUTION_COLORS[index % ACTION_CONTRIBUTION_COLORS.length]}"></i>
-              <span>${escapeHtml(action.action_name || '未命名动作')}</span>
-              <strong>${formatNumber(action.damage || 0)}</strong>
-              <b>${formatNumber(action.percent || 0, 1)}%</b>
-            </div>
+          ${groups.map((group, index) => `
+            <button class="shaft-action-contribution-item ${group.isRemoved ? 'is-removed' : ''}" data-analysis-index="${index}" style="--action-color:${group.color}" type="button">
+              <i style="--action-color:${group.color}"></i>
+              <span>
+                <b>${escapeHtml(group.label)}${group.isNew ? ' · 新增' : ''}${group.isRemoved ? ' · 已移除' : ''}</b>
+                <small>${escapeHtml(group.detail || '')}${hasComparison ? ` · 快照 ${formatNumber(group.baselineDamage || 0)}` : ''}</small>
+              </span>
+              <strong>${formatNumber(group.damage || 0)}</strong>
+              <em>
+                ${formatNumber(group.percent || 0, 1)}%
+                ${hasComparison ? `<small class="${actionAnalysisDeltaTone(group.percentDelta)}">${actionAnalysisDeltaText(group.percentDelta, 1, 'pp')}</small>` : ''}
+              </em>
+            </button>
           `).join('')}
         </div>
       </div>
-    ` : '<div class="shaft-empty">该角色当前没有造成动作伤害</div>';
+    `;
+    content._analysisGroups = groups;
+    content._analysisTotal = Number(contribution.total_damage || 0);
+  }
+
+  function openActionContribution(slot, trigger = null) {
+    const dialog = $('shaft-action-contribution-dialog');
+    const contribution = actionContributionForSlot(slot);
+    if (!dialog || !contribution) {
+      return;
+    }
+    $('shaft-action-contribution-title').textContent = `${contribution.character_name || memberName(slot)} · 动作贡献`;
+    actionAnalysisState.slot = Number(slot);
+    actionAnalysisState.dimension = 'action';
+    actionAnalysisState.view = 'donut';
+    renderActionContributionAnalysis();
     dialog._returnFocus = trigger;
     dialog.showModal();
+  }
+
+  function setActionAnalysisHighlight(index, active) {
+    const content = $('shaft-action-contribution-content');
+    if (!content) return;
+    content.querySelectorAll('[data-analysis-index]').forEach((node) => {
+      node.classList.toggle('is-active', active && Number(node.dataset.analysisIndex) === Number(index));
+      node.classList.toggle('is-muted', active && Number(node.dataset.analysisIndex) !== Number(index));
+    });
+    const group = content._analysisGroups?.[Number(index)];
+    const value = content.querySelector('[data-analysis-center-value]');
+    const label = content.querySelector('[data-analysis-center-label]');
+    if (value && label) {
+      value.textContent = active && group
+        ? `${formatNumber(group.percent || 0, 1)}%`
+        : formatNumber(content._analysisTotal || 0);
+      label.textContent = active && group ? group.label : '角色总伤';
+    }
   }
 
   function closeActionContribution() {
@@ -5227,7 +5697,41 @@
     $('shaft-action-contribution-dialog').addEventListener('click', (event) => {
       if (event.target === event.currentTarget || event.target.closest('[data-close-action-contribution]')) {
         closeActionContribution();
+        return;
       }
+      if (event.target.closest('[data-save-action-snapshot]')) {
+        saveCompareSnapshot();
+        return;
+      }
+      const dimensionButton = event.target.closest('[data-analysis-dimension]');
+      if (dimensionButton) {
+        actionAnalysisState.dimension = dimensionButton.dataset.analysisDimension === 'type' ? 'type' : 'action';
+        renderActionContributionAnalysis();
+        return;
+      }
+      const viewButton = event.target.closest('[data-analysis-view]');
+      if (viewButton) {
+        actionAnalysisState.view = viewButton.dataset.analysisView === 'bars' ? 'bars' : 'donut';
+        renderActionContributionAnalysis();
+      }
+    });
+    $('shaft-action-contribution-content').addEventListener('pointerover', (event) => {
+      const target = event.target.closest('[data-analysis-index]');
+      if (target) setActionAnalysisHighlight(target.dataset.analysisIndex, true);
+    });
+    $('shaft-action-contribution-content').addEventListener('pointerout', (event) => {
+      const target = event.target.closest('[data-analysis-index]');
+      if (target && !event.relatedTarget?.closest?.(`[data-analysis-index="${target.dataset.analysisIndex}"]`)) {
+        setActionAnalysisHighlight(target.dataset.analysisIndex, false);
+      }
+    });
+    $('shaft-action-contribution-content').addEventListener('focusin', (event) => {
+      const target = event.target.closest('[data-analysis-index]');
+      if (target) setActionAnalysisHighlight(target.dataset.analysisIndex, true);
+    });
+    $('shaft-action-contribution-content').addEventListener('focusout', (event) => {
+      const target = event.target.closest('[data-analysis-index]');
+      if (target) setActionAnalysisHighlight(target.dataset.analysisIndex, false);
     });
     $('shaft-team-slots').addEventListener('change', handleTeamChange);
     $('shaft-team-slots').addEventListener('change', handleCurtainInput);

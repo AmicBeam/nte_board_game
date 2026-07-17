@@ -1465,6 +1465,7 @@ class ShaftEquipmentBuffTestCase(unittest.TestCase):
             buff for buff in thinking_cat['applied_buffs']
             if buff['rule_id'] == 'arc_thinking_cat_fons_light'
         )
+
         self.assertEqual(thinking_buff['effects'], {'element_dmg': 0.25})
 
         spring = simulate_shaft_axis({
@@ -1504,6 +1505,72 @@ class ShaftEquipmentBuffTestCase(unittest.TestCase):
         self.assertIn('arc_danger_game_stagger', {buff['rule_id'] for buff in danger_details['first']['triggered_buffs']})
         self.assertNotIn('arc_danger_game_stagger', {buff['rule_id'] for buff in danger_details['cooldown']['triggered_buffs']})
         self.assertIn('arc_danger_game_stagger', {buff['rule_id'] for buff in danger_details['ready']['triggered_buffs']})
+
+    def test_team_unique_buff_keeps_independent_triggers_and_applies_highest_value_once(self) -> None:
+        result = simulate_shaft_axis({
+            'team': [
+                {
+                    'slot': 0,
+                    'character_id': 'char_7578b18979',
+                    'arc_id': 'arc_5167a86a24',
+                    'arc_refinement': 1,
+                    'cartridge_id': '',
+                },
+                {
+                    'slot': 1,
+                    'character_id': 'char_1895e259be',
+                    'arc_id': 'arc_5167a86a24',
+                    'arc_refinement': 5,
+                    'cartridge_id': '',
+                },
+                {'slot': 2, 'character_id': 'char_dd034941ef', 'arc_id': '', 'cartridge_id': ''},
+            ],
+            'steps': [
+                {'id': 'low_q', 'slot': 0, 'action_id': 'action_6ece34aff8', 'start_tick': 0},
+                {'id': 'high_q', 'slot': 1, 'action_id': 'action_0db78d1f01', 'start_tick': 20},
+                {'id': 'inspect', 'slot': 2, 'action_id': 'action_982c67944f', 'start_tick': 40},
+            ],
+            'initial_energy': 200,
+        })['result']
+        details = {detail['step_id']: detail for detail in result['details']}
+        self.assertIn(
+            'arc_good_dog_q_team_atk',
+            {buff['rule_id'] for buff in details['low_q']['triggered_buffs']},
+        )
+        self.assertIn(
+            'arc_good_dog_q_team_atk',
+            {buff['rule_id'] for buff in details['high_q']['triggered_buffs']},
+        )
+        applied = [
+            buff
+            for buff in details['inspect']['applied_buffs']
+            if buff['rule_id'] == 'arc_good_dog_q_team_atk'
+        ]
+        self.assertEqual(len(applied), 1)
+        self.assertEqual(applied[0]['owner_slot'], 1)
+        self.assertEqual(applied[0]['effects'], {'atk_pct': 0.16})
+
+    def test_declared_team_unique_sources_have_unique_keys(self) -> None:
+        catalog = load_shaft_catalog()
+        rules = {rule['id']: rule for rule in catalog['buffs']}
+        expected_rule_ids = {
+            'arc_wrong_door_heal_team_damage',
+            'arc_bit_game_background_front_atk',
+            'arc_bit_game_background_damage_front_atk_stack',
+            'arc_bit_game_foreground_psyche_dmg',
+            'arc_bit_game_basic_psyche_stack',
+            'arc_good_dog_q_team_atk',
+            'arc_good_dog_q_control_extra_atk',
+            'cartridge_sonic_q_team_atk',
+        }
+
+        for rule_id in expected_rule_ids:
+            with self.subTest(rule_id=rule_id):
+                self.assertIn(rule_id, rules)
+                self.assertEqual(
+                    rules[rule_id]['calculation']['team_unique_key'],
+                    rule_id,
+                )
 
     def test_time_outside_records_team_actions_and_q_consumes_three_stacks(self) -> None:
         result = simulate_shaft_axis({

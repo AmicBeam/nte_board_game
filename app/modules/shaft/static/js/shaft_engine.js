@@ -1269,6 +1269,38 @@
     return targetMatches(target, instance, step, action, snapshot, isBackground, context);
   }
 
+  function applicableBuffContributions(activeBuffs, step, action, snapshot, isBackground, context = {}) {
+    const contributions = activeBuffs
+      .filter((buff) => (
+        int(context.tick) >= int(buff.start_tick)
+        && int(context.tick) < int(buff.end_tick)
+        && activeBuffApplies(buff, step, action, snapshot, isBackground, context)
+      ))
+      .map((buff) => {
+        const effects = buffEffects(buff, context);
+        return {
+          buff,
+          effects,
+          uniqueKey: String(buff.rule?.calculation?.team_unique_key || ''),
+          magnitude: Object.values(effects).reduce((sum, value) => sum + Math.max(0, num(value)), 0),
+        };
+      });
+    const selected = [];
+    const highestByUniqueKey = new Map();
+    contributions.forEach((contribution) => {
+      if (!contribution.uniqueKey) {
+        selected.push(contribution);
+        return;
+      }
+      const current = highestByUniqueKey.get(contribution.uniqueKey);
+      if (!current || contribution.magnitude > current.magnitude) {
+        highestByUniqueKey.set(contribution.uniqueKey, contribution);
+      }
+    });
+    selected.push(...highestByUniqueKey.values());
+    return selected;
+  }
+
   function markQInstantReleaseTarget(scheduled, qVisualStartTick, qCalculationStartTick, qStepId, releaseKind, startSequence, endSequence, collapseToQTick = false) {
     const startTick = int(scheduled.start_tick);
     const durationTicks = Math.max(0, int(scheduled.duration_ticks));
@@ -1672,19 +1704,16 @@
         damage_type: '环合',
         tags: ['环合'],
       };
-      activeBuffs.forEach((buff) => {
-        if (tick < int(buff.start_tick) || tick >= int(buff.end_tick)) return;
-        const activeAtTick = activeBuffs.filter((candidate) => tick >= int(candidate.start_tick) && tick < int(candidate.end_tick));
-        const context = {
-          enemy,
-          tick,
-          enemy_debuffs: activeEnemyDebuffs(enemyDebuffs, tick),
-          active_buffs: activeAtTick,
-          active_buff_keys: activeAtTick.map((candidate) => String(candidate.definition_id || '')),
-        };
-        if (!activeBuffApplies(buff, syntheticStep, syntheticAction, snapshot, false, context)) return;
-        mergeMods(panelMods, buffEffects(buff, context));
-      });
+      const activeAtTick = activeBuffs.filter((candidate) => tick >= int(candidate.start_tick) && tick < int(candidate.end_tick));
+      const context = {
+        enemy,
+        tick,
+        enemy_debuffs: activeEnemyDebuffs(enemyDebuffs, tick),
+        active_buffs: activeAtTick,
+        active_buff_keys: activeAtTick.map((candidate) => String(candidate.definition_id || '')),
+      };
+      applicableBuffContributions(activeBuffs, syntheticStep, syntheticAction, snapshot, false, context)
+        .forEach((contribution) => mergeMods(panelMods, contribution.effects));
       return panelMods;
     }
 
@@ -2165,12 +2194,11 @@
         active_buffs: activeAtTick,
         active_buff_keys: activeAtTick.map((buff) => String(buff.definition_id || '')),
       };
-      activeBuffs.forEach((buff) => {
-        if (buffTick < int(buff.start_tick) || buffTick >= int(buff.end_tick)) return;
-        if (!activeBuffApplies(buff, step, action, snapshot, isBackground, buffContext)) return;
-        mergeMods(buffModifiers, buffEffects(buff, buffContext));
-        appliedBuffs.push(buffSummary(buff, buffContext));
-      });
+      applicableBuffContributions(activeBuffs, step, action, snapshot, isBackground, buffContext)
+        .forEach(({ buff, effects }) => {
+          mergeMods(buffModifiers, effects);
+          appliedBuffs.push(buffSummary(buff, buffContext));
+        });
       const slotResources = personalResources.get(slot) || {};
       Object.entries(resourceMap(action.personal_resource_cost)).forEach(([key, cost]) => {
         const totalCost = cost * actionMultiplier;
@@ -2286,6 +2314,8 @@
         action_id: action.id,
         action_name: action.name,
         action_type: action.action_type,
+        damage_type: action.damage_type,
+        damage_element: action.damage_element || snapshot.character.element || '',
         raw_start_tick: int(step.start_tick),
         switch_gap_ticks: Math.max(0, int(scheduled.switch_loss_ticks)),
         foreground_lock_ticks: Math.max(0, int(scheduled.foreground_lock_ticks)),
@@ -2412,6 +2442,9 @@
       const current = actionDamage.get(actionKey) || {
         action_id: detail.action_id,
         action_name: detail.action_name,
+        action_type: detail.action_type,
+        damage_type: detail.damage_type,
+        damage_element: detail.damage_element,
         damage: 0,
       };
       current.damage += detail.direct_damage;
@@ -2431,6 +2464,9 @@
           const current = actionDamage.get(actionKey) || {
             action_id: actionKey,
             action_name: event.reaction,
+            action_type: '环合',
+            damage_type: '环合',
+            damage_element: '',
             damage: 0,
           };
           current.damage += num(event.damage);

@@ -8,6 +8,7 @@ from app.modules.shaft.domain.catalog import get_record_map, load_shaft_catalog
 
 ROOT = Path(__file__).resolve().parents[1]
 SHAFT_JS = ROOT / 'app' / 'modules' / 'shaft' / 'static' / 'js' / 'shaft.js'
+SHAFT_ENGINE_JS = ROOT / 'app' / 'modules' / 'shaft' / 'static' / 'js' / 'shaft_engine.js'
 SHAFT_TEMPLATE = ROOT / 'app' / 'modules' / 'shaft' / 'templates' / 'shaft' / 'index.html'
 
 
@@ -365,6 +366,14 @@ class ShaftFrontendTimelineLayoutTestCase(unittest.TestCase):
         self.assertIn('data-action-contribution-slot', source)
         self.assertIn('function actionContributionPie(actions)', source)
         self.assertIn('id="shaft-action-contribution-dialog"', template)
+        self.assertIn('data-analysis-dimension="type"', source)
+        self.assertIn('data-analysis-view="bars"', source)
+        self.assertIn('shaft-action-contribution-segment', source)
+        self.assertIn('damage_type: detail.damage_type', SHAFT_ENGINE_JS.read_text(encoding='utf-8'))
+        self.assertIn('damage_by_action_by_slot: clone(result.damage_by_action_by_slot || [])', source)
+        self.assertIn('function mergeActionAnalysisComparison(', source)
+        self.assertIn('对比快照', source)
+        self.assertIn('排行图中的竖线表示快照占比', source)
 
     def test_rotation_header_exposes_shortcut_help_dialog(self) -> None:
         source = SHAFT_JS.read_text(encoding='utf-8')
@@ -391,6 +400,28 @@ class ShaftFrontendTimelineLayoutTestCase(unittest.TestCase):
         self.assertIn('awakening_nodes: awakeningNodes', source)
         self.assertNotIn('aria-label="${escapeHtml(tooltip)}" tabindex="0"', source)
         self.assertNotIn('.shaft-awakening-dot[data-tooltip]:focus-visible::after', css)
+
+    def test_build_cards_show_only_buff_registered_active_mechanisms(self) -> None:
+        source = SHAFT_JS.read_text(encoding='utf-8')
+        css = (ROOT / 'app' / 'modules' / 'shaft' / 'static' / 'css' / 'shaft-page.css').read_text(encoding='utf-8')
+
+        self.assertIn('function activeMechanismGroups(member)', source)
+        self.assertIn('(state.catalog?.buffs || []).forEach((rule) => {', source)
+        self.assertIn("const selectedProviders = {", source)
+        self.assertIn("character: String(member?.character_id || '')", source)
+        self.assertIn("arc: String(member?.arc_id || '')", source)
+        self.assertIn("cartridge: String(member?.cartridge_id || '')", source)
+        self.assertIn("if (type === 'awakening_min')", source)
+        self.assertIn("if (type === 'awakening_max')", source)
+        self.assertIn("if (type === 'owner_character_id')", source)
+        self.assertNotIn('panel_modifiers || arc.modifiers', source[source.index('function activeMechanismGroups(member)'):source.index('function activeMechanismTooltipHtml(member, character)')])
+        self.assertIn('function mechanismRuleSummary(rule)', source)
+        self.assertIn("arcRefinementRecord(member)?.buff_effects", source)
+        self.assertIn('mechanismRuleSummary(rule)', source)
+        self.assertIn('class="shaft-mechanism-item"', source)
+        self.assertIn('class="shaft-mechanism-tooltip"', source)
+        self.assertIn('当前激活机制 · ${total}', source)
+        self.assertIn('.shaft-mechanism-popover', css)
 
     def test_history_paste_and_delete_reveal_the_affected_timeline_position(self) -> None:
         source = SHAFT_JS.read_text(encoding='utf-8')

@@ -1250,6 +1250,9 @@
           "buff_effects": {
             "arc_wrong_door_heal_spirit": {
               "element_dmg": 0.3
+            },
+            "arc_wrong_door_heal_team_damage": {
+              "all_dmg": 0.15
             }
           }
         },
@@ -1267,6 +1270,9 @@
           "buff_effects": {
             "arc_wrong_door_heal_spirit": {
               "element_dmg": 0.375
+            },
+            "arc_wrong_door_heal_team_damage": {
+              "all_dmg": 0.1875
             }
           }
         },
@@ -1284,6 +1290,9 @@
           "buff_effects": {
             "arc_wrong_door_heal_spirit": {
               "element_dmg": 0.45
+            },
+            "arc_wrong_door_heal_team_damage": {
+              "all_dmg": 0.225
             }
           }
         },
@@ -1301,6 +1310,9 @@
           "buff_effects": {
             "arc_wrong_door_heal_spirit": {
               "element_dmg": 0.525
+            },
+            "arc_wrong_door_heal_team_damage": {
+              "all_dmg": 0.2625
             }
           }
         },
@@ -1318,6 +1330,9 @@
           "buff_effects": {
             "arc_wrong_door_heal_spirit": {
               "element_dmg": 0.6
+            },
+            "arc_wrong_door_heal_team_damage": {
+              "all_dmg": 0.3
             }
           }
         }

@@ -245,12 +245,13 @@ body:has(.shaft-page) .shell {
 }
 
 .shaft-member-card {
+    position: relative;
     display: grid;
     grid-template-columns: 126px minmax(0, 1fr);
     gap: 14px;
     min-height: 282px;
     padding: 12px;
-    overflow: hidden;
+    overflow: visible;
     border: 1px solid rgba(255,255,255,0.12);
     border-left: 4px solid var(--slot-color, var(--primary));
     border-radius: var(--radius-md);
@@ -303,9 +304,117 @@ body:has(.shaft-page) .shell {
 }
 
 .shaft-member-editor {
+    position: relative;
     min-width: 0;
     display: grid;
     gap: 10px;
+}
+
+.shaft-character-select {
+    position: relative;
+}
+
+.shaft-mechanism-tooltip {
+    position: absolute;
+    top: 0;
+    right: 0;
+    z-index: 8;
+    width: 24px;
+    height: 24px;
+    display: grid;
+    place-items: center;
+    padding: 0;
+    border: 1px solid rgba(255, 218, 91, 0.58);
+    border-radius: 999px;
+    color: #071016;
+    background: linear-gradient(135deg, #ffda5b, var(--slot-color, var(--primary)));
+    box-shadow: 0 0 14px rgba(255, 218, 91, 0.2);
+    cursor: help;
+}
+
+.shaft-mechanism-icon {
+    font-size: 13px;
+    font-weight: 1000;
+    line-height: 1;
+}
+
+.shaft-mechanism-popover {
+    position: absolute;
+    top: calc(100% + 8px);
+    right: 0;
+    z-index: 40;
+    width: min(420px, calc(100vw - 48px));
+    max-height: min(520px, 66vh);
+    display: grid;
+    gap: 10px;
+    padding: 12px 14px;
+    overflow: auto;
+    border: 1px solid rgba(255,255,255,0.16);
+    border-radius: 10px;
+    color: rgba(255,255,255,0.94);
+    background: rgba(10, 16, 28, 0.98);
+    box-shadow: 0 16px 36px rgba(0,0,0,0.44);
+    font-size: 12px;
+    line-height: 1.45;
+    text-align: left;
+    visibility: hidden;
+    opacity: 0;
+    transform: translateY(-4px);
+    transition: opacity 120ms ease, transform 120ms ease, visibility 120ms ease;
+    pointer-events: none;
+}
+
+.shaft-mechanism-tooltip:hover .shaft-mechanism-popover,
+.shaft-mechanism-tooltip:focus .shaft-mechanism-popover,
+.shaft-mechanism-tooltip:focus-visible .shaft-mechanism-popover {
+    visibility: visible;
+    opacity: 1;
+    transform: translateY(0);
+    pointer-events: auto;
+}
+
+.shaft-member-card:has(.shaft-mechanism-tooltip:hover),
+.shaft-member-card:has(.shaft-mechanism-tooltip:focus) {
+    z-index: 20;
+}
+
+.shaft-mechanism-title {
+    color: #ffda5b;
+    font-size: 13px;
+}
+
+.shaft-mechanism-group {
+    display: grid;
+    gap: 4px;
+    padding-top: 9px;
+    border-top: 1px solid rgba(255,255,255,0.1);
+    color: rgba(255,255,255,0.78);
+}
+
+.shaft-mechanism-group > strong {
+    color: rgba(255,255,255,0.98);
+}
+
+.shaft-mechanism-item {
+    display: grid;
+    gap: 2px;
+}
+
+.shaft-mechanism-item b {
+    color: rgba(255,255,255,0.88);
+    font-weight: 900;
+}
+
+.shaft-mechanism-item small {
+    padding-left: 11px;
+    color: var(--muted);
+    font-size: 11px;
+    font-weight: 750;
+    line-height: 1.45;
+}
+
+.shaft-mechanism-empty {
+    color: var(--muted);
 }
 
 .shaft-member-form {
@@ -965,7 +1074,7 @@ body:has(.shaft-page) .shell {
 }
 
 .shaft-action-contribution-dialog {
-    width: min(760px, calc(100vw - 32px));
+    width: min(920px, calc(100vw - 32px));
     max-width: none;
     padding: 0;
     border: 0;
@@ -1082,11 +1191,149 @@ body:has(.shaft-page) .shell {
 .shaft-action-contribution-modal {
     display: grid;
     gap: 18px;
-    padding: 22px;
+    padding: 24px;
     border: 1px solid rgba(255,255,255,0.14);
     border-radius: inherit;
     background: linear-gradient(145deg, rgba(18, 30, 44, 0.98), rgba(6, 11, 18, 0.99));
     box-shadow: 0 24px 80px rgba(0,0,0,0.54);
+}
+
+.shaft-action-analysis-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.shaft-action-analysis-switch {
+    display: inline-flex;
+    gap: 3px;
+    padding: 3px;
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 9px;
+    background: rgba(0,0,0,0.22);
+}
+
+.shaft-action-analysis-switch button {
+    min-height: 32px;
+    padding: 5px 12px;
+    border: 0;
+    border-radius: 6px;
+    background: transparent;
+    color: var(--muted);
+    font: inherit;
+    font-size: 12px;
+    font-weight: 900;
+    cursor: pointer;
+}
+
+.shaft-action-analysis-switch button:hover {
+    color: var(--text);
+    background: rgba(255,255,255,0.06);
+}
+
+.shaft-action-analysis-switch button.is-active {
+    color: #061219;
+    background: linear-gradient(135deg, #72e4dc, #58b8e7);
+    box-shadow: 0 3px 10px rgba(88,216,210,0.2);
+}
+
+.shaft-action-analysis-view-switch button.is-active {
+    color: var(--text);
+    background: rgba(255,255,255,0.13);
+    box-shadow: none;
+}
+
+.shaft-action-analysis-kpis {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 8px;
+    margin: 14px 0 18px;
+}
+
+.shaft-action-analysis-kpis > div {
+    display: grid;
+    gap: 4px;
+    min-width: 0;
+    padding: 10px 12px;
+    border: 1px solid rgba(255,255,255,0.085);
+    border-radius: 9px;
+    background: linear-gradient(145deg, rgba(255,255,255,0.055), rgba(255,255,255,0.025));
+}
+
+.shaft-action-analysis-kpis span,
+.shaft-action-analysis-kpis small {
+    overflow: hidden;
+    color: var(--muted);
+    font-size: 10px;
+    font-weight: 850;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.shaft-action-analysis-kpis strong {
+    font-size: 19px;
+    font-weight: 1000;
+}
+
+.shaft-action-analysis-kpis small.is-up,
+.shaft-action-analysis-snapshot .is-up,
+.shaft-action-contribution-item .is-up {
+    color: #72e6ad;
+}
+
+.shaft-action-analysis-kpis small.is-down,
+.shaft-action-analysis-snapshot .is-down,
+.shaft-action-contribution-item .is-down {
+    color: #ff8e92;
+}
+
+.shaft-action-analysis-snapshot {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 4px 16px;
+    align-items: center;
+    margin-top: 12px;
+    padding: 10px 12px;
+    border: 1px solid rgba(98,183,255,0.2);
+    border-radius: 9px;
+    background: linear-gradient(110deg, rgba(98,183,255,0.09), rgba(178,140,255,0.045));
+}
+
+.shaft-action-analysis-snapshot > div {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px 12px;
+    align-items: baseline;
+}
+
+.shaft-action-analysis-snapshot span,
+.shaft-action-analysis-snapshot small {
+    color: var(--muted);
+    font-size: 10px;
+    font-weight: 850;
+}
+
+.shaft-action-analysis-snapshot > b {
+    grid-row: 1 / span 2;
+    grid-column: 2;
+    font-size: 16px;
+    font-weight: 1000;
+}
+
+.shaft-action-analysis-snapshot > small {
+    grid-column: 1;
+}
+
+.shaft-action-analysis-snapshot-empty {
+    grid-template-columns: minmax(0, 1fr) auto;
+    border-color: rgba(255,255,255,0.09);
+    background: rgba(255,255,255,0.035);
+}
+
+.shaft-action-analysis-snapshot-empty > span {
+    font-size: 11px;
 }
 
 .shaft-dialog-close {
@@ -1099,7 +1346,7 @@ body:has(.shaft-page) .shell {
 
 .shaft-action-contribution-body {
     display: grid;
-    grid-template-columns: minmax(220px, 0.8fr) minmax(280px, 1.2fr);
+    grid-template-columns: minmax(250px, 0.85fr) minmax(340px, 1.15fr);
     gap: 24px;
     align-items: center;
 }
@@ -1114,28 +1361,52 @@ body:has(.shaft-page) .shell {
 
 .shaft-action-contribution-pie {
     grid-area: 1 / 1;
-    width: min(100%, 300px);
+    width: min(100%, 310px);
+    overflow: visible;
     filter: drop-shadow(0 12px 22px rgba(0,0,0,0.28));
 }
 
-.shaft-action-contribution-chart strong,
-.shaft-action-contribution-chart span {
+.shaft-action-contribution-segment {
+    cursor: pointer;
+    outline: none;
+    transform-box: fill-box;
+    transform-origin: center;
+    transition: transform 160ms ease, opacity 160ms ease, filter 160ms ease;
+}
+
+.shaft-action-contribution-segment:hover,
+.shaft-action-contribution-segment:focus,
+.shaft-action-contribution-segment.is-active {
+    transform: translate(var(--explode-x), var(--explode-y)) scale(1.015);
+    filter: brightness(1.12) drop-shadow(0 3px 4px rgba(0,0,0,0.38));
+}
+
+.shaft-action-contribution-segment.is-muted {
+    opacity: 0.38;
+}
+
+.shaft-action-chart-center {
     grid-area: 1 / 1;
     z-index: 1;
     pointer-events: none;
+    display: grid;
+    place-items: center;
+    max-width: 116px;
+    text-align: center;
 }
 
-.shaft-action-contribution-chart strong {
-    margin-top: -10px;
+.shaft-action-chart-center strong {
     font-size: 24px;
     font-weight: 1000;
+    line-height: 1.05;
 }
 
-.shaft-action-contribution-chart span {
-    margin-top: 30px;
+.shaft-action-chart-center span {
+    margin-top: 6px;
     color: var(--muted);
     font-size: 11px;
     font-weight: 900;
+    line-height: 1.3;
 }
 
 .shaft-action-contribution-legend {
@@ -1152,9 +1423,28 @@ body:has(.shaft-page) .shell {
     align-items: center;
     min-height: 38px;
     padding: 7px 9px;
+    border: 1px solid transparent;
     border-radius: 8px;
     background: rgba(255,255,255,0.045);
+    color: var(--text);
+    font: inherit;
     font-size: 12px;
+    text-align: left;
+    cursor: pointer;
+    transition: border-color 140ms ease, background 140ms ease, opacity 140ms ease, transform 140ms ease;
+}
+
+.shaft-action-contribution-item:hover,
+.shaft-action-contribution-item:focus,
+.shaft-action-contribution-item.is-active {
+    border-color: color-mix(in srgb, var(--action-color, #58d8d2) 45%, transparent);
+    background: rgba(255,255,255,0.085);
+    outline: none;
+    transform: translateX(2px);
+}
+
+.shaft-action-contribution-item.is-muted {
+    opacity: 0.38;
 }
 
 .shaft-action-contribution-item i {
@@ -1164,21 +1454,122 @@ body:has(.shaft-page) .shell {
     background: var(--action-color);
 }
 
-.shaft-action-contribution-item span {
+.shaft-action-contribution-item > span {
+    display: grid;
+    gap: 2px;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-    font-weight: 900;
 }
 
-.shaft-action-contribution-item strong {
+.shaft-action-contribution-item > span b {
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.shaft-action-contribution-item > span small {
+    color: var(--muted);
+    font-size: 10px;
+}
+
+.shaft-action-contribution-item > strong {
     color: var(--muted);
     font-size: 12px;
 }
 
-.shaft-action-contribution-item b {
+.shaft-action-contribution-item > em {
+    display: grid;
+    gap: 2px;
+    font-style: normal;
+    font-weight: 1000;
     text-align: right;
     font-size: 12px;
+}
+
+.shaft-action-contribution-item > em small {
+    font-size: 9px;
+    font-weight: 900;
+}
+
+.shaft-action-contribution-item.is-removed {
+    border-style: dashed;
+    opacity: 0.72;
+}
+
+.shaft-action-contribution-chart-bars {
+    display: block;
+    aspect-ratio: auto;
+}
+
+.shaft-action-analysis-bars {
+    display: grid;
+    gap: 12px;
+    width: 100%;
+}
+
+.shaft-action-analysis-bar {
+    display: grid;
+    gap: 5px;
+    padding: 4px;
+    border-radius: 7px;
+    transition: opacity 140ms ease, background 140ms ease;
+}
+
+.shaft-action-analysis-bar > div {
+    display: flex;
+    gap: 8px;
+    justify-content: space-between;
+    color: var(--muted);
+    font-size: 11px;
+    font-weight: 900;
+}
+
+.shaft-action-analysis-bar > i {
+    position: relative;
+    height: 12px;
+    overflow: hidden;
+    border-radius: 3px;
+    background: rgba(255,255,255,0.07);
+}
+
+.shaft-action-analysis-bar > i em {
+    position: absolute;
+    z-index: 2;
+    top: -2px;
+    bottom: -2px;
+    width: 2px;
+    border-radius: 999px;
+    background: #fff;
+    box-shadow: 0 0 0 1px rgba(5,10,17,0.55), 0 0 6px rgba(255,255,255,0.55);
+    transform: translateX(-1px);
+}
+
+.shaft-action-analysis-bar > i span {
+    display: block;
+    height: 100%;
+    border-radius: inherit;
+    background: linear-gradient(90deg, color-mix(in srgb, var(--action-color) 75%, #fff), var(--action-color));
+    box-shadow: 0 0 12px color-mix(in srgb, var(--action-color) 42%, transparent);
+    transform-origin: left;
+    transition: transform 160ms ease, filter 160ms ease;
+}
+
+.shaft-action-analysis-bar:hover,
+.shaft-action-analysis-bar:focus,
+.shaft-action-analysis-bar.is-active {
+    background: rgba(255,255,255,0.05);
+    outline: none;
+}
+
+.shaft-action-analysis-bar:hover > i span,
+.shaft-action-analysis-bar:focus > i span,
+.shaft-action-analysis-bar.is-active > i span {
+    transform: scaleY(1.22);
+    filter: brightness(1.16);
+}
+
+.shaft-action-analysis-bar.is-muted {
+    opacity: 0.35;
 }
 
 .shaft-panel-avatar-row {
@@ -3059,9 +3450,30 @@ body.shaft-dragging .shaft-action-bar {
         grid-template-columns: 1fr;
     }
 
+    .shaft-action-analysis-toolbar {
+        align-items: stretch;
+    }
+
+    .shaft-action-analysis-switch {
+        flex: 1 1 auto;
+    }
+
+    .shaft-action-analysis-switch button {
+        flex: 1;
+    }
+
+    .shaft-action-analysis-kpis {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
     .shaft-action-contribution-chart {
         max-width: 260px;
         margin-inline: auto;
+    }
+
+    .shaft-action-contribution-chart-bars {
+        max-width: none;
+        margin-inline: 0;
     }
 
     .shaft-action-contribution-item {
