@@ -1,0 +1,45 @@
+app/modules/shaft/static/css/shaft-page.css
+  s_f80d410e04fa25::t_03be1e2bab0fb3 248,254,307,313-419,1077,1194,1201-1338,1349,1364-1365,1369-1388,1392-1395,1398,1401,1404-1405,1409,1426,1429-1430,1432-1447,1457-1459,1465-1475,1480-1484,1489-1574,3453-3468,3474-3478
+app/modules/shaft/static/data/arc_refinements.json
+  s_cac27112fd0553::t_81e3952b8c4f8d 1253-1255,1273-1275,1293-1295,1313-1315,1333-1335
+app/modules/shaft/static/data/buffs.json
+  s_cac27112fd0553::t_4187632663dd73 346,529-540,616,634,646,664,676,692,983
+app/modules/shaft/static/js/shaft.js
+  s_f80d410e04fa25::t_5190244ea79d72 5-14,86-90,376-578,1591-1592,1595-1597,1727,1762-1770,2070,2087,2090-2102,2111-2113,2131-2235,2237-2254,2256-2257,2262,2267-2286,2288-2289,2292-2327,2329-2361,2363-2378,2382-2397,2402-2419,5700-5710,5712-5734
+app/modules/shaft/static/js/shaft_engine.js
+  s_cac27112fd0553::t_8f45b93fafdbf5 1272-1303,1707-1716,2197-2201,2317-2318,2445-2447,2467-2469
+app/modules/shaft/templates/shaft/index.html
+  s_f80d410e04fa25::t_1156418c102a1e 235-236
+docs/shaft-buff-configuration-review.md
+  s_cac27112fd0553::t_57d1478bcd70ff 33,41,68,219
+tests/test_shaft_frontend_layout.py
+  s_f80d410e04fa25::t_eed1d99329cdb2 11,369-376,404-425
+tests/test_shaft_simulator.py
+  s_cac27112fd0553::t_b715f103fa49e8 1468,1509-1574
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "a2dcd7a05fad2fa8cc2a44221bd5d8e3a4b0f954",
+  "prompts": {},
+  "sessions": {
+    "s_cac27112fd0553": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f6ab9-50a1-76b0-97f7-2c74baf5f239",
+        "model": "unknown"
+      },
+      "human_author": "AmicBeam <1425257712@qq.com>"
+    },
+    "s_f80d410e04fa25": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f6f0a-51c2-7052-81eb-6a72512d7837",
+        "model": "unknown"
+      },
+      "human_author": "AmicBeam <1425257712@qq.com>"
+    }
+  },
+  "attestation_metadata": {},
+  "remote_transcripts": {}
+}
