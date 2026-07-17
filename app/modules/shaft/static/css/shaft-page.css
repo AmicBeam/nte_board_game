@@ -51,6 +51,15 @@ body:has(.shaft-page) .shell {
     background: linear-gradient(135deg, var(--primary), var(--amber));
 }
 
+.shaft-shortcut-help-btn {
+    width: 40px;
+    min-width: 40px;
+    padding-inline: 0;
+    border-radius: 999px;
+    font-size: 17px;
+    font-weight: 1000;
+}
+
 .shaft-view {
     display: none;
 }
@@ -183,7 +192,7 @@ body:has(.shaft-page) .shell {
 }
 
 .shaft-rotation-layout {
-    --shaft-rotation-panel-height: min(661px, calc(100vh - 28px));
+    --shaft-rotation-panel-height: min(720px, calc(100vh - 28px));
     display: grid;
     grid-template-columns: 300px minmax(520px, 1fr) 320px;
     gap: 12px;
@@ -322,6 +331,14 @@ body:has(.shaft-page) .shell {
     width: 100%;
 }
 
+.shaft-arc-refinement-summary {
+    display: block;
+    margin-top: 7px;
+    color: var(--muted);
+    font-size: 11px;
+    line-height: 1.5;
+}
+
 .shaft-member-switches {
     display: grid;
     grid-template-columns: minmax(250px, 1fr) minmax(170px, auto);
@@ -391,6 +408,7 @@ body:has(.shaft-page) .shell {
 
 .shaft-awakening-info {
     cursor: help;
+    user-select: none;
 }
 
 .shaft-awakening-info span {
@@ -433,8 +451,7 @@ body:has(.shaft-page) .shell {
 }
 
 .shaft-awakening-dot[data-tooltip]:hover::after,
-.shaft-awakening-dot[data-tooltip]:focus-within::after,
-.shaft-awakening-dot[data-tooltip]:focus-visible::after {
+.shaft-awakening-dot[data-tooltip]:focus-within::after {
     opacity: 1;
     transform: translate(-50%, 0);
 }
@@ -908,7 +925,7 @@ body:has(.shaft-page) .shell {
 
 .shaft-contribution-row {
     display: grid;
-    grid-template-columns: 72px minmax(0, 1fr) 72px;
+    grid-template-columns: 72px minmax(0, 1fr) 48px auto;
     gap: 8px;
     align-items: center;
 }
@@ -924,7 +941,244 @@ body:has(.shaft-page) .shell {
     display: block;
     height: 100%;
     border-radius: inherit;
-    background: linear-gradient(90deg, var(--primary), var(--amber));
+    background: var(--contribution-color, linear-gradient(90deg, var(--primary), var(--amber)));
+}
+
+.shaft-contribution-row:not(.shaft-contribution-source-row) + .shaft-contribution-source-row {
+    margin-top: 4px;
+    padding-top: 8px;
+    border-top: 1px solid rgba(255,255,255,0.08);
+}
+
+.shaft-contribution-source-row {
+    color: var(--text);
+}
+
+.shaft-contribution-source-row .shaft-contribution-bar span {
+    background: var(--contribution-color, #b9c6d8);
+}
+
+.shaft-action-contribution-btn {
+    min-height: 30px;
+    padding: 5px 9px;
+    white-space: nowrap;
+}
+
+.shaft-action-contribution-dialog {
+    width: min(760px, calc(100vw - 32px));
+    max-width: none;
+    padding: 0;
+    border: 0;
+    border-radius: var(--radius-lg);
+    background: transparent;
+    color: var(--text);
+}
+
+.shaft-action-contribution-dialog::backdrop {
+    background: rgba(2, 6, 12, 0.78);
+    backdrop-filter: blur(5px);
+}
+
+.shaft-shortcut-dialog {
+    width: min(760px, calc(100vw - 32px));
+    max-width: none;
+    padding: 0;
+    border: 0;
+    border-radius: var(--radius-lg);
+    background: transparent;
+    color: var(--text);
+}
+
+.shaft-shortcut-dialog::backdrop {
+    background: rgba(2, 6, 12, 0.78);
+    backdrop-filter: blur(5px);
+}
+
+.shaft-shortcut-modal {
+    display: grid;
+    gap: 18px;
+    padding: 22px;
+    border: 1px solid rgba(255,255,255,0.14);
+    border-radius: inherit;
+    background: linear-gradient(145deg, rgba(18, 30, 44, 0.98), rgba(6, 11, 18, 0.99));
+    box-shadow: 0 24px 80px rgba(0,0,0,0.54);
+}
+
+.shaft-shortcut-groups {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+}
+
+.shaft-shortcut-group {
+    display: grid;
+    align-content: start;
+    gap: 10px;
+    padding: 14px;
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: var(--radius-md);
+    background: rgba(7, 12, 20, 0.56);
+}
+
+.shaft-shortcut-group:last-child {
+    grid-column: 1 / -1;
+}
+
+.shaft-shortcut-group h3 {
+    color: var(--text);
+    font-size: 14px;
+}
+
+.shaft-shortcut-group dl {
+    display: grid;
+    gap: 7px;
+    margin: 0;
+}
+
+.shaft-shortcut-group dl > div {
+    display: grid;
+    grid-template-columns: minmax(180px, auto) minmax(0, 1fr);
+    gap: 12px;
+    align-items: center;
+    min-height: 38px;
+    padding: 7px 9px;
+    border-radius: 8px;
+    background: rgba(255,255,255,0.04);
+}
+
+.shaft-shortcut-group dt {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+    align-items: center;
+    color: var(--muted);
+    font-size: 11px;
+    font-weight: 900;
+}
+
+.shaft-shortcut-group kbd {
+    min-width: 28px;
+    padding: 4px 7px;
+    border: 1px solid rgba(255,255,255,0.18);
+    border-bottom-color: rgba(255,255,255,0.3);
+    border-radius: 6px;
+    background: rgba(255,255,255,0.08);
+    color: var(--text);
+    font-family: inherit;
+    font-size: 11px;
+    font-weight: 1000;
+    text-align: center;
+    box-shadow: 0 2px 0 rgba(0,0,0,0.34);
+}
+
+.shaft-shortcut-group dd {
+    margin: 0;
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 800;
+    line-height: 1.4;
+}
+
+.shaft-action-contribution-modal {
+    display: grid;
+    gap: 18px;
+    padding: 22px;
+    border: 1px solid rgba(255,255,255,0.14);
+    border-radius: inherit;
+    background: linear-gradient(145deg, rgba(18, 30, 44, 0.98), rgba(6, 11, 18, 0.99));
+    box-shadow: 0 24px 80px rgba(0,0,0,0.54);
+}
+
+.shaft-dialog-close {
+    width: 36px;
+    height: 36px;
+    padding: 0;
+    font-size: 22px;
+    line-height: 1;
+}
+
+.shaft-action-contribution-body {
+    display: grid;
+    grid-template-columns: minmax(220px, 0.8fr) minmax(280px, 1.2fr);
+    gap: 24px;
+    align-items: center;
+}
+
+.shaft-action-contribution-chart {
+    position: relative;
+    display: grid;
+    place-items: center;
+    aspect-ratio: 1;
+    min-width: 0;
+}
+
+.shaft-action-contribution-pie {
+    grid-area: 1 / 1;
+    width: min(100%, 300px);
+    filter: drop-shadow(0 12px 22px rgba(0,0,0,0.28));
+}
+
+.shaft-action-contribution-chart strong,
+.shaft-action-contribution-chart span {
+    grid-area: 1 / 1;
+    z-index: 1;
+    pointer-events: none;
+}
+
+.shaft-action-contribution-chart strong {
+    margin-top: -10px;
+    font-size: 24px;
+    font-weight: 1000;
+}
+
+.shaft-action-contribution-chart span {
+    margin-top: 30px;
+    color: var(--muted);
+    font-size: 11px;
+    font-weight: 900;
+}
+
+.shaft-action-contribution-legend {
+    display: grid;
+    gap: 8px;
+    max-height: min(420px, 60vh);
+    overflow-y: auto;
+}
+
+.shaft-action-contribution-item {
+    display: grid;
+    grid-template-columns: 12px minmax(0, 1fr) auto 52px;
+    gap: 9px;
+    align-items: center;
+    min-height: 38px;
+    padding: 7px 9px;
+    border-radius: 8px;
+    background: rgba(255,255,255,0.045);
+    font-size: 12px;
+}
+
+.shaft-action-contribution-item i {
+    width: 10px;
+    height: 10px;
+    border-radius: 3px;
+    background: var(--action-color);
+}
+
+.shaft-action-contribution-item span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-weight: 900;
+}
+
+.shaft-action-contribution-item strong {
+    color: var(--muted);
+    font-size: 12px;
+}
+
+.shaft-action-contribution-item b {
+    text-align: right;
+    font-size: 12px;
 }
 
 .shaft-panel-avatar-row {
@@ -1328,6 +1582,35 @@ body.shaft-dragging .shaft-action-bar {
 
 .shaft-detail-hero strong {
     font-size: 18px;
+}
+
+.shaft-detail-multiplier {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 76px;
+    gap: 6px 10px;
+    align-items: center;
+    padding: 12px;
+    border: 1px solid rgba(126,224,219,0.24);
+    border-radius: var(--radius-md);
+    background: rgba(126,224,219,0.07);
+}
+
+.shaft-detail-multiplier span {
+    color: var(--text);
+    font-weight: 950;
+}
+
+.shaft-detail-multiplier input {
+    width: 76px;
+    min-height: 38px;
+    text-align: center;
+    font-weight: 950;
+}
+
+.shaft-detail-multiplier small {
+    grid-column: 1 / -1;
+    color: var(--muted);
+    line-height: 1.45;
 }
 
 .shaft-detail-grid {
@@ -2132,7 +2415,7 @@ body.shaft-dragging .shaft-action-bar {
 .shaft-buff-trigger-line {
     position: absolute;
     z-index: 6;
-    min-width: 22px;
+    min-width: 1px;
     height: 10px;
     border-radius: 999px;
     cursor: help;
@@ -2201,6 +2484,19 @@ body.shaft-dragging .shaft-action-bar {
 .shaft-buff-trigger-line:focus-visible {
     outline: 2px solid rgba(255,255,255,0.72);
     outline-offset: 2px;
+}
+
+.shaft-reaction-damage-marker {
+    position: absolute;
+    z-index: 7;
+    width: 0;
+    height: 0;
+    border-left: 3px solid transparent;
+    border-right: 3px solid transparent;
+    border-top: 5px solid var(--reaction-color, #fff);
+    transform: translateX(-50%);
+    filter: drop-shadow(0 0 2px color-mix(in srgb, var(--reaction-color, #fff) 60%, transparent));
+    pointer-events: auto;
 }
 
 .shaft-action-bar {
@@ -2745,5 +3041,47 @@ body.shaft-dragging .shaft-action-bar {
 
     .shaft-member-identity small {
         grid-column: 3;
+    }
+
+    .shaft-contribution-row {
+        grid-template-columns: 68px minmax(0, 1fr) 44px;
+    }
+
+    .shaft-action-contribution-btn {
+        grid-column: 1 / -1;
+    }
+
+    .shaft-action-contribution-modal {
+        padding: 16px;
+    }
+
+    .shaft-action-contribution-body {
+        grid-template-columns: 1fr;
+    }
+
+    .shaft-action-contribution-chart {
+        max-width: 260px;
+        margin-inline: auto;
+    }
+
+    .shaft-action-contribution-item {
+        grid-template-columns: 12px minmax(0, 1fr) auto 48px;
+    }
+
+    .shaft-shortcut-modal {
+        padding: 16px;
+    }
+
+    .shaft-shortcut-groups {
+        grid-template-columns: 1fr;
+    }
+
+    .shaft-shortcut-group:last-child {
+        grid-column: auto;
+    }
+
+    .shaft-shortcut-group dl > div {
+        grid-template-columns: 1fr;
+        gap: 6px;
     }
 }

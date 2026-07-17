@@ -45,6 +45,13 @@ class ShaftArcCompatibilityTestCase(unittest.TestCase):
             {character['name']: character['adaptation'] for character in catalog['characters']},
             EXPECTED_CHARACTER_ADAPTATIONS,
         )
+        refinements = catalog['arc_refinements']
+        self.assertEqual(refinements['source'], 'nanoka.cc')
+        self.assertEqual(set(refinements['arcs']), {arc['id'] for arc in catalog['arcs']})
+        self.assertTrue(all(
+            set(record['levels']) == {'1', '2', '3', '4', '5'}
+            for record in refinements['arcs'].values()
+        ))
 
     def test_starter_build_arcs_match_character_adaptation(self) -> None:
         catalog = load_shaft_catalog()
@@ -60,6 +67,7 @@ class ShaftArcCompatibilityTestCase(unittest.TestCase):
     def test_backend_rejects_active_incompatible_arc(self) -> None:
         catalog = load_shaft_catalog()
         axis = dict(catalog['starter_axis'])
+        axis.pop('character_builds', None)
         axis['team'] = [dict(member) for member in catalog['starter_axis']['team']]
         member = axis['team'][0]
         character = get_record_map(catalog['characters'])[member['character_id']]
@@ -79,6 +87,31 @@ class ShaftArcCompatibilityTestCase(unittest.TestCase):
         self.assertIn("String(arc.adaptation || '') === adaptation", source)
         self.assertIn('optionHtml(compatibleArcs, member.arc_id)', source)
         self.assertIn('ensureMemberCompatibleArc(member);', source)
+        self.assertIn('data-field="arc_refinement"', source)
+        self.assertNotIn('>当前默认</option>', source)
+        self.assertIn('defaultArcRefinement(member.arc_id)', source)
+
+    def test_backend_normalizes_arc_refinement_without_affecting_hash_fields(self) -> None:
+        catalog = load_shaft_catalog()
+        axis = dict(catalog['starter_axis'])
+        axis.pop('character_builds', None)
+        axis['team'] = [dict(member) for member in catalog['starter_axis']['team']]
+        axis['team'][0]['arc_refinement'] = 9
+
+        normalized = normalize_axis_payload(axis)
+
+        arc_id = normalized['team'][0]['arc_id']
+        expected = catalog['arc_refinements']['arcs'][arc_id]['default_level']
+        self.assertEqual(normalized['team'][0]['arc_refinement'], expected)
+        character_id = normalized['team'][0]['character_id']
+        self.assertEqual(normalized['character_builds'][character_id]['arc_refinement'], expected)
+
+    def test_existing_arc_values_define_refinement_defaults(self) -> None:
+        refinements = load_shaft_catalog()['arc_refinements']['arcs']
+
+        self.assertEqual(refinements['arc_1a476075cd']['default_level'], 1)
+        self.assertEqual(refinements['arc_57b6c49b66']['default_level'], 5)
+        self.assertEqual(refinements['arc_74578e2ec4']['default_level'], 5)
 
 
 if __name__ == '__main__':

@@ -208,27 +208,29 @@ def extract_characters(wb_values: Any) -> list[dict[str, Any]]:
                 'def': number(ws.cell(row, 8).value),
             },
             'modifiers': {
-                'crit_rate': number(ws.cell(row, 10).value),
-                'crit_dmg': number(ws.cell(row, 11).value),
-                'atk_pct': number(ws.cell(row, 12).value),
-                'flat_atk': number(ws.cell(row, 13).value),
-                'hp_pct': number(ws.cell(row, 14).value),
-                'flat_hp': number(ws.cell(row, 15).value),
-                'def_pct': number(ws.cell(row, 16).value),
-                'flat_def': number(ws.cell(row, 17).value),
-                'def_ignore': number(ws.cell(row, 18).value),
-                'res_down': number(ws.cell(row, 19).value),
-                'energy_recharge': number(ws.cell(row, 20).value),
-                'harmony_strength': number(ws.cell(row, 21).value),
-                'stagger_strength': number(ws.cell(row, 22).value),
-                'basic_dmg': number(ws.cell(row, 23).value),
-                'element_dmg': number(ws.cell(row, 24).value),
-                'follow_dmg': number(ws.cell(row, 25).value),
-                'mind_dmg': number(ws.cell(row, 26).value),
-                'attach_dmg': number(ws.cell(row, 27).value),
-                'skill_dmg': number(ws.cell(row, 28).value),
-                'ultimate_dmg': number(ws.cell(row, 29).value),
-                'all_dmg': number(ws.cell(row, 30).value),
+                # 角色表只提供基础攻击/生命/防御。角色被动与觉醒必须进入
+                # buffs.json，不能把 xlsx 中预先揉入的面板增益重复导入。
+                'crit_rate': 0.05,
+                'crit_dmg': 0.5,
+                'atk_pct': 0.0,
+                'flat_atk': 0.0,
+                'hp_pct': 0.0,
+                'flat_hp': 0.0,
+                'def_pct': 0.0,
+                'flat_def': 0.0,
+                'def_ignore': 0.0,
+                'res_down': 0.0,
+                'energy_recharge': 0.0,
+                'harmony_strength': 0.0,
+                'stagger_strength': 0.0,
+                'basic_dmg': 0.0,
+                'element_dmg': 0.0,
+                'follow_dmg': 0.0,
+                'mind_dmg': 0.0,
+                'attach_dmg': 0.0,
+                'skill_dmg': 0.0,
+                'ultimate_dmg': 0.0,
+                'all_dmg': 0.0,
             },
             'bond_bonus': bond_by_name.get(str(name), parse_bond_bonus('')),
             'source_row': row,
@@ -374,6 +376,53 @@ def extract_actions(wb_values: Any, characters: list[dict[str, Any]]) -> list[di
         action_type = action_type_from_label(str(damage_type))
         resources = action_resource_profile(action_type, time_seconds)
         background_damage = is_background_damage_action(action_name, extra_tag)
+        passive_multipliers = {
+            ('主角', 'e额外'): 2.0,
+            ('九原', '创生追加'): 0.15,
+            ('安魂曲', '失谐强化'): 4.0,
+            ('达芙蒂尔', '移行附加'): 3.0,
+            ('海月', '黯星追加'): 1.5,
+            ('卡厄斯', '延滞结算'): 8.0,
+            ('卡厄斯', '哈索尔延滞'): 32.0,
+            ('伊洛伊', 'B觉'): 1.5,
+        }
+        passive_multiplier = passive_multipliers.get((str(character_name), str(action_name)))
+        if passive_multiplier is not None:
+            action_type = '被动'
+            damage_type = '被动'
+            background_damage = True
+            time_seconds = 0.0
+            duration_ticks = 0
+            resources = {'cooldown_ticks': 50 if (character_name, action_name) == ('伊洛伊', 'B觉') else 0, 'energy_cost': 0}
+        elif str(character_name) == '伊洛伊' and str(action_name) in {'援护', 'e'}:
+            time_seconds = 1.5
+            duration_ticks = 15
+        if str(character_name) == '伊洛伊' and str(action_name) == 'q持续':
+            background_damage = True
+            resources['energy_cost'] = 0
+        imported_extra_tag = '' if extra_tag == '0' else str(extra_tag)
+        if passive_multiplier is not None:
+            imported_extra_tag = '协攻' if (character_name, action_name) == ('伊洛伊', 'B觉') else '附着'
+        self_modifiers = {
+            'crit_rate': number(ws.cell(row, 15).value),
+            'crit_dmg': number(ws.cell(row, 16).value),
+            'all_dmg': number(ws.cell(row, 17).value),
+            'flat_atk': number(ws.cell(row, 18).value),
+            'atk_pct': number(ws.cell(row, 19).value),
+            'hp_pct': number(ws.cell(row, 20).value),
+            'def_pct': number(ws.cell(row, 21).value),
+            'harmony_strength': number(ws.cell(row, 22).value),
+            'def_ignore': number(ws.cell(row, 23).value),
+            'res_down': number(ws.cell(row, 24).value),
+        }
+        # These values are now expressed as auditable character buff rules.
+        if (character_name, action_name) == ('主角', 'q'):
+            self_modifiers['crit_rate'] = 0.0
+        if (character_name, action_name) == ('达芙蒂尔', '移行'):
+            self_modifiers['all_dmg'] = 0.0
+        if (character_name, action_name) == ('海月', 'q'):
+            self_modifiers['crit_rate'] = 0.0
+            self_modifiers['all_dmg'] = 0.0
         records.append({
             'id': stable_id('action', f'{character_name}:{action_name}:{row}'),
             'character_id': character['id'],
@@ -381,12 +430,12 @@ def extract_actions(wb_values: Any, characters: list[dict[str, Any]]) -> list[di
             'name': action_name,
             'action_type': action_type,
             'damage_type': damage_type,
-            'extra_tag': extra_tag if extra_tag != '0' else '',
+            'extra_tag': imported_extra_tag,
             'is_background_damage': background_damage,
             'duration_seconds': time_seconds,
             'duration_ticks': duration_ticks,
             'multipliers': {
-                'atk': number(ws.cell(row, 5).value) / 100,
+                'atk': passive_multiplier if passive_multiplier is not None else number(ws.cell(row, 5).value) / 100,
                 'hp': number(ws.cell(row, 6).value) / 100,
                 'def': number(ws.cell(row, 7).value) / 100,
                 'flat': number(ws.cell(row, 8).value),
@@ -395,22 +444,12 @@ def extract_actions(wb_values: Any, characters: list[dict[str, Any]]) -> list[di
             'harmony': number(ws.cell(row, 11).value),
             'stagger': number(ws.cell(row, 12).value),
             'energy_return': number(ws.cell(row, 14).value),
-            'self_modifiers': {
-                'crit_rate': number(ws.cell(row, 15).value),
-                'crit_dmg': number(ws.cell(row, 16).value),
-                'all_dmg': number(ws.cell(row, 17).value),
-                'flat_atk': number(ws.cell(row, 18).value),
-                'atk_pct': number(ws.cell(row, 19).value),
-                'hp_pct': number(ws.cell(row, 20).value),
-                'def_pct': number(ws.cell(row, 21).value),
-                'harmony_strength': number(ws.cell(row, 22).value),
-                'def_ignore': number(ws.cell(row, 23).value),
-                'res_down': number(ws.cell(row, 24).value),
-            },
+            'self_modifiers': self_modifiers,
             'cooldown_ticks': resources['cooldown_ticks'],
             'energy_cost': resources['energy_cost'],
             'personal_resource_cost': {},
             'personal_resource_gain': {},
+            'required_awakening': 2 if (character_name, action_name) == ('伊洛伊', 'B觉') else 0,
             'source_row': row,
         })
     return records

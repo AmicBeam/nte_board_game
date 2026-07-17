@@ -23,6 +23,7 @@ MAX_AXIS_STEPS = 240
 MAX_BUFF_RULES = 48
 VISIBILITIES = frozenset({'private', 'public'})
 MARKET_SORTS = frozenset({'dps', 'likes', 'favorites', 'new'})
+DISABLED_CHARACTER_SELECTION_IDS = frozenset({'char_a01c39f576'})
 ELEMENTS = ('光', '灵', '咒', '暗', '魂', '相')
 ZERO_ACTION_VISUAL_TICKS = 2
 SUBSTAT_KEYS = (
@@ -31,6 +32,7 @@ SUBSTAT_KEYS = (
     'crit_dmg',
     'harmony_strength',
     'stagger_strength',
+    'stagger_multiplier',
     'atk_pct',
     'flat_atk',
     'hp_pct',
@@ -127,6 +129,7 @@ def _normalize_enemy(raw: Any, catalog: dict[str, Any]) -> dict[str, Any]:
     if not isinstance(weakness, list):
         weakness = defaults.get('weakness_elements') or []
     debuffs = enemy.get('debuffs') if isinstance(enemy.get('debuffs'), dict) else {}
+    resistances = enemy.get('resistances') if isinstance(enemy.get('resistances'), dict) else {}
     hp_ratio = enemy.get('hp_ratio')
     if hp_ratio is None and enemy.get('hp_percent') is not None:
         hp_ratio = _num(enemy.get('hp_percent'), 100) / 100
@@ -140,6 +143,10 @@ def _normalize_enemy(raw: Any, catalog: dict[str, Any]) -> dict[str, Any]:
             if str(name) in {'延滞', '黯星', '浸染', '覆纹', '浊燃'}
         },
         'hp_ratio': max(0.0, min(1.0, _num(hp_ratio, 1.0))),
+        'resistances': {
+            element: max(-1.0, min(1.0, _num(resistances.get(element), 0.3)))
+            for element in [*ELEMENTS, '心灵']
+        },
     }
 
 
@@ -160,6 +167,20 @@ def _normalize_skill_levels(raw: Any) -> dict[str, int]:
         key: max(1, min(10, _int(levels.get(key), SKILL_LEVEL_DEFAULTS[key])))
         for key in SKILL_LEVEL_KEYS
     }
+
+
+def _default_arc_refinement(arc_id: str, catalog: dict[str, Any]) -> int:
+    refinements = catalog.get('arc_refinements') or {}
+    arcs = refinements.get('arcs') if isinstance(refinements.get('arcs'), dict) else {}
+    record = arcs.get(arc_id) if isinstance(arcs.get(arc_id), dict) else {}
+    return max(1, min(5, _int(record.get('default_level'), 1)))
+
+
+def _normalize_arc_refinement(raw: Any, arc_id: str, catalog: dict[str, Any]) -> int:
+    level = _int(raw)
+    if 1 <= level <= 5:
+        return level
+    return _default_arc_refinement(arc_id, catalog)
 
 
 def _default_build_options(character_id: str, catalog: dict[str, Any]) -> dict[str, Any]:
@@ -199,6 +220,17 @@ def _normalize_curtain_bonus(raw: Any, character_id: str, catalog: dict[str, Any
     }
 
 
+def _normalize_awakening_nodes(raw_nodes: Any, legacy_awakening: Any = 0) -> list[int]:
+    if isinstance(raw_nodes, list):
+        return sorted({
+            level
+            for value in raw_nodes
+            if 1 <= (level := _int(value)) <= 6
+        })
+    legacy_level = max(0, min(6, _int(legacy_awakening)))
+    return list(range(1, legacy_level + 1))
+
+
 def _normalize_team(raw: Any, catalog: dict[str, Any]) -> list[dict[str, Any]]:
     team = raw if isinstance(raw, list) and raw else catalog['starter_axis']['team']
     characters = get_record_map(catalog['characters'])
@@ -227,15 +259,18 @@ def _normalize_team(raw: Any, catalog: dict[str, Any]) -> list[dict[str, Any]]:
         if arc and str(arc.get('adaptation') or '') != str(character.get('adaptation') or ''):
             raise RuleValidationError('角色与弧盘的适配类型不一致。')
         cartridge = cartridges.get(cartridge_id)
+        awakening_nodes = _normalize_awakening_nodes(member.get('awakening_nodes'), member.get('awakening'))
         normalized.append({
             'slot': slot,
             'character_id': character_id,
             'character_name': character.get('name') or '',
             'arc_id': arc_id,
             'arc_name': (arc or {}).get('name') or '',
+            'arc_refinement': _normalize_arc_refinement(member.get('arc_refinement'), arc_id, catalog),
             'cartridge_id': cartridge_id,
             'cartridge_name': (cartridge or {}).get('name') or '',
-            'awakening': max(0, min(6, _int(member.get('awakening')))),
+            'awakening': len(awakening_nodes),
+            'awakening_nodes': awakening_nodes,
             'bond_level': max(0, min(1, _int(member.get('bond_level'), 1 if member.get('bond_full') else 0))),
             'bond_full': bool(member.get('bond_full')) or _int(member.get('bond_level')) > 0,
             'skill_levels': _normalize_skill_levels(member.get('skill_levels')),
@@ -268,14 +303,17 @@ def _normalize_character_builds(raw: Any, team: list[dict[str, Any]], catalog: d
         if arc and str(arc.get('adaptation') or '') != str(characters[character_id].get('adaptation') or ''):
             arc_id = ''
         cartridge_id = str(build.get('cartridge_id') or '')
+        awakening_nodes = _normalize_awakening_nodes(build.get('awakening_nodes'), build.get('awakening'))
         normalized[character_id] = {
             'character_id': character_id,
             'character_name': characters[character_id].get('name') or '',
             'arc_id': arc_id if arc_id in arcs else '',
             'arc_name': (arcs.get(arc_id) or {}).get('name') or '',
+            'arc_refinement': _normalize_arc_refinement(build.get('arc_refinement'), arc_id, catalog),
             'cartridge_id': cartridge_id if cartridge_id in cartridges else '',
             'cartridge_name': (cartridges.get(cartridge_id) or {}).get('name') or '',
-            'awakening': max(0, min(6, _int(build.get('awakening')))),
+            'awakening': len(awakening_nodes),
+            'awakening_nodes': awakening_nodes,
             'bond_level': max(0, min(1, _int(build.get('bond_level'), 1 if build.get('bond_full') else 0))),
             'bond_full': bool(build.get('bond_full')) or _int(build.get('bond_level')) > 0,
             'skill_levels': _normalize_skill_levels(build.get('skill_levels')),
@@ -305,9 +343,11 @@ def _apply_character_builds_to_team(team: list[dict[str, Any]], character_builds
         for key in (
             'arc_id',
             'arc_name',
+            'arc_refinement',
             'cartridge_id',
             'cartridge_name',
             'awakening',
+            'awakening_nodes',
             'bond_level',
             'bond_full',
             'skill_levels',
@@ -334,13 +374,14 @@ def _normalize_steps(raw: Any, catalog: dict[str, Any]) -> list[dict[str, Any]]:
             raise RuleValidationError('轴中存在未知动作。')
         start_tick = max(0, _int(step.get('start_tick')))
         placement = _normalize_step_placement(step, action)
+        repeat = max(1, min(12, _int(step.get('repeat'), 1))) if _is_background_action(action) else 1
         normalized_step = {
             'id': str(step.get('id') or f'step_{index + 1:03d}')[:40],
             'slot': max(0, min(3, _int(step.get('slot')))),
             'action_id': action_id,
             'action_name': action.get('name') or '',
             'start_tick': start_tick,
-            'repeat': max(1, min(12, _int(step.get('repeat'), 1))),
+            'repeat': repeat,
             'tags': step.get('tags') if isinstance(step.get('tags'), list) else [],
         }
         if placement == 'background' and not _is_background_action(action):
@@ -357,11 +398,19 @@ def _axis_duration_ticks(steps: list[dict[str, Any]], catalog: dict[str, Any]) -
 
 def _normalize_options(raw: Any, catalog: dict[str, Any]) -> dict[str, Any]:
     options = raw if isinstance(raw, dict) else {}
-    return {
-        'switch_loss_ticks': max(
-            0,
-            min(20, _int(options.get('switch_loss_ticks'), _int(catalog['formula_constants'].get('switch_loss_ticks'), 2))),
+    switch_gap_ticks = max(
+        0,
+        min(
+            20,
+            _int(
+                options.get('switch_gap_ticks'),
+                _int(options.get('switch_loss_ticks'), _int(catalog['formula_constants'].get('switch_loss_ticks'), 2)),
+            ),
         ),
+    )
+    return {
+        'switch_gap_ticks': switch_gap_ticks,
+        'switch_loss_ticks': switch_gap_ticks,
         'loop_enabled': bool(options.get('loop_enabled')),
     }
 
@@ -439,33 +488,14 @@ def _is_zero_foreground_q_step(step: dict[str, Any], action: dict[str, Any]) -> 
     )
 
 
-def _q_virtual_start_ticks(steps: list[dict[str, Any]], actions_by_id: dict[str, dict[str, Any]]) -> list[int]:
-    starts: list[tuple[int, int]] = []
-    for order, step in enumerate(steps):
-        action = actions_by_id.get(str(step.get('action_id') or ''))
-        if action is not None and _is_zero_foreground_q_step(step, action):
-            starts.append((_int(step.get('start_tick')), order))
-    return [start_tick for start_tick, _order in sorted(starts, key=lambda item: (item[0], item[1]))]
-
-
-def _calculation_tick_from_visual(visual_tick: int, q_virtual_starts: list[int]) -> int:
-    safe_tick = max(0, _int(visual_tick))
-    offset = 0
-    for q_start_tick in q_virtual_starts:
-        if q_start_tick >= safe_tick:
-            break
-        offset += min(ZERO_ACTION_VISUAL_TICKS, safe_tick - q_start_tick)
-    return max(0, safe_tick - offset)
-
-
 def calculate_axis_duration_ticks(steps: list[dict[str, Any]], actions_by_id: dict[str, dict[str, Any]]) -> int:
-    q_virtual_starts = _q_virtual_start_ticks(steps, actions_by_id)
     last_tick = 0
     for step in steps:
         action = actions_by_id.get(str(step.get('action_id') or '')) or {}
-        start_tick = _calculation_tick_from_visual(_int(step.get('start_tick')), q_virtual_starts)
+        start_tick = max(0, _int(step.get('start_tick')))
         duration_ticks = max(0, _int(action.get('duration_ticks')))
-        last_tick = max(last_tick, start_tick + duration_ticks, start_tick)
+        visual_duration_ticks = ZERO_ACTION_VISUAL_TICKS if _is_zero_foreground_q_step(step, action) else duration_ticks
+        last_tick = max(last_tick, start_tick + visual_duration_ticks, start_tick)
     return max(0, last_tick)
 
 
@@ -559,10 +589,17 @@ def normalize_axis_payload(payload: dict[str, Any]) -> dict[str, Any]:
 def get_shaft_catalog_payload() -> dict[str, Any]:
     catalog = load_shaft_catalog()
     return {
-        'characters': catalog['characters'],
+        'characters': [
+            {
+                **character,
+                'selection_disabled': str(character.get('id') or '') in DISABLED_CHARACTER_SELECTION_IDS,
+            }
+            for character in catalog['characters']
+        ],
         'actions': catalog['actions'],
         'actions_by_character': catalog['actions_by_character'],
         'arcs': catalog['arcs'],
+        'arc_refinements': catalog['arc_refinements'],
         'awakenings': catalog['awakenings'],
         'buffs': catalog['buffs'],
         'cartridges': catalog['cartridges'],

@@ -23,6 +23,10 @@
     small_flat_atk: 420,
     small_flat_hp: 5200,
   };
+  const PERSONAL_RESOURCE_CAPS = {
+    char_701295143d: { '言灵字': 4 },
+    char_912dbfe17c: { '闪送之力': 6 },
+  };
   const SKILL_LEVEL_DEFAULTS = {
     basic: 10,
     skill: 10,
@@ -43,8 +47,43 @@
     flat_def: 'flat_def',
   };
   const CURTAIN_PASSIVE_TYPES = ['type2', 'type3', 'type4'];
-  const SUPPORTED_TRIGGER_EVENTS = new Set(['action_start', 'action_hit', 'action_end', 'loop_start']);
-  const SPECIAL_DAMAGE_SOURCES = ['创生', '浊燃', '黯星'];
+  const SUPPORTED_TRIGGER_EVENTS = new Set(['passive', 'action_start', 'action_hit', 'action_end', 'loop_start', 'reaction_trigger']);
+  const PERMANENT_BUFF_END_TICK = 1000000000;
+  const SPECIAL_DAMAGE_SOURCES = ['创生', '浊燃', '黯星', '噩梦'];
+  const REACTION_BY_ELEMENT_PAIR = new Map([
+    ['光|灵', '创生'],
+    ['光|相', '延滞'],
+    ['灵|咒', '覆纹'],
+    ['咒|暗', '浊燃'],
+    ['暗|魂', '黯星'],
+    ['魂|相', '浸染'],
+  ]);
+  const REACTION_DURATIONS = {
+    '创生': 100,
+    '延滞': 50,
+    '覆纹': 120,
+    '浊燃': 150,
+    '黯星': 50,
+    '浸染': 120,
+  };
+  const REACTION_BASE_DAMAGE = {
+    5: { '创生': 80, '浊燃': 20, '黯星': 400 },
+    10: { '创生': 120, '浊燃': 35, '黯星': 600 },
+    15: { '创生': 200, '浊燃': 60, '黯星': 1000 },
+    20: { '创生': 300, '浊燃': 90, '黯星': 1500 },
+    25: { '创生': 400, '浊燃': 120, '黯星': 2000 },
+    30: { '创生': 600, '浊燃': 180, '黯星': 3000 },
+    35: { '创生': 800, '浊燃': 240, '黯星': 4000 },
+    40: { '创生': 1000, '浊燃': 300, '黯星': 5000 },
+    45: { '创生': 1700, '浊燃': 510, '黯星': 8500 },
+    50: { '创生': 2200, '浊燃': 660, '黯星': 11000 },
+    55: { '创生': 3600, '浊燃': 1080, '黯星': 18000 },
+    60: { '创生': 5000, '浊燃': 1500, '黯星': 25000 },
+    65: { '创生': 6000, '浊燃': 1800, '黯星': 30000 },
+    70: { '创生': 7000, '浊燃': 2100, '黯星': 35000 },
+    75: { '创生': 8000, '浊燃': 2400, '黯星': 40000 },
+    80: { '创生': 9000, '浊燃': 2700, '黯星': 45000 },
+  };
 
   function clone(value) {
     return JSON.parse(JSON.stringify(value ?? null));
@@ -57,6 +96,17 @@
 
   function int(value, fallback = 0) {
     return Math.round(num(value, fallback));
+  }
+
+  function awakeningNodes(source) {
+    if (Array.isArray(source?.awakening_nodes)) {
+      return new Set(source.awakening_nodes.map((value) => int(value)).filter((value) => value >= 1 && value <= 6));
+    }
+    return new Set(Array.from({ length: Math.max(0, Math.min(6, int(source?.awakening))) }, (_, index) => index + 1));
+  }
+
+  function hasAwakeningNode(source, level) {
+    return awakeningNodes(source).has(int(level));
   }
 
   function asList(value) {
@@ -84,9 +134,17 @@
       def_ignore: 0,
       def_down: 0,
       res_down: 0,
+      res_down_光: 0,
+      res_down_灵: 0,
+      res_down_咒: 0,
+      res_down_暗: 0,
+      res_down_魂: 0,
+      res_down_相: 0,
+      res_down_心灵: 0,
       energy_recharge: 0,
       harmony_strength: 0,
       stagger_strength: 0,
+      stagger_multiplier: 0,
       basic_dmg: 0,
       dodge_counter_dmg: 0,
       element_dmg: 0,
@@ -230,7 +288,7 @@
   }
 
   function skillLevelBonus(member) {
-    return int(member?.awakening) >= 3 ? 1 : 0;
+    return awakeningNodes(member).size >= 3 ? 1 : 0;
   }
 
   function skillLevelCategory(action) {
@@ -294,23 +352,32 @@
       throw new Error('队伍中存在未知角色。');
     }
     const arc = arcs.get(String(member?.arc_id || '')) || null;
+    const arcRefinementRecord = catalog?.arc_refinements?.arcs?.[String(member?.arc_id || '')] || {};
+    const requestedArcRefinement = int(member?.arc_refinement);
+    const arcRefinementLevel = requestedArcRefinement >= 1 && requestedArcRefinement <= 5
+      ? requestedArcRefinement
+      : Math.max(1, Math.min(5, int(arcRefinementRecord.default_level, 1)));
+    const arcRefinement = arcRefinementRecord.levels?.[String(arcRefinementLevel)] || null;
     const cartridge = cartridges.get(String(member?.cartridge_id || '')) || null;
     const panelMods = mods();
     const mainStat = cartridgeMainStat(member, constants);
     const bonus = curtainBonus(member, constants);
     const curtain = curtainBonusMods(bonus, cartridge, constants);
-    mergeMods(panelMods, character.modifiers);
+    // Character-sheet modifiers historically contained baked passive/awakening
+    // bonuses. They are deliberately ignored; character buffs are registry rules.
+    panelMods.crit_rate = 0.05;
+    panelMods.crit_dmg = 0.5;
     if (member?.bond_full || int(member?.bond_level) > 0) {
       mergeMods(panelMods, character.bond_bonus?.modifiers);
     }
-    if (arc) mergeMods(panelMods, arc.modifiers);
+    if (arc) mergeMods(panelMods, arcRefinement?.panel_modifiers || arc.modifiers);
     if (cartridge) mergeMods(panelMods, cartridge.modifiers);
     mergeMods(panelMods, mainStatMods(mainStat, constants));
     mergeMods(panelMods, curtain.modifiers);
     mergeMods(panelMods, substatMods(member?.substat_counts || {}, constants));
     mergeMods(panelMods, teamPanelBonusMods(teamPanelBonus, catalog));
     const element = String(character.element || '');
-    panelMods.element_dmg += num(arc?.element_dmg?.[element]);
+    panelMods.element_dmg += num((arcRefinement?.element_dmg || arc?.element_dmg)?.[element]);
     const baseStats = character.base_stats || {};
     const baseAtk = num(baseStats.atk) + num(arc?.base_atk);
     const baseHp = num(baseStats.hp);
@@ -326,8 +393,11 @@
     };
     return {
       slot: int(member?.slot),
+      awakening: awakeningNodes(member).size,
+      awakening_nodes: Array.from(awakeningNodes(member)).sort((left, right) => left - right),
       character,
       arc,
+      arc_refinement: arcRefinementLevel,
       cartridge,
       mods: panelMods,
       base_stats: { atk: baseAtk, hp: baseHp, def: baseDef },
@@ -390,6 +460,7 @@
     const weakness = Array.isArray(enemy.weakness_elements) ? enemy.weakness_elements : [];
     const debuffs = enemy.debuffs && typeof enemy.debuffs === 'object' ? enemy.debuffs : {};
     const hpRatio = enemy.hp_ratio == null && enemy.hp_percent != null ? num(enemy.hp_percent, 100) / 100 : num(enemy.hp_ratio, 1);
+    const resistances = enemy.resistances && typeof enemy.resistances === 'object' ? enemy.resistances : {};
     return {
       level: Math.max(1, Math.min(120, int(enemy.level, 90))),
       track_outside: Boolean(enemy.track_outside),
@@ -398,14 +469,19 @@
         .filter(([name]) => Object.prototype.hasOwnProperty.call(ENEMY_DEBUFF_DURATIONS, name))
         .map(([name, endTick]) => [name, Math.max(0, int(endTick))])),
       hp_ratio: Math.max(0, Math.min(1, hpRatio)),
+      resistances: Object.fromEntries(
+        [...ELEMENTS, '心灵'].map((element) => [element, Math.max(-1, Math.min(1, num(resistances[element], 0.3)))]),
+      ),
     };
   }
 
   function resistanceMultiplier(character, enemy, panelMods) {
-    const baseRes = 0.3;
     const element = String(character?.element || '');
+    const damageElement = element || '心灵';
+    const baseRes = num(enemy.resistances?.[damageElement], 0.3);
     const weaknessDown = new Set(enemy.weakness_elements || []).has(element) ? 0.2 : 0;
-    const value = 1 - baseRes + weaknessDown + panelMods.res_down;
+    const elementResDown = num(panelMods[`res_down_${damageElement}`]);
+    const value = 1 - baseRes + weaknessDown + panelMods.res_down + elementResDown;
     if (value < 1) {
       return Math.max(0.05, value);
     }
@@ -452,12 +528,13 @@
     }
     const dmgBonus = actionTypeBonus(action, panelMods) + panelMods.element_dmg;
     const crit = critMultiplier(action, panelMods);
-    const resistance = resistanceMultiplier(snapshot.character, enemy, panelMods);
+    const resistanceCharacter = actionTags(action).has('心灵') ? { element: '' } : snapshot.character;
+    const resistance = resistanceMultiplier(resistanceCharacter, enemy, panelMods);
     const defense = defenseMultiplier(enemy, panelMods);
     const direct = Math.max(0, base * (1 + dmgBonus) * crit * resistance * defense * (1 + panelMods.final_dmg));
     return {
       direct_damage: direct,
-      stagger_amount: Math.max(0, num(action.stagger) * (1 + panelMods.stagger_strength / 300)),
+      stagger_amount: Math.max(0, num(action.stagger) * (1 + panelMods.stagger_strength / 300) * (1 + panelMods.stagger_multiplier)),
       harmony: num(action.harmony),
       energy_gain: num(action.energy_gain) * (1 + panelMods.energy_recharge),
       panel: {
@@ -497,8 +574,28 @@
     return SPECIAL_DAMAGE_SOURCES.find((source) => actionName.includes(source)) || '';
   }
 
+  function reactionForElements(firstElement, secondElement) {
+    const pair = [String(firstElement || ''), String(secondElement || '')]
+      .sort((a, b) => ELEMENTS.indexOf(a) - ELEMENTS.indexOf(b))
+      .join('|');
+    return REACTION_BY_ELEMENT_PAIR.get(pair) || '';
+  }
+
+  function reactionBaseDamage(level, reaction) {
+    const bracket = Math.max(5, Math.min(80, Math.floor(Math.max(5, num(level, 80)) / 5) * 5));
+    return num(REACTION_BASE_DAMAGE[bracket]?.[reaction]);
+  }
+
+  function reactionStrengthMultiplier(harmonyStrength) {
+    return 1 + Math.max(0, num(harmonyStrength)) / 600;
+  }
+
   function isBackgroundAction(action) {
     return Boolean(action?.is_background_damage) || `${action?.name || ''} ${action?.extra_tag || ''}`.includes('后台');
+  }
+
+  function backgroundActionMultiplier(step, action) {
+    return isBackgroundAction(action) ? Math.max(1, Math.min(12, int(step?.repeat, 1))) : 1;
   }
 
   function isBasicAction(action) {
@@ -533,29 +630,79 @@
     return String(action?.action_type || '') === 'Q' || String(action?.damage_type || '') === 'Q';
   }
 
-  function supportProtectedStepEntries(steps, actionsById) {
+  function locksForegroundSwitch(step, action) {
+    return startsForeground(step, action) && (
+      isSupportAction(action) ||
+      isZeroForegroundQStep(step, action)
+    );
+  }
+
+  function tickScheduledStepEntries(steps, actionsById, switchGapTicks = MIN_FOREGROUND_START_GAP_TICKS) {
     const ordered = steps.slice().sort((a, b) => {
       const startDelta = int(a.start_tick) - int(b.start_tick);
       if (startDelta) return startDelta;
-      const aSupport = isSupportAction(actionsById.get(String(a.action_id || '')) || {});
-      const bSupport = isSupportAction(actionsById.get(String(b.action_id || '')) || {});
-      return Number(bSupport) - Number(aSupport) || int(a.slot) - int(b.slot);
+      const aAction = actionsById.get(String(a.action_id || '')) || {};
+      const bAction = actionsById.get(String(b.action_id || '')) || {};
+      const lockDelta = Number(locksForegroundSwitch(b, bAction)) - Number(locksForegroundSwitch(a, aAction));
+      return lockDelta || int(a.slot) - int(b.slot);
     });
-    let supportExclusiveUntil = 0;
+    let previousForegroundSlot = null;
+    let previousForegroundStartTick = null;
+    const foregroundLocks = [];
+    const carriedShiftBySlot = new Map();
     return ordered.map((step) => {
       const action = actionsById.get(String(step.action_id || '')) || {};
       const isBackground = isStepBackground(step, action);
-      let visualStartTick = int(step.start_tick);
-      if (!isBackground && visualStartTick < supportExclusiveUntil) {
-        visualStartTick = supportExclusiveUntil;
-      }
-      if (!isBackground && isSupportAction(action)) {
-        supportExclusiveUntil = Math.max(
-          supportExclusiveUntil,
-          visualStartTick + Math.max(1, Math.max(0, int(action.duration_ticks))),
+      const slot = int(step.slot);
+      let visualStartTick = int(step.start_tick) + Math.max(0, int(carriedShiftBySlot.get(slot)));
+      const carriedStartTick = visualStartTick;
+      let switchLossTicks = 0;
+      let foregroundLockTicks = 0;
+      if (!isBackground) {
+        let lockEndTick = Math.max(
+          0,
+          ...foregroundLocks
+            .filter((lock) => visualStartTick < int(lock.end_tick))
+            .map((lock) => int(lock.end_tick)),
         );
+        while (lockEndTick > visualStartTick) {
+          foregroundLockTicks += lockEndTick - visualStartTick;
+          visualStartTick = lockEndTick;
+          lockEndTick = Math.max(
+            0,
+            ...foregroundLocks
+              .filter((lock) => visualStartTick < int(lock.end_tick))
+              .map((lock) => int(lock.end_tick)),
+          );
+        }
       }
-      return { step, visualStartTick };
+      if (
+        !isBackground &&
+        previousForegroundSlot !== null &&
+        previousForegroundSlot !== int(step.slot) &&
+        previousForegroundStartTick !== null
+      ) {
+        const earliestStartTick = previousForegroundStartTick + Math.max(0, int(switchGapTicks));
+        if (visualStartTick < earliestStartTick) {
+          switchLossTicks = earliestStartTick - visualStartTick;
+          visualStartTick = earliestStartTick;
+        }
+      }
+      if (!isBackground) {
+        previousForegroundSlot = int(step.slot);
+        previousForegroundStartTick = visualStartTick;
+      }
+      if (locksForegroundSwitch(step, action)) {
+        foregroundLocks.push({
+          slot,
+          end_tick: visualStartTick + qVisualDurationTicks(action),
+        });
+      }
+      const addedShiftTicks = Math.max(0, visualStartTick - carriedStartTick);
+      if (addedShiftTicks > 0) {
+        carriedShiftBySlot.set(slot, Math.max(0, int(carriedShiftBySlot.get(slot))) + addedShiftTicks);
+      }
+      return { step, visualStartTick, switchLossTicks, foregroundLockTicks };
     });
   }
 
@@ -568,28 +715,8 @@
   }
 
   function isQCoverImmuneScheduled(scheduled) {
-    const action = scheduled?.action || {};
-    return isSupportAction(action) || isZeroForegroundQStep(scheduled?.step || {}, action);
-  }
-
-  function qVirtualStartTicks(steps, actionsById) {
-    return steps
-      .map((step, order) => ({ step, order, action: actionsById.get(String(step?.action_id || '')) }))
-      .filter((item) => item.action && isZeroForegroundQStep(item.step, item.action))
-      .map((item) => ({ tick: int(item.step.start_tick), order: item.order }))
-      .sort((a, b) => a.tick - b.tick || a.order - b.order)
-      .map((item) => item.tick);
-  }
-
-  function calculationTickFromVisual(visualTick, qStarts) {
-    const safeTick = Math.max(0, int(visualTick));
-    let offset = 0;
-    qStarts.forEach((qStartTick) => {
-      if (qStartTick < safeTick) {
-        offset += Math.min(ZERO_ACTION_VISUAL_TICKS, safeTick - qStartTick);
-      }
-    });
-    return Math.max(0, safeTick - offset);
+    return isSupportAction(scheduled?.action || {}) ||
+      isZeroForegroundQStep(scheduled?.step || {}, scheduled?.action || {});
   }
 
   function calculationTickFromVisualIntervals(visualTick, qIntervals) {
@@ -605,28 +732,70 @@
     return Math.max(0, safeTick - offset);
   }
 
-  function recalculateUnreleasedTimings(scheduledSteps, qIntervals) {
+  function normalizeFrozenIntervals(qIntervals) {
+    const normalized = asList(qIntervals)
+      .map((interval) => {
+        const startTick = Math.max(0, int(interval?.start_tick));
+        return {
+          start_tick: startTick,
+          end_tick: Math.max(startTick, int(interval?.end_tick, startTick)),
+        };
+      })
+      .filter((interval) => interval.end_tick > interval.start_tick)
+      .sort((left, right) => left.start_tick - right.start_tick || left.end_tick - right.end_tick);
+    const merged = [];
+    normalized.forEach((interval) => {
+      const previous = merged[merged.length - 1];
+      if (previous && interval.start_tick <= previous.end_tick) {
+        previous.end_tick = Math.max(previous.end_tick, interval.end_tick);
+      } else {
+        merged.push({ ...interval });
+      }
+    });
+    return merged;
+  }
+
+  function visualTickFromCalculationTick(calculationTick, qIntervals) {
+    const safeCalculationTick = Math.max(0, int(calculationTick));
+    let visualTick = safeCalculationTick;
+    asList(qIntervals)
+      .slice()
+      .sort((left, right) => int(left?.start_tick) - int(right?.start_tick))
+      .forEach((interval) => {
+        const startTick = Math.max(0, int(interval?.start_tick));
+        const endTick = Math.max(startTick, int(interval?.end_tick, startTick + ZERO_ACTION_VISUAL_TICKS));
+        const intervalCalculationTick = calculationTickFromVisualIntervals(startTick, qIntervals);
+        if (intervalCalculationTick < safeCalculationTick) {
+          visualTick += endTick - startTick;
+        }
+      });
+    return visualTick;
+  }
+
+  function recalculateTimingsFromFrozenIntervals(scheduledSteps, qIntervals) {
     scheduledSteps.forEach((scheduled) => {
-      if (scheduled.q_instant_release) return;
-      const startTick = calculationTickFromVisualIntervals(
-        int(scheduled.visual_start_tick, int(scheduled.step?.start_tick)),
-        qIntervals,
-      );
-      const durationTicks = Math.max(0, int(scheduled.original_duration_ticks, int(scheduled.duration_ticks)));
+      const visualStartTick = int(scheduled.visual_start_tick, int(scheduled.step?.start_tick));
+      const visualEndTick = Math.max(visualStartTick, int(scheduled.visual_end_tick, visualStartTick));
+      const startTick = calculationTickFromVisualIntervals(visualStartTick, qIntervals);
+      const endTick = calculationTickFromVisualIntervals(visualEndTick, qIntervals);
       scheduled.start_tick = startTick;
-      scheduled.end_tick = startTick + durationTicks;
-      scheduled.duration_ticks = durationTicks;
-      scheduled.calculation_start_sequence = 0;
-      scheduled.calculation_end_sequence = 0;
+      scheduled.end_tick = Math.max(startTick, endTick);
+      scheduled.duration_ticks = Math.max(0, scheduled.end_tick - scheduled.start_tick);
+      if (!scheduled.q_instant_release) {
+        scheduled.calculation_start_sequence = 0;
+        scheduled.calculation_end_sequence = 0;
+      }
     });
   }
 
   function calculateAxisDurationTicks(steps, actionsById) {
-    const qStarts = qVirtualStartTicks(steps, actionsById);
     return Math.max(0, ...asList(steps).map((step) => {
       const action = actionsById.get(String(step?.action_id || '')) || {};
-      const startTick = calculationTickFromVisual(int(step?.start_tick), qStarts);
-      return Math.max(startTick, startTick + Math.max(0, int(action.duration_ticks)));
+      const startTick = Math.max(0, int(step?.start_tick));
+      const durationTicks = isZeroForegroundQStep(step, action)
+        ? ZERO_ACTION_VISUAL_TICKS
+        : Math.max(0, int(action.duration_ticks));
+      return Math.max(startTick, startTick + durationTicks);
     }));
   }
 
@@ -711,7 +880,18 @@
       if (type === 'self_hp_loss') return ['self_hp_loss', 'hp_loss', '扣血', '降低生命'].some((tag) => tags.has(tag));
       if (type === 'heal') return ['heal', '治疗'].some((tag) => tags.has(tag));
       if (type === 'fons_full') return context.fons_full !== false;
-      if (type === 'awakening_min') return int(context.owner_awakening) >= int(condition.min, int(condition.value));
+      if (type === 'awakening_min') {
+        const level = int(condition.min, int(condition.value));
+        return Array.isArray(context.owner_awakening_nodes)
+          ? context.owner_awakening_nodes.map(int).includes(level)
+          : int(context.owner_awakening) >= level;
+      }
+      if (type === 'awakening_max') {
+        const nextLevel = int(condition.max, int(condition.value)) + 1;
+        return Array.isArray(context.owner_awakening_nodes)
+          ? !context.owner_awakening_nodes.map(int).includes(nextLevel)
+          : int(context.owner_awakening) < nextLevel;
+      }
       if (type === 'expected_critical_hit') return num(context.expected_critical_hits) > 0;
       if (type === 'hit_count_positive') return num(context.hit_count) > 0;
       if (type === 'enemy_debuff_active') {
@@ -723,11 +903,28 @@
         return Array.from(strSet(condition.debuffs)).some((name) => applied.has(name));
       }
       if (type === 'shield_state') return Boolean(context.shield_active);
+      if (type === 'owner_character_id') {
+        return new Set(asList(condition.ids).map(String)).has(String(context.owner_character_id || ''));
+      }
       if (type === 'take_damage') return Boolean(context.take_damage);
       if (type === 'enemy_hp_below') return num(context.enemy?.hp_ratio, num(context.enemy?.hp_percent, 100) / 100) < num(condition.threshold, 0.5);
       if (type === 'enemy_weak_to_owner_element') {
         const element = String(context.snapshot?.character?.element || '');
         return new Set(context.enemy?.weakness_elements || []).has(element);
+      }
+      if (type === 'active_buff_key') {
+        return new Set(asList(context.active_buff_keys).map(String)).has(String(condition.key || ''));
+      }
+      if (type === 'active_buff_any') {
+        const active = new Set(asList(context.active_buff_keys).map(String));
+        return asList(condition.keys).map(String).some((key) => active.has(key));
+      }
+      if (type === 'reaction_owner_involved') {
+        const ownerSlot = int(context.owner_slot, -1);
+        return ownerSlot === int(context.reaction?.previous_slot, -2) || ownerSlot === int(context.reaction?.support_slot, -2);
+      }
+      if (type === 'reaction_type') {
+        return new Set(asList(condition.reactions).map(String)).has(String(context.reaction?.reaction || ''));
       }
       return false;
     });
@@ -752,7 +949,20 @@
           rule.owner_slot = int(member.slot);
           rule.owner_character_id = String(member.character_id || '');
           rule.owner_character_name = String(member.character_name || '');
-          rule.owner_awakening = int(member.awakening);
+          rule.owner_awakening = awakeningNodes(member).size;
+          rule.owner_awakening_nodes = Array.from(awakeningNodes(member)).sort((left, right) => left - right);
+          const arcRefinementRecord = catalog?.arc_refinements?.arcs?.[providerId] || {};
+          const requestedArcRefinement = int(member.arc_refinement);
+          rule.owner_arc_refinement = requestedArcRefinement >= 1 && requestedArcRefinement <= 5
+            ? requestedArcRefinement
+            : Math.max(1, Math.min(5, int(arcRefinementRecord.default_level, 1)));
+          if (kind === 'arc') {
+            const refinement = arcRefinementRecord.levels?.[String(rule.owner_arc_refinement)];
+            const refinementEffects = refinement?.buff_effects?.[String(rule.id || '')];
+            if (refinementEffects && typeof refinementEffects === 'object') {
+              rule.effects = clone(refinementEffects);
+            }
+          }
           if (kind === 'arc') rule.provider_name = arcs.get(providerId)?.name || '';
           if (kind === 'cartridge') rule.provider_name = cartridges.get(providerId)?.name || '';
           if (kind === 'character') rule.provider_name = characters.get(providerId)?.name || rule.owner_character_name;
@@ -813,11 +1023,12 @@
     const eventContext = Object.assign({}, context, {
       snapshot,
       owner_awakening: rule.owner_awakening,
+      owner_awakening_nodes: rule.owner_awakening_nodes,
     });
     return conditionsMatch(trigger.conditions, eventContext);
   }
 
-  function targetMatches(target, instance, step, action, snapshot, isBackground) {
+  function targetMatches(target, instance, step, action, snapshot, isBackground, context = {}) {
     const scope = String(target?.scope || 'registrar');
     const ownerSlot = int(instance.owner_slot);
     const stepSlot = int(step.slot);
@@ -846,10 +1057,11 @@
     if (placements.size && !placements.has(placement(isBackground))) return false;
     const elements = strSet(target?.elements);
     if (elements.size && !elements.has(String(snapshot.character?.element || ''))) return false;
+    if (!conditionsMatch(target?.conditions, Object.assign({}, context, { snapshot }))) return false;
     return true;
   }
 
-  function activeBuffResetsOnActionStart(instance, step, action, isBackground) {
+  function activeBuffResetsOnActionStart(instance, step, action, isBackground, tick) {
     const rule = instance.rule && typeof instance.rule === 'object' ? instance.rule : {};
     const reset = rule.reset && typeof rule.reset === 'object' ? rule.reset : {};
     if (!reset || isBackground) return false;
@@ -857,6 +1069,13 @@
     const stepSlot = int(step.slot);
     if (reset.owner_foreground && stepSlot === ownerSlot) return true;
     if (reset.owner_leaves_foreground && stepSlot !== ownerSlot) return true;
+    if (reset.owner_leaves_foreground_after_start && stepSlot !== ownerSlot) {
+      if (int(tick) < int(instance.start_tick)) {
+        instance.ignore_owner_leave_reset = true;
+        return false;
+      }
+      return !instance.ignore_owner_leave_reset;
+    }
     if (strSet(reset.action_ids).has(String(action.id || ''))) return true;
     if (strSet(reset.action_names).has(String(action.name || ''))) return true;
     if (strSet(reset.action_types).has(String(action.action_type || ''))) return true;
@@ -870,6 +1089,7 @@
   function stackGainForRule(rule, context = {}) {
     const stacking = rule.stacking && typeof rule.stacking === 'object' ? rule.stacking : {};
     if (stacking.stack_gain != null && stacking.stack_gain !== '') return Math.max(0, num(stacking.stack_gain, 1));
+    if (String(stacking.stack_gain_from || '') === 'hit_count') return Math.max(0, num(context.hit_count));
     for (const condition of asList(rule.trigger?.conditions)) {
       if (condition && typeof condition === 'object' && String(condition.type || '') === 'expected_critical_hit') {
         return Math.max(0, num(context.expected_critical_hits));
@@ -878,9 +1098,10 @@
     return 1;
   }
 
-  function activateBuff(activeBuffs, rule, triggerTick, stackGain = 1) {
+  function activateBuff(activeBuffs, rule, triggerTick, stackGain = 1, context = {}) {
     const duration = rule.duration && typeof rule.duration === 'object' ? rule.duration : {};
-    const durationTicks = Math.max(0, int(duration.ticks));
+    const isPermanent = String(duration.type || '') === 'permanent';
+    const durationTicks = isPermanent ? PERMANENT_BUFF_END_TICK : Math.max(0, int(duration.ticks));
     if (durationTicks <= 0) return null;
     const startTick = triggerTick + Math.max(0, int(duration.delay_ticks));
     const endTick = startTick + durationTicks;
@@ -889,16 +1110,27 @@
     const maxStacks = Math.max(1, num(stacking.max_stacks, 1));
     const gain = Math.max(0, stackGain);
     if (gain <= 0) return null;
-    const definitionId = String(rule.id || '');
+    const definitionId = String(stacking.key || rule.id || '');
     const ownerSlot = int(rule.owner_slot);
     for (const instance of activeBuffs) {
       const existingRule = instance.rule && typeof instance.rule === 'object' ? instance.rule : {};
-      if (String(existingRule.id || '') !== definitionId || int(instance.owner_slot) !== ownerSlot) continue;
+      const existingStacking = existingRule.stacking && typeof existingRule.stacking === 'object' ? existingRule.stacking : {};
+      const existingDefinitionId = String(instance.definition_id || existingStacking.key || existingRule.id || '');
+      if (existingDefinitionId !== definitionId || int(instance.owner_slot) !== ownerSlot) continue;
       if (mode === 'independent') continue;
       if (mode === 'add_stack') {
+        if (stacking.unique_source_slots) {
+          const sourceSlot = int(context.source_slot, -1);
+          const sourceSlots = new Set(asList(instance.source_slots).map(int));
+          if (sourceSlots.has(sourceSlot)) return null;
+          sourceSlots.add(sourceSlot);
+          instance.source_slots = Array.from(sourceSlots);
+        }
         instance.stack_count = Math.min(maxStacks, Math.max(0, num(instance.stack_count, 1)) + gain);
         instance.start_tick = Math.min(int(instance.start_tick, startTick), startTick);
         instance.end_tick = endTick;
+        instance.rule = rule;
+        instance.name = rule.name || instance.name || '';
         return instance;
       }
       if (mode === 'extend') {
@@ -908,7 +1140,35 @@
       instance.start_tick = startTick;
       instance.end_tick = endTick;
       instance.stack_count = Math.min(maxStacks, Math.max(1, gain));
+      instance.excluded_step_id = context.exclude_trigger_action ? String(context.source_step_id || '') : '';
       return instance;
+    }
+    if (mode === 'independent') {
+      const copyCount = Math.max(1, Math.floor(gain));
+      let latestInstance = null;
+      for (let copyIndex = 0; copyIndex < copyCount; copyIndex += 1) {
+        const siblings = activeBuffs
+          .filter((instance) => String(instance.definition_id || '') === definitionId && int(instance.owner_slot) === ownerSlot)
+          .sort((left, right) => int(left.end_tick) - int(right.end_tick) || int(left.start_tick) - int(right.start_tick));
+        while (siblings.length >= Math.floor(maxStacks)) {
+          const expiringFirst = siblings.shift();
+          const index = activeBuffs.indexOf(expiringFirst);
+          if (index >= 0) activeBuffs.splice(index, 1);
+        }
+        latestInstance = {
+          rule,
+          definition_id: definitionId,
+          name: rule.name || '',
+          owner_slot: ownerSlot,
+          start_tick: startTick,
+          end_tick: endTick,
+          stack_count: 1,
+          excluded_step_id: context.exclude_trigger_action ? String(context.source_step_id || '') : '',
+        };
+        if (stacking.unique_source_slots) latestInstance.source_slots = [int(context.source_slot, -1)];
+        activeBuffs.push(latestInstance);
+      }
+      return latestInstance;
     }
     const instance = {
       rule,
@@ -918,15 +1178,52 @@
       start_tick: startTick,
       end_tick: endTick,
       stack_count: Math.min(maxStacks, mode === 'add_stack' ? gain : Math.max(1, gain)),
+      excluded_step_id: context.exclude_trigger_action ? String(context.source_step_id || '') : '',
     };
+    if (stacking.unique_source_slots) instance.source_slots = [int(context.source_slot, -1)];
     activeBuffs.push(instance);
     return instance;
   }
 
-  function buffEffects(instance) {
+  function buffEffects(instance, context = {}) {
     const effects = instance.rule?.effects && typeof instance.rule.effects === 'object' ? instance.rule.effects : {};
     const factor = Math.max(0, num(instance.stack_count, 1));
-    return Object.fromEntries(Object.entries(effects).filter(([, value]) => num(value) !== 0).map(([key, value]) => [key, num(value) * factor]));
+    const resolved = Object.fromEntries(Object.entries(effects).filter(([, value]) => num(value) !== 0).map(([key, value]) => [key, num(value) * factor]));
+    const dynamic = instance.rule?.dynamic_effects && typeof instance.rule.dynamic_effects === 'object'
+      ? instance.rule.dynamic_effects
+      : {};
+    const negative = dynamic.negative_effect_count && typeof dynamic.negative_effect_count === 'object'
+      ? dynamic.negative_effect_count
+      : {};
+    if (negative.effect_key) {
+      const enemyDebuffs = new Set(Object.keys(context.enemy_debuffs || {}));
+      const activeKeys = new Set(asList(context.active_buff_keys).map(String));
+      const count = Math.min(
+        Math.max(0, int(negative.max_count, 1)),
+        asList(negative.enemy_debuffs).filter((key) => enemyDebuffs.has(String(key))).length
+          + asList(negative.buff_keys).filter((key) => activeKeys.has(String(key))).length,
+      );
+      resolved[String(negative.effect_key)] = num(resolved[String(negative.effect_key)]) + count * num(negative.per_count);
+    }
+    const activeStack = dynamic.active_stack_count && typeof dynamic.active_stack_count === 'object'
+      ? dynamic.active_stack_count
+      : {};
+    if (activeStack.effect_key && activeStack.key) {
+      const count = Math.min(
+        Math.max(0, int(activeStack.max_count, 1)),
+        asList(context.active_buffs)
+          .filter((buff) => String(buff.definition_id || '') === String(activeStack.key))
+          .reduce((sum, buff) => sum + Math.max(0, num(buff.stack_count, 1)), 0),
+      );
+      resolved[String(activeStack.effect_key)] = num(resolved[String(activeStack.effect_key)]) + count * num(activeStack.per_count);
+    }
+    const elapsed = dynamic.elapsed_ticks && typeof dynamic.elapsed_ticks === 'object' ? dynamic.elapsed_ticks : {};
+    if (elapsed.effect_key) {
+      const intervals = Math.max(0, Math.floor((num(context.tick) - int(instance.start_tick)) / Math.max(1, int(elapsed.interval_ticks, 10))));
+      resolved[String(elapsed.effect_key)] = num(resolved[String(elapsed.effect_key)])
+        + Math.min(num(elapsed.max_value, Number.POSITIVE_INFINITY), intervals * num(elapsed.per_interval));
+    }
+    return Object.fromEntries(Object.entries(resolved).filter(([, value]) => num(value) !== 0));
   }
 
   function buffDisplaysAsLine(rule) {
@@ -942,26 +1239,34 @@
     return true;
   }
 
-  function buffSummary(instance) {
+  function buffSummary(instance, context = {}) {
     const rule = instance.rule && typeof instance.rule === 'object' ? instance.rule : {};
     const stackCount = Math.max(0, num(instance.stack_count, 1));
     const displayAsLine = buffDisplaysAsLine(rule);
     return {
       rule_id: rule.id || '',
+      definition_id: String(instance.definition_id || rule.stacking?.key || rule.id || ''),
       name: rule.name || '',
       provider_name: rule.provider_name || '',
       owner_slot: int(instance.owner_slot),
       start_tick: int(instance.start_tick),
       end_tick: int(instance.end_tick),
+      duration_ticks: String(rule.duration?.type || '') === 'permanent'
+        ? PERMANENT_BUFF_END_TICK
+        : Math.max(0, int(rule.duration?.ticks)),
       stack_count: Number.isInteger(stackCount) ? Math.trunc(stackCount) : stackCount,
+      effects: buffEffects(instance, context),
       display_as_line: displayAsLine,
-      line_hidden_reason: displayAsLine ? '' : 'self_action',
+      line_hidden_reason: displayAsLine ? '' : (String(rule.duration?.type || '') === 'permanent' ? 'passive' : 'self_action'),
     };
   }
 
-  function activeBuffApplies(instance, step, action, snapshot, isBackground) {
+  function activeBuffApplies(instance, step, action, snapshot, isBackground, context = {}) {
+    if (instance.excluded_step_id && String(instance.excluded_step_id) === String(step?.id || '')) {
+      return false;
+    }
     const target = instance.rule?.target && typeof instance.rule.target === 'object' ? instance.rule.target : {};
-    return targetMatches(target, instance, step, action, snapshot, isBackground);
+    return targetMatches(target, instance, step, action, snapshot, isBackground, context);
   }
 
   function markQInstantReleaseTarget(scheduled, qVisualStartTick, qCalculationStartTick, qStepId, releaseKind, startSequence, endSequence, collapseToQTick = false) {
@@ -977,14 +1282,8 @@
     scheduled.original_calculation_end_sequence ??= int(scheduled.calculation_end_sequence);
     const visualStartTick = int(scheduled.visual_start_tick, startTick);
     const originalVisualEndTick = Math.max(visualStartTick, int(scheduled.original_visual_end_tick, visualEndTick));
-    const releaseStartTick = collapseToQTick ? qCalculationStartTick : startTick;
-    const releaseEndTick = Math.max(releaseStartTick, qCalculationStartTick);
-    scheduled.start_tick = releaseStartTick;
-    scheduled.end_tick = releaseEndTick;
-    scheduled.duration_ticks = Math.max(0, releaseEndTick - releaseStartTick);
     scheduled.calculation_start_sequence = Math.max(0, int(startSequence));
     scheduled.calculation_end_sequence = Math.max(scheduled.calculation_start_sequence + 1, int(endSequence));
-    scheduled.visual_end_tick = originalVisualEndTick;
     scheduled.q_instant_release = true;
     scheduled.q_instant_release_kind = releaseKind;
     scheduled.q_instant_release_tick = qVisualStartTick;
@@ -1000,15 +1299,10 @@
     const qEvents = scheduledSteps
       .filter((scheduled) => isZeroForegroundQStep(scheduled.step || {}, scheduled.action || {}))
       .sort((a, b) => int(a.visual_start_tick, int(a.start_tick)) - int(b.visual_start_tick, int(b.start_tick)) || int(a.slot) - int(b.slot));
-    const qVirtualIntervals = [];
+    let qVirtualIntervals = [];
     qEvents.forEach((qEvent) => {
-      recalculateUnreleasedTimings(scheduledSteps, qVirtualIntervals);
       const qStartTick = int(qEvent.visual_start_tick, int(qEvent.start_tick));
       const qCalculationStartTick = calculationTickFromVisualIntervals(qStartTick, qVirtualIntervals);
-      const qDurationTicks = Math.max(0, int(qEvent.original_duration_ticks, int(qEvent.duration_ticks)));
-      qEvent.start_tick = qCalculationStartTick;
-      qEvent.end_tick = qCalculationStartTick + qDurationTicks;
-      qEvent.duration_ticks = qDurationTicks;
       const qStepId = String(qEvent.step?.id || '');
       const qSlot = int(qEvent.slot);
       const releaseSlotVisualEnds = new Map();
@@ -1019,9 +1313,8 @@
         if (isQCoverImmuneScheduled(scheduled)) return;
         const startTick = int(scheduled.visual_start_tick, int(scheduled.start_tick));
         const endTick = int(scheduled.visual_end_tick, int(scheduled.end_tick));
-        const durationTicks = Math.max(0, int(scheduled.duration_ticks));
         const inQColumn = int(scheduled.slot) !== qSlot && startTick < qStartTick && qStartTick < endTick;
-        const ongoingForeground = !scheduled.is_background && durationTicks > 0 && startTick < qStartTick && qStartTick < endTick;
+        const ongoingForeground = !scheduled.is_background && startTick < qStartTick && qStartTick < endTick;
         if (!inQColumn && !ongoingForeground) return;
         const targetSlot = int(scheduled.slot);
         const startSequence = releaseSlotSequences.get(targetSlot) || 0;
@@ -1076,14 +1369,114 @@
         qEvent.q_cover_visual_end_tick = coverVisualEndTick;
         qEvent.q_cover_target_step_ids = Array.from(new Set(coverTargetStepIds.filter(Boolean)));
       }
-      if (qDurationTicks === 0) {
-        qVirtualIntervals.push({
-          start_tick: qStartTick,
-          end_tick: Math.max(qStartTick + ZERO_ACTION_VISUAL_TICKS, int(qEvent.visual_end_tick, qStartTick + ZERO_ACTION_VISUAL_TICKS)),
+      qVirtualIntervals = normalizeFrozenIntervals(qVirtualIntervals.concat([{
+        start_tick: qStartTick,
+        end_tick: Math.max(qStartTick + ZERO_ACTION_VISUAL_TICKS, int(qEvent.visual_end_tick, qStartTick + ZERO_ACTION_VISUAL_TICKS)),
+      }]));
+    });
+    recalculateTimingsFromFrozenIntervals(scheduledSteps, qVirtualIntervals);
+    scheduledSteps.forEach((scheduled) => {
+      if (!scheduled.q_instant_release) return;
+      const qCalculationTick = calculationTickFromVisualIntervals(
+        int(scheduled.q_instant_release_anchor_tick),
+        qVirtualIntervals,
+      );
+      scheduled.q_instant_release_calculation_tick = qCalculationTick;
+    });
+    return qVirtualIntervals;
+  }
+
+  function clearQInstantReleaseState(scheduledSteps) {
+    scheduledSteps.forEach((scheduled) => {
+      [
+        'q_instant_release_kind',
+        'q_instant_release_tick',
+        'q_instant_release_anchor_tick',
+        'q_instant_release_calculation_tick',
+        'q_instant_release_anchor_step_id',
+        'q_instant_release_start_sequence',
+        'q_instant_release_end_sequence',
+        'q_cover_visual_end_tick',
+        'q_cover_target_step_ids',
+      ].forEach((key) => delete scheduled[key]);
+      scheduled.q_instant_release = false;
+      scheduled.calculation_start_sequence = 0;
+      scheduled.calculation_end_sequence = 0;
+      if (isZeroForegroundQStep(scheduled.step || {}, scheduled.action || {})) {
+        scheduled.visual_end_tick = int(scheduled.visual_start_tick) + qVisualDurationTicks(scheduled.action || {});
+      }
+    });
+  }
+
+  function enforceExpandedForegroundLocks(scheduledSteps, switchGapTicks) {
+    let shiftedAny = false;
+    const foregroundLocks = [];
+    let previousForegroundSlot = null;
+    let previousForegroundStartTick = null;
+    const carriedShiftBySlot = new Map();
+    const ordered = scheduledSteps.slice().sort((left, right) => {
+      const startDelta = int(left.visual_start_tick) - int(right.visual_start_tick);
+      if (startDelta) return startDelta;
+      const lockDelta = Number(locksForegroundSwitch(right.step || {}, right.action || {})) -
+        Number(locksForegroundSwitch(left.step || {}, left.action || {}));
+      return lockDelta || int(left.slot) - int(right.slot);
+    });
+    ordered.forEach((scheduled) => {
+      const slot = int(scheduled.slot);
+      const carriedShiftTicks = Math.max(0, int(carriedShiftBySlot.get(slot)));
+      if (carriedShiftTicks > 0) {
+        scheduled.visual_start_tick = int(scheduled.visual_start_tick) + carriedShiftTicks;
+        scheduled.visual_end_tick = int(scheduled.visual_end_tick) + carriedShiftTicks;
+        shiftedAny = true;
+      }
+      if (scheduled.is_background || scheduled.q_instant_release) return;
+      const originalStartTick = int(scheduled.visual_start_tick);
+      let visualStartTick = originalStartTick;
+      let lockEndTick = Math.max(
+        0,
+        ...foregroundLocks
+          .filter((lock) => visualStartTick < int(lock.end_tick))
+          .map((lock) => int(lock.end_tick)),
+      );
+      while (lockEndTick > visualStartTick) {
+        visualStartTick = lockEndTick;
+        lockEndTick = Math.max(
+          0,
+          ...foregroundLocks
+            .filter((lock) => visualStartTick < int(lock.end_tick))
+            .map((lock) => int(lock.end_tick)),
+        );
+      }
+      if (
+        previousForegroundSlot !== null &&
+        previousForegroundSlot !== int(scheduled.slot) &&
+        previousForegroundStartTick !== null
+      ) {
+        visualStartTick = Math.max(
+          visualStartTick,
+          previousForegroundStartTick + Math.max(0, int(switchGapTicks)),
+        );
+      }
+      if (visualStartTick > originalStartTick) {
+        const shiftTicks = visualStartTick - originalStartTick;
+        scheduled.visual_start_tick = visualStartTick;
+        scheduled.visual_end_tick = int(scheduled.visual_end_tick) + shiftTicks;
+        scheduled.foreground_lock_ticks = Math.max(0, int(scheduled.foreground_lock_ticks)) + shiftTicks;
+        carriedShiftBySlot.set(slot, Math.max(0, int(carriedShiftBySlot.get(slot))) + shiftTicks);
+        shiftedAny = true;
+      }
+      previousForegroundSlot = int(scheduled.slot);
+      previousForegroundStartTick = int(scheduled.visual_start_tick);
+      if (locksForegroundSwitch(scheduled.step || {}, scheduled.action || {})) {
+        foregroundLocks.push({
+          slot: int(scheduled.slot),
+          end_tick: isZeroForegroundQStep(scheduled.step || {}, scheduled.action || {})
+            ? int(scheduled.visual_end_tick)
+            : int(scheduled.visual_start_tick) + qVisualDurationTicks(scheduled.action || {}),
         });
       }
     });
-    recalculateUnreleasedTimings(scheduledSteps, qVirtualIntervals);
+    return shiftedAny;
   }
 
   function resourceMap(raw) {
@@ -1109,7 +1502,10 @@
     let enemyDebuffs = Object.assign({}, enemy.debuffs || {});
     const options = axisPayload?.options && typeof axisPayload.options === 'object' ? axisPayload.options : {};
     const fonsFull = options.fons_full == null ? true : Boolean(options.fons_full);
-    const switchLossTicks = Math.max(0, int(options.switch_loss_ticks, int(catalog.formula_constants?.switch_loss_ticks, 2)));
+    const switchLossTicks = Math.max(
+      0,
+      int(options.switch_gap_ticks, int(options.switch_loss_ticks, int(catalog.formula_constants?.switch_loss_ticks, 2))),
+    );
     const details = [];
     const frontEvents = [];
     let directDamage = 0;
@@ -1128,71 +1524,375 @@
       Object.assign(resources, resourceMap(initialPersonalResources[String(slot)] || initialPersonalResources[slot] || {}));
     });
     const buffRules = registeredBuffRules(teamPayload, catalog).concat(legacyBuffRules(axisPayload?.buff_rules));
-    const orderedStepEntries = supportProtectedStepEntries(steps, actionsById);
-    const qStarts = qVirtualStartTicks(orderedStepEntries.map(({ step, visualStartTick }) => ({
-      ...step,
-      start_tick: visualStartTick,
-    })), actionsById);
+    const orderedStepEntries = tickScheduledStepEntries(steps, actionsById, switchLossTicks);
     const scheduledSteps = [];
-    let scheduleFrontSlot = null;
-    let previousForegroundDuration = 0;
-    let previousForegroundIsQ = false;
-    let previousForegroundEndTick = 0;
-    let scheduledLastTick = 0;
-    orderedStepEntries.forEach(({ step, visualStartTick: protectedVisualStartTick }) => {
+    const loopOpeningFrontSlot = options.loop_enabled
+      ? orderedStepEntries
+        .filter(({ step }) => startsForeground(step, actionsById.get(String(step.action_id || '')) || {}))
+        .map(({ step }) => int(step.slot))
+        .at(-1) ?? null
+      : null;
+    let scheduleFrontSlot = loopOpeningFrontSlot;
+    orderedStepEntries.forEach(({
+      step,
+      visualStartTick: scheduledVisualStartTick,
+      switchLossTicks: switchLossDelta,
+      foregroundLockTicks,
+    }) => {
       const slot = int(step.slot);
       const snapshot = snapshots.get(slot);
       if (!snapshot) return;
       const action = actionsById.get(String(step.action_id || ''));
-      let visualStartTick = protectedVisualStartTick;
-      let startTick = calculationTickFromVisual(visualStartTick, qStarts);
+      const visualStartTick = scheduledVisualStartTick;
       const isBackground = isStepBackground(step, action);
-      const actionIsSupport = isSupportAction(action);
-      const qEndSwitch = previousForegroundIsQ && startTick >= previousForegroundEndTick;
-      let switchLossDelta = 0;
-      if (!isBackground && !actionIsSupport && scheduleFrontSlot !== null && scheduleFrontSlot !== slot && previousForegroundDuration > 0 && !qEndSwitch) {
-        switchLossDelta = switchLossTicks;
-        startTick += switchLossDelta;
-        visualStartTick += switchLossDelta;
-      }
-      const durationTicks = Math.max(0, int(action.duration_ticks));
-      const endTick = startTick + durationTicks;
-      const visualEndTick = visualStartTick + (durationTicks > 0 ? durationTicks : ZERO_ACTION_VISUAL_TICKS);
+      const configuredDurationTicks = Math.max(0, int(action.duration_ticks));
+      const visualEndTick = visualStartTick + (configuredDurationTicks > 0 ? configuredDurationTicks : ZERO_ACTION_VISUAL_TICKS);
       scheduledSteps.push({
         step,
         slot,
         action,
-        start_tick: startTick,
+        previous_front_slot: scheduleFrontSlot,
+        start_tick: visualStartTick,
         calculation_start_sequence: 0,
         visual_start_tick: visualStartTick,
         switch_loss_ticks: switchLossDelta,
+        foreground_lock_ticks: Math.max(0, int(foregroundLockTicks)),
         is_background: isBackground,
         is_basic_background: isBasicBackgroundOverride(step, action),
         can_background_override: canBackgroundOverride(action),
-        duration_ticks: durationTicks,
-        end_tick: endTick,
+        duration_ticks: configuredDurationTicks,
+        end_tick: visualEndTick,
         calculation_end_sequence: 0,
         visual_end_tick: visualEndTick,
-        original_start_tick: startTick,
+        original_start_tick: visualStartTick,
         original_calculation_start_sequence: 0,
-        original_duration_ticks: durationTicks,
-        original_end_tick: endTick,
+        original_duration_ticks: configuredDurationTicks,
+        original_end_tick: visualEndTick,
         original_calculation_end_sequence: 0,
         original_visual_end_tick: visualEndTick,
       });
       if (!isBackground) {
         scheduleFrontSlot = slot;
-        previousForegroundDuration = durationTicks;
-        previousForegroundIsQ = isZeroForegroundQStep(step, action);
-        previousForegroundEndTick = endTick;
       }
-      scheduledLastTick = Math.max(scheduledLastTick, endTick, startTick);
     });
-    applyQInstantRelease(scheduledSteps);
-    scheduledLastTick = Math.max(0, ...scheduledSteps.map((item) => Math.max(int(item.end_tick), int(item.start_tick))), scheduledLastTick);
+    let qVirtualIntervals = applyQInstantRelease(scheduledSteps);
+    for (let pass = 0; pass < scheduledSteps.length; pass += 1) {
+      if (!enforceExpandedForegroundLocks(scheduledSteps, switchLossTicks)) break;
+      clearQInstantReleaseState(scheduledSteps);
+      qVirtualIntervals = applyQInstantRelease(scheduledSteps);
+    }
+    scheduledSteps.sort((left, right) => (
+      int(left.visual_start_tick) - int(right.visual_start_tick) ||
+      int(left.slot) - int(right.slot)
+    ));
+    scheduleFrontSlot = loopOpeningFrontSlot;
+    scheduledSteps.forEach((scheduled) => {
+      scheduled.previous_front_slot = scheduleFrontSlot;
+      if (!scheduled.is_background) scheduleFrontSlot = int(scheduled.slot);
+    });
+    const scheduledLastTick = Math.max(0, ...scheduledSteps.map((item) => Math.max(int(item.end_tick), int(item.start_tick))));
     const loopDurationTicks = Math.max(scheduledLastTick, 1);
+    const loopPrimedReactionStepIds = new Set();
+
+    function supportBypassesHarmony(scheduled) {
+      return Boolean(
+        scheduled?.step?.ignore_harmony_requirement ||
+        scheduled?.action?.ignore_harmony_requirement ||
+        scheduled?.action?.reaction_without_harmony ||
+        requiemFreeSupportSource(scheduled)
+      );
+    }
+
+    function requiemFreeSupportSource(scheduled) {
+      if (!isSupportAction(scheduled?.action)) return null;
+      const snapshot = snapshots.get(int(scheduled?.slot));
+      if (String(snapshot?.character?.id || '') !== 'char_c78f7a08d5' || !hasAwakeningNode(snapshot, 6)) return null;
+      const supportTick = int(scheduled?.start_tick);
+      return scheduledSteps
+        .filter((candidate) => (
+          int(candidate?.slot) === int(scheduled?.slot)
+          && ['action_2745f804a5', 'action_7af75245df', 'action_0b958faf88'].includes(String(candidate?.action?.id || ''))
+          && int(candidate?.start_tick) <= supportTick
+          && supportTick - int(candidate?.start_tick) <= 50
+        ))
+        .sort((left, right) => int(right?.start_tick) - int(left?.start_tick))[0] || null;
+    }
+
+    function reactionPreviousSlot(scheduled) {
+      return int(requiemFreeSupportSource(scheduled)?.previous_front_slot, int(scheduled?.previous_front_slot, -1));
+    }
+
+    function reactionTriggerTick(scheduled, offsetTicks = 0) {
+      const visualStartTick = int(scheduled?.visual_start_tick, int(scheduled?.start_tick));
+      const visualEndTick = int(scheduled?.visual_end_tick, int(scheduled?.end_tick, visualStartTick));
+      return Math.max(visualStartTick, visualEndTick - 2) + int(offsetTicks);
+    }
+
+    if (options.loop_enabled) {
+      const warmHarmony = new Map(Array.from(snapshots.keys()).map((slot) => [slot, 0]));
+      for (let warmLoopIndex = 0; warmLoopIndex < 3; warmLoopIndex += 1) {
+        const iterationReactionStepIds = new Set();
+        scheduledSteps.forEach((scheduled) => {
+          const slot = int(scheduled.slot);
+          warmHarmony.set(
+            slot,
+            (warmHarmony.get(slot) || 0) + num(scheduled.action?.harmony) * backgroundActionMultiplier(scheduled.step, scheduled.action),
+          );
+          if (!isSupportAction(scheduled.action)) return;
+          const previousSnapshot = snapshots.get(reactionPreviousSlot(scheduled));
+          const supportSnapshot = snapshots.get(slot);
+          if (!previousSnapshot || !supportSnapshot || previousSnapshot.slot === supportSnapshot.slot) return;
+          if (!reactionForElements(previousSnapshot.character?.element, supportSnapshot.character?.element)) return;
+          const previousHarmony = warmHarmony.get(previousSnapshot.slot) || 0;
+          if (previousHarmony < 100 && !supportBypassesHarmony(scheduled)) return;
+          iterationReactionStepIds.add(String(scheduled.step?.id || ''));
+          if (!scheduled.action?.preserve_harmony && !scheduled.step?.preserve_harmony) {
+            warmHarmony.set(previousSnapshot.slot, Math.max(0, previousHarmony - 100));
+          }
+        });
+        if (warmLoopIndex === 2) {
+          iterationReactionStepIds.forEach((stepId) => loopPrimedReactionStepIds.add(stepId));
+        }
+      }
+      warmHarmony.forEach((value, slot) => harmonyBySlot.set(slot, value));
+    }
     let activeBuffs = [];
     const buffTriggerCooldowns = new Map();
+    const reactionEffects = [];
+    const reactionDamageEvents = [];
+    const reactionDamageBySlot = new Map(Array.from(snapshots.keys()).map((slot) => [slot, 0]));
+    let nextReactionEffectId = 1;
+
+    function effectiveReactionPanel(snapshot, tick) {
+      const panelMods = clone(snapshot.mods);
+      const syntheticStep = { slot: snapshot.slot };
+      const syntheticAction = {
+        name: '异能环合',
+        action_type: '环合',
+        damage_type: '环合',
+        tags: ['环合'],
+      };
+      activeBuffs.forEach((buff) => {
+        if (tick < int(buff.start_tick) || tick >= int(buff.end_tick)) return;
+        const activeAtTick = activeBuffs.filter((candidate) => tick >= int(candidate.start_tick) && tick < int(candidate.end_tick));
+        const context = {
+          enemy,
+          tick,
+          enemy_debuffs: activeEnemyDebuffs(enemyDebuffs, tick),
+          active_buffs: activeAtTick,
+          active_buff_keys: activeAtTick.map((candidate) => String(candidate.definition_id || '')),
+        };
+        if (!activeBuffApplies(buff, syntheticStep, syntheticAction, snapshot, false, context)) return;
+        mergeMods(panelMods, buffEffects(buff, context));
+      });
+      return panelMods;
+    }
+
+    function reactionContributor(reaction, previousSnapshot, supportSnapshot, tick) {
+      const candidates = [previousSnapshot, supportSnapshot].filter(Boolean);
+      if (!candidates.length) return null;
+      let selected = candidates[candidates.length - 1];
+      let selectedScore = -1;
+      candidates.forEach((snapshot) => {
+        const panelMods = effectiveReactionPanel(snapshot, tick);
+        const score = reactionBaseDamage(snapshot.character?.level, reaction) *
+          reactionStrengthMultiplier(panelMods.harmony_strength);
+        if (score > selectedScore || (score === selectedScore && snapshot.slot === supportSnapshot?.slot)) {
+          selected = snapshot;
+          selectedScore = score;
+        }
+      });
+      return selected;
+    }
+
+    function reactionDamageTicks(reaction, startTick) {
+      if (reaction === '创生') return [20, 40, 60, 80, 100].map((offset) => startTick + offset);
+      if (reaction === '浊燃') return Array.from({ length: 15 }, (_, index) => startTick + (index + 1) * 10);
+      if (reaction === '黯星') return [startTick + 50];
+      return [];
+    }
+
+    function triggerReaction(scheduled, tick, { primeLoop = false } = {}) {
+      if (!isSupportAction(scheduled.action)) return { effect: null, warning: '' };
+      const supportSnapshot = snapshots.get(int(scheduled.slot));
+      const previousSnapshot = snapshots.get(reactionPreviousSlot(scheduled));
+      if (!supportSnapshot || !previousSnapshot) {
+        return {
+          effect: null,
+          warning: primeLoop ? '' : '援护技前没有可用于触发环合的前台角色。',
+        };
+      }
+      if (supportSnapshot.slot === previousSnapshot.slot) {
+        return {
+          effect: null,
+          warning: primeLoop ? '' : '援护技没有切换角色，无法触发异能环合。',
+        };
+      }
+      const reaction = reactionForElements(previousSnapshot.character?.element, supportSnapshot.character?.element);
+      if (!reaction) {
+        return {
+          effect: null,
+          warning: primeLoop
+            ? ''
+            : `${previousSnapshot.character?.element || '无属性'}与${supportSnapshot.character?.element || '无属性'}无法产生异能环合。`,
+        };
+      }
+      if (primeLoop && !loopPrimedReactionStepIds.has(String(scheduled.step?.id || ''))) {
+        return { effect: null, warning: '' };
+      }
+      const previousHarmony = harmonyBySlot.get(previousSnapshot.slot) || 0;
+      if (!primeLoop && previousHarmony < 100 && !supportBypassesHarmony(scheduled)) {
+        return {
+          effect: null,
+          warning: `${previousSnapshot.character?.name || '上一前台角色'}环合值不足：需要 100，当前 ${Math.max(0, previousHarmony).toFixed(1)}。`,
+        };
+      }
+      const contributor = reactionContributor(reaction, previousSnapshot, supportSnapshot, tick);
+      if (!contributor) return { effect: null, warning: '' };
+      if (!primeLoop && !scheduled.action?.preserve_harmony && !scheduled.step?.preserve_harmony) {
+        harmonyBySlot.set(previousSnapshot.slot, Math.max(0, previousHarmony - 100));
+      }
+      const durationTicks = int(REACTION_DURATIONS[reaction]);
+      const effect = {
+        id: `reaction_${nextReactionEffectId}`,
+        reaction,
+        support_slot: supportSnapshot.slot,
+        support_character_id: supportSnapshot.character?.id || '',
+        support_character_name: supportSnapshot.character?.name || '',
+        previous_slot: previousSnapshot.slot,
+        previous_character_id: previousSnapshot.character?.id || '',
+        previous_character_name: previousSnapshot.character?.name || '',
+        trigger_slot: contributor.slot,
+        trigger_character_id: contributor.character?.id || '',
+        trigger_character_name: contributor.character?.name || '',
+        contributor_slot: contributor.slot,
+        contributor_character_id: contributor.character?.id || '',
+        contributor_character_name: contributor.character?.name || '',
+        start_tick: tick,
+        end_tick: tick + durationTicks,
+        duration_ticks: durationTicks,
+        damage_ticks: reactionDamageTicks(reaction, tick),
+        loop_primed: primeLoop,
+      };
+      nextReactionEffectId += 1;
+      reactionEffects.push(effect);
+      effect.damage_ticks.forEach((damageTick, index) => {
+        reactionDamageEvents.push({
+          effect_id: effect.id,
+          reaction,
+          tick: damageTick,
+          sequence: index + 1,
+          trigger_slot: effect.trigger_slot,
+          contributor_slot: effect.contributor_slot,
+          contributor_character_id: effect.contributor_character_id,
+          contributor_character_name: effect.contributor_character_name,
+          loop_primed: primeLoop,
+          damage: null,
+        });
+      });
+      return { effect, warning: '' };
+    }
+
+    function reactionDamageAtTick(event) {
+      const snapshot = snapshots.get(int(event.contributor_slot));
+      if (!snapshot) return 0;
+      if (event.kind === 'buff_periodic' || event.kind === 'buff_periodic_settlement') {
+        if (event.kind === 'buff_periodic' && event._buff_instance && !activeBuffs.includes(event._buff_instance)) return 0;
+        const panelMods = effectiveReactionPanel(snapshot, int(event.tick));
+        const atk = num(snapshot.base_stats?.atk) * (1 + panelMods.atk_pct) + panelMods.flat_atk;
+        const base = atk * num(event.atk_multiplier);
+        const damageBonus = panelMods.all_dmg + panelMods.element_dmg;
+        const critical = 1 + 0.5 * Math.max(0, num(panelMods.crit_dmg));
+        const defense = defenseMultiplier(enemy, panelMods);
+        const resistance = resistanceMultiplier(snapshot.character, enemy, panelMods);
+        const finalMultiplier = 1 + panelMods.final_dmg;
+        event.formula_parts = { base, damage_bonus: damageBonus, critical, defense, resistance, final_multiplier: finalMultiplier };
+        return Math.max(0, base * (1 + damageBonus) * critical * defense * resistance * finalMultiplier);
+      }
+      const panelMods = effectiveReactionPanel(snapshot, int(event.tick));
+      const base = reactionBaseDamage(snapshot.character?.level, event.reaction);
+      const strength = reactionStrengthMultiplier(panelMods.harmony_strength);
+      const defense = event.reaction === '黯星' ? 1 : defenseMultiplier(enemy, panelMods);
+      const resistanceCharacter = event.reaction === '黯星' ? { element: '' } : snapshot.character;
+      const resistance = resistanceMultiplier(resistanceCharacter, enemy, panelMods);
+      const critical = event.reaction === '浊燃' ? 1 + 0.5 * Math.max(0, num(panelMods.crit_dmg)) : 1;
+      event.formula_parts = { base, strength, defense, critical, resistance };
+      return Math.max(0, base * strength * defense * critical * resistance);
+    }
+
+    function settleReactionDamage(untilTick) {
+      reactionDamageEvents
+        .filter((event) => event.damage == null && int(event.tick) >= 0 && int(event.tick) <= untilTick)
+        .sort((a, b) => int(a.tick) - int(b.tick) || int(a.sequence) - int(b.sequence))
+        .forEach((event) => {
+          event.damage = reactionDamageAtTick(event);
+          directDamage += event.damage;
+          specialDamageBySource.set(event.reaction, (specialDamageBySource.get(event.reaction) || 0) + event.damage);
+          reactionDamageBySlot.set(
+            int(event.contributor_slot),
+            (reactionDamageBySlot.get(int(event.contributor_slot)) || 0) + event.damage,
+          );
+        });
+    }
+
+    function schedulePeriodicBuffDamage(instance, rule) {
+      const periodic = rule.periodic_damage && typeof rule.periodic_damage === 'object' ? rule.periodic_damage : {};
+      const intervalTicks = Math.max(1, int(periodic.interval_ticks));
+      const source = String(periodic.source || rule.name || '周期伤害');
+      if (!periodic.atk_multiplier || !intervalTicks) return;
+      let sequence = 1;
+      for (
+        let damageTick = int(instance.start_tick) + intervalTicks;
+        damageTick <= int(instance.end_tick);
+        damageTick += intervalTicks
+      ) {
+        reactionDamageEvents.push({
+          kind: 'buff_periodic',
+          reaction: source,
+          tick: damageTick,
+          sequence,
+          contributor_slot: int(instance.owner_slot),
+          contributor_character_id: String(rule.owner_character_id || ''),
+          contributor_character_name: String(rule.owner_character_name || ''),
+          atk_multiplier: num(periodic.atk_multiplier),
+          _buff_instance: instance,
+          damage: null,
+        });
+        sequence += 1;
+      }
+    }
+
+    function reactionAmplificationMultiplier(snapshot, calcPanel, tick) {
+      let multiplier = 1;
+      reactionEffects.forEach((effect) => {
+        if (tick < int(effect.start_tick) || tick >= int(effect.end_tick)) return;
+        const element = String(snapshot.character?.element || '');
+        if (effect.reaction === '浸染' && ['魂', '相'].includes(element)) {
+          multiplier *= 1.2 * reactionStrengthMultiplier(calcPanel?.harmony_strength);
+        }
+        if (effect.reaction === '覆纹' && ['灵', '咒'].includes(element)) {
+          multiplier *= 1.2 * reactionStrengthMultiplier(calcPanel?.harmony_strength);
+        }
+      });
+      return multiplier;
+    }
+
+    buffRules.forEach((rule) => {
+      if (String(rule.trigger?.event || '') !== 'passive') return;
+      const snapshot = snapshots.get(int(rule.owner_slot));
+      if (!snapshot) return;
+      const context = {
+        enemy,
+        snapshot,
+        tick: 0,
+        owner_awakening: rule.owner_awakening,
+        owner_awakening_nodes: rule.owner_awakening_nodes,
+        enemy_debuffs: activeEnemyDebuffs(enemyDebuffs, 0),
+        fons_full: fonsFull,
+      };
+      if (!conditionsMatch(rule.trigger?.conditions, context)) return;
+      activateBuff(activeBuffs, rule, 0, stackGainForRule(rule, context), context);
+    });
 
     function triggerTickForRule(rule, startTick, endTick) {
       return String(rule.trigger?.event || '') === 'action_end' ? endTick : startTick;
@@ -1200,7 +1900,7 @@
 
     function triggerBuffsForEvent(event, triggerTick, step, action, snapshot, isBackground, extraContext = {}) {
       const triggered = [];
-      const context = Object.assign({
+      const baseContext = Object.assign({
         enemy,
         snapshot,
         tick: triggerTick,
@@ -1211,19 +1911,108 @@
         fons_full: fonsFull,
       }, extraContext);
       buffRules.forEach((rule) => {
+        const ownerSlot = int(rule.owner_slot);
+        const ownerBuffs = activeBuffs.filter((instance) => (
+          int(instance.owner_slot) === ownerSlot
+          && triggerTick >= int(instance.start_tick)
+          && triggerTick < int(instance.end_tick)
+        ));
+        const context = Object.assign({}, baseContext, {
+          owner_slot: ownerSlot,
+          owner_character_id: String(rule.owner_character_id || ''),
+          active_buff_keys: ownerBuffs.map((instance) => String(instance.definition_id || '')),
+          shield_active: activeBuffs.some((instance) => (
+            asList(instance.rule?.tags).map(String).includes('护盾')
+            && triggerTick >= int(instance.start_tick)
+            && triggerTick < int(instance.end_tick)
+            && activeBuffApplies(instance, step, action, snapshot, isBackground, baseContext)
+          )),
+          source_slot: int(step.slot),
+          source_step_id: String(step.id || ''),
+          exclude_trigger_action: Boolean(rule.activation?.exclude_trigger_action),
+        });
         if (!eventMatchesRule(rule, event, step, action, snapshot, isBackground, context)) return;
         const cooldownTicks = triggerCooldownTicks(rule);
         const cooldownKey = `${int(rule.owner_slot)}:${String(rule.id || '')}`;
         if (cooldownTicks > 0 && triggerTick < (buffTriggerCooldowns.get(cooldownKey) || 0)) return;
-        const instance = activateBuff(activeBuffs, rule, triggerTick, stackGainForRule(rule, context));
+        const activation = rule.activation && typeof rule.activation === 'object' ? rule.activation : {};
+        const runtimeRule = clone(rule);
+        const stackSourceKey = String(activation.effects_from_stack?.key || '');
+        const stackSource = ownerBuffs.find((instance) => String(instance.definition_id || '') === stackSourceKey);
+        if (stackSourceKey) {
+          const sourceStacks = Math.max(0, num(stackSource?.stack_count));
+          const sourceEffects = runtimeRule.effects && typeof runtimeRule.effects === 'object' ? runtimeRule.effects : {};
+          const fullEffectKeys = new Set(asList(activation.effects_from_stack?.full_effect_keys).map(String));
+          const perStackEntries = Object.entries(activation.effects_from_stack?.per_stack_from_effect || {});
+          const helperEffectKeys = new Set(perStackEntries
+            .map(([targetKey, config]) => String(config?.source || targetKey))
+            .filter((sourceKey, index) => sourceKey !== String(perStackEntries[index]?.[0] || '')));
+          const resolvedEffects = Object.fromEntries(Object.entries(sourceEffects)
+            .filter(([key]) => !fullEffectKeys.has(key) && !helperEffectKeys.has(key)));
+          perStackEntries.forEach(([targetKey, config]) => {
+            const sourceKey = String(config?.source || targetKey);
+            resolvedEffects[targetKey] = num(resolvedEffects[targetKey]) + num(sourceEffects[sourceKey]) * num(config?.factor, 1) * sourceStacks;
+          });
+          if (sourceStacks >= Math.max(1, int(activation.effects_from_stack?.full_stacks, 1))) {
+            fullEffectKeys.forEach((key) => {
+              resolvedEffects[key] = num(sourceEffects[key]);
+            });
+          }
+          runtimeRule.effects = resolvedEffects;
+          runtimeRule.consumed_stacks = sourceStacks;
+        }
+        const ownerBase = activation.effects_from_owner_base && typeof activation.effects_from_owner_base === 'object'
+          ? activation.effects_from_owner_base
+          : {};
+        if (ownerBase.effect_key && ownerBase.stat) {
+          const ownerSnapshot = snapshots.get(ownerSlot);
+          runtimeRule.effects = Object.assign({}, runtimeRule.effects, {
+            [String(ownerBase.effect_key)]: num(ownerSnapshot?.base_stats?.[String(ownerBase.stat)]) * num(ownerBase.factor, 1),
+          });
+        }
+        const settlementKey = String(activation.settle_periodic_key || '');
+        if (settlementKey) {
+          ownerBuffs
+            .filter((instance) => String(instance.definition_id || '') === settlementKey)
+            .forEach((instance, index) => {
+              const periodic = instance.rule?.periodic_damage && typeof instance.rule.periodic_damage === 'object'
+                ? instance.rule.periodic_damage
+                : {};
+              reactionDamageEvents.push({
+                kind: 'buff_periodic_settlement',
+                reaction: String(periodic.source || instance.name || '周期伤害'),
+                tick: triggerTick,
+                sequence: index + 1,
+                contributor_slot: ownerSlot,
+                contributor_character_id: String(rule.owner_character_id || ''),
+                contributor_character_name: String(rule.owner_character_name || ''),
+                atk_multiplier: num(periodic.atk_multiplier),
+                damage: null,
+              });
+            });
+        }
+        asList(activation.clear_keys).map(String).forEach((key) => {
+          activeBuffs = activeBuffs.filter((instance) => int(instance.owner_slot) !== ownerSlot || String(instance.definition_id || '') !== key);
+        });
+        const previousInstances = new Set(activeBuffs);
+        const instance = activateBuff(activeBuffs, runtimeRule, triggerTick, stackGainForRule(runtimeRule, context), context);
         if (!instance) return;
+        activeBuffs
+          .filter((candidate) => !previousInstances.has(candidate) && candidate.rule?.periodic_damage)
+          .forEach((candidate) => schedulePeriodicBuffDamage(candidate, candidate.rule));
         if (cooldownTicks > 0) buffTriggerCooldowns.set(cooldownKey, triggerTick + cooldownTicks);
         const summary = buffSummary(instance);
         summary.trigger_event = event;
         summary.trigger_tick = triggerTick;
-        summary.visual_start_tick = Math.max(triggerTick, int(summary.start_tick));
+        const visualTriggerTick = int(extraContext.visual_trigger_tick, visualTickFromCalculationTick(triggerTick, qVirtualIntervals));
+        summary.visual_start_tick = int(summary.start_tick) === triggerTick
+          ? visualTriggerTick
+          : visualTickFromCalculationTick(int(summary.start_tick), qVirtualIntervals);
+        summary.visual_end_tick = String(runtimeRule.duration?.type || '') === 'permanent'
+          ? PERMANENT_BUFF_END_TICK
+          : visualTickFromCalculationTick(int(summary.end_tick), qVirtualIntervals);
         summary.display_start_tick = summary.visual_start_tick;
-        summary.display_end_tick = int(summary.end_tick, summary.visual_start_tick + 1);
+        summary.display_end_tick = summary.visual_end_tick;
         triggered.push(summary);
       });
       return triggered;
@@ -1235,8 +2024,8 @@
         const action = scheduled.action;
         const snapshot = snapshots.get(int(scheduled.slot));
         if (!snapshot) return;
-        const startTick = int(scheduled.visual_start_tick, int(scheduled.start_tick));
-        const endTick = int(scheduled.visual_end_tick, int(scheduled.end_tick));
+        const startTick = int(scheduled.start_tick);
+        const endTick = int(scheduled.end_tick);
         buffRules.forEach((rule) => {
           if (!rule.duration?.loop_carry) return;
           const event = String(rule.trigger?.event || '');
@@ -1252,16 +2041,66 @@
             fons_full: fonsFull,
           };
           if (!eventMatchesRule(rule, event, step, action, snapshot, scheduled.is_background, context)) return;
-          const instance = activateBuff(activeBuffs, rule, triggerTick - loopDurationTicks, stackGainForRule(rule, context));
-          if (instance) {
-            instance.start_tick = Math.max(0, int(instance.start_tick));
-            instance.looped = true;
+          const actionMultiplier = backgroundActionMultiplier(step, action);
+          for (let copyIndex = 0; copyIndex < actionMultiplier; copyIndex += 1) {
+            const instance = activateBuff(activeBuffs, rule, triggerTick - loopDurationTicks, stackGainForRule(rule, context), context);
+            if (instance) {
+              instance.start_tick = Math.max(0, int(instance.start_tick));
+              instance.looped = true;
+            }
           }
         });
+      });
+      scheduledSteps.forEach((scheduled) => {
+        const reactionTick = calculationTickFromVisualIntervals(reactionTriggerTick(scheduled), qVirtualIntervals);
+        triggerReaction(
+          scheduled,
+          reactionTick - loopDurationTicks,
+          { primeLoop: true },
+        );
       });
     }
 
     let lastTick = 0;
+    let runtimeFrontSlot = options.loop_enabled ? loopOpeningFrontSlot : null;
+    let runtimeFrontSinceTick = 0;
+
+    function syncFrontTimeBuffs(tick) {
+      buffRules
+        .filter((rule) => String(rule.trigger?.event || '') === 'front_time')
+        .forEach((rule) => {
+          const ownerSlot = int(rule.owner_slot);
+          const stacking = rule.stacking && typeof rule.stacking === 'object' ? rule.stacking : {};
+          const definitionId = String(stacking.key || rule.id || '');
+          const intervalTicks = Math.max(1, int(stacking.interval_ticks, 10));
+          const maxStacks = Math.max(1, int(stacking.max_stacks, 1));
+          const stackCount = ownerSlot === runtimeFrontSlot
+            ? Math.min(maxStacks, Math.max(0, Math.floor((tick - runtimeFrontSinceTick) / intervalTicks)))
+            : 0;
+          const existing = activeBuffs.find(
+            (instance) => int(instance.owner_slot) === ownerSlot && String(instance.definition_id || '') === definitionId,
+          );
+          if (stackCount <= 0) {
+            if (existing) activeBuffs.splice(activeBuffs.indexOf(existing), 1);
+            return;
+          }
+          if (existing) {
+            existing.stack_count = stackCount;
+            existing.end_tick = PERMANENT_BUFF_END_TICK;
+            return;
+          }
+          activeBuffs.push({
+            rule,
+            definition_id: definitionId,
+            name: rule.name || '',
+            owner_slot: ownerSlot,
+            start_tick: runtimeFrontSinceTick + intervalTicks,
+            end_tick: PERMANENT_BUFF_END_TICK,
+            stack_count: stackCount,
+          });
+        });
+    }
+
     scheduledSteps.forEach((scheduled) => {
       const step = scheduled.step;
       const slot = int(scheduled.slot);
@@ -1271,53 +2110,121 @@
       const startTick = int(scheduled.start_tick);
       const visualStartTick = int(scheduled.visual_start_tick, startTick);
       const isBackground = Boolean(scheduled.is_background);
+      const actionMultiplier = backgroundActionMultiplier(step, action);
       const durationTicks = Math.max(0, int(scheduled.duration_ticks));
       const endTick = int(scheduled.end_tick);
       const visualEndTick = int(scheduled.visual_end_tick);
       const cooldownKey = `${slot}:${String(action.id || '')}`;
       const availableTick = cooldownUntil.get(cooldownKey) || 0;
       const warnings = [];
+      if (int(action.required_awakening) > 0 && !hasAwakeningNode(snapshot, action.required_awakening)) {
+        const awakeningLabel = 'ABCDEF'[int(action.required_awakening) - 1] || String(int(action.required_awakening));
+        warnings.push(`动作需要 ${awakeningLabel} 觉醒节点。`);
+      }
       if (startTick < availableTick) warnings.push(`动作 CD 尚未结束，需等到 ${(availableTick / 10).toFixed(1)}s。`);
-      const energyCost = num(action.energy_cost);
+      const energyCost = num(action.energy_cost) * actionMultiplier;
       let slotEnergy = energyBySlot.get(slot) ?? initialEnergy;
       if (energyCost > slotEnergy) warnings.push('终结技能量不足。');
-      const buffTick = visualStartTick;
+      const buffTick = startTick;
+      if (!isBackground && runtimeFrontSlot !== slot) {
+        runtimeFrontSlot = slot;
+        runtimeFrontSinceTick = buffTick;
+      }
+      settleReactionDamage(buffTick);
       enemyDebuffs = activeEnemyDebuffs(enemyDebuffs, buffTick);
-      activeBuffs = activeBuffs.filter((buff) => buffTick < int(buff.end_tick) && !activeBuffResetsOnActionStart(buff, step, action, isBackground));
-      const triggeredBuffs = triggerBuffsForEvent('action_start', visualStartTick, step, action, snapshot, isBackground);
+      activeBuffs = activeBuffs.filter((buff) => buffTick < int(buff.end_tick) && !activeBuffResetsOnActionStart(buff, step, action, isBackground, buffTick));
+      syncFrontTimeBuffs(buffTick);
+      const triggeredBuffs = [];
+      for (let copyIndex = 0; copyIndex < actionMultiplier; copyIndex += 1) {
+        triggeredBuffs.push(...triggerBuffsForEvent(
+          'action_start',
+          startTick,
+          step,
+          action,
+          snapshot,
+          isBackground,
+          { visual_trigger_tick: visualStartTick },
+        ));
+      }
+      const requiredBuffKey = String(action.required_buff_key || '');
+      if (requiredBuffKey && !activeBuffs.some((buff) => (
+        String(buff.definition_id || '') === requiredBuffKey
+        && int(buff.owner_slot) === slot
+        && buffTick >= int(buff.start_tick)
+        && buffTick < int(buff.end_tick)
+      ))) {
+        warnings.push(`动作需要处于 ${String(action.required_buff_name || requiredBuffKey)} 状态。`);
+      }
       const appliedBuffs = [];
       const buffModifiers = mods();
+      const activeAtTick = activeBuffs.filter((buff) => buffTick >= int(buff.start_tick) && buffTick < int(buff.end_tick));
+      const buffContext = {
+        enemy,
+        tick: buffTick,
+        enemy_debuffs: activeEnemyDebuffs(enemyDebuffs, buffTick),
+        active_buffs: activeAtTick,
+        active_buff_keys: activeAtTick.map((buff) => String(buff.definition_id || '')),
+      };
       activeBuffs.forEach((buff) => {
         if (buffTick < int(buff.start_tick) || buffTick >= int(buff.end_tick)) return;
-        if (!activeBuffApplies(buff, step, action, snapshot, isBackground)) return;
-        mergeMods(buffModifiers, buffEffects(buff));
-        appliedBuffs.push(buffSummary(buff));
+        if (!activeBuffApplies(buff, step, action, snapshot, isBackground, buffContext)) return;
+        mergeMods(buffModifiers, buffEffects(buff, buffContext));
+        appliedBuffs.push(buffSummary(buff, buffContext));
       });
       const slotResources = personalResources.get(slot) || {};
       Object.entries(resourceMap(action.personal_resource_cost)).forEach(([key, cost]) => {
-        if ((slotResources[key] || 0) < cost) warnings.push(`个人资源 ${key} 不足。`);
-        slotResources[key] = Math.max(0, (slotResources[key] || 0) - cost);
+        const totalCost = cost * actionMultiplier;
+        if ((slotResources[key] || 0) < totalCost) warnings.push(`个人资源 ${key} 不足。`);
+        slotResources[key] = Math.max(0, (slotResources[key] || 0) - totalCost);
       });
       Object.entries(resourceMap(action.personal_resource_gain)).forEach(([key, gain]) => {
-        slotResources[key] = (slotResources[key] || 0) + gain;
+        const cap = num(PERSONAL_RESOURCE_CAPS[String(snapshot.character?.id || '')]?.[key], Number.POSITIVE_INFINITY);
+        slotResources[key] = Math.min(cap, (slotResources[key] || 0) + gain * actionMultiplier);
       });
       slotEnergy = Math.max(0, slotEnergy - energyCost);
       const calc = calculateActionDamage(snapshot, action, enemy, buffModifiers);
-      const criticalHits = expectedCriticalHits(action, calc);
+      const consumedBuffs = new Set(
+        activeBuffs
+          .filter((buff) => (
+            buffTick >= int(buff.start_tick)
+            && buffTick < int(buff.end_tick)
+            && (buff.rule?.consume_on_apply === true || buff.rule?.consume?.on_apply === true)
+            && activeBuffApplies(buff, step, action, snapshot, isBackground, {
+              enemy,
+              tick: buffTick,
+              enemy_debuffs: activeEnemyDebuffs(enemyDebuffs, buffTick),
+              active_buffs: activeAtTick,
+              active_buff_keys: activeAtTick.map((candidate) => String(candidate.definition_id || '')),
+            })
+          )),
+      );
+      if (consumedBuffs.size) {
+        activeBuffs = activeBuffs.filter((buff) => !consumedBuffs.has(buff));
+      }
+      const criticalHitsPerAction = expectedCriticalHits(action, calc);
+      const criticalHits = criticalHitsPerAction * actionMultiplier;
       const appliedEnemyDebuffs = applyEnemyDebuffs(enemyDebuffs, action, buffTick);
-      triggeredBuffs.push(...triggerBuffsForEvent('action_hit', visualStartTick, step, action, snapshot, isBackground, {
-        expected_critical_hits: criticalHits,
-        applied_enemy_debuffs: appliedEnemyDebuffs,
-        enemy_debuffs: activeEnemyDebuffs(enemyDebuffs, buffTick),
-      }));
-      directDamage += calc.direct_damage;
+      for (let copyIndex = 0; copyIndex < actionMultiplier; copyIndex += 1) {
+        triggeredBuffs.push(...triggerBuffsForEvent('action_hit', startTick, step, action, snapshot, isBackground, {
+          visual_trigger_tick: visualStartTick,
+          expected_critical_hits: criticalHitsPerAction,
+          applied_enemy_debuffs: appliedEnemyDebuffs,
+          enemy_debuffs: activeEnemyDebuffs(enemyDebuffs, buffTick),
+        }));
+      }
+      const reactionAmplification = reactionAmplificationMultiplier(snapshot, calc.panel, buffTick);
+      const multipliedDirectDamage = calc.direct_damage * actionMultiplier * reactionAmplification;
+      const multipliedStagger = calc.stagger_amount * actionMultiplier;
+      const multipliedHarmony = calc.harmony * actionMultiplier;
+      const multipliedEnergyGain = (calc.energy_gain + num(action.energy_return)) * actionMultiplier;
+      directDamage += multipliedDirectDamage;
       const damageSource = specialDamageSource(action);
       if (damageSource) {
-        specialDamageBySource.set(damageSource, (specialDamageBySource.get(damageSource) || 0) + calc.direct_damage);
+        specialDamageBySource.set(damageSource, (specialDamageBySource.get(damageSource) || 0) + multipliedDirectDamage);
       }
-      totalStagger += calc.stagger_amount;
-      harmonyBySlot.set(slot, (harmonyBySlot.get(slot) || 0) + calc.harmony);
-      slotEnergy += calc.energy_gain + num(action.energy_return);
+      totalStagger += multipliedStagger;
+      harmonyBySlot.set(slot, (harmonyBySlot.get(slot) || 0) + multipliedHarmony);
+      slotEnergy += multipliedEnergyGain;
       energyBySlot.set(slot, slotEnergy);
       while (totalStagger >= 50) {
         totalStagger -= 50;
@@ -1339,7 +2246,37 @@
           order: frontEvents.length,
         });
       }
-      triggeredBuffs.push(...triggerBuffsForEvent('action_end', visualEndTick, step, action, snapshot, isBackground));
+      const reactionTick = calculationTickFromVisualIntervals(reactionTriggerTick(scheduled), qVirtualIntervals);
+      const reactionTrigger = triggerReaction(scheduled, reactionTick);
+      const triggeredReaction = reactionTrigger.effect;
+      if (triggeredReaction) {
+        triggeredBuffs.push(...triggerBuffsForEvent(
+          'reaction_trigger',
+          reactionTick,
+          step,
+          action,
+          snapshot,
+          isBackground,
+          {
+            reaction: triggeredReaction,
+            visual_trigger_tick: reactionTriggerTick(scheduled),
+          },
+        ));
+      }
+      if (reactionTrigger.warning) {
+        warnings.push(reactionTrigger.warning);
+      }
+      for (let copyIndex = 0; copyIndex < actionMultiplier; copyIndex += 1) {
+        triggeredBuffs.push(...triggerBuffsForEvent(
+          'action_end',
+          endTick,
+          step,
+          action,
+          snapshot,
+          isBackground,
+          { visual_trigger_tick: visualEndTick },
+        ));
+      }
       lastTick = Math.max(lastTick, endTick, startTick);
       details.push({
         step_id: step.id || '',
@@ -1350,6 +2287,8 @@
         action_name: action.name,
         action_type: action.action_type,
         raw_start_tick: int(step.start_tick),
+        switch_gap_ticks: Math.max(0, int(scheduled.switch_loss_ticks)),
+        foreground_lock_ticks: Math.max(0, int(scheduled.foreground_lock_ticks)),
         start_tick: startTick,
         calculation_start_sequence: int(scheduled.calculation_start_sequence),
         end_tick: endTick,
@@ -1359,7 +2298,8 @@
         visual_end_tick: visualEndTick,
         display_start_tick: visualStartTick,
         display_end_tick: visualEndTick,
-        display_duration_ticks: durationTicks,
+        display_duration_ticks: Math.max(0, int(scheduled.original_duration_ticks)),
+        tick_duration_ticks: Math.max(0, visualEndTick - visualStartTick),
         display_visual_end_tick: visualEndTick,
         original_start_tick: int(scheduled.original_start_tick, startTick),
         original_calculation_start_sequence: int(scheduled.original_calculation_start_sequence),
@@ -1379,26 +2319,48 @@
         q_cover_target_step_ids: asList(scheduled.q_cover_target_step_ids),
         is_background_damage: isBackground,
         is_basic_background: isBasicBackgroundOverride(step, action),
+        action_multiplier: actionMultiplier,
         action_tags: Array.from(actionTags(action)).sort(),
-        hit_count: actionHitCount(action),
+        hit_count: actionHitCount(action) * actionMultiplier,
         expected_critical_hits: criticalHits,
         applied_enemy_debuffs: appliedEnemyDebuffs,
         enemy_debuffs: activeEnemyDebuffs(enemyDebuffs, buffTick),
-        direct_damage: calc.direct_damage,
-        stagger_amount: calc.stagger_amount,
-        harmony: calc.harmony,
+        direct_damage: multipliedDirectDamage,
+        stagger_amount: multipliedStagger,
+        harmony: multipliedHarmony,
+        energy_gain: multipliedEnergyGain,
         energy_after: slotEnergy,
         harmony_after: harmonyBySlot.get(slot) || 0,
         personal_resources_after: Object.assign({}, slotResources),
-        nightmare_stacks: action.nightmare_stacks,
-        sin_recovery: action.sin_recovery,
+        nightmare_stacks: action.nightmare_stacks == null ? action.nightmare_stacks : num(action.nightmare_stacks) * actionMultiplier,
+        sin_recovery: action.sin_recovery == null ? action.sin_recovery : num(action.sin_recovery) * actionMultiplier,
+        triggered_reaction: triggeredReaction,
         applied_buffs: appliedBuffs,
         triggered_buffs: triggeredBuffs,
         panel: calc.panel,
-        formula_parts: calc.formula_parts,
+        formula_parts: Object.assign({}, calc.formula_parts, {
+          action_multiplier: actionMultiplier,
+          reaction_amplification: reactionAmplification,
+        }),
         warnings,
       });
     });
+
+    settleReactionDamage(options.loop_enabled ? loopDurationTicks : Number.POSITIVE_INFINITY);
+    reactionEffects.forEach((effect) => {
+      effect.visual_start_tick = visualTickFromCalculationTick(int(effect.start_tick), qVirtualIntervals);
+      effect.visual_end_tick = visualTickFromCalculationTick(int(effect.end_tick), qVirtualIntervals);
+    });
+    reactionDamageEvents.forEach((event) => {
+      event.visual_tick = visualTickFromCalculationTick(int(event.tick), qVirtualIntervals);
+    });
+    if (!options.loop_enabled) {
+      lastTick = Math.max(
+        lastTick,
+        ...reactionEffects.map((effect) => int(effect.end_tick)),
+        ...reactionDamageEvents.map((event) => int(event.tick)),
+      );
+    }
 
     frontEvents.sort((a, b) => int(a.visual_start_tick, int(a.start_tick)) - int(b.visual_start_tick, int(b.start_tick)) || int(a.order) - int(b.order));
     const dedupedFrontEvents = [];
@@ -1427,11 +2389,54 @@
     });
 
     const durationTicks = Math.max(lastTick, 0);
+    const timelineTicks = Math.max(
+      0,
+      ...scheduledSteps.map((scheduled) => int(scheduled.visual_end_tick, int(scheduled.visual_start_tick))),
+    );
+    const frozenTicks = qVirtualIntervals.reduce(
+      (sum, interval) => sum + Math.max(0, int(interval.end_tick) - int(interval.start_tick)),
+      0,
+    );
     const totalDamage = directDamage + staggerDamage;
     const teamEnergy = Array.from(energyBySlot.values()).reduce((sum, value) => sum + value, 0);
     const totalHarmony = Array.from(harmonyBySlot.values()).reduce((sum, value) => sum + value, 0);
     const damageBySlot = new Map();
-    details.forEach((detail) => damageBySlot.set(detail.slot, (damageBySlot.get(detail.slot) || 0) + detail.direct_damage));
+    const damageByActionBySlot = new Map();
+    details.forEach((detail) => {
+      damageBySlot.set(detail.slot, (damageBySlot.get(detail.slot) || 0) + detail.direct_damage);
+      if (!damageByActionBySlot.has(detail.slot)) {
+        damageByActionBySlot.set(detail.slot, new Map());
+      }
+      const actionDamage = damageByActionBySlot.get(detail.slot);
+      const actionKey = detail.action_id || detail.action_name;
+      const current = actionDamage.get(actionKey) || {
+        action_id: detail.action_id,
+        action_name: detail.action_name,
+        damage: 0,
+      };
+      current.damage += detail.direct_damage;
+      actionDamage.set(actionKey, current);
+    });
+    reactionDamageBySlot.forEach((damage, slot) => {
+      if (damage <= 0) return;
+      damageBySlot.set(slot, (damageBySlot.get(slot) || 0) + damage);
+      if (!damageByActionBySlot.has(slot)) {
+        damageByActionBySlot.set(slot, new Map());
+      }
+      reactionDamageEvents
+        .filter((event) => int(event.contributor_slot) === int(slot) && num(event.damage) > 0)
+        .forEach((event) => {
+          const actionKey = `reaction:${event.reaction}`;
+          const actionDamage = damageByActionBySlot.get(slot);
+          const current = actionDamage.get(actionKey) || {
+            action_id: actionKey,
+            action_name: event.reaction,
+            damage: 0,
+          };
+          current.damage += num(event.damage);
+          actionDamage.set(actionKey, current);
+        });
+    });
     const sortedSlots = Array.from(snapshots.keys()).sort((a, b) => a - b);
     const damageBySource = [
       ...SPECIAL_DAMAGE_SOURCES.map((source) => ({
@@ -1450,6 +2455,8 @@
       summary: {
         duration_ticks: durationTicks,
         duration_seconds: durationTicks / 10,
+        timeline_ticks: timelineTicks,
+        frozen_ticks: frozenTicks,
         direct_damage: directDamage,
         stagger_damage: staggerDamage,
         total_damage: totalDamage,
@@ -1464,6 +2471,22 @@
         damage: damageBySlot.get(slot) || 0,
         percent: directDamage > 0 ? (damageBySlot.get(slot) || 0) / directDamage * 100 : 0,
       })),
+      damage_by_action_by_slot: sortedSlots.map((slot) => {
+        const characterDamage = damageBySlot.get(slot) || 0;
+        return {
+          slot,
+          character_id: snapshots.get(slot).character.id,
+          character_name: snapshots.get(slot).character.name,
+          total_damage: characterDamage,
+          actions: Array.from((damageByActionBySlot.get(slot) || new Map()).values())
+            .filter((item) => item.damage > 0)
+            .sort((left, right) => right.damage - left.damage || left.action_name.localeCompare(right.action_name, 'zh-CN'))
+            .map((item) => ({
+              ...item,
+              percent: characterDamage > 0 ? item.damage / characterDamage * 100 : 0,
+            })),
+        };
+      }),
       damage_by_source: damageBySource,
       resources_by_slot: sortedSlots.map((slot) => ({
         slot,
@@ -1476,7 +2499,20 @@
         personal_resources: personalResources.get(slot) || {},
       })),
       build_panels_by_slot: sortedSlots.map((slot) => buildPanelProjection(snapshots.get(slot))),
+      time_axis: {
+        tick_seconds: 0.1,
+        timeline_ticks: timelineTicks,
+        real_duration_ticks: durationTicks,
+        frozen_intervals: qVirtualIntervals.map((interval) => ({ ...interval })),
+      },
       details,
+      reaction_effects: reactionEffects,
+      reaction_damage_events: reactionDamageEvents
+        .filter((event) => event.damage != null && !event.kind)
+        .map((event) => Object.fromEntries(Object.entries(event).filter(([key]) => key !== '_buff_instance'))),
+      periodic_damage_events: reactionDamageEvents
+        .filter((event) => num(event.damage) > 0 && Boolean(event.kind))
+        .map((event) => Object.fromEntries(Object.entries(event).filter(([key]) => key !== '_buff_instance'))),
       front_windows: frontWindows,
       enemy,
     };

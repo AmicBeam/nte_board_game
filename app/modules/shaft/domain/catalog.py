@@ -97,6 +97,7 @@ def load_shaft_catalog() -> dict[str, Any]:
     characters = _load_json('characters.json')
     actions = [_normalize_action(action) for action in _load_json('actions.json')]
     arcs = _load_json('arcs.json')
+    arc_refinements = _load_json('arc_refinements.json')
     awakenings = _load_json('awakenings.json')
     buffs = _load_json('buffs.json')
     cartridges = _load_json('cartridges.json')
@@ -113,6 +114,7 @@ def load_shaft_catalog() -> dict[str, Any]:
         'actions': actions,
         'actions_by_character': actions_by_character,
         'arcs': arcs,
+        'arc_refinements': arc_refinements,
         'awakenings': awakenings,
         'buffs': buffs,
         'cartridges': cartridges,

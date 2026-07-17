@@ -2,12 +2,13 @@ import re
 import unittest
 from pathlib import Path
 
-from app.modules.shaft.service import simulate_shaft_axis
+from app.modules.shaft.service import get_shaft_catalog_payload, simulate_shaft_axis
 from app.modules.shaft.domain.catalog import get_record_map, load_shaft_catalog
 
 
 ROOT = Path(__file__).resolve().parents[1]
 SHAFT_JS = ROOT / 'app' / 'modules' / 'shaft' / 'static' / 'js' / 'shaft.js'
+SHAFT_TEMPLATE = ROOT / 'app' / 'modules' / 'shaft' / 'templates' / 'shaft' / 'index.html'
 
 
 def _js_number_constant(name: str) -> int:
@@ -16,6 +17,17 @@ def _js_number_constant(name: str) -> int:
     if not match:
         raise AssertionError(f'frontend constant {name} is missing or not numeric.')
     return int(match.group(1))
+
+
+class ShaftBuffStatusUiTestCase(unittest.TestCase):
+    def test_enemy_resistances_and_personal_resources_have_ui_slots(self) -> None:
+        template = SHAFT_TEMPLATE.read_text(encoding='utf-8')
+        source = SHAFT_JS.read_text(encoding='utf-8')
+
+        self.assertIn('id="shaft-resistance-grid"', template)
+        self.assertIn("data-resistance-element", source)
+        self.assertIn("resource.personal_resources", source)
+        self.assertIn("${personalResourceLabels}", source)
 
 
 def _frontend_team_panel_bonus_defaults() -> dict[str, float]:
@@ -145,7 +157,6 @@ def _frontend_timeline_layout(axis_payload: dict) -> list[dict]:
         )
 
     layout = []
-    slot_blocking_end_px_by_slot: dict[int, int] = {}
     for detail in sorted(details, key=lambda item: int(item['display_start_tick'])):
         action = actions_by_id[str(detail['action_id'])]
         is_zero_q = int(detail['display_duration_ticks']) == 0 and _is_q_action(action)
@@ -160,21 +171,7 @@ def _frontend_timeline_layout(axis_payload: dict) -> list[dict]:
                 int(detail['display_end_tick']),
                 int(detail['display_visual_end_tick']),
             )
-        blocking_width = min_action_card_px if is_zero_q else width_px(
-            int(detail['display_start_tick']),
-            int(detail['display_end_tick']),
-            int(detail['nominal_display_visual_end_tick']),
-        )
-        raw_left = left_px(int(detail['display_start_tick']))
-        slot = int(detail.get('slot') or 0)
-        left = raw_left
-        if not detail.get('is_background_damage'):
-            left = max(left, slot_blocking_end_px_by_slot.get(slot, 0))
-        if not detail.get('is_background_damage') or detail.get('is_basic_background'):
-            slot_blocking_end_px_by_slot[slot] = max(
-                slot_blocking_end_px_by_slot.get(slot, 0),
-                left + blocking_width,
-            )
+        left = left_px(int(detail['display_start_tick']))
         layout.append({
             'step_id': detail['step_id'],
             'left_px': left,
@@ -201,6 +198,22 @@ def _visual_tick_label(visual_tick: int, q_starts: list[int]) -> str:
 
 
 class ShaftFrontendTimelineLayoutTestCase(unittest.TestCase):
+    def test_action_detail_explains_hidden_buff_effect_values(self) -> None:
+        source = SHAFT_JS.read_text(encoding='utf-8')
+
+        self.assertIn('增益解释', source)
+        self.assertIn('buff?.effects || {}', source)
+        self.assertIn("line_hidden_reason", (ROOT / 'app' / 'modules' / 'shaft' / 'static' / 'js' / 'shaft_engine.js').read_text(encoding='utf-8'))
+
+    def test_yiloyi_is_temporarily_disabled_in_character_selectors(self) -> None:
+        source = SHAFT_JS.read_text(encoding='utf-8')
+        catalog = get_shaft_catalog_payload()
+        yiloyi = next(character for character in catalog['characters'] if character['name'] == '伊洛伊')
+
+        self.assertTrue(yiloyi['selection_disabled'])
+        self.assertIn("record.selection_disabled ? 'disabled' : ''", source)
+        self.assertIn(".filter((character) => !character.selection_disabled)", source)
+
     def test_build_page_uses_character_loadout_overview_three_column_order(self) -> None:
         template = (ROOT / 'app' / 'modules' / 'shaft' / 'templates' / 'shaft' / 'index.html').read_text(encoding='utf-8')
         css = (ROOT / 'app' / 'modules' / 'shaft' / 'static' / 'css' / 'shaft-page.css').read_text(encoding='utf-8')
@@ -256,7 +269,7 @@ class ShaftFrontendTimelineLayoutTestCase(unittest.TestCase):
         css = (ROOT / 'app' / 'modules' / 'shaft' / 'static' / 'css' / 'shaft-page.css').read_text(encoding='utf-8')
         template = (ROOT / 'app' / 'modules' / 'shaft' / 'templates' / 'shaft' / 'index.html').read_text(encoding='utf-8')
 
-        self.assertIn('--shaft-rotation-panel-height: min(661px, calc(100vh - 28px));', css)
+        self.assertIn('--shaft-rotation-panel-height: min(720px, calc(100vh - 28px));', css)
         self.assertEqual(css.count('height: var(--shaft-rotation-panel-height);'), 3)
         self.assertIn('id="shaft-self-check" aria-live="polite" hidden', template)
         self.assertIn('node.hidden = warnings.length === 0;', source)
@@ -269,7 +282,7 @@ class ShaftFrontendTimelineLayoutTestCase(unittest.TestCase):
 
         self.assertIn('<div><span>总轴长</span><strong>${formatNumber(summary.duration_seconds || 0, 1)}s</strong></div>', source)
         self.assertNotIn('<div><span>倾陷伤害</span><strong>${formatNumber(summary.stagger_damage || 0)}</strong></div>', source)
-        self.assertIn("const SPECIAL_DAMAGE_SOURCES = ['创生', '浊燃', '黯星'];", engine)
+        self.assertIn("const SPECIAL_DAMAGE_SOURCES = ['创生', '浊燃', '黯星', '噩梦'];", engine)
         self.assertIn("{ source: '倾陷', damage: staggerDamage }", engine)
         self.assertIn('const sourceBars = (result?.damage_by_source || []).map', source)
 
@@ -296,6 +309,119 @@ class ShaftFrontendTimelineLayoutTestCase(unittest.TestCase):
         self.assertNotIn('创生', damage_by_source)
         self.assertNotIn('浊燃', damage_by_source)
 
+    def test_special_damage_sources_use_distinct_semantic_colors(self) -> None:
+        source = SHAFT_JS.read_text(encoding='utf-8')
+        css = (ROOT / 'app' / 'modules' / 'shaft' / 'static' / 'css' / 'shaft-page.css').read_text(encoding='utf-8')
+
+        self.assertIn("'创生': '#4fdcc8'", source)
+        self.assertIn("'浊燃': '#ff665c'", source)
+        self.assertIn("'黯星': '#6f8fff'", source)
+        self.assertIn("'倾陷': '#eef4ff'", source)
+        self.assertNotIn("'创生': '#77e36f'", source)
+        self.assertIn("'创生': DAMAGE_SOURCE_COLORS['创生']", source)
+        self.assertIn("'浊燃': DAMAGE_SOURCE_COLORS['浊燃']", source)
+        self.assertIn("'黯星': DAMAGE_SOURCE_COLORS['黯星']", source)
+        render_results = source[source.index('function renderResults()'):source.index('function actionContributionForSlot')]
+        self.assertIn("const sourceRows = (result?.damage_by_source || []).map", render_results)
+        self.assertIn('shaft-contribution-source-row', render_results)
+        self.assertIn("--contribution-color:${DAMAGE_SOURCE_COLORS[item.source] || '#b9c6d8'}", render_results)
+        self.assertIn('.shaft-contribution-source-row .shaft-contribution-bar span', css)
+
+    def test_character_action_contribution_dialog_aggregates_repeated_actions(self) -> None:
+        source = SHAFT_JS.read_text(encoding='utf-8')
+        template = (ROOT / 'app' / 'modules' / 'shaft' / 'templates' / 'shaft' / 'index.html').read_text(encoding='utf-8')
+        catalog = load_shaft_catalog()
+        character = catalog['characters'][0]
+        actions = [
+            action
+            for action in catalog['actions']
+            if action['character_id'] == character['id'] and float(action.get('multipliers', {}).get('atk') or 0) > 0
+        ][:2]
+        self.assertEqual(len(actions), 2)
+
+        result = simulate_shaft_axis({
+            'team': [{
+                'slot': 0,
+                'character_id': character['id'],
+                'arc_id': '',
+                'cartridge_id': '',
+            }],
+            'steps': [
+                {'id': 'first', 'slot': 0, 'action_id': actions[0]['id'], 'start_tick': 0},
+                {'id': 'repeat', 'slot': 0, 'action_id': actions[0]['id'], 'start_tick': 20},
+                {'id': 'second', 'slot': 0, 'action_id': actions[1]['id'], 'start_tick': 40},
+            ],
+        })['result']
+        contribution = result['damage_by_action_by_slot'][0]
+
+        self.assertEqual(contribution['character_id'], character['id'])
+        self.assertEqual(len(contribution['actions']), 2)
+        self.assertAlmostEqual(sum(action['percent'] for action in contribution['actions']), 100, places=6)
+        self.assertAlmostEqual(
+            sum(action['damage'] for action in contribution['actions']),
+            contribution['total_damage'],
+            places=6,
+        )
+        self.assertIn('data-action-contribution-slot', source)
+        self.assertIn('function actionContributionPie(actions)', source)
+        self.assertIn('id="shaft-action-contribution-dialog"', template)
+
+    def test_rotation_header_exposes_shortcut_help_dialog(self) -> None:
+        source = SHAFT_JS.read_text(encoding='utf-8')
+        template = (ROOT / 'app' / 'modules' / 'shaft' / 'templates' / 'shaft' / 'index.html').read_text(encoding='utf-8')
+
+        self.assertIn('id="shaft-shortcut-help-btn"', template)
+        self.assertIn('id="shaft-shortcut-dialog"', template)
+        self.assertIn("shortcutHelpButton.hidden = state.page !== 'rotation';", source)
+        self.assertIn("event.key === 'ArrowLeft' || event.key === 'ArrowRight'", source)
+        self.assertIn("movementKey === 'w' || movementKey === 'a' || movementKey === 's' || movementKey === 'd'", source)
+        self.assertIn("movementKey === 'q' || movementKey === 'e'", source)
+        self.assertIn('时间光标前后移动 0.1 秒', template)
+        self.assertIn('所选动作前后移动 0.1 秒', template)
+
+    def test_six_awakening_nodes_are_selected_independently(self) -> None:
+        source = SHAFT_JS.read_text(encoding='utf-8')
+        css = (ROOT / 'app' / 'modules' / 'shaft' / 'static' / 'css' / 'shaft-page.css').read_text(encoding='utf-8')
+
+        self.assertIn('function normalizeAwakeningNodes(rawNodes, legacyAwakening = 0)', source)
+        self.assertIn('const checked = activeAwakeningNodes.has(level)', source)
+        self.assertIn('awakeningNodes.add(level);', source)
+        self.assertIn('awakeningNodes.delete(level);', source)
+        self.assertNotIn('member.awakening = control.checked ? level : level - 1;', source)
+        self.assertIn('awakening_nodes: awakeningNodes', source)
+        self.assertNotIn('aria-label="${escapeHtml(tooltip)}" tabindex="0"', source)
+        self.assertNotIn('.shaft-awakening-dot[data-tooltip]:focus-visible::after', css)
+
+    def test_history_paste_and_delete_reveal_the_affected_timeline_position(self) -> None:
+        source = SHAFT_JS.read_text(encoding='utf-8')
+
+        restore_start = source.index('function restoreEditorSnapshot(snapshot)')
+        restore_end = source.index('function pushUndoSnapshot()', restore_start)
+        restore_body = source[restore_start:restore_end]
+        self.assertIn('revealTimelineTick(state.cursorTick);', restore_body)
+
+        remove_start = source.index('function removeSteps(stepIds)')
+        remove_end = source.index('function removeSelectedSteps()', remove_start)
+        remove_body = source[remove_start:remove_end]
+        self.assertIn('const removedAtTick =', remove_body)
+        self.assertIn('Math.abs(Number(left.start_tick || 0) - removedAtTick)', remove_body)
+        self.assertIn('revealTimelineTick(removedAtTick);', remove_body)
+
+        paste_start = source.index('function pasteStepsAtCursor()')
+        paste_end = source.index('function addBuffRule()', paste_start)
+        paste_body = source[paste_start:paste_end]
+        self.assertIn('revealTimelineTick(state.cursorTick);', paste_body)
+
+    def test_native_background_action_multiplier_is_editable_and_visible_on_bar(self) -> None:
+        source = SHAFT_JS.read_text(encoding='utf-8')
+
+        self.assertIn('function backgroundActionMultiplier(step, action = actionForStep(step)) {', source)
+        self.assertIn('${isBackgroundAction(action) ? `', source)
+        self.assertIn('data-background-action-multiplier', source)
+        self.assertIn("actionMultiplier > 1 ? `×${actionMultiplier}` : ''", source)
+        self.assertIn("$('shaft-step-detail').addEventListener('input', handleStepDetailChange);", source)
+        self.assertIn('step.repeat = backgroundActionMultiplier(step, action);', source)
+
     def test_buff_lines_are_single_state_line_with_multiline_tooltip(self) -> None:
         source = SHAFT_JS.read_text(encoding='utf-8')
         css = (ROOT / 'app' / 'modules' / 'shaft' / 'static' / 'css' / 'shaft-page.css').read_text(encoding='utf-8')
@@ -310,6 +436,27 @@ class ShaftFrontendTimelineLayoutTestCase(unittest.TestCase):
             raise AssertionError('buff line tooltip style is missing.')
         self.assertIn('white-space: pre-line;', tooltip_match.group('body'))
 
+    def test_reaction_lines_use_contributor_row_and_damage_markers_do_not_change_track_height(self) -> None:
+        source = SHAFT_JS.read_text(encoding='utf-8')
+        css = (ROOT / 'app' / 'modules' / 'shaft' / 'static' / 'css' / 'shaft-page.css').read_text(encoding='utf-8')
+
+        self.assertIn('Number(effect.trigger_slot) === Number(member.slot)', source)
+        self.assertIn('Number(event.contributor_slot) === Number(member.slot)', source)
+        self.assertIn('class="shaft-reaction-damage-marker"', source)
+        self.assertIn('style="left:${leftPx(Number(event.visual_tick ?? event.tick ?? 0))}px;', source)
+        self.assertIn('tooltip: `${effect.reaction} · ${ticksToSeconds(effect.duration_ticks || 1)}s`', source)
+        self.assertNotIn('`触发者 ${effect.trigger_character_name || memberName(effect.trigger_slot)}`', source)
+        self.assertNotIn('`援护角色 ${effect.support_character_name || memberName(effect.support_slot)}`', source)
+        marker_match = re.search(r'\.shaft-reaction-damage-marker\s*{(?P<body>.*?)\n}', css, re.S)
+        if not marker_match:
+            raise AssertionError('reaction damage marker style is missing.')
+        marker_css = marker_match.group('body')
+        self.assertIn('position: absolute;', marker_css)
+        self.assertIn('width: 0;', marker_css)
+        self.assertIn('height: 0;', marker_css)
+        self.assertIn('border-top: 5px solid', marker_css)
+        self.assertIn('const warnings = Array.from(new Set([...axisWarnings, ...simulationWarnings]));', source)
+
     def test_buff_line_uses_only_the_latest_stack_snapshot(self) -> None:
         source = SHAFT_JS.read_text(encoding='utf-8')
 
@@ -318,11 +465,23 @@ class ShaftFrontendTimelineLayoutTestCase(unittest.TestCase):
         self.assertIn('const startsLater = Number(buff.startTick) > Number(current?.startTick ?? -1);', source)
         self.assertIn('const activeBuffs = latestBuffStates(entries', source)
 
+    def test_regular_and_reaction_buff_lines_share_one_merged_render_segment(self) -> None:
+        source = SHAFT_JS.read_text(encoding='utf-8')
+        css = (ROOT / 'app' / 'modules' / 'shaft' / 'static' / 'css' / 'shaft-page.css').read_text(encoding='utf-8')
+
+        self.assertIn('function mergedRenderedBuffSegments(segments = [])', source)
+        self.assertIn('const allBuffSegments = mergedRenderedBuffSegments([', source)
+        self.assertIn(".flatMap((segment) => String(segment.tooltip || '').split('\\n'))", source)
+        self.assertIn("tooltip: tooltipLines.join('\\n')", source)
+        self.assertIn("buffIds: buffIds.join(' ')", source)
+        self.assertIn('min-width: 1px;', css)
+        self.assertNotIn('layoutWidthPx(segment.startTick, segment.endTick, 22)', source)
+
     def test_buff_line_merges_duration_only_refreshes(self) -> None:
         source = SHAFT_JS.read_text(encoding='utf-8')
 
         self.assertIn(
-            '.map((buff) => `${buff.id}:${buff.name}:${buffStackKey(buff.stackCount)}`)',
+            '.map((buff) => `${buff.id}:${buff.name}:${buffStackKey(buff.stackCount)}:${Number(buff.endTick || 0)}`)',
             source,
         )
         self.assertNotIn(
@@ -330,15 +489,42 @@ class ShaftFrontendTimelineLayoutTestCase(unittest.TestCase):
             source,
         )
 
+    def test_buff_lines_follow_buff_owner_and_hide_very_long_durations(self) -> None:
+        source = SHAFT_JS.read_text(encoding='utf-8')
+
+        self.assertIn('const BUFF_DURATION_LABEL_LIMIT_TICKS = 9000;', source)
+        self.assertIn('ownerSlot === Number(trackSlot)', source)
+        self.assertIn(
+            'const buffSegments = mergedBuffLineSegments(details, buffAxisEndTick, loopEnabled, member.slot);',
+            source,
+        )
+        self.assertIn('durationTicks > BUFF_DURATION_LABEL_LIMIT_TICKS', source)
+        self.assertIn('calculationTickFromVisual(Number(buff.endTick || 0)) - calculationTickFromVisual(Number(atVisualTick || 0))', source)
+
     def test_buff_line_tooltip_follows_pointer_position(self) -> None:
         source = SHAFT_JS.read_text(encoding='utf-8')
         css = (ROOT / 'app' / 'modules' / 'shaft' / 'static' / 'css' / 'shaft-page.css').read_text(encoding='utf-8')
 
         self.assertIn('function positionBuffLineTooltip(event)', source)
+        self.assertIn('`${item.name} · 剩余${ticksToSeconds(remainingTicks)}s${stackText}`', source)
         self.assertIn("buffLine.style.setProperty('--buff-tooltip-x', `${offsetX}px`);", source)
         self.assertIn("$('shaft-timeline').addEventListener('pointermove', positionBuffLineTooltip);", source)
         self.assertIn('left: var(--buff-tooltip-x, 50%);', css)
         self.assertIn('transform: translate(-50%, 4px);', css)
+
+    def test_buff_line_uses_specific_passive_name_instead_of_character_name(self) -> None:
+        source = SHAFT_JS.read_text(encoding='utf-8')
+        function_match = re.search(
+            r'function\s+triggeredBuffLines\s*\([^)]*\)\s*{(?P<body>.*?)\n  }',
+            source,
+            re.S,
+        )
+        if not function_match:
+            raise AssertionError('triggeredBuffLines function is missing.')
+        body = function_match.group('body')
+        self.assertIn('const name = buffRuleDisplayName(buff);', body)
+        self.assertNotIn('const name = buffDisplayName(buff);', body)
+        self.assertIn("const passiveName = ruleId ? `被动 ${ruleId}` : '未命名被动';", source)
 
     def test_unlined_buff_tooltip_hides_duration_and_deduplicates_buffs(self) -> None:
         source = SHAFT_JS.read_text(encoding='utf-8')
@@ -377,7 +563,7 @@ class ShaftFrontendTimelineLayoutTestCase(unittest.TestCase):
 
         self.assertIn('state.dragState?.resultSnapshot || state.result || null', source)
         self.assertIn('const usesStaleResult = Boolean(state.isResultStale && state.result && result === state.result);', source)
-        self.assertIn("['visual_start_tick', 'trigger_tick', 'start_tick', 'end_tick'].forEach", source)
+        self.assertIn("['visual_start_tick', 'visual_end_tick', 'display_start_tick', 'display_end_tick'].forEach", source)
         self.assertIn('Number(resultDetail.nominal_display_visual_end_tick) + projectionShiftTicks', source)
 
     def test_timeline_blank_click_and_track_resources_stay_axis_wide(self) -> None:
@@ -388,9 +574,23 @@ class ShaftFrontendTimelineLayoutTestCase(unittest.TestCase):
         self.assertIn('const harmony = Number(resource.harmony ?? resource.initial_harmony ?? 0);', source)
         self.assertNotIn('function slotResourcesAtCursor', source)
         self.assertNotIn('Number(detail.start_tick || 0) <= cursorTick', source)
-        self.assertIn('const cursorOnSelectedStart = primarySelectedLayoutForCursor &&', source)
+        self.assertNotIn('primarySelectedLayoutForCursor', source)
+        self.assertIn("node.style.left = `${leftPx(state.cursorTick)}px`;", source)
         self.assertIn('state.cursorTick = timelineTickFromEvent(event);', source)
         self.assertIn('renderTimeline();\n        renderStepDetail();\n        renderEditorActions();', source)
+
+    def test_selection_and_initial_shortcuts_use_display_timeline_coordinates(self) -> None:
+        source = SHAFT_JS.read_text(encoding='utf-8')
+        catalog = get_shaft_catalog_payload()
+        result = simulate_shaft_axis(catalog['starter_axis'])['result']
+        details = {detail['step_id']: detail for detail in result['details']}
+
+        self.assertEqual(details['step_017']['display_end_tick'], 106)
+        self.assertEqual(details['step_018']['display_start_tick'], 106)
+        self.assertIn('state.cursorTick = timelineDisplayTickForStep(step);', source)
+        self.assertIn('detail?.display_start_tick ??', source)
+        self.assertIn('timeline.focus({ preventScroll: true });', source)
+        self.assertIn('focusTimelineForShortcuts();', source)
 
     def test_action_insertion_prioritizes_new_step_and_reveals_its_end(self) -> None:
         source = SHAFT_JS.read_text(encoding='utf-8')
@@ -404,6 +604,9 @@ class ShaftFrontendTimelineLayoutTestCase(unittest.TestCase):
 
         add_body = add_match.group('body')
         self.assertNotIn('shiftStepsFromTick', source)
+        self.assertIn('const insertTick = prepareInsertionTick(startTick, action, slot);', add_body)
+        self.assertIn('startsForeground(candidateStep, action || {})', source)
+        self.assertIn('!actionIntervalAtTick(target, slot)', source)
         self.assertIn('normalizeEditedSteps(new Set([step.id]));', add_body)
         self.assertIn('revealTimelineTick(state.cursorTick);', add_body)
         self.assertLess(add_body.index('selectStep(step.id, false);'), add_body.index('state.cursorTick = Number(step.start_tick || 0) + actionVisualDurationTicks(action, step);'))
@@ -425,7 +628,7 @@ class ShaftFrontendTimelineLayoutTestCase(unittest.TestCase):
         self.assertIn('expansionBreaks = clone(drag.timelineScale.expansionBreaks || []);', source)
         self.assertIn('buffLinesBySlot[slot] = Array.from(track.querySelectorAll(\'.shaft-buff-trigger-line\'))', source)
         self.assertIn('const heldBuffLines = heldBuffPreview?.buffLinesBySlot?.[String(member.slot)];', source)
-        self.assertIn('Array.isArray(heldBuffLines) ? heldBuffLines.join(\'\') : buffSegments.map', source)
+        self.assertIn('Array.isArray(heldBuffLines) ? heldBuffLines.join(\'\') : allBuffSegments.map', source)
         self.assertIn('resultSnapshot: freshResult(),', source)
         self.assertIn('const usesDragPreviewResult = Boolean(drag?.previewResult && result === drag.previewResult);', source)
         self.assertIn('const projectionShiftTicks = (drag && !usesDragPreviewResult) || usesStaleResult', source)
@@ -479,16 +682,19 @@ class ShaftFrontendTimelineLayoutTestCase(unittest.TestCase):
         self.assertIn('step.start_tick = resolvedStartTick;', source)
         self.assertEqual(source.count('preserveGapsAfterAutomaticShift(originalStartTicks, priorityIds);'), 2)
 
-    def test_support_interval_cannot_be_covered_by_another_foreground_start(self) -> None:
+    def test_foreground_conflicts_keep_q_and_support_locks_separate_from_start_gap(self) -> None:
         source = SHAFT_JS.read_text(encoding='utf-8')
 
-        self.assertIn('const supportConflict = foregroundStarts.find((item) => (', source)
-        self.assertIn('item.tick <= startTick &&', source)
-        self.assertIn('startTick < item.endTick', source)
-        self.assertIn('startTick = supportConflict.endTick;', source)
-        self.assertIn('isSupport: isSupportAction(action),', source)
-        self.assertIn('const supportProtectsItsInterval = startsForeground(step, action) &&', source)
-        self.assertIn('startTick <= priorityMinTick;', source)
+        self.assertIn('const slotBlockingEnd = new Map();', source)
+        self.assertIn('previousForegroundStartTick + MIN_FOREGROUND_START_GAP_TICKS', source)
+        self.assertIn('function locksForegroundSwitch(step, action = actionForStep(step)) {', source)
+        self.assertIn('function foregroundLockEndTick(step, action, startTick) {', source)
+        self.assertIn('detail.display_visual_end_tick ?? detail.visual_end_tick', source)
+        self.assertIn('const foregroundLocks = [];', source)
+        self.assertIn('.filter((lock) => startTick < Number(lock.endTick))', source)
+        self.assertNotIn('const supportConflict = foregroundStarts.find', source)
+        self.assertNotIn('const supportProtectsItsInterval', source)
+        self.assertNotIn('const qConflict =', source)
 
     def test_loading_saved_axis_recomputes_stale_stored_result(self) -> None:
         source = SHAFT_JS.read_text(encoding='utf-8')
@@ -576,9 +782,9 @@ class ShaftFrontendTimelineLayoutTestCase(unittest.TestCase):
 
         self.assertIn('function isZeroForegroundQStep(step, action = actionForStep(step)) {', source)
         self.assertIn('startsForeground(step, action) && isQAction(action) && actionDurationTicks(action) === 0', source)
-        self.assertIn('const currentIsQ = isZeroForegroundQStep(step, action);', source)
-        self.assertIn('isQ: isZeroForegroundQStep(step, action),', source)
-        self.assertIn('previousForegroundIsQ = isZeroForegroundQStep(detailStep, action);', source)
+        self.assertIn('const actionIsQ = isZeroForegroundQStep(step, action);', source)
+        self.assertIn('.filter((item) => isZeroForegroundQStep(item.step, item.action))', source)
+        self.assertIn('if (isZeroForegroundQStep(candidateStep, action || {}) || tickHasForegroundQ(target))', source)
         self.assertNotIn('const currentIsQ = foregroundStart && isQAction(action);', source)
 
     def test_four_connected_zero_q_actions_keep_min_width_without_overlap(self) -> None:
@@ -662,7 +868,7 @@ class ShaftFrontendTimelineLayoutTestCase(unittest.TestCase):
         self.assertEqual(visual_span(q_then_e), visual_span(e_then_q))
         self.assertEqual(visual_span(q_then_e), 20 * _js_number_constant('TIMELINE_TICK_PX'))
 
-    def test_short_nonzero_action_after_q_keeps_min_width_without_overlap(self) -> None:
+    def test_short_nonzero_action_after_q_keeps_true_timeline_position(self) -> None:
         min_action_card_px = _js_number_constant('MIN_ACTION_CARD_PX')
         payload = {
             'team': [
@@ -693,7 +899,12 @@ class ShaftFrontendTimelineLayoutTestCase(unittest.TestCase):
         self.assertEqual(layout_by_step['dragon_a2']['left_px'], layout_by_step['dragon_a1']['right_px'])
         self.assertEqual(details['dragon_a1']['duration_ticks'], 3)
         self.assertEqual(details['dragon_a1']['end_tick'], details['dragon_a1']['start_tick'] + 3)
+        self.assertEqual(details['dragon_a1']['visual_end_tick'] - details['dragon_a1']['visual_start_tick'], 3)
         self.assertFalse(details['dragon_a1']['q_instant_release'])
+        source = SHAFT_JS.read_text(encoding='utf-8')
+        self.assertNotIn('const foregroundLaneEnds = [];', source)
+        self.assertIn('let laneIndex = 0;\n        if (detail.is_background_damage)', source)
+        self.assertIn('laneIndex = backgroundLaneIndex + 1;', source)
 
     def test_q_cover_expands_over_chain_without_overlapping_return_q(self) -> None:
         min_action_card_px = _js_number_constant('MIN_ACTION_CARD_PX')

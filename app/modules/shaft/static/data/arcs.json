@@ -5,7 +5,7 @@
     "level": 80,
     "rarity": "S",
     "adaptation": "固态",
-    "detail": "16攻击；3次记录后48暴伤和12穿防",
+    "detail": "攻击力提升16%~32%；E后进入荒时迷宫，队友E或援护叠荒时，最多3层；Q消耗荒时，终结技暴击伤害提升24%~48%，每层额外提升8%~16%，满3层时额外无视防御12%~24%，持续70秒（随精炼等级）",
     "base_atk": 570,
     "modifiers": {
       "crit_rate": 0.24,
@@ -119,7 +119,7 @@
     "level": 80,
     "rarity": "S",
     "adaptation": "固态",
-    "detail": "Q后25攻击",
+    "detail": "施放终结技后，攻击力提升25%~45%，持续10秒（随精炼等级）",
     "base_atk": 512,
     "modifiers": {
       "crit_rate": 0.22,
@@ -309,7 +309,7 @@
     "level": 80,
     "rarity": "S",
     "adaptation": "固态",
-    "detail": "15灵伤；10附着伤，q后改20附着伤",
+    "detail": "灵属性伤害提升15%~25%，附着伤害提升10%~15%；施放终结技后附着伤害改为提升20%~30%，持续6秒（随精炼等级）",
     "base_atk": 570,
     "modifiers": {
       "crit_rate": 0,
@@ -329,7 +329,7 @@
       "ultimate_dmg": 0,
       "mind_dmg": 0,
       "follow_dmg": 0,
-      "attach_dmg": 0
+      "attach_dmg": 0.1
     },
     "element_dmg": {
       "光": 0,
@@ -385,7 +385,7 @@
     "level": 80,
     "rarity": "A",
     "adaptation": "固态",
-    "detail": "e后162倾陷，10s；调弧开锁",
+    "detail": "施放战技后，倾陷强度提升90~162，持续50秒（随精炼等级）",
     "base_atk": 475,
     "modifiers": {
       "crit_rate": 0,
@@ -461,7 +461,7 @@
     "level": 80,
     "rarity": "B",
     "adaptation": "固态",
-    "detail": "e后16攻击，10s，cd20s",
+    "detail": "施放战技后，攻击力提升12%~16%，持续10秒；20秒内最多触发一次（随精炼等级）",
     "base_atk": 380,
     "modifiers": {
       "crit_rate": 0,
@@ -499,7 +499,7 @@
     "level": 80,
     "rarity": "S",
     "adaptation": "液态",
-    "detail": "16攻击；造成治疗时，自身30%灵伤，其他角色15%通伤，持续20秒，效果唯一",
+    "detail": "攻击力提升16%~32%；造成治疗时，自身灵属性伤害提升30%~60%，其他队友造成的伤害提升15%~30%，持续20秒（随精炼等级）",
     "base_atk": 570,
     "modifiers": {
       "crit_rate": 0,
@@ -537,7 +537,7 @@
     "level": 80,
     "rarity": "S",
     "adaptation": "液态",
-    "detail": "14攻击；叠层60暴伤；倾陷延时3s",
+    "detail": "攻击力提升14%~28%；持续伤害每0.3秒至多使暴击伤害提升6%~12%，持续3秒，最多10层且刷新持续时间；施放战技立即叠满；对倾陷目标造成伤害可使该次倾陷延长3秒（随精炼等级）",
     "base_atk": 570,
     "modifiers": {
       "crit_rate": 0.24,
@@ -575,7 +575,7 @@
     "level": 80,
     "rarity": "S",
     "adaptation": "液态",
-    "detail": "前台驻场每秒5攻击5层",
+    "detail": "处于前台时每1秒攻击力提升5%~9%，最多5层；离开前台时清除（随精炼等级）",
     "base_atk": 512,
     "modifiers": {
       "crit_rate": 0,
@@ -955,7 +955,7 @@
     "level": 80,
     "rarity": "S",
     "adaptation": "气态",
-    "detail": "100万方斯叠满25光伤",
+    "detail": "每拥有100000方斯，光属性伤害提升2.5%~4.5%，最多10层（随精炼等级）",
     "base_atk": 512,
     "modifiers": {
       "crit_rate": 0,
@@ -1069,7 +1069,7 @@
     "level": 80,
     "rarity": "S",
     "adaptation": "气态",
-    "detail": "18充能；Q后全队10%攻击，控住额外6%，20秒",
+    "detail": "施放终结技后，全队攻击力提升10%~16%；若敌人受到该终结技控制，额外提升6%~10%，持续20秒（随精炼等级）",
     "base_atk": 474,
     "modifiers": {
       "crit_rate": 0,
@@ -1107,7 +1107,7 @@
     "level": 80,
     "rarity": "A",
     "adaptation": "气态",
-    "detail": "援护技后10秒内造成的伤害提高30%。20秒一次。",
+    "detail": "施放援护技后，造成的伤害提升18%~30%，持续10秒；20秒内最多触发一次（随精炼等级）",
     "base_atk": 475,
     "modifiers": {
       "crit_rate": 0,
@@ -1145,7 +1145,7 @@
     "level": 80,
     "rarity": "A",
     "adaptation": "气态",
-    "detail": "E后18%攻击力，相环合敌人下，额外18%相伤，持续15秒",
+    "detail": "施放战技后，攻击力提升10%~18%；对受延滞或浸染影响的目标造成的相属性伤害提升10%~18%，持续15秒（随精炼等级）",
     "base_atk": 475,
     "modifiers": {
       "crit_rate": 0,
@@ -1297,7 +1297,7 @@
     "level": 80,
     "rarity": "S",
     "adaptation": "等离子",
-    "detail": "22增伤；半血下提升至28%",
+    "detail": "造成的伤害提升22%~38%；对生命低于50%的目标改为提升28%~52%（随精炼等级）",
     "base_atk": 512,
     "modifiers": {
       "crit_rate": 0,
@@ -1373,7 +1373,7 @@
     "level": 80,
     "rarity": "S",
     "adaptation": "等离子",
-    "detail": "12魂伤；魂攻击叠层20暴伤5s",
+    "detail": "魂属性伤害提升12%~21%；造成魂属性伤害时暴击伤害提升2%~3.6%，持续5秒，最多10层，每0.1秒最多触发一次（随精炼等级）",
     "base_atk": 512,
     "modifiers": {
       "crit_rate": 0,
@@ -1525,7 +1525,7 @@
     "level": 80,
     "rarity": "A",
     "adaptation": "等离子",
-    "detail": "叠层普伤3.6*10,10秒（独立层数算一半）",
+    "detail": "普攻命中后，普攻伤害提升2%~3.6%，持续10秒，最多10层，每层独立计时（随精炼等级）",
     "base_atk": 395,
     "modifiers": {
       "crit_rate": 0,
@@ -1943,7 +1943,7 @@
     "level": 80,
     "rarity": "A",
     "adaptation": "聚合",
-    "detail": "拥有护盾时加攻30%",
+    "detail": "拥有护盾时，攻击力提升18%~30%（随精炼等级）",
     "base_atk": 395,
     "modifiers": {
       "crit_rate": 0,
@@ -1981,7 +1981,7 @@
     "level": 80,
     "rarity": "A",
     "adaptation": "聚合",
-    "detail": "挨打46防御，持续10s，cd20s",
+    "detail": "受到伤害后，防御力提升26%~46%，持续10秒；20秒内最多触发一次（随精炼等级）",
     "base_atk": 475,
     "modifiers": {
       "crit_rate": 0,
@@ -2019,7 +2019,7 @@
     "level": 80,
     "rarity": "A",
     "adaptation": "聚合",
-    "detail": "18生命；18护盾强度",
+    "detail": "生命值与护盾强度提升（随精炼等级）",
     "base_atk": 395,
     "modifiers": {
       "crit_rate": 0,
@@ -2095,7 +2095,7 @@
     "level": 80,
     "rarity": "B",
     "adaptation": "聚合",
-    "detail": "84倾陷强度10s，cd20s",
+    "detail": "削减敌人倾陷值后，倾陷强度提升60~84，持续10秒；20秒内最多触发一次（随精炼等级）",
     "base_atk": 380,
     "modifiers": {
       "crit_rate": 0,

@@ -1,0 +1,4827 @@
+{
+  "source": "nanoka.cc",
+  "version": "1.2",
+  "generated_from": "https://static.nanoka.cc/nte/1.2/zh/weapon/{id}.json",
+  "arcs": {
+    "arc_7d0ca08e3d": {
+      "nanoka_id": "fork_Time",
+      "name": "行进于时间之外",
+      "default_level": 1,
+      "source_url": "https://static.nanoka.cc/nte/1.2/zh/weapon/fork_Time.json",
+      "effect_name": "「时间之外的时间」",
+      "effect_description": "攻击力提高<lv>{0}</>。\r\n装备者释放「变轨技能」后，进入「荒时迷宫」状态并清除当前「荒时」。当装备者处于「荒时迷宫」时，队友每次释放「变轨技能」或「援护技」都将获得<lv>1</>层「荒时」，至多<lv>3</>层。当装备者处于「荒时迷宫」内释放「极轨终结」时，退出「荒时迷宫」并消耗所有「荒时」，使「极轨终结」造成的暴击伤害提升<lv>{1}</>，每消耗1层「荒时」使装备者「极轨终结」造成的暴击伤害额外提升<lv>{2}</>；若一次性消耗了<lv>3</>层「荒时」，则额外获得<lv>{3}</>无视防御效果，持续<lv>{4}</>秒。",
+      "levels": {
+        "1": {
+          "effect_values": [
+            "16%",
+            "24%",
+            "8%",
+            "12%",
+            "70"
+          ],
+          "panel_modifiers": {
+            "crit_rate": 0.24,
+            "atk_pct": 0.16
+          },
+          "element_dmg": {},
+          "buff_effects": {
+            "arc_time_outside_recorded_crit_def": {
+              "crit_dmg": 0.24,
+              "def_ignore": 0.12
+            }
+          }
+        },
+        "2": {
+          "effect_values": [
+            "20%",
+            "30%",
+            "10%",
+            "15%",
+            "70"
+          ],
+          "panel_modifiers": {
+            "crit_rate": 0.24,
+            "atk_pct": 0.2
+          },
+          "element_dmg": {},
+          "buff_effects": {
+            "arc_time_outside_recorded_crit_def": {
+              "crit_dmg": 0.3,
+              "def_ignore": 0.15
+            }
+          }
+        },
+        "3": {
+          "effect_values": [
+            "24%",
+            "36%",
+            "12%",
+            "18%",
+            "70"
+          ],
+          "panel_modifiers": {
+            "crit_rate": 0.24,
+            "atk_pct": 0.24
+          },
+          "element_dmg": {},
+          "buff_effects": {
+            "arc_time_outside_recorded_crit_def": {
+              "crit_dmg": 0.36,
+              "def_ignore": 0.18
+            }
+          }
+        },
+        "4": {
+          "effect_values": [
+            "28%",
+            "42%",
+            "14%",
+            "21%",
+            "70"
+          ],
+          "panel_modifiers": {
+            "crit_rate": 0.24,
+            "atk_pct": 0.28
+          },
+          "element_dmg": {},
+          "buff_effects": {
+            "arc_time_outside_recorded_crit_def": {
+              "crit_dmg": 0.42,
+              "def_ignore": 0.21
+            }
+          }
+        },
+        "5": {
+          "effect_values": [
+            "32%",
+            "48%",
+            "16%",
+            "24%",
+            "70"
+          ],
+          "panel_modifiers": {
+            "crit_rate": 0.24,
+            "atk_pct": 0.32
+          },
+          "element_dmg": {},
+          "buff_effects": {
+            "arc_time_outside_recorded_crit_def": {
+              "crit_dmg": 0.48,
+              "def_ignore": 0.24
+            }
+          }
+        }
+      }
+    },
+    "arc_18c6a54ab6": {
+      "nanoka_id": "fork_Time",
+      "name": "行进于时间之外",
+      "default_level": 1,
+      "source_url": "https://static.nanoka.cc/nte/1.2/zh/weapon/fork_Time.json",
+      "effect_name": "「时间之外的时间」",
+      "effect_description": "攻击力提高<lv>{0}</>。\r\n装备者释放「变轨技能」后，进入「荒时迷宫」状态并清除当前「荒时」。当装备者处于「荒时迷宫」时，队友每次释放「变轨技能」或「援护技」都将获得<lv>1</>层「荒时」，至多<lv>3</>层。当装备者处于「荒时迷宫」内释放「极轨终结」时，退出「荒时迷宫」并消耗所有「荒时」，使「极轨终结」造成的暴击伤害提升<lv>{1}</>，每消耗1层「荒时」使装备者「极轨终结」造成的暴击伤害额外提升<lv>{2}</>；若一次性消耗了<lv>3</>层「荒时」，则额外获得<lv>{3}</>无视防御效果，持续<lv>{4}</>秒。",
+      "levels": {
+        "1": {
+          "effect_values": [
+            "16%",
+            "24%",
+            "8%",
+            "12%",
+            "70"
+          ],
+          "panel_modifiers": {
+            "crit_rate": 0.24,
+            "atk_pct": 0.16
+          },
+          "element_dmg": {},
+          "buff_effects": {}
+        },
+        "2": {
+          "effect_values": [
+            "20%",
+            "30%",
+            "10%",
+            "15%",
+            "70"
+          ],
+          "panel_modifiers": {
+            "crit_rate": 0.24,
+            "atk_pct": 0.2
+          },
+          "element_dmg": {},
+          "buff_effects": {}
+        },
+        "3": {
+          "effect_values": [
+            "24%",
+            "36%",
+            "12%",
+            "18%",
+            "70"
+          ],
+          "panel_modifiers": {
+            "crit_rate": 0.24,
+            "atk_pct": 0.24
+          },
+          "element_dmg": {},
+          "buff_effects": {}
+        },
+        "4": {
+          "effect_values": [
+            "28%",
+            "42%",
+            "14%",
+            "21%",
+            "70"
+          ],
+          "panel_modifiers": {
+            "crit_rate": 0.24,
+            "atk_pct": 0.28
+          },
+          "element_dmg": {},
+          "buff_effects": {}
+        },
+        "5": {
+          "effect_values": [
+            "32%",
+            "48%",
+            "16%",
+            "24%",
+            "70"
+          ],
+          "panel_modifiers": {
+            "crit_rate": 0.24,
+            "atk_pct": 0.32
+          },
+          "element_dmg": {},
+          "buff_effects": {}
+        }
+      }
+    },
+    "arc_facc69ac01": {
+      "nanoka_id": "fork_worldrain",
+      "name": "「倾世之雨」",
+      "default_level": 1,
+      "source_url": "https://static.nanoka.cc/nte/1.2/zh/weapon/fork_worldrain.json",
+      "effect_name": "「极漩」",
+      "effect_description": "装备者的「变轨技能」和「极轨终结」造成的光属性异能伤害增加<lv>{0}</>。\r\n装备者释放「变轨技能」后，自身环合强度提高<lv>{1}</>，持续<lv>{2}</>秒，重复触发刷新持续时间。",
+      "levels": {
+        "1": {
+          "effect_values": [
+            "30%",
+            "36",
+            "15"
+          ],
+          "panel_modifiers": {
+            "crit_rate": 0.22,
+            "skill_dmg": 0.3,
+            "ultimate_dmg": 0.3
+          },
+          "element_dmg": {},
+          "buff_effects": {
+            "arc_rain_e_harmony": {
+              "harmony_strength": 36.0
+            }
+          }
+        },
+        "2": {
+          "effect_values": [
+            "33%",
+            "45",
+            "15"
+          ],
+          "panel_modifiers": {
+            "crit_rate": 0.22,
+            "skill_dmg": 0.33,
+            "ultimate_dmg": 0.33
+          },
+          "element_dmg": {},
+          "buff_effects": {
+            "arc_rain_e_harmony": {
+              "harmony_strength": 45.0
+            }
+          }
+        },
+        "3": {
+          "effect_values": [
+            "36%",
+            "54",
+            "15"
+          ],
+          "panel_modifiers": {
+            "crit_rate": 0.22,
+            "skill_dmg": 0.36,
+            "ultimate_dmg": 0.36
+          },
+          "element_dmg": {},
+          "buff_effects": {
+            "arc_rain_e_harmony": {
+              "harmony_strength": 54.0
+            }
+          }
+        },
+        "4": {
+          "effect_values": [
+            "39%",
+            "63",
+            "15"
+          ],
+          "panel_modifiers": {
+            "crit_rate": 0.22,
+            "skill_dmg": 0.39,
+            "ultimate_dmg": 0.39
+          },
+          "element_dmg": {},
+          "buff_effects": {
+            "arc_rain_e_harmony": {
+              "harmony_strength": 63.0
+            }
+          }
+        },
+        "5": {
+          "effect_values": [
+            "42%",
+            "72",
+            "15"
+          ],
+          "panel_modifiers": {
+            "crit_rate": 0.22,
+            "skill_dmg": 0.42,
+            "ultimate_dmg": 0.42
+          },
+          "element_dmg": {},
+          "buff_effects": {
+            "arc_rain_e_harmony": {
+              "harmony_strength": 72.0
+            }
+          }
+        }
+      }
+    },
+    "arc_1a476075cd": {
+      "nanoka_id": "fork_BlastCandy",
+      "name": "无畏之绵",
+      "default_level": 1,
+      "source_url": "https://static.nanoka.cc/nte/1.2/zh/weapon/fork_BlastCandy.json",
+      "effect_name": "「爆炸糖」",
+      "effect_description": "装备者释放「极轨终结」后，自身攻击力提高<lv>{0}</>，持续<lv>{1}</>秒。该效果不可叠加。",
+      "levels": {
+        "1": {
+          "effect_values": [
+            "25%",
+            "10"
+          ],
+          "panel_modifiers": {
+            "crit_rate": 0.22
+          },
+          "element_dmg": {},
+          "buff_effects": {
+            "arc_fearless_q_atk": {
+              "atk_pct": 0.25
+            }
+          }
+        },
+        "2": {
+          "effect_values": [
+            "30%",
+            "10"
+          ],
+          "panel_modifiers": {
+            "crit_rate": 0.22
+          },
+          "element_dmg": {},
+          "buff_effects": {
+            "arc_fearless_q_atk": {
+              "atk_pct": 0.3
+            }
+          }
+        },
+        "3": {
+          "effect_values": [
+            "35%",
+            "10"
+          ],
+          "panel_modifiers": {
+            "crit_rate": 0.22
+          },
+          "element_dmg": {},
+          "buff_effects": {
+            "arc_fearless_q_atk": {
+              "atk_pct": 0.35
+            }
+          }
+        },
+        "4": {
+          "effect_values": [
+            "40%",
+            "10"
+          ],
+          "panel_modifiers": {
+            "crit_rate": 0.22
+          },
+          "element_dmg": {},
+          "buff_effects": {
+            "arc_fearless_q_atk": {
+              "atk_pct": 0.4
+            }
+          }
+        },
+        "5": {
+          "effect_values": [
+            "45%",
+            "10"
+          ],
+          "panel_modifiers": {
+            "crit_rate": 0.22
+          },
+          "element_dmg": {},
+          "buff_effects": {
+            "arc_fearless_q_atk": {
+              "atk_pct": 0.45
+            }
+          }
+        }
+      }
+    },
+    "arc_57b6c49b66": {
+      "nanoka_id": "fork_BlastCandy",
+      "name": "无畏之绵",
+      "default_level": 5,
+      "source_url": "https://static.nanoka.cc/nte/1.2/zh/weapon/fork_BlastCandy.json",
+      "effect_name": "「爆炸糖」",
+      "effect_description": "装备者释放「极轨终结」后，自身攻击力提高<lv>{0}</>，持续<lv>{1}</>秒。该效果不可叠加。",
+      "levels": {
+        "1": {
+          "effect_values": [
+            "25%",
+            "10"
+          ],
+          "panel_modifiers": {
+            "crit_rate": 0.22
+          },
+          "element_dmg": {},
+          "buff_effects": {
+            "arc_fearless_full_q_atk": {
+              "atk_pct": 0.25
+            }
+          }
+        },
+        "2": {
+          "effect_values": [
+            "30%",
+            "10"
+          ],
+          "panel_modifiers": {
+            "crit_rate": 0.22
+          },
+          "element_dmg": {},
+          "buff_effects": {
+            "arc_fearless_full_q_atk": {
+              "atk_pct": 0.3
+            }
+          }
+        },
+        "3": {
+          "effect_values": [
+            "35%",
+            "10"
+          ],
+          "panel_modifiers": {
+            "crit_rate": 0.22
+          },
+          "element_dmg": {},
+          "buff_effects": {
+            "arc_fearless_full_q_atk": {
+              "atk_pct": 0.35
+            }
+          }
+        },
+        "4": {
+          "effect_values": [
+            "40%",
+            "10"
+          ],
+          "panel_modifiers": {
+            "crit_rate": 0.22
+          },
+          "element_dmg": {},
+          "buff_effects": {
+            "arc_fearless_full_q_atk": {
+              "atk_pct": 0.4
+            }
+          }
+        },
+        "5": {
+          "effect_values": [
+            "45%",
+            "10"
+          ],
+          "panel_modifiers": {
+            "crit_rate": 0.22
+          },
+          "element_dmg": {},
+          "buff_effects": {
+            "arc_fearless_full_q_atk": {
+              "atk_pct": 0.45
+            }
+          }
+        }
+      }
+    },
+    "arc_6a8d96002f": {
+      "nanoka_id": "fork_Nakupeda",
+      "name": "千金难买你开心",
+      "default_level": 1,
+      "source_url": "https://static.nanoka.cc/nte/1.2/zh/weapon/fork_Nakupeda.json",
+      "effect_name": "「纳库佩达」",
+      "effect_description": "生命值提高<lv>{0}</>。\n装备者释放「极轨终结」时，获得以下随机一个效果：\n1.使队伍中血量百分比最低的角色回复其<lv>{1}</>最大生命值。\n2.获得一个装备者<lv>{2}</>最大生命值的护盾,持续<lv>{3}</>秒。\n3.使全队角色回复<lv>{4}</>生命值。\n该效果每<lv>{5}</>秒最多触发一次。",
+      "levels": {
+        "1": {
+          "effect_values": [
+            "24%",
+            "20%",
+            "20%",
+            "15",
+            "10%",
+            "30"
+          ],
+          "panel_modifiers": {
+            "def_pct": 0.385,
+            "hp_pct": 0.24
+          },
+          "element_dmg": {},
+          "buff_effects": {}
+        },
+        "2": {
+          "effect_values": [
+            "28%",
+            "25%",
+            "25%",
+            "15",
+            "12.5%",
+            "30"
+          ],
+          "panel_modifiers": {
+            "def_pct": 0.385,
+            "hp_pct": 0.28
+          },
+          "element_dmg": {},
+          "buff_effects": {}
+        },
+        "3": {
+          "effect_values": [
+            "32%",
+            "30%",
+            "30%",
+            "15",
+            "15%",
+            "30"
+          ],
+          "panel_modifiers": {
+            "def_pct": 0.385,
+            "hp_pct": 0.32
+          },
+          "element_dmg": {},
+          "buff_effects": {}
+        },
+        "4": {
+          "effect_values": [
+            "36%",
+            "35%",
+            "35%",
+            "15",
+            "17.5%",
+            "30"
+          ],
+          "panel_modifiers": {
+            "def_pct": 0.385,
+            "hp_pct": 0.36
+          },
+          "element_dmg": {},
+          "buff_effects": {}
+        },
+        "5": {
+          "effect_values": [
+            "40%",
+            "40%",
+            "40%",
+            "15",
+            "20%",
+            "30"
+          ],
+          "panel_modifiers": {
+            "def_pct": 0.385,
+            "hp_pct": 0.4
+          },
+          "element_dmg": {},
+          "buff_effects": {}
+        }
+      }
+    },
+    "arc_f5d1774a5a": {
+      "nanoka_id": "fork_PoliceRat",
+      "name": "海特洛的安宁",
+      "default_level": 1,
+      "source_url": "https://static.nanoka.cc/nte/1.2/zh/weapon/fork_PoliceRat.json",
+      "effect_name": "「通行正义」",
+      "effect_description": "攻击力提高<lv>{0}</>。\n对boss单位造成的伤害提高<lv>{1}</>。\n可使用调弧·「巡哨鼠鼠」。\n调弧·「巡哨鼠鼠」：召唤「巡哨鼠鼠」协助作战，「巡哨鼠鼠」持续攻击造成伤害，每次攻击造成装备者<lv>{2}</>的伤害。持续<lv>30</>秒，冷却时间<lv>{3}</>秒。",
+      "levels": {
+        "1": {
+          "effect_values": [
+            "15%",
+            "15%",
+            "100%",
+            "60"
+          ],
+          "panel_modifiers": {
+            "atk_pct": 0.425,
+            "all_dmg": 0.15
+          },
+          "element_dmg": {},
+          "buff_effects": {}
+        },
+        "2": {
+          "effect_values": [
+            "17.5%",
+            "17.5%",
+            "125%",
+            "60"
+          ],
+          "panel_modifiers": {
+            "atk_pct": 0.45,
+            "all_dmg": 0.175
+          },
+          "element_dmg": {},
+          "buff_effects": {}
+        },
+        "3": {
+          "effect_values": [
+            "20%",
+            "20%",
+            "150%",
+            "60"
+          ],
+          "panel_modifiers": {
+            "atk_pct": 0.475,
+            "all_dmg": 0.2
+          },
+          "element_dmg": {},
+          "buff_effects": {}
+        },
+        "4": {
+          "effect_values": [
+            "22.5%",
+            "22.5%",
+            "175%",
+            "60"
+          ],
+          "panel_modifiers": {
+            "atk_pct": 0.5,
+            "all_dmg": 0.225
+          },
+          "element_dmg": {},
+          "buff_effects": {}
+        },
+        "5": {
+          "effect_values": [
+            "25%",
+            "25%",
+            "200%",
+            "60"
+          ],
+          "panel_modifiers": {
+            "atk_pct": 0.525,
+            "all_dmg": 0.25
+          },
+          "element_dmg": {},
+          "buff_effects": {}
+        }
+      }
+    },
+    "arc_743a4ad0dd": {
+      "nanoka_id": "fork_rishi",
+      "name": "休息日",
+      "default_level": 1,
+      "source_url": "https://static.nanoka.cc/nte/1.2/zh/weapon/fork_rishi.json",
+      "effect_name": "「日蚀」",
+      "effect_description": "装备者的攻击力提升<lv>{0}</>，可使用调弧·「日蚀」。\r\n调弧·「日蚀」：装备者可暂时利用日蚀的能力创造一场持续<lv>{1}</>秒的日蚀。在日蚀持续期间，装备者每击杀一名敌方单位可恢复<lv>{2}</>点终结能量，持续时间内最多触发<lv>{3}</>次。(冷却时间<lv>{4}</>秒)。",
+      "levels": {
+        "1": {
+          "effect_values": [
+            "30%",
+            "40",
+            "6",
+            "5",
+            "300"
+          ],
+          "panel_modifiers": {
+            "energy_recharge": 0.33,
+            "atk_pct": 0.3
+          },
+          "element_dmg": {},
+          "buff_effects": {}
+        },
+        "2": {
+          "effect_values": [
+            "35%",
+            "40",
+            "7",
+            "5",
+            "300"
+          ],
+          "panel_modifiers": {
+            "energy_recharge": 0.33,
+            "atk_pct": 0.35
+          },
+          "element_dmg": {},
+          "buff_effects": {}
+        },
+        "3": {
+          "effect_values": [
+            "40%",
+            "40",
+            "8",
+            "5",
+            "300"
+          ],
+          "panel_modifiers": {
+            "energy_recharge": 0.33,
+            "atk_pct": 0.4
+          },
+          "element_dmg": {},
+          "buff_effects": {}
+        },
+        "4": {
+          "effect_values": [
+            "45%",
+            "40",
+            "9",
+            "5",
+            "300"
+          ],
+          "panel_modifiers": {
+            "energy_recharge": 0.33,
+            "atk_pct": 0.45
+          },
+          "element_dmg": {},
+          "buff_effects": {}
+        },
+        "5": {
+          "effect_values": [
+            "50%",
+            "40",
+            "10",
+            "5",
+            "300"
+          ],
+          "panel_modifiers": {
+            "energy_recharge": 0.33,
+            "atk_pct": 0.5
+          },
+          "element_dmg": {},
+          "buff_effects": {}
+        }
+      }
+    },
+    "arc_f317782734": {
+      "nanoka_id": "fork_Butterfly",
+      "name": "现实避难所",
+      "default_level": 1,
+      "source_url": "https://static.nanoka.cc/nte/1.2/zh/weapon/fork_Butterfly.json",
+      "effect_name": "「斑蝶」",
+      "effect_description": "灵属性异能伤害提升<lv>{0}</>。\n装备者的附着物伤害提升<lv>{1}</>，释放「极轨终结」时，附着物伤害提升效果变为<lv>{2}</>，持续<lv>{3}</>秒，该效果不可叠加。",
+      "levels": {
+        "1": {
+          "effect_values": [
+            "15%",
+            "10%",
+            "20%",
+            "6"
+          ],
+          "panel_modifiers": {
+            "atk_pct": 0.3,
+            "attach_dmg": 0.1
+          },
+          "element_dmg": {
+            "灵": 0.15
+          },
+          "buff_effects": {
+            "arc_reality_shelter_q_attach": {
+              "attach_dmg": 0.1
+            }
+          }
+        },
+        "2": {
+          "effect_values": [
+            "17.5%",
+            "11.25%",
+            "22.5%",
+            "6"
+          ],
+          "panel_modifiers": {
+            "atk_pct": 0.3,
+            "attach_dmg": 0.1125
+          },
+          "element_dmg": {
+            "灵": 0.175
+          },
+          "buff_effects": {
+            "arc_reality_shelter_q_attach": {
+              "attach_dmg": 0.1125
+            }
+          }
+        },
+        "3": {
+          "effect_values": [
+            "20%",
+            "12.5%",
+            "25%",
+            "6"
+          ],
+          "panel_modifiers": {
+            "atk_pct": 0.3,
+            "attach_dmg": 0.125
+          },
+          "element_dmg": {
+            "灵": 0.2
+          },
+          "buff_effects": {
+            "arc_reality_shelter_q_attach": {
+              "attach_dmg": 0.125
+            }
+          }
+        },
+        "4": {
+          "effect_values": [
+            "22.5%",
+            "13.75%",
+            "27.5%",
+            "6"
+          ],
+          "panel_modifiers": {
+            "atk_pct": 0.3,
+            "attach_dmg": 0.1375
+          },
+          "element_dmg": {
+            "灵": 0.225
+          },
+          "buff_effects": {
+            "arc_reality_shelter_q_attach": {
+              "attach_dmg": 0.1375
+            }
+          }
+        },
+        "5": {
+          "effect_values": [
+            "25%",
+            "15%",
+            "30%",
+            "6"
+          ],
+          "panel_modifiers": {
+            "atk_pct": 0.3,
+            "attach_dmg": 0.15
+          },
+          "element_dmg": {
+            "灵": 0.25
+          },
+          "buff_effects": {
+            "arc_reality_shelter_q_attach": {
+              "attach_dmg": 0.15
+            }
+          }
+        }
+      }
+    },
+    "arc_a5b483cca6": {
+      "nanoka_id": "fork_BitGame",
+      "name": "引爆全场",
+      "default_level": 1,
+      "source_url": "https://static.nanoka.cc/nte/1.2/zh/weapon/fork_BitGame.json",
+      "effect_name": "「音霸魔王」",
+      "effect_description": "装备者位于后台时，当前控制的角色攻击力提高<lv>{0}</>，且装备者每次造成伤害都会使当前控制角色攻击力提高<lv>{1}</>，最多叠加<lv>4</>层，每<lv>{2}</>秒最多叠加<lv>1</>次，当装备者被切换为当前控制角色时候，该效果消失。\r\n当装备者为当前控制角色时，魂属性异能伤害提升<lv>{3}</>，且每次「普通攻击」造成魂属性异能伤害都会使自身魂属性异能伤害提升<lv>{4}</>，最多叠加<lv>10</>层，每<lv>0.3</>秒最多触发一次，切换角色时效果消失。",
+      "levels": {
+        "1": {
+          "effect_values": [
+            "10%",
+            "2%",
+            "2",
+            "12%",
+            "2%"
+          ],
+          "panel_modifiers": {
+            "atk_pct": 0.275
+          },
+          "element_dmg": {},
+          "buff_effects": {
+            "arc_bit_game_background_front_atk": {
+              "atk_pct": 0.1
+            },
+            "arc_bit_game_background_damage_front_atk_stack": {
+              "atk_pct": 0.02
+            },
+            "arc_bit_game_foreground_psyche_dmg": {
+              "element_dmg": 0.12
+            },
+            "arc_bit_game_basic_psyche_stack": {
+              "element_dmg": 0.02
+            }
+          }
+        },
+        "2": {
+          "effect_values": [
+            "11%",
+            "2.3%",
+            "2",
+            "14%",
+            "2.3%"
+          ],
+          "panel_modifiers": {
+            "atk_pct": 0.275
+          },
+          "element_dmg": {},
+          "buff_effects": {
+            "arc_bit_game_background_front_atk": {
+              "atk_pct": 0.11
+            },
+            "arc_bit_game_background_damage_front_atk_stack": {
+              "atk_pct": 0.023
+            },
+            "arc_bit_game_foreground_psyche_dmg": {
+              "element_dmg": 0.14
+            },
+            "arc_bit_game_basic_psyche_stack": {
+              "element_dmg": 0.023
+            }
+          }
+        },
+        "3": {
+          "effect_values": [
+            "12%",
+            "2.6%",
+            "2",
+            "16%",
+            "2.6%"
+          ],
+          "panel_modifiers": {
+            "atk_pct": 0.275
+          },
+          "element_dmg": {},
+          "buff_effects": {
+            "arc_bit_game_background_front_atk": {
+              "atk_pct": 0.12
+            },
+            "arc_bit_game_background_damage_front_atk_stack": {
+              "atk_pct": 0.026
+            },
+            "arc_bit_game_foreground_psyche_dmg": {
+              "element_dmg": 0.16
+            },
+            "arc_bit_game_basic_psyche_stack": {
+              "element_dmg": 0.026
+            }
+          }
+        },
+        "4": {
+          "effect_values": [
+            "13%",
+            "2.9%",
+            "2",
+            "18%",
+            "2.9%"
+          ],
+          "panel_modifiers": {
+            "atk_pct": 0.275
+          },
+          "element_dmg": {},
+          "buff_effects": {
+            "arc_bit_game_background_front_atk": {
+              "atk_pct": 0.13
+            },
+            "arc_bit_game_background_damage_front_atk_stack": {
+              "atk_pct": 0.029
+            },
+            "arc_bit_game_foreground_psyche_dmg": {
+              "element_dmg": 0.18
+            },
+            "arc_bit_game_basic_psyche_stack": {
+              "element_dmg": 0.029
+            }
+          }
+        },
+        "5": {
+          "effect_values": [
+            "14%",
+            "3.2%",
+            "2",
+            "20%",
+            "3.2%"
+          ],
+          "panel_modifiers": {
+            "atk_pct": 0.275
+          },
+          "element_dmg": {},
+          "buff_effects": {
+            "arc_bit_game_background_front_atk": {
+              "atk_pct": 0.14
+            },
+            "arc_bit_game_background_damage_front_atk_stack": {
+              "atk_pct": 0.032
+            },
+            "arc_bit_game_foreground_psyche_dmg": {
+              "element_dmg": 0.2
+            },
+            "arc_bit_game_basic_psyche_stack": {
+              "element_dmg": 0.032
+            }
+          }
+        }
+      }
+    },
+    "arc_74578e2ec4": {
+      "nanoka_id": "fork_Crowbar",
+      "name": "时间大盗",
+      "default_level": 5,
+      "source_url": "https://static.nanoka.cc/nte/1.2/zh/weapon/fork_Crowbar.json",
+      "effect_name": "「撬撬」",
+      "effect_description": "装备者释放「变轨技能」后，倾陷强度提升<lv>{0}</>，持续<lv>{1}</>秒，该效果不可叠加。\r\n可使用调弧·「撬撬」。（冷却时间<lv>{1}</>秒）\r\n调弧·「撬撬」：召唤「撬撬」，打开周围所有可以撬锁的物体。",
+      "levels": {
+        "1": {
+          "effect_values": [
+            "90",
+            "50"
+          ],
+          "panel_modifiers": {
+            "hp_pct": 0.25
+          },
+          "element_dmg": {},
+          "buff_effects": {
+            "arc_time_thief_e_stagger": {
+              "stagger_strength": 90.0
+            }
+          }
+        },
+        "2": {
+          "effect_values": [
+            "108",
+            "50"
+          ],
+          "panel_modifiers": {
+            "hp_pct": 0.25
+          },
+          "element_dmg": {},
+          "buff_effects": {
+            "arc_time_thief_e_stagger": {
+              "stagger_strength": 108.0
+            }
+          }
+        },
+        "3": {
+          "effect_values": [
+            "126",
+            "50"
+          ],
+          "panel_modifiers": {
+            "hp_pct": 0.25
+          },
+          "element_dmg": {},
+          "buff_effects": {
+            "arc_time_thief_e_stagger": {
+              "stagger_strength": 126.0
+            }
+          }
+        },
+        "4": {
+          "effect_values": [
+            "144",
+            "50"
+          ],
+          "panel_modifiers": {
+            "hp_pct": 0.25
+          },
+          "element_dmg": {},
+          "buff_effects": {
+            "arc_time_thief_e_stagger": {
+              "stagger_strength": 144.0
+            }
+          }
+        },
+        "5": {
+          "effect_values": [
+            "162",
+            "50"
+          ],
+          "panel_modifiers": {
+            "hp_pct": 0.25
+          },
+          "element_dmg": {},
+          "buff_effects": {
+            "arc_time_thief_e_stagger": {
+              "stagger_strength": 162.0
+            }
+          }
+        }
+      }
+    },
+    "arc_585af155aa": {
+      "nanoka_id": "fork_wuhuakuang",
+      "name": "被遗忘者",
+      "default_level": 5,
+      "source_url": "https://static.nanoka.cc/nte/1.2/zh/weapon/fork_wuhuakuang.json",
+      "effect_name": "「无画框」",
+      "effect_description": "装备者生命值高于50%的时候攻击力提高<lv>{0}</>；生命值低于50%的时候，防御力提高<lv>{1}</>。",
+      "levels": {
+        "1": {
+          "effect_values": [
+            "20%",
+            "20%"
+          ],
+          "panel_modifiers": {
+            "hp_pct": 0.25,
+            "atk_pct": 0.2,
+            "def_pct": 0.2
+          },
+          "element_dmg": {},
+          "buff_effects": {}
+        },
+        "2": {
+          "effect_values": [
+            "24%",
+            "24%"
+          ],
+          "panel_modifiers": {
+            "hp_pct": 0.25,
+            "atk_pct": 0.24,
+            "def_pct": 0.24
+          },
+          "element_dmg": {},
+          "buff_effects": {}
+        },
+        "3": {
+          "effect_values": [
+            "28%",
+            "28%"
+          ],
+          "panel_modifiers": {
+            "hp_pct": 0.25,
+            "atk_pct": 0.28,
+            "def_pct": 0.28
+          },
+          "element_dmg": {},
+          "buff_effects": {}
+        },
+        "4": {
+          "effect_values": [
+            "32%",
+            "32%"
+          ],
+          "panel_modifiers": {
+            "hp_pct": 0.25,
+            "atk_pct": 0.32,
+            "def_pct": 0.32
+          },
+          "element_dmg": {},
+          "buff_effects": {}
+        },
+        "5": {
+          "effect_values": [
+            "36%",
+            "36%"
+          ],
+          "panel_modifiers": {
+            "hp_pct": 0.25,
+            "atk_pct": 0.36,
+            "def_pct": 0.36
+          },
+          "element_dmg": {},
+          "buff_effects": {}
+        }
+      }
+    },
+    "arc_1b828c9173": {
+      "nanoka_id": "fork_nonos",
+      "name": "成功的第一步",
+      "default_level": 5,
+      "source_url": "https://static.nanoka.cc/nte/1.2/zh/weapon/fork_nonos.json",
+      "effect_name": "「诺诺斯」",
+      "effect_description": "装备者释放「变轨技能」后，自身攻击力提升<lv>{0}</>，持续<lv>{1}</>秒，<lv>{2}</>秒内最多触发一次。",
+      "levels": {
+        "1": {
+          "effect_values": [
+            "12%",
+            "10",
+            "20"
+          ],
+          "panel_modifiers": {
+            "atk_pct": 0.2
+          },
+          "element_dmg": {},
+          "buff_effects": {
+            "arc_first_step_e_atk": {
+              "atk_pct": 0.12
+            }
+          }
+        },
+        "2": {
+          "effect_values": [
+            "13%",
+            "10",
+            "20"
+          ],
+          "panel_modifiers": {
+            "atk_pct": 0.2
+          },
+          "element_dmg": {},
+          "buff_effects": {
+            "arc_first_step_e_atk": {
+              "atk_pct": 0.13
+            }
+          }
+        },
+        "3": {
+          "effect_values": [
+            "14%",
+            "10",
+            "20"
+          ],
+          "panel_modifiers": {
+            "atk_pct": 0.2
+          },
+          "element_dmg": {},
+          "buff_effects": {
+            "arc_first_step_e_atk": {
+              "atk_pct": 0.14
+            }
+          }
+        },
+        "4": {
+          "effect_values": [
+            "15%",
+            "10",
+            "20"
+          ],
+          "panel_modifiers": {
+            "atk_pct": 0.2
+          },
+          "element_dmg": {},
+          "buff_effects": {
+            "arc_first_step_e_atk": {
+              "atk_pct": 0.15
+            }
+          }
+        },
+        "5": {
+          "effect_values": [
+            "16%",
+            "10",
+            "20"
+          ],
+          "panel_modifiers": {
+            "atk_pct": 0.2
+          },
+          "element_dmg": {},
+          "buff_effects": {
+            "arc_first_step_e_atk": {
+              "atk_pct": 0.16
+            }
+          }
+        }
+      }
+    },
+    "arc_bab179ec33": {
+      "nanoka_id": "fork_Door",
+      "name": "错误的门",
+      "default_level": 1,
+      "source_url": "https://static.nanoka.cc/nte/1.2/zh/weapon/fork_Door.json",
+      "effect_name": "「随想之门」",
+      "effect_description": "攻击力提高<lv>{0}</>。\r\n装备者造成治疗的时候，自身造成的灵属性异能伤害增加<lv>{2}</>，编队其他角色获得通用增伤<lv>{1}</>(其他角色增伤效果队伍内唯一)，持续<lv>{3}</>秒，重复触发刷新持续时间。",
+      "levels": {
+        "1": {
+          "effect_values": [
+            "16%",
+            "15%",
+            "30%",
+            "20"
+          ],
+          "panel_modifiers": {
+            "atk_pct": 0.46
+          },
+          "element_dmg": {},
+          "buff_effects": {
+            "arc_wrong_door_heal_spirit": {
+              "element_dmg": 0.3
+            }
+          }
+        },
+        "2": {
+          "effect_values": [
+            "20%",
+            "18.75%",
+            "37.5%",
+            "20"
+          ],
+          "panel_modifiers": {
+            "atk_pct": 0.5
+          },
+          "element_dmg": {},
+          "buff_effects": {
+            "arc_wrong_door_heal_spirit": {
+              "element_dmg": 0.375
+            }
+          }
+        },
+        "3": {
+          "effect_values": [
+            "24%",
+            "22.5%",
+            "45%",
+            "20"
+          ],
+          "panel_modifiers": {
+            "atk_pct": 0.54
+          },
+          "element_dmg": {},
+          "buff_effects": {
+            "arc_wrong_door_heal_spirit": {
+              "element_dmg": 0.45
+            }
+          }
+        },
+        "4": {
+          "effect_values": [
+            "28%",
+            "26.25%",
+            "52.5%",
+            "20"
+          ],
+          "panel_modifiers": {
+            "atk_pct": 0.58
+          },
+          "element_dmg": {},
+          "buff_effects": {
+            "arc_wrong_door_heal_spirit": {
+              "element_dmg": 0.525
+            }
+          }
+        },
+        "5": {
+          "effect_values": [
+            "32%",
+            "30%",
+            "60%",
+            "20"
+          ],
+          "panel_modifiers": {
+            "atk_pct": 0.62
+          },
+          "element_dmg": {},
+          "buff_effects": {
+            "arc_wrong_door_heal_spirit": {
+              "element_dmg": 0.6
+            }
+          }
+        }
+      }
+    },
+    "arc_dcd5900afc": {
+      "nanoka_id": "fork_Rose",
+      "name": "「最后一朵玫瑰」",
+      "default_level": 1,
+      "source_url": "https://static.nanoka.cc/nte/1.2/zh/weapon/fork_Rose.json",
+      "effect_name": "「落拓玫瑰」",
+      "effect_description": "攻击力提高<lv>{0}</>。\n装备者每次造成持续伤害时获得一层「暗棘」，暴击伤害提高<lv>{1}</>，持续<lv>{2}</>秒，每<lv>0.3</>秒最多触发<lv>1</>次，至多叠加<lv>10</>层，重复触发刷新持续时间；当装备者释放「变轨技能」的时候，会立刻获得<lv>10</>层「暗棘」。\n当装备者对处于倾陷状态的敌人造成伤害的时候，会让敌人的倾陷状态延长<lv>{3}</>秒。(单次倾陷效果内最多触发一次。)",
+      "levels": {
+        "1": {
+          "effect_values": [
+            "14%",
+            "6%",
+            "3",
+            "3"
+          ],
+          "panel_modifiers": {
+            "crit_rate": 0.24,
+            "atk_pct": 0.14
+          },
+          "element_dmg": {},
+          "buff_effects": {
+            "arc_last_rose_crit_stack": {
+              "crit_dmg": 0.06
+            },
+            "arc_last_rose_e_full_stack": {
+              "crit_dmg": 0.06
+            }
+          }
+        },
+        "2": {
+          "effect_values": [
+            "17.5%",
+            "7.5%",
+            "3",
+            "3"
+          ],
+          "panel_modifiers": {
+            "crit_rate": 0.24,
+            "atk_pct": 0.175
+          },
+          "element_dmg": {},
+          "buff_effects": {
+            "arc_last_rose_crit_stack": {
+              "crit_dmg": 0.075
+            },
+            "arc_last_rose_e_full_stack": {
+              "crit_dmg": 0.075
+            }
+          }
+        },
+        "3": {
+          "effect_values": [
+            "21%",
+            "9%",
+            "3",
+            "3"
+          ],
+          "panel_modifiers": {
+            "crit_rate": 0.24,
+            "atk_pct": 0.21
+          },
+          "element_dmg": {},
+          "buff_effects": {
+            "arc_last_rose_crit_stack": {
+              "crit_dmg": 0.09
+            },
+            "arc_last_rose_e_full_stack": {
+              "crit_dmg": 0.09
+            }
+          }
+        },
+        "4": {
+          "effect_values": [
+            "24.5%",
+            "10.5%",
+            "3",
+            "3"
+          ],
+          "panel_modifiers": {
+            "crit_rate": 0.24,
+            "atk_pct": 0.245
+          },
+          "element_dmg": {},
+          "buff_effects": {
+            "arc_last_rose_crit_stack": {
+              "crit_dmg": 0.105
+            },
+            "arc_last_rose_e_full_stack": {
+              "crit_dmg": 0.105
+            }
+          }
+        },
+        "5": {
+          "effect_values": [
+            "28%",
+            "12%",
+            "3",
+            "3"
+          ],
+          "panel_modifiers": {
+            "crit_rate": 0.24,
+            "atk_pct": 0.28
+          },
+          "element_dmg": {},
+          "buff_effects": {
+            "arc_last_rose_crit_stack": {
+              "crit_dmg": 0.12
+            },
+            "arc_last_rose_e_full_stack": {
+              "crit_dmg": 0.12
+            }
+          }
+        }
+      }
+    },
+    "arc_126824ee1b": {
+      "nanoka_id": "fork_MotorCandy",
+      "name": "极速之绵",
+      "default_level": 1,
+      "source_url": "https://static.nanoka.cc/nte/1.2/zh/weapon/fork_MotorCandy.json",
+      "effect_name": "「机车糖」",
+      "effect_description": "当装备者为当前控制角色时，每<lv>{0}</>秒获得<lv>{1}</>攻击力提升，该效果最多叠加<lv>5</>层，装备者离场后清零。",
+      "levels": {
+        "1": {
+          "effect_values": [
+            "1",
+            "5%"
+          ],
+          "panel_modifiers": {
+            "crit_dmg": 0.44
+          },
+          "element_dmg": {},
+          "buff_effects": {
+            "arc_speed_cotton_front_atk": {
+              "atk_pct": 0.05
+            }
+          }
+        },
+        "2": {
+          "effect_values": [
+            "1",
+            "6%"
+          ],
+          "panel_modifiers": {
+            "crit_dmg": 0.44
+          },
+          "element_dmg": {},
+          "buff_effects": {
+            "arc_speed_cotton_front_atk": {
+              "atk_pct": 0.06
+            }
+          }
+        },
+        "3": {
+          "effect_values": [
+            "1",
+            "7%"
+          ],
+          "panel_modifiers": {
+            "crit_dmg": 0.44
+          },
+          "element_dmg": {},
+          "buff_effects": {
+            "arc_speed_cotton_front_atk": {
+              "atk_pct": 0.07
+            }
+          }
+        },
+        "4": {
+          "effect_values": [
+            "1",
+            "8%"
+          ],
+          "panel_modifiers": {
+            "crit_dmg": 0.44
+          },
+          "element_dmg": {},
+          "buff_effects": {
+            "arc_speed_cotton_front_atk": {
+              "atk_pct": 0.08
+            }
+          }
+        },
+        "5": {
+          "effect_values": [
+            "1",
+            "9%"
+          ],
+          "panel_modifiers": {
+            "crit_dmg": 0.44
+          },
+          "element_dmg": {},
+          "buff_effects": {
+            "arc_speed_cotton_front_atk": {
+              "atk_pct": 0.09
+            }
+          }
+        }
+      }
+    },
+    "arc_b3c0b59d01": {
+      "nanoka_id": "fork_MotorCandy",
+      "name": "极速之绵",
+      "default_level": 5,
+      "source_url": "https://static.nanoka.cc/nte/1.2/zh/weapon/fork_MotorCandy.json",
+      "effect_name": "「机车糖」",
+      "effect_description": "当装备者为当前控制角色时，每<lv>{0}</>秒获得<lv>{1}</>攻击力提升，该效果最多叠加<lv>5</>层，装备者离场后清零。",
+      "levels": {
+        "1": {
+          "effect_values": [
+            "1",
+            "5%"
+          ],
+          "panel_modifiers": {
+            "crit_dmg": 0.44
+          },
+          "element_dmg": {},
+          "buff_effects": {
+            "arc_speed_cotton_full_front_atk": {
+              "atk_pct": 0.05
+            }
+          }
+        },
+        "2": {
+          "effect_values": [
+            "1",
+            "6%"
+          ],
+          "panel_modifiers": {
+            "crit_dmg": 0.44
+          },
+          "element_dmg": {},
+          "buff_effects": {
+            "arc_speed_cotton_full_front_atk": {
+              "atk_pct": 0.06
+            }
+          }
+        },
+        "3": {
+          "effect_values": [
+            "1",
+            "7%"
+          ],
+          "panel_modifiers": {
+            "crit_dmg": 0.44
+          },
+          "element_dmg": {},
+          "buff_effects": {
+            "arc_speed_cotton_full_front_atk": {
+              "atk_pct": 0.07
+            }
+          }
+        },
+        "4": {
+          "effect_values": [
+            "1",
+            "8%"
+          ],
+          "panel_modifiers": {
+            "crit_dmg": 0.44
+          },
+          "element_dmg": {},
+          "buff_effects": {
+            "arc_speed_cotton_full_front_atk": {
+              "atk_pct": 0.08
+            }
+          }
+        },
+        "5": {
+          "effect_values": [
+            "1",
+            "9%"
+          ],
+          "panel_modifiers": {
+            "crit_dmg": 0.44
+          },
+          "element_dmg": {},
+          "buff_effects": {
+            "arc_speed_cotton_full_front_atk": {
+              "atk_pct": 0.09
+            }
+          }
+        }
+      }
+    },
+    "arc_60702143b6": {
+      "nanoka_id": "fork_BlackBook",
+      "name": "漆黑青春妄想",
+      "default_level": 1,
+      "source_url": "https://static.nanoka.cc/nte/1.2/zh/weapon/fork_BlackBook.json",
+      "effect_name": "「黑之书」",
+      "effect_description": "倾陷强度提升<lv>{0}</>。\r\n常态下调弧·「黑之书」被两根锁链封锁，每当队伍中任意角色释放「援护技」时，可以解除一根锁链。两根锁链全部解除后可使用调弧·「黑之书」。\r\n调弧·「黑之书」：召唤黑之书，黑之书存在于场上<lv>{1}</>秒，每<lv>{2}</>秒指定一个敌人，装备者对被指定的敌人造成的暗属性异能伤害提高<lv>{3}</>。当被指定的敌人受到倾陷伤害的时候，黑之书对其造成装备者<lv>{4}</>攻击力的暗属性异能伤害。",
+      "levels": {
+        "1": {
+          "effect_values": [
+            "60",
+            "20",
+            "5",
+            "20%",
+            "200%"
+          ],
+          "panel_modifiers": {
+            "atk_pct": 0.3,
+            "stagger_strength": 60.0
+          },
+          "element_dmg": {},
+          "buff_effects": {}
+        },
+        "2": {
+          "effect_values": [
+            "67",
+            "20",
+            "5",
+            "24%",
+            "230%"
+          ],
+          "panel_modifiers": {
+            "atk_pct": 0.3,
+            "stagger_strength": 67.0
+          },
+          "element_dmg": {},
+          "buff_effects": {}
+        },
+        "3": {
+          "effect_values": [
+            "74",
+            "20",
+            "5",
+            "28%",
+            "260%"
+          ],
+          "panel_modifiers": {
+            "atk_pct": 0.3,
+            "stagger_strength": 74.0
+          },
+          "element_dmg": {},
+          "buff_effects": {}
+        },
+        "4": {
+          "effect_values": [
+            "81",
+            "20",
+            "5",
+            "32%",
+            "290%"
+          ],
+          "panel_modifiers": {
+            "atk_pct": 0.3,
+            "stagger_strength": 81.0
+          },
+          "element_dmg": {},
+          "buff_effects": {}
+        },
+        "5": {
+          "effect_values": [
+            "88",
+            "20",
+            "5",
+            "36%",
+            "320%"
+          ],
+          "panel_modifiers": {
+            "atk_pct": 0.3,
+            "stagger_strength": 88.0
+          },
+          "element_dmg": {},
+          "buff_effects": {}
+        }
+      }
+    },
+    "arc_5fff1d2ae0": {
+      "nanoka_id": "fork_Castle",
+      "name": "扭曲之城的呼唤",
+      "default_level": 5,
+      "source_url": "https://static.nanoka.cc/nte/1.2/zh/weapon/fork_Castle.json",
+      "effect_name": "「瓦楞城堡」",
+      "effect_description": "装备者释放「变轨技能」后，自身治疗效率提升<lv>{0}</>，持续<lv>{1}</>秒，该效果不可叠加。",
+      "levels": {
+        "1": {
+          "effect_values": [
+            "12%",
+            "10"
+          ],
+          "panel_modifiers": {
+            "hp_pct": 0.375
+          },
+          "element_dmg": {},
+          "buff_effects": {}
+        },
+        "2": {
+          "effect_values": [
+            "14%",
+            "10"
+          ],
+          "panel_modifiers": {
+            "hp_pct": 0.375
+          },
+          "element_dmg": {},
+          "buff_effects": {}
+        },
+        "3": {
+          "effect_values": [
+            "16%",
+            "10"
+          ],
+          "panel_modifiers": {
+            "hp_pct": 0.375
+          },
+          "element_dmg": {},
+          "buff_effects": {}
+        },
+        "4": {
+          "effect_values": [
+            "18%",
+            "10"
+          ],
+          "panel_modifiers": {
+            "hp_pct": 0.375
+          },
+          "element_dmg": {},
+          "buff_effects": {}
+        },
+        "5": {
+          "effect_values": [
+            "20%",
+            "10"
+          ],
+          "panel_modifiers": {
+            "hp_pct": 0.375
+          },
+          "element_dmg": {},
+          "buff_effects": {}
+        }
+      }
+    },
+    "arc_e21ec2d386": {
+      "nanoka_id": "fork_jiaojuan",
+      "name": "闪耀的每一天",
+      "default_level": 5,
+      "source_url": "https://static.nanoka.cc/nte/1.2/zh/weapon/fork_jiaojuan.json",
+      "effect_name": "「胶卷-MANISHI」",
+      "effect_description": "倾陷强度提升<lv>{0}</>。\n装备者攻击倾陷单位造成的伤害提升<lv>{1}</>。",
+      "levels": {
+        "1": {
+          "effect_values": [
+            "48",
+            "10%"
+          ],
+          "panel_modifiers": {
+            "atk_pct": 0.25,
+            "stagger_strength": 48.0
+          },
+          "element_dmg": {},
+          "buff_effects": {}
+        },
+        "2": {
+          "effect_values": [
+            "57",
+            "12%"
+          ],
+          "panel_modifiers": {
+            "atk_pct": 0.25,
+            "stagger_strength": 57.0
+          },
+          "element_dmg": {},
+          "buff_effects": {}
+        },
+        "3": {
+          "effect_values": [
+            "66",
+            "14%"
+          ],
+          "panel_modifiers": {
+            "atk_pct": 0.25,
+            "stagger_strength": 66.0
+          },
+          "element_dmg": {},
+          "buff_effects": {}
+        },
+        "4": {
+          "effect_values": [
+            "75",
+            "16%"
+          ],
+          "panel_modifiers": {
+            "atk_pct": 0.25,
+            "stagger_strength": 75.0
+          },
+          "element_dmg": {},
+          "buff_effects": {}
+        },
+        "5": {
+          "effect_values": [
+            "84",
+            "18%"
+          ],
+          "panel_modifiers": {
+            "atk_pct": 0.25,
+            "stagger_strength": 84.0
+          },
+          "element_dmg": {},
+          "buff_effects": {}
+        }
+      }
+    },
+    "arc_d24279f95f": {
+      "nanoka_id": "fork_lingganzhongjiezhe",
+      "name": "灵感大逃杀",
+      "default_level": 5,
+      "source_url": "https://static.nanoka.cc/nte/1.2/zh/weapon/fork_lingganzhongjiezhe.json",
+      "effect_name": "「灵感终结者」",
+      "effect_description": "装备者释放「变轨技能」后，自身获得<lv>{0}</>点终结能量，该效果每<lv>{1}</>秒最多触发一次。",
+      "levels": {
+        "1": {
+          "effect_values": [
+            "10",
+            "20"
+          ],
+          "panel_modifiers": {
+            "stagger_strength": 60.0
+          },
+          "element_dmg": {},
+          "buff_effects": {}
+        },
+        "2": {
+          "effect_values": [
+            "12",
+            "20"
+          ],
+          "panel_modifiers": {
+            "stagger_strength": 60.0
+          },
+          "element_dmg": {},
+          "buff_effects": {}
+        },
+        "3": {
+          "effect_values": [
+            "14",
+            "20"
+          ],
+          "panel_modifiers": {
+            "stagger_strength": 60.0
+          },
+          "element_dmg": {},
+          "buff_effects": {}
+        },
+        "4": {
+          "effect_values": [
+            "16",
+            "20"
+          ],
+          "panel_modifiers": {
+            "stagger_strength": 60.0
+          },
+          "element_dmg": {},
+          "buff_effects": {}
+        },
+        "5": {
+          "effect_values": [
+            "18",
+            "20"
+          ],
+          "panel_modifiers": {
+            "stagger_strength": 60.0
+          },
+          "element_dmg": {},
+          "buff_effects": {}
+        }
+      }
+    },
+    "arc_edbcee2b65": {
+      "nanoka_id": "fork_PaperPlane",
+      "name": "开始净空",
+      "default_level": 5,
+      "source_url": "https://static.nanoka.cc/nte/1.2/zh/weapon/fork_PaperPlane.json",
+      "effect_name": "「纸翼战队」",
+      "effect_description": "装备者的「变轨技能」和「极轨终结」造成的灵属性异能伤害提升<lv>{0}</>。",
+      "levels": {
+        "1": {
+          "effect_values": [
+            "20%"
+          ],
+          "panel_modifiers": {
+            "atk_pct": 0.25,
+            "skill_dmg": 0.2,
+            "ultimate_dmg": 0.2
+          },
+          "element_dmg": {},
+          "buff_effects": {}
+        },
+        "2": {
+          "effect_values": [
+            "23.75%"
+          ],
+          "panel_modifiers": {
+            "atk_pct": 0.25,
+            "skill_dmg": 0.2375,
+            "ultimate_dmg": 0.2375
+          },
+          "element_dmg": {},
+          "buff_effects": {}
+        },
+        "3": {
+          "effect_values": [
+            "27.5%"
+          ],
+          "panel_modifiers": {
+            "atk_pct": 0.25,
+            "skill_dmg": 0.275,
+            "ultimate_dmg": 0.275
+          },
+          "element_dmg": {},
+          "buff_effects": {}
+        },
+        "4": {
+          "effect_values": [
+            "31.25%"
+          ],
+          "panel_modifiers": {
+            "atk_pct": 0.25,
+            "skill_dmg": 0.3125,
+            "ultimate_dmg": 0.3125
+          },
+          "element_dmg": {},
+          "buff_effects": {}
+        },
+        "5": {
+          "effect_values": [
+            "35%"
+          ],
+          "panel_modifiers": {
+            "atk_pct": 0.25,
+            "skill_dmg": 0.35,
+            "ultimate_dmg": 0.35
+          },
+          "element_dmg": {},
+          "buff_effects": {}
+        }
+      }
+    },
+    "arc_b99b47cd11": {
+      "nanoka_id": "fork_appliance",
+      "name": "「电音」狂欢",
+      "default_level": 5,
+      "source_url": "https://static.nanoka.cc/nte/1.2/zh/weapon/fork_appliance.json",
+      "effect_name": "「附电灵」",
+      "effect_description": "装备者「变轨技能」造成的伤害提高<lv>{0}</>。",
+      "levels": {
+        "1": {
+          "effect_values": [
+            "12%"
+          ],
+          "panel_modifiers": {
+            "atk_pct": 0.2,
+            "skill_dmg": 0.12
+          },
+          "element_dmg": {},
+          "buff_effects": {}
+        },
+        "2": {
+          "effect_values": [
+            "13%"
+          ],
+          "panel_modifiers": {
+            "atk_pct": 0.2,
+            "skill_dmg": 0.13
+          },
+          "element_dmg": {},
+          "buff_effects": {}
+        },
+        "3": {
+          "effect_values": [
+            "14%"
+          ],
+          "panel_modifiers": {
+            "atk_pct": 0.2,
+            "skill_dmg": 0.14
+          },
+          "element_dmg": {},
+          "buff_effects": {}
+        },
+        "4": {
+          "effect_values": [
+            "15%"
+          ],
+          "panel_modifiers": {
+            "atk_pct": 0.2,
+            "skill_dmg": 0.15
+          },
+          "element_dmg": {},
+          "buff_effects": {}
+        },
+        "5": {
+          "effect_values": [
+            "16%"
+          ],
+          "panel_modifiers": {
+            "atk_pct": 0.2,
+            "skill_dmg": 0.16
+          },
+          "element_dmg": {},
+          "buff_effects": {}
+        }
+      }
+    },
+    "arc_8b67b6e360": {
+      "nanoka_id": "fork_ThiefCandy",
+      "name": "灵敏之绵",
+      "default_level": 1,
+      "source_url": "https://static.nanoka.cc/nte/1.2/zh/weapon/fork_ThiefCandy.json",
+      "effect_name": "「盗贼糖」",
+      "effect_description": "装备者每次极限闪避后自身造成的伤害提高<lv>{0}</>，持续<lv>{1}</>秒，最多叠加<lv>3</>层，重复触发刷新持续时间。",
+      "levels": {
+        "1": {
+          "effect_values": [
+            "8%",
+            "10"
+          ],
+          "panel_modifiers": {
+            "atk_pct": 0.275
+          },
+          "element_dmg": {},
+          "buff_effects": {}
+        },
+        "2": {
+          "effect_values": [
+            "9.6%",
+            "10"
+          ],
+          "panel_modifiers": {
+            "atk_pct": 0.275
+          },
+          "element_dmg": {},
+          "buff_effects": {}
+        },
+        "3": {
+          "effect_values": [
+            "11.2%",
+            "10"
+          ],
+          "panel_modifiers": {
+            "atk_pct": 0.275
+          },
+          "element_dmg": {},
+          "buff_effects": {}
+        },
+        "4": {
+          "effect_values": [
+            "12.8%",
+            "10"
+          ],
+          "panel_modifiers": {
+            "atk_pct": 0.275
+          },
+          "element_dmg": {},
+          "buff_effects": {}
+        },
+        "5": {
+          "effect_values": [
+            "14.4%",
+            "10"
+          ],
+          "panel_modifiers": {
+            "atk_pct": 0.275
+          },
+          "element_dmg": {},
+          "buff_effects": {}
+        }
+      }
+    },
+    "arc_f36fcedbc8": {
+      "nanoka_id": "fork_ThiefCandy",
+      "name": "灵敏之绵",
+      "default_level": 5,
+      "source_url": "https://static.nanoka.cc/nte/1.2/zh/weapon/fork_ThiefCandy.json",
+      "effect_name": "「盗贼糖」",
+      "effect_description": "装备者每次极限闪避后自身造成的伤害提高<lv>{0}</>，持续<lv>{1}</>秒，最多叠加<lv>3</>层，重复触发刷新持续时间。",
+      "levels": {
+        "1": {
+          "effect_values": [
+            "8%",
+            "10"
+          ],
+          "panel_modifiers": {
+            "atk_pct": 0.275
+          },
+          "element_dmg": {},
+          "buff_effects": {}
+        },
+        "2": {
+          "effect_values": [
+            "9.6%",
+            "10"
+          ],
+          "panel_modifiers": {
+            "atk_pct": 0.275
+          },
+          "element_dmg": {},
+          "buff_effects": {}
+        },
+        "3": {
+          "effect_values": [
+            "11.2%",
+            "10"
+          ],
+          "panel_modifiers": {
+            "atk_pct": 0.275
+          },
+          "element_dmg": {},
+          "buff_effects": {}
+        },
+        "4": {
+          "effect_values": [
+            "12.8%",
+            "10"
+          ],
+          "panel_modifiers": {
+            "atk_pct": 0.275
+          },
+          "element_dmg": {},
+          "buff_effects": {}
+        },
+        "5": {
+          "effect_values": [
+            "14.4%",
+            "10"
+          ],
+          "panel_modifiers": {
+            "atk_pct": 0.275
+          },
+          "element_dmg": {},
+          "buff_effects": {}
+        }
+      }
+    },
+    "arc_112b3492d8": {
+      "nanoka_id": "fork_mamen",
+      "name": "思考喵",
+      "default_level": 1,
+      "source_url": "https://static.nanoka.cc/nte/1.2/zh/weapon/fork_mamen.json",
+      "effect_name": "「玛门」",
+      "effect_description": "装备者每持有<lv>{0}</>方斯，光属性异能伤害提高<lv>{1}</>，最多叠加<lv>10</>层。",
+      "levels": {
+        "1": {
+          "effect_values": [
+            "100000",
+            "2.5%"
+          ],
+          "panel_modifiers": {
+            "crit_dmg": 0.44
+          },
+          "element_dmg": {},
+          "buff_effects": {
+            "arc_thinking_cat_fons_light": {
+              "element_dmg": 0.25
+            }
+          }
+        },
+        "2": {
+          "effect_values": [
+            "100000",
+            "3%"
+          ],
+          "panel_modifiers": {
+            "crit_dmg": 0.44
+          },
+          "element_dmg": {},
+          "buff_effects": {
+            "arc_thinking_cat_fons_light": {
+              "element_dmg": 0.3
+            }
+          }
+        },
+        "3": {
+          "effect_values": [
+            "100000",
+            "3.5%"
+          ],
+          "panel_modifiers": {
+            "crit_dmg": 0.44
+          },
+          "element_dmg": {},
+          "buff_effects": {
+            "arc_thinking_cat_fons_light": {
+              "element_dmg": 0.35
+            }
+          }
+        },
+        "4": {
+          "effect_values": [
+            "100000",
+            "4%"
+          ],
+          "panel_modifiers": {
+            "crit_dmg": 0.44
+          },
+          "element_dmg": {},
+          "buff_effects": {
+            "arc_thinking_cat_fons_light": {
+              "element_dmg": 0.4
+            }
+          }
+        },
+        "5": {
+          "effect_values": [
+            "100000",
+            "4.5%"
+          ],
+          "panel_modifiers": {
+            "crit_dmg": 0.44
+          },
+          "element_dmg": {},
+          "buff_effects": {
+            "arc_thinking_cat_fons_light": {
+              "element_dmg": 0.45
+            }
+          }
+        }
+      }
+    },
+    "arc_5fb06c9645": {
+      "nanoka_id": "fork_mamen",
+      "name": "思考喵",
+      "default_level": 5,
+      "source_url": "https://static.nanoka.cc/nte/1.2/zh/weapon/fork_mamen.json",
+      "effect_name": "「玛门」",
+      "effect_description": "装备者每持有<lv>{0}</>方斯，光属性异能伤害提高<lv>{1}</>，最多叠加<lv>10</>层。",
+      "levels": {
+        "1": {
+          "effect_values": [
+            "100000",
+            "2.5%"
+          ],
+          "panel_modifiers": {
+            "crit_dmg": 0.44
+          },
+          "element_dmg": {},
+          "buff_effects": {
+            "arc_thinking_cat_full_fons_light": {
+              "element_dmg": 0.25
+            }
+          }
+        },
+        "2": {
+          "effect_values": [
+            "100000",
+            "3%"
+          ],
+          "panel_modifiers": {
+            "crit_dmg": 0.44
+          },
+          "element_dmg": {},
+          "buff_effects": {
+            "arc_thinking_cat_full_fons_light": {
+              "element_dmg": 0.3
+            }
+          }
+        },
+        "3": {
+          "effect_values": [
+            "100000",
+            "3.5%"
+          ],
+          "panel_modifiers": {
+            "crit_dmg": 0.44
+          },
+          "element_dmg": {},
+          "buff_effects": {
+            "arc_thinking_cat_full_fons_light": {
+              "element_dmg": 0.35
+            }
+          }
+        },
+        "4": {
+          "effect_values": [
+            "100000",
+            "4%"
+          ],
+          "panel_modifiers": {
+            "crit_dmg": 0.44
+          },
+          "element_dmg": {},
+          "buff_effects": {
+            "arc_thinking_cat_full_fons_light": {
+              "element_dmg": 0.4
+            }
+          }
+        },
+        "5": {
+          "effect_values": [
+            "100000",
+            "4.5%"
+          ],
+          "panel_modifiers": {
+            "crit_dmg": 0.44
+          },
+          "element_dmg": {},
+          "buff_effects": {
+            "arc_thinking_cat_full_fons_light": {
+              "element_dmg": 0.45
+            }
+          }
+        }
+      }
+    },
+    "arc_34ea3e1a6d": {
+      "nanoka_id": "fork_NestBird",
+      "name": "面具下的泪",
+      "default_level": 1,
+      "source_url": "https://static.nanoka.cc/nte/1.2/zh/weapon/fork_NestBird.json",
+      "effect_name": "「囿巢鸟」",
+      "effect_description": "装备者释放「极轨终结」命中的敌人会被赋予标记「警告视线」，被标记的敌人造成的伤害降低<lv>18%</>，持续<lv>20</>秒，该效果不可叠加。",
+      "levels": {
+        "1": {
+          "effect_values": [],
+          "panel_modifiers": {
+            "atk_pct": 0.275
+          },
+          "element_dmg": {},
+          "buff_effects": {}
+        },
+        "2": {
+          "effect_values": [],
+          "panel_modifiers": {
+            "atk_pct": 0.275
+          },
+          "element_dmg": {},
+          "buff_effects": {}
+        },
+        "3": {
+          "effect_values": [],
+          "panel_modifiers": {
+            "atk_pct": 0.275
+          },
+          "element_dmg": {},
+          "buff_effects": {}
+        },
+        "4": {
+          "effect_values": [],
+          "panel_modifiers": {
+            "atk_pct": 0.275
+          },
+          "element_dmg": {},
+          "buff_effects": {}
+        },
+        "5": {
+          "effect_values": [],
+          "panel_modifiers": {
+            "atk_pct": 0.275
+          },
+          "element_dmg": {},
+          "buff_effects": {}
+        }
+      }
+    },
+    "arc_5167a86a24": {
+      "nanoka_id": "fork_mofeikesi",
+      "name": "好狗狗走四方",
+      "default_level": 1,
+      "source_url": "https://static.nanoka.cc/nte/1.2/zh/weapon/fork_mofeikesi.json",
+      "effect_name": "「墨菲克斯」",
+      "effect_description": "充能效率提升<lv>{0}</>。\r\n装备者释放「极轨终结」后<lv>{1}</>秒内，全队攻击力提升<lv>{2}</>；若敌人受到该「极轨终结」的控制效果，全队额外提升<lv>{3}</>攻击力。同名效果无法叠加。",
+      "levels": {
+        "1": {
+          "effect_values": [
+            "18%",
+            "20",
+            "10%",
+            "6%"
+          ],
+          "panel_modifiers": {
+            "atk_pct": 0.45,
+            "energy_recharge": 0.18
+          },
+          "element_dmg": {},
+          "buff_effects": {
+            "arc_good_dog_q_team_atk": {
+              "atk_pct": 0.1
+            },
+            "arc_good_dog_q_control_extra_atk": {
+              "atk_pct": 0.06
+            }
+          }
+        },
+        "2": {
+          "effect_values": [
+            "21%",
+            "20",
+            "11.5%",
+            "7%"
+          ],
+          "panel_modifiers": {
+            "atk_pct": 0.45,
+            "energy_recharge": 0.21
+          },
+          "element_dmg": {},
+          "buff_effects": {
+            "arc_good_dog_q_team_atk": {
+              "atk_pct": 0.115
+            },
+            "arc_good_dog_q_control_extra_atk": {
+              "atk_pct": 0.07
+            }
+          }
+        },
+        "3": {
+          "effect_values": [
+            "24%",
+            "20",
+            "13%",
+            "8%"
+          ],
+          "panel_modifiers": {
+            "atk_pct": 0.45,
+            "energy_recharge": 0.24
+          },
+          "element_dmg": {},
+          "buff_effects": {
+            "arc_good_dog_q_team_atk": {
+              "atk_pct": 0.13
+            },
+            "arc_good_dog_q_control_extra_atk": {
+              "atk_pct": 0.08
+            }
+          }
+        },
+        "4": {
+          "effect_values": [
+            "27%",
+            "20",
+            "14.5%",
+            "9%"
+          ],
+          "panel_modifiers": {
+            "atk_pct": 0.45,
+            "energy_recharge": 0.27
+          },
+          "element_dmg": {},
+          "buff_effects": {
+            "arc_good_dog_q_team_atk": {
+              "atk_pct": 0.145
+            },
+            "arc_good_dog_q_control_extra_atk": {
+              "atk_pct": 0.09
+            }
+          }
+        },
+        "5": {
+          "effect_values": [
+            "30%",
+            "20",
+            "16%",
+            "10%"
+          ],
+          "panel_modifiers": {
+            "atk_pct": 0.45,
+            "energy_recharge": 0.3
+          },
+          "element_dmg": {},
+          "buff_effects": {
+            "arc_good_dog_q_team_atk": {
+              "atk_pct": 0.16
+            },
+            "arc_good_dog_q_control_extra_atk": {
+              "atk_pct": 0.1
+            }
+          }
+        }
+      }
+    },
+    "arc_4c291f3966": {
+      "nanoka_id": "fork_bopu",
+      "name": "光波眩晕，迷走狂欢",
+      "default_level": 5,
+      "source_url": "https://static.nanoka.cc/nte/1.2/zh/weapon/fork_bopu.json",
+      "effect_name": "「波普」",
+      "effect_description": "装备者释放「援护技」后<lv>{0}</>秒内，造成的伤害提高<lv>{1}</>。每<lv>{2}</>秒最多触发一次。",
+      "levels": {
+        "1": {
+          "effect_values": [
+            "10",
+            "18%",
+            "20"
+          ],
+          "panel_modifiers": {
+            "atk_pct": 0.25
+          },
+          "element_dmg": {},
+          "buff_effects": {
+            "arc_dazzle_support_all_dmg": {
+              "all_dmg": 0.18
+            }
+          }
+        },
+        "2": {
+          "effect_values": [
+            "10",
+            "21%",
+            "20"
+          ],
+          "panel_modifiers": {
+            "atk_pct": 0.25
+          },
+          "element_dmg": {},
+          "buff_effects": {
+            "arc_dazzle_support_all_dmg": {
+              "all_dmg": 0.21
+            }
+          }
+        },
+        "3": {
+          "effect_values": [
+            "10",
+            "24%",
+            "20"
+          ],
+          "panel_modifiers": {
+            "atk_pct": 0.25
+          },
+          "element_dmg": {},
+          "buff_effects": {
+            "arc_dazzle_support_all_dmg": {
+              "all_dmg": 0.24
+            }
+          }
+        },
+        "4": {
+          "effect_values": [
+            "10",
+            "27%",
+            "20"
+          ],
+          "panel_modifiers": {
+            "atk_pct": 0.25
+          },
+          "element_dmg": {},
+          "buff_effects": {
+            "arc_dazzle_support_all_dmg": {
+              "all_dmg": 0.27
+            }
+          }
+        },
+        "5": {
+          "effect_values": [
+            "10",
+            "30%",
+            "20"
+          ],
+          "panel_modifiers": {
+            "atk_pct": 0.25
+          },
+          "element_dmg": {},
+          "buff_effects": {
+            "arc_dazzle_support_all_dmg": {
+              "all_dmg": 0.3
+            }
+          }
+        }
+      }
+    },
+    "arc_320435ce51": {
+      "nanoka_id": "fork_Kite",
+      "name": "当心头顶",
+      "default_level": 5,
+      "source_url": "https://static.nanoka.cc/nte/1.2/zh/weapon/fork_Kite.json",
+      "effect_name": "「诡面筝」",
+      "effect_description": "装备者释放「变轨技能」后攻击力提高<lv>{0}</>，且对受到「延滞」和「浸染」影响的单位造成的相属性异能伤害提高<lv>{1}</>，持续<lv>{2}</>秒，该效果无法叠加。",
+      "levels": {
+        "1": {
+          "effect_values": [
+            "10%",
+            "10%",
+            "15"
+          ],
+          "panel_modifiers": {
+            "crit_dmg": 0.4
+          },
+          "element_dmg": {},
+          "buff_effects": {
+            "arc_overhead_e_atk": {
+              "atk_pct": 0.1
+            },
+            "arc_overhead_delay_element": {
+              "element_dmg": 0.1
+            }
+          }
+        },
+        "2": {
+          "effect_values": [
+            "12%",
+            "12%",
+            "15"
+          ],
+          "panel_modifiers": {
+            "crit_dmg": 0.4
+          },
+          "element_dmg": {},
+          "buff_effects": {
+            "arc_overhead_e_atk": {
+              "atk_pct": 0.12
+            },
+            "arc_overhead_delay_element": {
+              "element_dmg": 0.12
+            }
+          }
+        },
+        "3": {
+          "effect_values": [
+            "14%",
+            "14%",
+            "15"
+          ],
+          "panel_modifiers": {
+            "crit_dmg": 0.4
+          },
+          "element_dmg": {},
+          "buff_effects": {
+            "arc_overhead_e_atk": {
+              "atk_pct": 0.14
+            },
+            "arc_overhead_delay_element": {
+              "element_dmg": 0.14
+            }
+          }
+        },
+        "4": {
+          "effect_values": [
+            "16%",
+            "16%",
+            "15"
+          ],
+          "panel_modifiers": {
+            "crit_dmg": 0.4
+          },
+          "element_dmg": {},
+          "buff_effects": {
+            "arc_overhead_e_atk": {
+              "atk_pct": 0.16
+            },
+            "arc_overhead_delay_element": {
+              "element_dmg": 0.16
+            }
+          }
+        },
+        "5": {
+          "effect_values": [
+            "18%",
+            "18%",
+            "15"
+          ],
+          "panel_modifiers": {
+            "crit_dmg": 0.4
+          },
+          "element_dmg": {},
+          "buff_effects": {
+            "arc_overhead_e_atk": {
+              "atk_pct": 0.18
+            },
+            "arc_overhead_delay_element": {
+              "element_dmg": 0.18
+            }
+          }
+        }
+      }
+    },
+    "arc_c67cabea48": {
+      "nanoka_id": "fork_spider",
+      "name": "挂你在心口难开",
+      "default_level": 5,
+      "source_url": "https://static.nanoka.cc/nte/1.2/zh/weapon/fork_spider.json",
+      "effect_name": "「蜘识藏家」",
+      "effect_description": "装备者通过「普通攻击」造成伤害可使自身获得<lv>1</>层「蜘识」，最多叠加<lv>8</>层，每<lv>0.5</>秒最多获得<lv>1</>层「蜘识」。装备者释放「极轨终结」时消耗所有「蜘识」，每消耗<lv>1</>层「蜘识」可以让全队在<lv>{0}</>秒内攻击力提升<lv>{1}</>；若消耗的「蜘识」数量为<lv>8</>，则额外使全队攻击力提升<lv>{2}</>。",
+      "levels": {
+        "1": {
+          "effect_values": [
+            "10",
+            "1%",
+            "2%"
+          ],
+          "panel_modifiers": {
+            "stagger_strength": 120.0
+          },
+          "element_dmg": {},
+          "buff_effects": {}
+        },
+        "2": {
+          "effect_values": [
+            "10",
+            "1.15%",
+            "2.3%"
+          ],
+          "panel_modifiers": {
+            "stagger_strength": 120.0
+          },
+          "element_dmg": {},
+          "buff_effects": {}
+        },
+        "3": {
+          "effect_values": [
+            "10",
+            "1.3%",
+            "2.6%"
+          ],
+          "panel_modifiers": {
+            "stagger_strength": 120.0
+          },
+          "element_dmg": {},
+          "buff_effects": {}
+        },
+        "4": {
+          "effect_values": [
+            "10",
+            "1.45%",
+            "2.9%"
+          ],
+          "panel_modifiers": {
+            "stagger_strength": 120.0
+          },
+          "element_dmg": {},
+          "buff_effects": {}
+        },
+        "5": {
+          "effect_values": [
+            "10",
+            "1.6%",
+            "3.2%"
+          ],
+          "panel_modifiers": {
+            "stagger_strength": 120.0
+          },
+          "element_dmg": {},
+          "buff_effects": {}
+        }
+      }
+    },
+    "arc_9c6f8a1665": {
+      "nanoka_id": "fork_vine",
+      "name": "笑口常开",
+      "default_level": 1,
+      "source_url": "https://static.nanoka.cc/nte/1.2/zh/weapon/fork_vine.json",
+      "effect_name": "「抱抱藤」",
+      "effect_description": "装备者击杀敌人时，回复自身<lv>{0}</>生命值，<lv>{1}</>秒内最多触发一次。",
+      "levels": {
+        "1": {
+          "effect_values": [
+            "12%",
+            "20"
+          ],
+          "panel_modifiers": {
+            "hp_pct": 0.3
+          },
+          "element_dmg": {},
+          "buff_effects": {}
+        },
+        "2": {
+          "effect_values": [
+            "14%",
+            "20"
+          ],
+          "panel_modifiers": {
+            "hp_pct": 0.3
+          },
+          "element_dmg": {},
+          "buff_effects": {}
+        },
+        "3": {
+          "effect_values": [
+            "16%",
+            "20"
+          ],
+          "panel_modifiers": {
+            "hp_pct": 0.3
+          },
+          "element_dmg": {},
+          "buff_effects": {}
+        },
+        "4": {
+          "effect_values": [
+            "18%",
+            "20"
+          ],
+          "panel_modifiers": {
+            "hp_pct": 0.3
+          },
+          "element_dmg": {},
+          "buff_effects": {}
+        },
+        "5": {
+          "effect_values": [
+            "20%",
+            "20"
+          ],
+          "panel_modifiers": {
+            "hp_pct": 0.3
+          },
+          "element_dmg": {},
+          "buff_effects": {}
+        }
+      }
+    },
+    "arc_ce53905d70": {
+      "nanoka_id": "fork_TigerTally",
+      "name": "预备备",
+      "default_level": 1,
+      "source_url": "https://static.nanoka.cc/nte/1.2/zh/weapon/fork_TigerTally.json",
+      "effect_name": "「司令虎符」",
+      "effect_description": "攻击力提高<lv>{0}</>。\n释放「变轨技能」或「极轨终结」使自身的「普通攻击」和「极限反击」造成伤害提高<lv>{1}</>，持续<lv>{2}</>秒，该效果最多叠加<lv>2</>层。\n释放「变轨技能」可以获得\"左虎符\"，释放「极轨终结」，可以获得\"右虎符\"。\n若在获得一种虎符的<lv>{3}</>秒内获得另一种虎符，则可使用调弧：「司令虎符」。\n调弧·「司令虎符」：装备者对Boss单位造成的伤害提升<lv>{4}</>，持续<lv>{5}</>秒。",
+      "levels": {
+        "1": {
+          "effect_values": [
+            "15%",
+            "15%",
+            "15",
+            "15",
+            "10%",
+            "10"
+          ],
+          "panel_modifiers": {
+            "crit_rate": 0.24,
+            "atk_pct": 0.15
+          },
+          "element_dmg": {},
+          "buff_effects": {
+            "arc_ready_eq_basic_dodge": {
+              "basic_dmg": 0.15,
+              "dodge_counter_dmg": 0.15
+            }
+          }
+        },
+        "2": {
+          "effect_values": [
+            "18.75%",
+            "18.75%",
+            "15",
+            "15",
+            "12.5%",
+            "10"
+          ],
+          "panel_modifiers": {
+            "crit_rate": 0.24,
+            "atk_pct": 0.1875
+          },
+          "element_dmg": {},
+          "buff_effects": {
+            "arc_ready_eq_basic_dodge": {
+              "basic_dmg": 0.1875,
+              "dodge_counter_dmg": 0.1875
+            }
+          }
+        },
+        "3": {
+          "effect_values": [
+            "22.5%",
+            "22.5%",
+            "15",
+            "15",
+            "15%",
+            "10"
+          ],
+          "panel_modifiers": {
+            "crit_rate": 0.24,
+            "atk_pct": 0.225
+          },
+          "element_dmg": {},
+          "buff_effects": {
+            "arc_ready_eq_basic_dodge": {
+              "basic_dmg": 0.225,
+              "dodge_counter_dmg": 0.225
+            }
+          }
+        },
+        "4": {
+          "effect_values": [
+            "26.25%",
+            "26.25%",
+            "15",
+            "15",
+            "17.5%",
+            "10"
+          ],
+          "panel_modifiers": {
+            "crit_rate": 0.24,
+            "atk_pct": 0.2625
+          },
+          "element_dmg": {},
+          "buff_effects": {
+            "arc_ready_eq_basic_dodge": {
+              "basic_dmg": 0.2625,
+              "dodge_counter_dmg": 0.2625
+            }
+          }
+        },
+        "5": {
+          "effect_values": [
+            "30%",
+            "30%",
+            "15",
+            "15",
+            "20%",
+            "10"
+          ],
+          "panel_modifiers": {
+            "crit_rate": 0.24,
+            "atk_pct": 0.3
+          },
+          "element_dmg": {},
+          "buff_effects": {
+            "arc_ready_eq_basic_dodge": {
+              "basic_dmg": 0.3,
+              "dodge_counter_dmg": 0.3
+            }
+          }
+        }
+      }
+    },
+    "arc_b22de80f07": {
+      "nanoka_id": "fork_BoxingCandy",
+      "name": "不屈之绵",
+      "default_level": 1,
+      "source_url": "https://static.nanoka.cc/nte/1.2/zh/weapon/fork_BoxingCandy.json",
+      "effect_name": "「拳击糖」",
+      "effect_description": "装备者造成的伤害增加<lv>{0}</>，对于生命值低于50%的敌人，该效果提升至<lv>{1}</>。",
+      "levels": {
+        "1": {
+          "effect_values": [
+            "22%",
+            "28%"
+          ],
+          "panel_modifiers": {
+            "atk_pct": 0.275,
+            "all_dmg": 0.22
+          },
+          "element_dmg": {},
+          "buff_effects": {
+            "arc_unyielding_low_hp_bonus": {
+              "all_dmg": 0.06
+            }
+          }
+        },
+        "2": {
+          "effect_values": [
+            "26%",
+            "34%"
+          ],
+          "panel_modifiers": {
+            "atk_pct": 0.275,
+            "all_dmg": 0.26
+          },
+          "element_dmg": {},
+          "buff_effects": {
+            "arc_unyielding_low_hp_bonus": {
+              "all_dmg": 0.08
+            }
+          }
+        },
+        "3": {
+          "effect_values": [
+            "30%",
+            "40%"
+          ],
+          "panel_modifiers": {
+            "atk_pct": 0.275,
+            "all_dmg": 0.3
+          },
+          "element_dmg": {},
+          "buff_effects": {
+            "arc_unyielding_low_hp_bonus": {
+              "all_dmg": 0.1
+            }
+          }
+        },
+        "4": {
+          "effect_values": [
+            "34%",
+            "46%"
+          ],
+          "panel_modifiers": {
+            "atk_pct": 0.275,
+            "all_dmg": 0.34
+          },
+          "element_dmg": {},
+          "buff_effects": {
+            "arc_unyielding_low_hp_bonus": {
+              "all_dmg": 0.12
+            }
+          }
+        },
+        "5": {
+          "effect_values": [
+            "38%",
+            "52%"
+          ],
+          "panel_modifiers": {
+            "atk_pct": 0.275,
+            "all_dmg": 0.38
+          },
+          "element_dmg": {},
+          "buff_effects": {
+            "arc_unyielding_low_hp_bonus": {
+              "all_dmg": 0.14
+            }
+          }
+        }
+      }
+    },
+    "arc_0a681d8e81": {
+      "nanoka_id": "fork_BoxingCandy",
+      "name": "不屈之绵",
+      "default_level": 5,
+      "source_url": "https://static.nanoka.cc/nte/1.2/zh/weapon/fork_BoxingCandy.json",
+      "effect_name": "「拳击糖」",
+      "effect_description": "装备者造成的伤害增加<lv>{0}</>，对于生命值低于50%的敌人，该效果提升至<lv>{1}</>。",
+      "levels": {
+        "1": {
+          "effect_values": [
+            "22%",
+            "28%"
+          ],
+          "panel_modifiers": {
+            "atk_pct": 0.275,
+            "all_dmg": 0.22
+          },
+          "element_dmg": {},
+          "buff_effects": {
+            "arc_unyielding_full_low_hp_bonus": {
+              "all_dmg": 0.06
+            }
+          }
+        },
+        "2": {
+          "effect_values": [
+            "26%",
+            "34%"
+          ],
+          "panel_modifiers": {
+            "atk_pct": 0.275,
+            "all_dmg": 0.26
+          },
+          "element_dmg": {},
+          "buff_effects": {
+            "arc_unyielding_full_low_hp_bonus": {
+              "all_dmg": 0.08
+            }
+          }
+        },
+        "3": {
+          "effect_values": [
+            "30%",
+            "40%"
+          ],
+          "panel_modifiers": {
+            "atk_pct": 0.275,
+            "all_dmg": 0.3
+          },
+          "element_dmg": {},
+          "buff_effects": {
+            "arc_unyielding_full_low_hp_bonus": {
+              "all_dmg": 0.1
+            }
+          }
+        },
+        "4": {
+          "effect_values": [
+            "34%",
+            "46%"
+          ],
+          "panel_modifiers": {
+            "atk_pct": 0.275,
+            "all_dmg": 0.34
+          },
+          "element_dmg": {},
+          "buff_effects": {
+            "arc_unyielding_full_low_hp_bonus": {
+              "all_dmg": 0.12
+            }
+          }
+        },
+        "5": {
+          "effect_values": [
+            "38%",
+            "52%"
+          ],
+          "panel_modifiers": {
+            "atk_pct": 0.275,
+            "all_dmg": 0.38
+          },
+          "element_dmg": {},
+          "buff_effects": {
+            "arc_unyielding_full_low_hp_bonus": {
+              "all_dmg": 0.14
+            }
+          }
+        }
+      }
+    },
+    "arc_8fbb15cb26": {
+      "nanoka_id": "fork_moon",
+      "name": "「银河暂留」",
+      "default_level": 1,
+      "source_url": "https://static.nanoka.cc/nte/1.2/zh/weapon/fork_moon.json",
+      "effect_name": "「水星图」",
+      "effect_description": "装备者造成的魂属性异能伤害增加<lv>{0}</>。装备者造成魂属性异能伤害的时候，自身暴击伤害提高<lv>{1}</>，持续<lv>{2}</>秒，最多叠加<lv>10</>层，每<lv>0.1</>秒最多叠加一层。",
+      "levels": {
+        "1": {
+          "effect_values": [
+            "12%",
+            "2%",
+            "5"
+          ],
+          "panel_modifiers": {
+            "atk_pct": 0.275
+          },
+          "element_dmg": {
+            "魂": 0.12
+          },
+          "buff_effects": {
+            "arc_galaxy_soul_hit_crit": {
+              "crit_dmg": 0.02
+            }
+          }
+        },
+        "2": {
+          "effect_values": [
+            "14.5%",
+            "2.4%",
+            "5"
+          ],
+          "panel_modifiers": {
+            "atk_pct": 0.275
+          },
+          "element_dmg": {
+            "魂": 0.145
+          },
+          "buff_effects": {
+            "arc_galaxy_soul_hit_crit": {
+              "crit_dmg": 0.024
+            }
+          }
+        },
+        "3": {
+          "effect_values": [
+            "17%",
+            "2.8%",
+            "5"
+          ],
+          "panel_modifiers": {
+            "atk_pct": 0.275
+          },
+          "element_dmg": {
+            "魂": 0.17
+          },
+          "buff_effects": {
+            "arc_galaxy_soul_hit_crit": {
+              "crit_dmg": 0.028
+            }
+          }
+        },
+        "4": {
+          "effect_values": [
+            "19.5%",
+            "3.2%",
+            "5"
+          ],
+          "panel_modifiers": {
+            "atk_pct": 0.275
+          },
+          "element_dmg": {
+            "魂": 0.195
+          },
+          "buff_effects": {
+            "arc_galaxy_soul_hit_crit": {
+              "crit_dmg": 0.032
+            }
+          }
+        },
+        "5": {
+          "effect_values": [
+            "21%",
+            "3.6%",
+            "5"
+          ],
+          "panel_modifiers": {
+            "atk_pct": 0.275
+          },
+          "element_dmg": {
+            "魂": 0.21
+          },
+          "buff_effects": {
+            "arc_galaxy_soul_hit_crit": {
+              "crit_dmg": 0.036
+            }
+          }
+        }
+      }
+    },
+    "arc_d75aa15b91": {
+      "nanoka_id": "fork_Whale",
+      "name": "鲸之歌",
+      "default_level": 1,
+      "source_url": "https://static.nanoka.cc/nte/1.2/zh/weapon/fork_Whale.json",
+      "effect_name": "「深蓝之恸」",
+      "effect_description": "攻击力提高<lv>{0}</>。\n装备者对处于倾陷状态的敌人造成的伤害提高<lv>{1}</>，如果敌人在倾陷状态下被击杀，则回复装备者<lv>{2}</>生命值，该效果<lv>{3}</>秒内最多触发<lv>1</>次。",
+      "levels": {
+        "1": {
+          "effect_values": [
+            "12%",
+            "12%",
+            "30%",
+            "30"
+          ],
+          "panel_modifiers": {
+            "atk_pct": 0.395
+          },
+          "element_dmg": {},
+          "buff_effects": {}
+        },
+        "2": {
+          "effect_values": [
+            "14%",
+            "14%",
+            "30%",
+            "30"
+          ],
+          "panel_modifiers": {
+            "atk_pct": 0.415
+          },
+          "element_dmg": {},
+          "buff_effects": {}
+        },
+        "3": {
+          "effect_values": [
+            "16%",
+            "16%",
+            "30%",
+            "30"
+          ],
+          "panel_modifiers": {
+            "atk_pct": 0.435
+          },
+          "element_dmg": {},
+          "buff_effects": {}
+        },
+        "4": {
+          "effect_values": [
+            "18%",
+            "18%",
+            "30%",
+            "30"
+          ],
+          "panel_modifiers": {
+            "atk_pct": 0.455
+          },
+          "element_dmg": {},
+          "buff_effects": {}
+        },
+        "5": {
+          "effect_values": [
+            "20%",
+            "20%",
+            "30%",
+            "30"
+          ],
+          "panel_modifiers": {
+            "atk_pct": 0.475
+          },
+          "element_dmg": {},
+          "buff_effects": {}
+        }
+      }
+    },
+    "arc_9758ceaf0a": {
+      "nanoka_id": "fork_wushoutieyu",
+      "name": "焰魂狂飙",
+      "default_level": 1,
+      "source_url": "https://static.nanoka.cc/nte/1.2/zh/weapon/fork_wushoutieyu.json",
+      "effect_name": "「无首铁驭」",
+      "effect_description": "相属性异能伤害提升<lv>{3}</>。\r\n释放「极轨终结」后，装备者「变轨技能」和「极轨终结」造成伤害提升<lv>{0}</>，持续<lv>{1}</>秒。效果生效期间，每次释放「变轨技能」，装备者的「变轨技能」造成伤害提升<lv>{2}</>，通过这一方式获得的伤害提升最多叠加两次。",
+      "levels": {
+        "1": {
+          "effect_values": [
+            "10%",
+            "10",
+            "5%",
+            "15%"
+          ],
+          "panel_modifiers": {
+            "crit_dmg": 0.24
+          },
+          "element_dmg": {
+            "相": 0.15
+          },
+          "buff_effects": {}
+        },
+        "2": {
+          "effect_values": [
+            "12.5%",
+            "10",
+            "6%",
+            "17.5%"
+          ],
+          "panel_modifiers": {
+            "crit_dmg": 0.24
+          },
+          "element_dmg": {
+            "相": 0.175
+          },
+          "buff_effects": {}
+        },
+        "3": {
+          "effect_values": [
+            "15%",
+            "10",
+            "7%",
+            "20%"
+          ],
+          "panel_modifiers": {
+            "crit_dmg": 0.24
+          },
+          "element_dmg": {
+            "相": 0.2
+          },
+          "buff_effects": {}
+        },
+        "4": {
+          "effect_values": [
+            "17.5%",
+            "10",
+            "8%",
+            "22.5%"
+          ],
+          "panel_modifiers": {
+            "crit_dmg": 0.24
+          },
+          "element_dmg": {
+            "相": 0.225
+          },
+          "buff_effects": {}
+        },
+        "5": {
+          "effect_values": [
+            "20%",
+            "10",
+            "9%",
+            "25%"
+          ],
+          "panel_modifiers": {
+            "crit_dmg": 0.24
+          },
+          "element_dmg": {
+            "相": 0.25
+          },
+          "buff_effects": {}
+        }
+      }
+    },
+    "arc_1f9a971412": {
+      "nanoka_id": "fork_yaodao",
+      "name": "拔刀",
+      "default_level": 1,
+      "source_url": "https://static.nanoka.cc/nte/1.2/zh/weapon/fork_yaodao.json",
+      "effect_name": "「血染妖刀」",
+      "effect_description": "装备者触发承轨反击时额外附带一次<lv>{0}</>攻击力的咒属性异能伤害。",
+      "levels": {
+        "1": {
+          "effect_values": [
+            "200%"
+          ],
+          "panel_modifiers": {
+            "atk_pct": 0.375
+          },
+          "element_dmg": {},
+          "buff_effects": {}
+        },
+        "2": {
+          "effect_values": [
+            "230%"
+          ],
+          "panel_modifiers": {
+            "atk_pct": 0.375
+          },
+          "element_dmg": {},
+          "buff_effects": {}
+        },
+        "3": {
+          "effect_values": [
+            "260%"
+          ],
+          "panel_modifiers": {
+            "atk_pct": 0.375
+          },
+          "element_dmg": {},
+          "buff_effects": {}
+        },
+        "4": {
+          "effect_values": [
+            "290%"
+          ],
+          "panel_modifiers": {
+            "atk_pct": 0.375
+          },
+          "element_dmg": {},
+          "buff_effects": {}
+        },
+        "5": {
+          "effect_values": [
+            "320%"
+          ],
+          "panel_modifiers": {
+            "atk_pct": 0.375
+          },
+          "element_dmg": {},
+          "buff_effects": {}
+        }
+      }
+    },
+    "arc_4d19ef5194": {
+      "nanoka_id": "fork_oulaquantao",
+      "name": "欧拉欧拉！",
+      "default_level": 5,
+      "source_url": "https://static.nanoka.cc/nte/1.2/zh/weapon/fork_oulaquantao.json",
+      "effect_name": "「欧拉拳套」",
+      "effect_description": "装备者每次「普通攻击」造成伤害后<lv>{0}</>秒内，自身「普通攻击」伤害提升<lv>{1}</>，最多叠加<lv>10</>层，每层效果单独结算持续时间。",
+      "levels": {
+        "1": {
+          "effect_values": [
+            "10",
+            "2%"
+          ],
+          "panel_modifiers": {
+            "atk_pct": 0.375
+          },
+          "element_dmg": {},
+          "buff_effects": {
+            "arc_ora_basic_stack": {
+              "basic_dmg": 0.02
+            }
+          }
+        },
+        "2": {
+          "effect_values": [
+            "10",
+            "2.4%"
+          ],
+          "panel_modifiers": {
+            "atk_pct": 0.375
+          },
+          "element_dmg": {},
+          "buff_effects": {
+            "arc_ora_basic_stack": {
+              "basic_dmg": 0.024
+            }
+          }
+        },
+        "3": {
+          "effect_values": [
+            "10",
+            "2.8%"
+          ],
+          "panel_modifiers": {
+            "atk_pct": 0.375
+          },
+          "element_dmg": {},
+          "buff_effects": {
+            "arc_ora_basic_stack": {
+              "basic_dmg": 0.028
+            }
+          }
+        },
+        "4": {
+          "effect_values": [
+            "10",
+            "3.2%"
+          ],
+          "panel_modifiers": {
+            "atk_pct": 0.375
+          },
+          "element_dmg": {},
+          "buff_effects": {
+            "arc_ora_basic_stack": {
+              "basic_dmg": 0.032
+            }
+          }
+        },
+        "5": {
+          "effect_values": [
+            "10",
+            "3.6%"
+          ],
+          "panel_modifiers": {
+            "atk_pct": 0.375
+          },
+          "element_dmg": {},
+          "buff_effects": {
+            "arc_ora_basic_stack": {
+              "basic_dmg": 0.036
+            }
+          }
+        }
+      }
+    },
+    "arc_7378181f20": {
+      "nanoka_id": "fork_Prokaryon",
+      "name": "「我们。」",
+      "default_level": 5,
+      "source_url": "https://static.nanoka.cc/nte/1.2/zh/weapon/fork_Prokaryon.json",
+      "effect_name": "「原核体」",
+      "effect_description": "装备者「普通攻击」造成的伤害提高<lv>{0}</>。",
+      "levels": {
+        "1": {
+          "effect_values": [
+            "12%"
+          ],
+          "panel_modifiers": {
+            "atk_pct": 0.2,
+            "basic_dmg": 0.12
+          },
+          "element_dmg": {},
+          "buff_effects": {}
+        },
+        "2": {
+          "effect_values": [
+            "13%"
+          ],
+          "panel_modifiers": {
+            "atk_pct": 0.2,
+            "basic_dmg": 0.13
+          },
+          "element_dmg": {},
+          "buff_effects": {}
+        },
+        "3": {
+          "effect_values": [
+            "14%"
+          ],
+          "panel_modifiers": {
+            "atk_pct": 0.2,
+            "basic_dmg": 0.14
+          },
+          "element_dmg": {},
+          "buff_effects": {}
+        },
+        "4": {
+          "effect_values": [
+            "15%"
+          ],
+          "panel_modifiers": {
+            "atk_pct": 0.2,
+            "basic_dmg": 0.15
+          },
+          "element_dmg": {},
+          "buff_effects": {}
+        },
+        "5": {
+          "effect_values": [
+            "16%"
+          ],
+          "panel_modifiers": {
+            "atk_pct": 0.2,
+            "basic_dmg": 0.16
+          },
+          "element_dmg": {},
+          "buff_effects": {}
+        }
+      }
+    },
+    "arc_27dc4a7281": {
+      "nanoka_id": "fork_LunarPhase",
+      "name": "穿过胭红蜃景",
+      "default_level": 1,
+      "source_url": "https://static.nanoka.cc/nte/1.2/zh/weapon/fork_LunarPhase.json",
+      "effect_name": "「月相嬗变」",
+      "effect_description": "攻击力提高<lv>{0}</>。\n装备者释放「极轨终结」后，自身造成的光属性异能伤害增加<lv>{1}</>，并且造成的伤害无视敌人<lv>{2}</>防御，持续<lv>{3}</>秒，重复触发刷新持续时间。",
+      "levels": {
+        "1": {
+          "effect_values": [
+            "20%",
+            "32%",
+            "12%",
+            "20"
+          ],
+          "panel_modifiers": {
+            "crit_rate": 0.24,
+            "atk_pct": 0.2
+          },
+          "element_dmg": {},
+          "buff_effects": {
+            "arc_crimson_mirage_q_light_def": {
+              "element_dmg": 0.32,
+              "def_ignore": 0.12
+            }
+          }
+        },
+        "2": {
+          "effect_values": [
+            "23%",
+            "36.8%",
+            "13.8%",
+            "20"
+          ],
+          "panel_modifiers": {
+            "crit_rate": 0.24,
+            "atk_pct": 0.23
+          },
+          "element_dmg": {},
+          "buff_effects": {
+            "arc_crimson_mirage_q_light_def": {
+              "element_dmg": 0.368,
+              "def_ignore": 0.138
+            }
+          }
+        },
+        "3": {
+          "effect_values": [
+            "26%",
+            "41.6%",
+            "15.6%",
+            "20"
+          ],
+          "panel_modifiers": {
+            "crit_rate": 0.24,
+            "atk_pct": 0.26
+          },
+          "element_dmg": {},
+          "buff_effects": {
+            "arc_crimson_mirage_q_light_def": {
+              "element_dmg": 0.416,
+              "def_ignore": 0.156
+            }
+          }
+        },
+        "4": {
+          "effect_values": [
+            "29%",
+            "46.4%",
+            "17.4%",
+            "20"
+          ],
+          "panel_modifiers": {
+            "crit_rate": 0.24,
+            "atk_pct": 0.29
+          },
+          "element_dmg": {},
+          "buff_effects": {
+            "arc_crimson_mirage_q_light_def": {
+              "element_dmg": 0.464,
+              "def_ignore": 0.174
+            }
+          }
+        },
+        "5": {
+          "effect_values": [
+            "32%",
+            "51.2%",
+            "19.2%",
+            "20"
+          ],
+          "panel_modifiers": {
+            "crit_rate": 0.24,
+            "atk_pct": 0.32
+          },
+          "element_dmg": {},
+          "buff_effects": {
+            "arc_crimson_mirage_q_light_def": {
+              "element_dmg": 0.512,
+              "def_ignore": 0.192
+            }
+          }
+        }
+      }
+    },
+    "arc_2b6d5881ef": {
+      "nanoka_id": "fork_LunarPhase",
+      "name": "穿过胭红蜃景",
+      "default_level": 5,
+      "source_url": "https://static.nanoka.cc/nte/1.2/zh/weapon/fork_LunarPhase.json",
+      "effect_name": "「月相嬗变」",
+      "effect_description": "攻击力提高<lv>{0}</>。\n装备者释放「极轨终结」后，自身造成的光属性异能伤害增加<lv>{1}</>，并且造成的伤害无视敌人<lv>{2}</>防御，持续<lv>{3}</>秒，重复触发刷新持续时间。",
+      "levels": {
+        "1": {
+          "effect_values": [
+            "20%",
+            "32%",
+            "12%",
+            "20"
+          ],
+          "panel_modifiers": {
+            "crit_rate": 0.24,
+            "atk_pct": 0.2
+          },
+          "element_dmg": {},
+          "buff_effects": {
+            "arc_crimson_mirage_full_q_light_def": {
+              "element_dmg": 0.32,
+              "def_ignore": 0.12
+            }
+          }
+        },
+        "2": {
+          "effect_values": [
+            "23%",
+            "36.8%",
+            "13.8%",
+            "20"
+          ],
+          "panel_modifiers": {
+            "crit_rate": 0.24,
+            "atk_pct": 0.23
+          },
+          "element_dmg": {},
+          "buff_effects": {
+            "arc_crimson_mirage_full_q_light_def": {
+              "element_dmg": 0.368,
+              "def_ignore": 0.138
+            }
+          }
+        },
+        "3": {
+          "effect_values": [
+            "26%",
+            "41.6%",
+            "15.6%",
+            "20"
+          ],
+          "panel_modifiers": {
+            "crit_rate": 0.24,
+            "atk_pct": 0.26
+          },
+          "element_dmg": {},
+          "buff_effects": {
+            "arc_crimson_mirage_full_q_light_def": {
+              "element_dmg": 0.416,
+              "def_ignore": 0.156
+            }
+          }
+        },
+        "4": {
+          "effect_values": [
+            "29%",
+            "46.4%",
+            "17.4%",
+            "20"
+          ],
+          "panel_modifiers": {
+            "crit_rate": 0.24,
+            "atk_pct": 0.29
+          },
+          "element_dmg": {},
+          "buff_effects": {
+            "arc_crimson_mirage_full_q_light_def": {
+              "element_dmg": 0.464,
+              "def_ignore": 0.174
+            }
+          }
+        },
+        "5": {
+          "effect_values": [
+            "32%",
+            "51.2%",
+            "19.2%",
+            "20"
+          ],
+          "panel_modifiers": {
+            "crit_rate": 0.24,
+            "atk_pct": 0.32
+          },
+          "element_dmg": {},
+          "buff_effects": {
+            "arc_crimson_mirage_full_q_light_def": {
+              "element_dmg": 0.512,
+              "def_ignore": 0.192
+            }
+          }
+        }
+      }
+    },
+    "arc_d7e0691c5f": {
+      "nanoka_id": "fork_GoldWool",
+      "name": "众人追寻之物",
+      "default_level": 1,
+      "source_url": "https://static.nanoka.cc/nte/1.2/zh/weapon/fork_GoldWool.json",
+      "effect_name": "「金羊毛」",
+      "effect_description": "装备者造成的相属性异能伤害增加<lv>{0}</>。装备者释放「变轨技能」或「极轨终结」的时候，自身暴击伤害提高<lv>{1}</>，持续<lv>{2}</>秒，重复触发刷新持续时间。",
+      "levels": {
+        "1": {
+          "effect_values": [
+            "20%",
+            "40%",
+            "20"
+          ],
+          "panel_modifiers": {
+            "crit_rate": 0.24
+          },
+          "element_dmg": {
+            "相": 0.2
+          },
+          "buff_effects": {
+            "arc_searched_eq_crit": {
+              "crit_dmg": 0.4
+            }
+          }
+        },
+        "2": {
+          "effect_values": [
+            "25%",
+            "50%",
+            "20"
+          ],
+          "panel_modifiers": {
+            "crit_rate": 0.24
+          },
+          "element_dmg": {
+            "相": 0.25
+          },
+          "buff_effects": {
+            "arc_searched_eq_crit": {
+              "crit_dmg": 0.5
+            }
+          }
+        },
+        "3": {
+          "effect_values": [
+            "30%",
+            "60%",
+            "20"
+          ],
+          "panel_modifiers": {
+            "crit_rate": 0.24
+          },
+          "element_dmg": {
+            "相": 0.3
+          },
+          "buff_effects": {
+            "arc_searched_eq_crit": {
+              "crit_dmg": 0.6
+            }
+          }
+        },
+        "4": {
+          "effect_values": [
+            "35%",
+            "70%",
+            "20"
+          ],
+          "panel_modifiers": {
+            "crit_rate": 0.24
+          },
+          "element_dmg": {
+            "相": 0.35
+          },
+          "buff_effects": {
+            "arc_searched_eq_crit": {
+              "crit_dmg": 0.7
+            }
+          }
+        },
+        "5": {
+          "effect_values": [
+            "40%",
+            "80%",
+            "20"
+          ],
+          "panel_modifiers": {
+            "crit_rate": 0.24
+          },
+          "element_dmg": {
+            "相": 0.4
+          },
+          "buff_effects": {
+            "arc_searched_eq_crit": {
+              "crit_dmg": 0.8
+            }
+          }
+        }
+      }
+    },
+    "arc_1ddecc32f3": {
+      "nanoka_id": "fork_KnightCandy",
+      "name": "凶猛之绵",
+      "default_level": 1,
+      "source_url": "https://static.nanoka.cc/nte/1.2/zh/weapon/fork_KnightCandy.json",
+      "effect_name": "「骑士糖」",
+      "effect_description": "装备者每次造成暴击后自身暴击伤害提高<lv>{0}</>，持续<lv>{1}</>秒，最多叠加<lv>10</>层，重复触发刷新持续时间。",
+      "levels": {
+        "1": {
+          "effect_values": [
+            "4%",
+            "10"
+          ],
+          "panel_modifiers": {
+            "atk_pct": 0.275
+          },
+          "element_dmg": {},
+          "buff_effects": {
+            "arc_fierce_cotton_crit": {
+              "crit_dmg": 0.04
+            }
+          }
+        },
+        "2": {
+          "effect_values": [
+            "4.8%",
+            "10"
+          ],
+          "panel_modifiers": {
+            "atk_pct": 0.275
+          },
+          "element_dmg": {},
+          "buff_effects": {
+            "arc_fierce_cotton_crit": {
+              "crit_dmg": 0.048
+            }
+          }
+        },
+        "3": {
+          "effect_values": [
+            "5.6%",
+            "10"
+          ],
+          "panel_modifiers": {
+            "atk_pct": 0.275
+          },
+          "element_dmg": {},
+          "buff_effects": {
+            "arc_fierce_cotton_crit": {
+              "crit_dmg": 0.056
+            }
+          }
+        },
+        "4": {
+          "effect_values": [
+            "6.4%",
+            "10"
+          ],
+          "panel_modifiers": {
+            "atk_pct": 0.275
+          },
+          "element_dmg": {},
+          "buff_effects": {
+            "arc_fierce_cotton_crit": {
+              "crit_dmg": 0.064
+            }
+          }
+        },
+        "5": {
+          "effect_values": [
+            "7.2%",
+            "10"
+          ],
+          "panel_modifiers": {
+            "atk_pct": 0.275
+          },
+          "element_dmg": {},
+          "buff_effects": {
+            "arc_fierce_cotton_crit": {
+              "crit_dmg": 0.072
+            }
+          }
+        }
+      }
+    },
+    "arc_92353a7626": {
+      "nanoka_id": "fork_KnightCandy",
+      "name": "凶猛之绵",
+      "default_level": 5,
+      "source_url": "https://static.nanoka.cc/nte/1.2/zh/weapon/fork_KnightCandy.json",
+      "effect_name": "「骑士糖」",
+      "effect_description": "装备者每次造成暴击后自身暴击伤害提高<lv>{0}</>，持续<lv>{1}</>秒，最多叠加<lv>10</>层，重复触发刷新持续时间。",
+      "levels": {
+        "1": {
+          "effect_values": [
+            "4%",
+            "10"
+          ],
+          "panel_modifiers": {
+            "atk_pct": 0.275
+          },
+          "element_dmg": {},
+          "buff_effects": {
+            "arc_fierce_cotton_full_crit": {
+              "crit_dmg": 0.04
+            }
+          }
+        },
+        "2": {
+          "effect_values": [
+            "4.8%",
+            "10"
+          ],
+          "panel_modifiers": {
+            "atk_pct": 0.275
+          },
+          "element_dmg": {},
+          "buff_effects": {
+            "arc_fierce_cotton_full_crit": {
+              "crit_dmg": 0.048
+            }
+          }
+        },
+        "3": {
+          "effect_values": [
+            "5.6%",
+            "10"
+          ],
+          "panel_modifiers": {
+            "atk_pct": 0.275
+          },
+          "element_dmg": {},
+          "buff_effects": {
+            "arc_fierce_cotton_full_crit": {
+              "crit_dmg": 0.056
+            }
+          }
+        },
+        "4": {
+          "effect_values": [
+            "6.4%",
+            "10"
+          ],
+          "panel_modifiers": {
+            "atk_pct": 0.275
+          },
+          "element_dmg": {},
+          "buff_effects": {
+            "arc_fierce_cotton_full_crit": {
+              "crit_dmg": 0.064
+            }
+          }
+        },
+        "5": {
+          "effect_values": [
+            "7.2%",
+            "10"
+          ],
+          "panel_modifiers": {
+            "atk_pct": 0.275
+          },
+          "element_dmg": {},
+          "buff_effects": {
+            "arc_fierce_cotton_full_crit": {
+              "crit_dmg": 0.072
+            }
+          }
+        }
+      }
+    },
+    "arc_6e7753edf5": {
+      "nanoka_id": "fork_jingmotingyuan",
+      "name": "茶花会",
+      "default_level": 1,
+      "source_url": "https://static.nanoka.cc/nte/1.2/zh/weapon/fork_jingmotingyuan.json",
+      "effect_name": "「静默庭园」",
+      "effect_description": "装备者在未受到伤害的情况下失去生命值后<lv>{0}</>秒内获得<lv>{1}</>暴击伤害提升，至多叠加<lv>4</>次；可使用调弧·「静默庭园」\r\n调弧·「静默庭园」：扣除自身<lv>{2}</>当前生命值，随机释放以下一种攻击（冷却时间<lv>{3}</>秒）：\r\n厉声呵斥：不留情面的呵斥如暴雨中的落叶接二连三，对目标造成<lv>5</>次<lv>{4}</>攻击力的咒系伤害。\r\n喋喋不休：尖锐刻薄的话语如荆棘般不断刺穿目标，对目标连续造成<lv>6</>次基础伤害为<lv>{5}</>攻击力的咒系伤害，最后一次攻击造成双倍伤害。",
+      "levels": {
+        "1": {
+          "effect_values": [
+            "5",
+            "12%",
+            "5%",
+            "25",
+            "24%",
+            "18%"
+          ],
+          "panel_modifiers": {
+            "crit_rate": 0.12
+          },
+          "element_dmg": {},
+          "buff_effects": {
+            "arc_camellia_hp_loss_crit": {
+              "crit_dmg": 0.12
+            }
+          }
+        },
+        "2": {
+          "effect_values": [
+            "5",
+            "14%",
+            "5%",
+            "25",
+            "28%",
+            "21%"
+          ],
+          "panel_modifiers": {
+            "crit_rate": 0.12
+          },
+          "element_dmg": {},
+          "buff_effects": {
+            "arc_camellia_hp_loss_crit": {
+              "crit_dmg": 0.14
+            }
+          }
+        },
+        "3": {
+          "effect_values": [
+            "5",
+            "16%",
+            "5%",
+            "25",
+            "32%",
+            "24%"
+          ],
+          "panel_modifiers": {
+            "crit_rate": 0.12
+          },
+          "element_dmg": {},
+          "buff_effects": {
+            "arc_camellia_hp_loss_crit": {
+              "crit_dmg": 0.16
+            }
+          }
+        },
+        "4": {
+          "effect_values": [
+            "5",
+            "18%",
+            "5%",
+            "25",
+            "36%",
+            "27%"
+          ],
+          "panel_modifiers": {
+            "crit_rate": 0.12
+          },
+          "element_dmg": {},
+          "buff_effects": {
+            "arc_camellia_hp_loss_crit": {
+              "crit_dmg": 0.18
+            }
+          }
+        },
+        "5": {
+          "effect_values": [
+            "5",
+            "20%",
+            "5%",
+            "25",
+            "40%",
+            "30%"
+          ],
+          "panel_modifiers": {
+            "crit_rate": 0.12
+          },
+          "element_dmg": {},
+          "buff_effects": {
+            "arc_camellia_hp_loss_crit": {
+              "crit_dmg": 0.2
+            }
+          }
+        }
+      }
+    },
+    "arc_a01731d2ff": {
+      "nanoka_id": "fork_jingmotingyuan",
+      "name": "茶花会",
+      "default_level": 1,
+      "source_url": "https://static.nanoka.cc/nte/1.2/zh/weapon/fork_jingmotingyuan.json",
+      "effect_name": "「静默庭园」",
+      "effect_description": "装备者在未受到伤害的情况下失去生命值后<lv>{0}</>秒内获得<lv>{1}</>暴击伤害提升，至多叠加<lv>4</>次；可使用调弧·「静默庭园」\r\n调弧·「静默庭园」：扣除自身<lv>{2}</>当前生命值，随机释放以下一种攻击（冷却时间<lv>{3}</>秒）：\r\n厉声呵斥：不留情面的呵斥如暴雨中的落叶接二连三，对目标造成<lv>5</>次<lv>{4}</>攻击力的咒系伤害。\r\n喋喋不休：尖锐刻薄的话语如荆棘般不断刺穿目标，对目标连续造成<lv>6</>次基础伤害为<lv>{5}</>攻击力的咒系伤害，最后一次攻击造成双倍伤害。",
+      "levels": {
+        "1": {
+          "effect_values": [
+            "5",
+            "12%",
+            "5%",
+            "25",
+            "24%",
+            "18%"
+          ],
+          "panel_modifiers": {
+            "crit_rate": 0.12
+          },
+          "element_dmg": {},
+          "buff_effects": {}
+        },
+        "2": {
+          "effect_values": [
+            "5",
+            "14%",
+            "5%",
+            "25",
+            "28%",
+            "21%"
+          ],
+          "panel_modifiers": {
+            "crit_rate": 0.12
+          },
+          "element_dmg": {},
+          "buff_effects": {}
+        },
+        "3": {
+          "effect_values": [
+            "5",
+            "16%",
+            "5%",
+            "25",
+            "32%",
+            "24%"
+          ],
+          "panel_modifiers": {
+            "crit_rate": 0.12
+          },
+          "element_dmg": {},
+          "buff_effects": {}
+        },
+        "4": {
+          "effect_values": [
+            "5",
+            "18%",
+            "5%",
+            "25",
+            "36%",
+            "27%"
+          ],
+          "panel_modifiers": {
+            "crit_rate": 0.12
+          },
+          "element_dmg": {},
+          "buff_effects": {}
+        },
+        "5": {
+          "effect_values": [
+            "5",
+            "20%",
+            "5%",
+            "25",
+            "40%",
+            "30%"
+          ],
+          "panel_modifiers": {
+            "crit_rate": 0.12
+          },
+          "element_dmg": {},
+          "buff_effects": {}
+        }
+      }
+    },
+    "arc_9d9e593988": {
+      "nanoka_id": "fork_Arachne",
+      "name": "永恒圆舞曲",
+      "default_level": 1,
+      "source_url": "https://static.nanoka.cc/nte/1.2/zh/weapon/fork_Arachne.json",
+      "effect_name": "「阿拉克涅」",
+      "effect_description": "生命值提高<lv>{0}</>。\n装备者释放「极轨终结」以后，自身造成的心灵伤害提高<lv>{1}</>，持续<lv>{2}</>秒。",
+      "levels": {
+        "1": {
+          "effect_values": [
+            "20%",
+            "10%",
+            "10"
+          ],
+          "panel_modifiers": {
+            "hp_pct": 0.6125
+          },
+          "element_dmg": {},
+          "buff_effects": {
+            "arc_waltz_q_mind": {
+              "mind_dmg": 0.1
+            }
+          }
+        },
+        "2": {
+          "effect_values": [
+            "23%",
+            "12%",
+            "10"
+          ],
+          "panel_modifiers": {
+            "hp_pct": 0.6425
+          },
+          "element_dmg": {},
+          "buff_effects": {
+            "arc_waltz_q_mind": {
+              "mind_dmg": 0.12
+            }
+          }
+        },
+        "3": {
+          "effect_values": [
+            "26%",
+            "14%",
+            "10"
+          ],
+          "panel_modifiers": {
+            "hp_pct": 0.6725
+          },
+          "element_dmg": {},
+          "buff_effects": {
+            "arc_waltz_q_mind": {
+              "mind_dmg": 0.14
+            }
+          }
+        },
+        "4": {
+          "effect_values": [
+            "29%",
+            "16%",
+            "10"
+          ],
+          "panel_modifiers": {
+            "hp_pct": 0.7025
+          },
+          "element_dmg": {},
+          "buff_effects": {
+            "arc_waltz_q_mind": {
+              "mind_dmg": 0.16
+            }
+          }
+        },
+        "5": {
+          "effect_values": [
+            "32%",
+            "18%",
+            "10"
+          ],
+          "panel_modifiers": {
+            "hp_pct": 0.7325
+          },
+          "element_dmg": {},
+          "buff_effects": {
+            "arc_waltz_q_mind": {
+              "mind_dmg": 0.18
+            }
+          }
+        }
+      }
+    },
+    "arc_32be351505": {
+      "nanoka_id": "fork_tuansanlang",
+      "name": "该死的邂逅",
+      "default_level": 5,
+      "source_url": "https://static.nanoka.cc/nte/1.2/zh/weapon/fork_tuansanlang.json",
+      "effect_name": "「团三郎」",
+      "effect_description": "当队伍中与装备者异能属性相同的角色数量大于等于<lv>3</>个(包含自身)，所有该异能属性的角色倾陷强度提升<lv>{0}</>，通过该途径获得的倾陷强度提升不可叠加。",
+      "levels": {
+        "1": {
+          "effect_values": [
+            "70"
+          ],
+          "panel_modifiers": {
+            "stagger_strength": 190.0
+          },
+          "element_dmg": {},
+          "buff_effects": {}
+        },
+        "2": {
+          "effect_values": [
+            "84"
+          ],
+          "panel_modifiers": {
+            "stagger_strength": 204.0
+          },
+          "element_dmg": {},
+          "buff_effects": {}
+        },
+        "3": {
+          "effect_values": [
+            "98"
+          ],
+          "panel_modifiers": {
+            "stagger_strength": 218.0
+          },
+          "element_dmg": {},
+          "buff_effects": {}
+        },
+        "4": {
+          "effect_values": [
+            "112"
+          ],
+          "panel_modifiers": {
+            "stagger_strength": 232.0
+          },
+          "element_dmg": {},
+          "buff_effects": {}
+        },
+        "5": {
+          "effect_values": [
+            "126"
+          ],
+          "panel_modifiers": {
+            "stagger_strength": 246.0
+          },
+          "element_dmg": {},
+          "buff_effects": {}
+        }
+      }
+    },
+    "arc_5fdc5b1847": {
+      "nanoka_id": "fork_snowman",
+      "name": "愚者种春",
+      "default_level": 5,
+      "source_url": "https://static.nanoka.cc/nte/1.2/zh/weapon/fork_snowman.json",
+      "effect_name": "「夏刑草」",
+      "effect_description": "当装备者具有护盾的时候，攻击力提升<lv>{0}</>。",
+      "levels": {
+        "1": {
+          "effect_values": [
+            "18%"
+          ],
+          "panel_modifiers": {
+            "def_pct": 0.525
+          },
+          "element_dmg": {},
+          "buff_effects": {
+            "arc_spring_shield_atk": {
+              "atk_pct": 0.18
+            }
+          }
+        },
+        "2": {
+          "effect_values": [
+            "21%"
+          ],
+          "panel_modifiers": {
+            "def_pct": 0.525
+          },
+          "element_dmg": {},
+          "buff_effects": {
+            "arc_spring_shield_atk": {
+              "atk_pct": 0.21
+            }
+          }
+        },
+        "3": {
+          "effect_values": [
+            "24%"
+          ],
+          "panel_modifiers": {
+            "def_pct": 0.525
+          },
+          "element_dmg": {},
+          "buff_effects": {
+            "arc_spring_shield_atk": {
+              "atk_pct": 0.24
+            }
+          }
+        },
+        "4": {
+          "effect_values": [
+            "27%"
+          ],
+          "panel_modifiers": {
+            "def_pct": 0.525
+          },
+          "element_dmg": {},
+          "buff_effects": {
+            "arc_spring_shield_atk": {
+              "atk_pct": 0.27
+            }
+          }
+        },
+        "5": {
+          "effect_values": [
+            "30%"
+          ],
+          "panel_modifiers": {
+            "def_pct": 0.525
+          },
+          "element_dmg": {},
+          "buff_effects": {
+            "arc_spring_shield_atk": {
+              "atk_pct": 0.3
+            }
+          }
+        }
+      }
+    },
+    "arc_63736d4ae2": {
+      "nanoka_id": "fork_BitterCake",
+      "name": "良药苦口",
+      "default_level": 5,
+      "source_url": "https://static.nanoka.cc/nte/1.2/zh/weapon/fork_BitterCake.json",
+      "effect_name": "「苦蛋糕」",
+      "effect_description": "装备者受到攻击时，自身防御力提升<lv>{0}</>，持续<lv>{1}</>秒，<lv>{2}</>秒内最多触发一次。",
+      "levels": {
+        "1": {
+          "effect_values": [
+            "26%",
+            "10",
+            "20"
+          ],
+          "panel_modifiers": {
+            "hp_pct": 0.25
+          },
+          "element_dmg": {},
+          "buff_effects": {
+            "arc_bitter_medicine_hit_def": {
+              "def_pct": 0.26
+            }
+          }
+        },
+        "2": {
+          "effect_values": [
+            "31%",
+            "10",
+            "20"
+          ],
+          "panel_modifiers": {
+            "hp_pct": 0.25
+          },
+          "element_dmg": {},
+          "buff_effects": {
+            "arc_bitter_medicine_hit_def": {
+              "def_pct": 0.31
+            }
+          }
+        },
+        "3": {
+          "effect_values": [
+            "36%",
+            "10",
+            "20"
+          ],
+          "panel_modifiers": {
+            "hp_pct": 0.25
+          },
+          "element_dmg": {},
+          "buff_effects": {
+            "arc_bitter_medicine_hit_def": {
+              "def_pct": 0.36
+            }
+          }
+        },
+        "4": {
+          "effect_values": [
+            "41%",
+            "10",
+            "20"
+          ],
+          "panel_modifiers": {
+            "hp_pct": 0.25
+          },
+          "element_dmg": {},
+          "buff_effects": {
+            "arc_bitter_medicine_hit_def": {
+              "def_pct": 0.41
+            }
+          }
+        },
+        "5": {
+          "effect_values": [
+            "46%",
+            "10",
+            "20"
+          ],
+          "panel_modifiers": {
+            "hp_pct": 0.25
+          },
+          "element_dmg": {},
+          "buff_effects": {
+            "arc_bitter_medicine_hit_def": {
+              "def_pct": 0.46
+            }
+          }
+        }
+      }
+    },
+    "arc_19ee4241da": {
+      "nanoka_id": "fork_yuren",
+      "name": "勿忘伞",
+      "default_level": 5,
+      "source_url": "https://static.nanoka.cc/nte/1.2/zh/weapon/fork_yuren.json",
+      "effect_name": "「雨人」",
+      "effect_description": "生命值提升<lv>{0}</>。\r\n当装备者生命值高于50%的时候，自身获得<lv>{1}</>护盾强化。",
+      "levels": {
+        "1": {
+          "effect_values": [
+            "10%",
+            "10%"
+          ],
+          "panel_modifiers": {
+            "def_pct": 0.625,
+            "hp_pct": 0.1
+          },
+          "element_dmg": {},
+          "buff_effects": {}
+        },
+        "2": {
+          "effect_values": [
+            "12%",
+            "12%"
+          ],
+          "panel_modifiers": {
+            "def_pct": 0.645,
+            "hp_pct": 0.12
+          },
+          "element_dmg": {},
+          "buff_effects": {}
+        },
+        "3": {
+          "effect_values": [
+            "14%",
+            "14%"
+          ],
+          "panel_modifiers": {
+            "def_pct": 0.665,
+            "hp_pct": 0.14
+          },
+          "element_dmg": {},
+          "buff_effects": {}
+        },
+        "4": {
+          "effect_values": [
+            "16%",
+            "16%"
+          ],
+          "panel_modifiers": {
+            "def_pct": 0.685,
+            "hp_pct": 0.16
+          },
+          "element_dmg": {},
+          "buff_effects": {}
+        },
+        "5": {
+          "effect_values": [
+            "18%",
+            "18%"
+          ],
+          "panel_modifiers": {
+            "def_pct": 0.705,
+            "hp_pct": 0.18
+          },
+          "element_dmg": {},
+          "buff_effects": {}
+        }
+      }
+    },
+    "arc_8591b265fb": {
+      "nanoka_id": "fork_koinobori",
+      "name": "终有时",
+      "default_level": 5,
+      "source_url": "https://static.nanoka.cc/nte/1.2/zh/weapon/fork_koinobori.json",
+      "effect_name": "「起潮洄天」",
+      "effect_description": "当编队存在不少于<lv>3</>个不同异能属性的时候，装备者获得<lv>{0}</>攻击力，<lv>{1}</>防御力，<lv>{2}</>生命值。",
+      "levels": {
+        "1": {
+          "effect_values": [
+            "10%",
+            "10%",
+            "10%"
+          ],
+          "panel_modifiers": {
+            "crit_rate": 0.2,
+            "atk_pct": 0.1,
+            "def_pct": 0.1,
+            "hp_pct": 0.1
+          },
+          "element_dmg": {},
+          "buff_effects": {}
+        },
+        "2": {
+          "effect_values": [
+            "12%",
+            "12%",
+            "12%"
+          ],
+          "panel_modifiers": {
+            "crit_rate": 0.2,
+            "atk_pct": 0.12,
+            "def_pct": 0.12,
+            "hp_pct": 0.12
+          },
+          "element_dmg": {},
+          "buff_effects": {}
+        },
+        "3": {
+          "effect_values": [
+            "14%",
+            "14%",
+            "14%"
+          ],
+          "panel_modifiers": {
+            "crit_rate": 0.2,
+            "atk_pct": 0.14,
+            "def_pct": 0.14,
+            "hp_pct": 0.14
+          },
+          "element_dmg": {},
+          "buff_effects": {}
+        },
+        "4": {
+          "effect_values": [
+            "16%",
+            "16%",
+            "16%"
+          ],
+          "panel_modifiers": {
+            "crit_rate": 0.2,
+            "atk_pct": 0.16,
+            "def_pct": 0.16,
+            "hp_pct": 0.16
+          },
+          "element_dmg": {},
+          "buff_effects": {}
+        },
+        "5": {
+          "effect_values": [
+            "18%",
+            "18%",
+            "18%"
+          ],
+          "panel_modifiers": {
+            "crit_rate": 0.2,
+            "atk_pct": 0.18,
+            "def_pct": 0.18,
+            "hp_pct": 0.18
+          },
+          "element_dmg": {},
+          "buff_effects": {}
+        }
+      }
+    },
+    "arc_18855bc4f1": {
+      "nanoka_id": "fork_dustbin",
+      "name": "危险游戏",
+      "default_level": 5,
+      "source_url": "https://static.nanoka.cc/nte/1.2/zh/weapon/fork_dustbin.json",
+      "effect_name": "「分解者」",
+      "effect_description": "装备者削减倾陷值时，自身提高<lv>{0}</>倾陷强度，持续<lv>{1}</>秒，<lv>{2}</>秒内最多触发一次。",
+      "levels": {
+        "1": {
+          "effect_values": [
+            "60",
+            "10",
+            "20"
+          ],
+          "panel_modifiers": {
+            "stagger_strength": 96.0
+          },
+          "element_dmg": {},
+          "buff_effects": {
+            "arc_danger_game_stagger": {
+              "stagger_strength": 60.0
+            }
+          }
+        },
+        "2": {
+          "effect_values": [
+            "66",
+            "10",
+            "20"
+          ],
+          "panel_modifiers": {
+            "stagger_strength": 96.0
+          },
+          "element_dmg": {},
+          "buff_effects": {
+            "arc_danger_game_stagger": {
+              "stagger_strength": 66.0
+            }
+          }
+        },
+        "3": {
+          "effect_values": [
+            "72",
+            "10",
+            "20"
+          ],
+          "panel_modifiers": {
+            "stagger_strength": 96.0
+          },
+          "element_dmg": {},
+          "buff_effects": {
+            "arc_danger_game_stagger": {
+              "stagger_strength": 72.0
+            }
+          }
+        },
+        "4": {
+          "effect_values": [
+            "78",
+            "10",
+            "20"
+          ],
+          "panel_modifiers": {
+            "stagger_strength": 96.0
+          },
+          "element_dmg": {},
+          "buff_effects": {
+            "arc_danger_game_stagger": {
+              "stagger_strength": 78.0
+            }
+          }
+        },
+        "5": {
+          "effect_values": [
+            "84",
+            "10",
+            "20"
+          ],
+          "panel_modifiers": {
+            "stagger_strength": 96.0
+          },
+          "element_dmg": {},
+          "buff_effects": {
+            "arc_danger_game_stagger": {
+              "stagger_strength": 84.0
+            }
+          }
+        }
+      }
+    }
+  }
+}

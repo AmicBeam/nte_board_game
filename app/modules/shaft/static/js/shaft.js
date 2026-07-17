@@ -1,11 +1,12 @@
 (function () {
   const ELEMENTS = ['光', '灵', '咒', '暗', '魂', '相'];
   const SLOT_COLORS = ['#58d8d2', '#ffbf57', '#ff5aa5', '#77e36f'];
+  const ACTION_CONTRIBUTION_COLORS = ['#58d8d2', '#ffbf57', '#ff5aa5', '#77e36f', '#b28cff', '#62b7ff', '#ff7a63', '#d8e26a'];
   const DAMAGE_SOURCE_COLORS = {
-    '创生': '#77e36f',
-    '浊燃': '#ff7a63',
-    '黯星': '#b28cff',
-    '倾陷': '#62b7ff',
+    '创生': '#4fdcc8',
+    '浊燃': '#ff665c',
+    '黯星': '#6f8fff',
+    '倾陷': '#eef4ff',
   };
   const BUFF_LINE_COLORS = ['#62b7ff', '#f9ca62', '#95ec87', '#ff7ab8', '#b28cff', '#55dacd'];
   const ACTION_TYPES = ['', '普攻', 'E', 'Q', '援护', '无'];
@@ -41,6 +42,7 @@
   const TIMELINE_TICK_PX = 12;
   const TIMELINE_LABEL_PX = 128;
   const MIN_ACTION_CARD_PX = 60;
+  const BUFF_DURATION_LABEL_LIMIT_TICKS = 9000;
   const MAX_VISUAL_LANES_PER_SLOT = 3;
   const BACKGROUND_DRAG_THRESHOLD_PX = 24;
   const SIMULATION_DEBOUNCE_MS = 320;
@@ -551,14 +553,18 @@
       return null;
     }
     const arc = getArcMap().get(member.arc_id);
+    const arcRefinement = arcRefinementRecord(member);
     const cartridge = getCartridgeMap().get(member.cartridge_id);
     const mods = emptyPanelMods();
-    mergePanelMods(mods, character.modifiers);
+    // Character-sheet bonuses are intentionally excluded. Passive and awakening
+    // effects come from the buff registry; every character starts at 5% / 50%.
+    mods.crit_rate = 0.05;
+    mods.crit_dmg = 0.5;
     if (member.bond_full || numberValue(member.bond_level) > 0) {
       mergePanelMods(mods, character.bond_bonus?.modifiers);
     }
     if (arc) {
-      mergePanelMods(mods, arc.modifiers);
+      mergePanelMods(mods, arcRefinement?.panel_modifiers || arc.modifiers);
     }
     if (cartridge) {
       mergePanelMods(mods, cartridge.modifiers);
@@ -568,7 +574,7 @@
     mergePanelMods(mods, substatPanelMods(member.substat_counts));
     mergePanelMods(mods, teamPanelBonusMods());
     const element = character.element || '';
-    mods.element_dmg += numberValue(arc?.element_dmg?.[element]);
+    mods.element_dmg += numberValue((arcRefinement?.element_dmg || arc?.element_dmg)?.[element]);
 
     const baseStats = character.base_stats || {};
     const baseAtk = numberValue(baseStats.atk) + numberValue(arc?.base_atk);
@@ -660,7 +666,7 @@
     }
     const step = selectedStep();
     if (step) {
-      state.cursorTick = Number(step.start_tick || 0);
+      state.cursorTick = timelineDisplayTickForStep(step);
       syncAddTimeInput(state.cursorTick);
     }
     if (render) {
@@ -678,6 +684,17 @@
     return (state.axis?.steps || []).find((step) => step.id === state.selectedStepId) || null;
   }
 
+  function timelineDisplayTickForStep(step) {
+    const detail = (state.timelineDisplayDetails || []).find((item) => item.step_id === step?.id) ||
+      (timelineResult()?.details || []).find((item) => item.step_id === step?.id);
+    return Math.max(0, Number(
+      detail?.display_start_tick ??
+      detail?.visual_start_tick ??
+      step?.start_tick ??
+      0
+    ));
+  }
+
   function detailByStepId(stepId) {
     return (freshResult()?.details || []).find((detail) => detail.step_id === stepId) || null;
   }
@@ -688,7 +705,10 @@
     const resource = (result?.resources_by_slot || []).find((item) => Number(item.slot) === slotNumber) || {};
     const energy = Number(resource.energy ?? resource.initial_energy ?? state.axis?.initial_energy ?? 100);
     const harmony = Number(resource.harmony ?? resource.initial_harmony ?? 0);
-    return { energy, harmony };
+    const personalResources = resource.personal_resources && typeof resource.personal_resources === 'object'
+      ? resource.personal_resources
+      : {};
+    return { energy, harmony, personalResources };
   }
 
   function memberName(slot) {
@@ -707,6 +727,10 @@
   function isBackgroundAction(action) {
     const marker = `${action?.name || ''} ${action?.extra_tag || ''}`;
     return Boolean(action?.is_background_damage) || marker.includes('后台');
+  }
+
+  function backgroundActionMultiplier(step, action = actionForStep(step)) {
+    return isBackgroundAction(action) ? Math.max(1, Math.min(12, Math.round(Number(step?.repeat || 1)))) : 1;
   }
 
   function isBasicAction(action) {
@@ -741,6 +765,7 @@
     if (!isBasicBackgroundOverride(step, action)) {
       delete step.placement;
     }
+    step.repeat = backgroundActionMultiplier(step, action);
   }
 
   function isSupportAction(action) {
@@ -782,7 +807,39 @@
     return startsForeground(step, action) && isQAction(action) && actionDurationTicks(action) === 0;
   }
 
+  function locksForegroundSwitch(step, action = actionForStep(step)) {
+    return startsForeground(step, action) && (
+      isSupportAction(action) ||
+      isZeroForegroundQStep(step, action)
+    );
+  }
+
+  function foregroundLockEndTick(step, action, startTick) {
+    if (isSupportAction(action)) {
+      return startTick + actionVisualDurationTicks(action, step);
+    }
+    if (!isZeroForegroundQStep(step, action)) {
+      return startTick;
+    }
+    const detail = (timelineResult()?.details || []).find((item) => item.step_id === step?.id);
+    const qSpanTicks = resultDetailMatchesStep(detail, step)
+      ? Math.max(
+        ZERO_ACTION_VISUAL_TICKS,
+        Number(detail.display_visual_end_tick ?? detail.visual_end_tick ?? startTick + ZERO_ACTION_VISUAL_TICKS) -
+          Number(detail.display_start_tick ?? detail.visual_start_tick ?? startTick),
+      )
+      : ZERO_ACTION_VISUAL_TICKS;
+    return startTick + qSpanTicks;
+  }
+
   function qVirtualStartTicks(steps = state.axis?.steps || []) {
+    const frozenIntervals = timelineResult()?.time_axis?.frozen_intervals;
+    if (Array.isArray(frozenIntervals)) {
+      return frozenIntervals.map((interval) => ({
+        start_tick: Math.max(0, Number(interval?.start_tick || 0)),
+        end_tick: Math.max(0, Number(interval?.end_tick || 0)),
+      }));
+    }
     const resultDetails = timelineResult()?.details || [];
     const resultDetailByStepId = new Map(resultDetails.map((detail) => [detail.step_id, detail]));
     return (steps || [])
@@ -940,6 +997,7 @@
     closeContextMenu();
     renderAll();
     scheduleSimulation();
+    revealTimelineTick(state.cursorTick);
   }
 
   function pushUndoSnapshot() {
@@ -1037,7 +1095,7 @@
   function optionHtml(records, selected, getLabel) {
     return (records || []).map((record) => {
       const label = getLabel ? getLabel(record) : record.name;
-      return `<option value="${escapeHtml(record.id)}" ${record.id === selected ? 'selected' : ''}>${escapeHtml(label)}</option>`;
+      return `<option value="${escapeHtml(record.id)}" ${record.id === selected ? 'selected' : ''} ${record.selection_disabled ? 'disabled' : ''}>${escapeHtml(label)}</option>`;
     }).join('');
   }
 
@@ -1101,6 +1159,34 @@
     return Math.max(1, Math.min(10, Math.round(Number(value || 10))));
   }
 
+  function defaultArcRefinement(arcId) {
+    const level = Number(state.catalog?.arc_refinements?.arcs?.[arcId || '']?.default_level || 1);
+    return Math.max(1, Math.min(5, Math.round(level)));
+  }
+
+  function clampArcRefinement(value, arcId = '') {
+    const level = Math.round(Number(value));
+    return level >= 1 && level <= 5 ? level : defaultArcRefinement(arcId);
+  }
+
+  function arcRefinementRecord(member) {
+    const arcs = state.catalog?.arc_refinements?.arcs || {};
+    const arc = arcs[member?.arc_id || ''] || {};
+    const level = clampArcRefinement(member?.arc_refinement, member?.arc_id);
+    return arc.levels?.[String(level)] || null;
+  }
+
+  function arcRefinementSummary(member) {
+    const level = clampArcRefinement(member?.arc_refinement, member?.arc_id);
+    const source = state.catalog?.arc_refinements?.arcs?.[member?.arc_id || ''] || {};
+    const record = arcRefinementRecord(member);
+    if (!record) {
+      return `精炼 ${level} · 暂无 Nanoka 数据`;
+    }
+    const values = (record.effect_values || []).filter((value) => value != null && value !== '');
+    return `精炼 ${level} · ${source.effect_name || '弧盘效果'}${values.length ? `：${values.join(' / ')}` : ''}`;
+  }
+
   function normalizeSkillLevels(raw) {
     const out = Object.assign({}, DEFAULT_SKILL_LEVELS, raw || {});
     SKILL_LEVEL_FIELDS.forEach((field) => {
@@ -1109,15 +1195,29 @@
     return out;
   }
 
+  function normalizeAwakeningNodes(rawNodes, legacyAwakening = 0) {
+    if (Array.isArray(rawNodes)) {
+      return Array.from(new Set(rawNodes
+        .map((value) => Math.round(Number(value)))
+        .filter((value) => value >= 1 && value <= 6)))
+        .sort((left, right) => left - right);
+    }
+    const legacyLevel = Math.max(0, Math.min(6, Math.round(Number(legacyAwakening || 0))));
+    return Array.from({ length: legacyLevel }, (_, index) => index + 1);
+  }
+
   function buildSnapshotFromMember(member) {
+    const awakeningNodes = normalizeAwakeningNodes(member.awakening_nodes, member.awakening);
     return {
       character_id: member.character_id || '',
       character_name: member.character_name || '',
       arc_id: member.arc_id || '',
       arc_name: member.arc_name || '',
+      arc_refinement: clampArcRefinement(member.arc_refinement, member.arc_id),
       cartridge_id: member.cartridge_id || '',
       cartridge_name: member.cartridge_name || '',
-      awakening: Math.max(0, Math.min(6, Number(member.awakening || 0))),
+      awakening: awakeningNodes.length,
+      awakening_nodes: awakeningNodes,
       bond_level: Math.max(0, Math.min(1, Number(member.bond_level || (member.bond_full ? 1 : 0)))),
       bond_full: Boolean(member.bond_full) || Number(member.bond_level || 0) > 0,
       skill_levels: normalizeSkillLevels(member.skill_levels),
@@ -1132,8 +1232,10 @@
       return;
     }
     member.arc_id = build.arc_id || member.arc_id || '';
+    member.arc_refinement = clampArcRefinement(build.arc_refinement, member.arc_id);
     member.cartridge_id = build.cartridge_id || member.cartridge_id || '';
-    member.awakening = Math.max(0, Math.min(6, Number(build.awakening || 0)));
+    member.awakening_nodes = normalizeAwakeningNodes(build.awakening_nodes, build.awakening);
+    member.awakening = member.awakening_nodes.length;
     member.bond_level = Math.max(0, Math.min(1, Number(build.bond_level || (build.bond_full ? 1 : 0))));
     member.bond_full = Boolean(build.bond_full) || member.bond_level > 0;
     member.skill_levels = normalizeSkillLevels(build.skill_levels);
@@ -1145,14 +1247,17 @@
 
   function normalizeCharacterBuild(raw) {
     const build = raw && typeof raw === 'object' ? raw : {};
+    const awakeningNodes = normalizeAwakeningNodes(build.awakening_nodes, build.awakening);
     return {
       character_id: build.character_id || '',
       character_name: build.character_name || '',
       arc_id: build.arc_id || '',
       arc_name: build.arc_name || '',
+      arc_refinement: clampArcRefinement(build.arc_refinement, build.arc_id),
       cartridge_id: build.cartridge_id || '',
       cartridge_name: build.cartridge_name || '',
-      awakening: Math.max(0, Math.min(6, Number(build.awakening || 0))),
+      awakening: awakeningNodes.length,
+      awakening_nodes: awakeningNodes,
       bond_level: Math.max(0, Math.min(1, Number(build.bond_level || (build.bond_full ? 1 : 0)))),
       bond_full: Boolean(build.bond_full) || Number(build.bond_level || 0) > 0,
       skill_levels: normalizeSkillLevels(build.skill_levels),
@@ -1202,15 +1307,28 @@
       ? state.axis.team.slice(0, 4)
       : clone(state.catalog.starter_axis.team);
     state.axis.steps = Array.isArray(state.axis.steps) ? state.axis.steps : [];
+    state.axis.steps.forEach(sanitizeStepPlacement);
     state.axis.enemy = Object.assign(
       {},
       state.catalog.formula_constants.default_enemy || { level: 90, track_outside: false, weakness_elements: [] },
       state.axis.enemy || {},
     );
+    state.axis.enemy.resistances = Object.assign(
+      Object.fromEntries([...ELEMENTS, '心灵'].map((element) => [element, 0.3])),
+      state.axis.enemy.resistances || {},
+    );
     state.axis.options = Object.assign(
-      { switch_loss_ticks: state.catalog.formula_constants.switch_loss_ticks || 2, loop_enabled: false },
+      {
+        switch_gap_ticks: state.catalog.formula_constants.switch_loss_ticks || 2,
+        switch_loss_ticks: state.catalog.formula_constants.switch_loss_ticks || 2,
+        loop_enabled: false,
+      },
       state.axis.options || {},
     );
+    state.axis.options.switch_gap_ticks = Number(
+      state.axis.options.switch_gap_ticks ?? state.axis.options.switch_loss_ticks ?? 2,
+    );
+    state.axis.options.switch_loss_ticks = state.axis.options.switch_gap_ticks;
     state.axis.options.loop_enabled = Boolean(state.axis.options.loop_enabled);
     state.axis.team_panel_bonus = normalizeTeamPanelBonus(state.axis.team_panel_bonus);
     state.axis.initial_energy = Number(state.axis.initial_energy ?? 100);
@@ -1219,7 +1337,8 @@
     delete state.axis.compare_settings;
     state.axis.team.forEach((member, index) => {
       member.slot = Number(member.slot ?? index);
-      member.awakening = Math.max(0, Math.min(6, Number(member.awakening || 0)));
+      member.awakening_nodes = normalizeAwakeningNodes(member.awakening_nodes, member.awakening);
+      member.awakening = member.awakening_nodes.length;
       member.bond_level = Math.max(0, Math.min(1, Number(member.bond_level || (member.bond_full ? 1 : 0))));
       member.bond_full = Boolean(member.bond_full) || member.bond_level > 0;
       member.skill_levels = normalizeSkillLevels(member.skill_levels);
@@ -1312,6 +1431,10 @@
     document.querySelectorAll('[data-shaft-page-link]').forEach((node) => {
       node.classList.toggle('active', node.dataset.shaftPageLink === state.page);
     });
+    const shortcutHelpButton = $('shaft-shortcut-help-btn');
+    if (shortcutHelpButton) {
+      shortcutHelpButton.hidden = state.page !== 'rotation';
+    }
     if (push) {
       window.history.replaceState({}, '', `/shaft/${state.page}`);
       persistAxisDraft();
@@ -1341,14 +1464,16 @@
     container.innerHTML = (state.axis.team || []).map((member) => {
       const character = characterMap.get(member.character_id) || {};
       const compatibleArcs = arcsForCharacter(member.character_id);
+      const arcRefinement = clampArcRefinement(member.arc_refinement, member.arc_id);
       const bondLabel = character.bond_bonus?.label || '满羁绊';
-      const activeAwakening = Math.max(0, Math.min(6, Number(member.awakening || 0)));
+      const activeAwakeningNodes = new Set(normalizeAwakeningNodes(member.awakening_nodes, member.awakening));
+      const activeAwakeningCount = activeAwakeningNodes.size;
       const slotColor = SLOT_COLORS[Number(member.slot) % SLOT_COLORS.length];
       const characterAwakenings = awakeningsForCharacter(character, member);
       const awakeningToggles = Array.from({ length: 6 }, (_, index) => {
         const level = index + 1;
         const label = AWAKENING_LABELS[index] || String(level);
-        const checked = level <= activeAwakening ? 'checked' : '';
+        const checked = activeAwakeningNodes.has(level) ? 'checked' : '';
         const tooltip = awakeningTooltipText(characterAwakenings[index]);
         return `
           <label class="shaft-awakening-dot" data-tooltip="${escapeHtml(tooltip)}" aria-label="${escapeHtml(tooltip)}">
@@ -1359,9 +1484,9 @@
       }).join('');
       const awakeningInfos = [6, 7].map((index, infoIndex) => {
         const tooltip = awakeningTooltipText(characterAwakenings[index]);
-        const active = infoIndex === 0 ? activeAwakening >= 3 : activeAwakening >= 6;
+        const active = infoIndex === 0 ? activeAwakeningCount >= 3 : activeAwakeningCount >= 6;
         return `
-          <span class="shaft-awakening-dot shaft-awakening-info ${active ? 'is-active' : ''}" data-tooltip="${escapeHtml(tooltip)}" aria-label="${escapeHtml(tooltip)}" tabindex="0">
+          <span class="shaft-awakening-dot shaft-awakening-info ${active ? 'is-active' : ''}" data-tooltip="${escapeHtml(tooltip)}" aria-label="${escapeHtml(tooltip)}">
             <span>!</span>
           </span>
         `;
@@ -1406,7 +1531,7 @@
             <span class="shaft-member-slot">0${Number(member.slot) + 1}</span>
             <img class="shaft-member-avatar" src="${escapeHtml(character.avatar || member.character_avatar || '')}" alt="">
             <strong>${escapeHtml(character.name || member.character_name || '未选择')}</strong>
-            <small>角色80 · 弧盘80</small>
+            <small>角色80 · 弧盘80 · 精炼${arcRefinement}</small>
           </section>
           <section class="shaft-member-editor">
             <div class="shaft-loadout-grid">
@@ -1422,7 +1547,17 @@
                   ${optionHtml(compatibleArcs, member.arc_id)}
                 </select>
               </label>
+              <label>
+                <span>弧盘精炼</span>
+                <select data-slot="${member.slot}" data-field="arc_refinement" aria-label="弧盘精炼等级">
+                  ${Array.from({ length: 5 }, (_, index) => {
+                    const level = index + 1;
+                    return `<option value="${level}" ${arcRefinement === level ? 'selected' : ''}>精炼 ${level}</option>`;
+                  }).join('')}
+                </select>
+              </label>
             </div>
+            <small class="shaft-arc-refinement-summary">${escapeHtml(arcRefinementSummary(member))}</small>
             <div class="shaft-member-switches">
               <div class="shaft-awakening-control">
                 <span>觉醒</span>
@@ -1488,6 +1623,12 @@
       <label class="shaft-chip">
         <input type="checkbox" value="${element}" ${active.has(element) ? 'checked' : ''}>
         <span>${element}</span>
+      </label>
+    `).join('');
+    $('shaft-resistance-grid').innerHTML = [...ELEMENTS, '心灵'].map((element) => `
+      <label>
+        <span>${element}抗性</span>
+        <input type="number" min="-100" max="100" step="1" value="${Math.round(Number(state.axis.enemy.resistances?.[element] ?? 0.3) * 100)}" data-resistance-element="${element}">
       </label>
     `).join('');
   }
@@ -1694,15 +1835,150 @@
     renderResultCard('shaft-total-damage', '总伤', summary.total_damage || 0, compareSummary?.total_damage, summary.total_damage || 0);
     renderResultCard('shaft-dps', 'DPS', summary.dps || 0, compareSummary?.dps, null);
     const contribution = result?.damage_by_slot || [];
-    $('shaft-contribution-list').innerHTML = contribution.length ? contribution.map((item) => `
+    const characterRows = contribution.map((item) => `
       <div class="shaft-contribution-row">
         <span>${escapeHtml(item.character_name)}</span>
-        <div class="shaft-contribution-bar"><span style="width: ${Math.max(0, Math.min(100, Number(item.percent || 0)))}%"></span></div>
+        <div class="shaft-contribution-bar"><span style="width: ${Math.max(0, Math.min(100, Number(item.percent || 0)))}%; --contribution-color:${SLOT_COLORS[Number(item.slot) % SLOT_COLORS.length]}"></span></div>
+        <span>${formatNumber(item.percent || 0, 1)}%</span>
+        <button class="secondary-btn shaft-action-contribution-btn" data-action-contribution-slot="${Number(item.slot)}" type="button" ${Number(item.damage || 0) > 0 ? '' : 'disabled'}>动作占比</button>
+      </div>
+    `).join('');
+    const sourceRows = (result?.damage_by_source || []).map((item) => `
+      <div class="shaft-contribution-row shaft-contribution-source-row">
+        <span>${escapeHtml(item.source)}</span>
+        <div class="shaft-contribution-bar"><span style="width: ${Math.max(0, Math.min(100, Number(item.percent || 0)))}%; --contribution-color:${DAMAGE_SOURCE_COLORS[item.source] || '#b9c6d8'}"></span></div>
         <span>${formatNumber(item.percent || 0, 1)}%</span>
       </div>
-    `).join('') : '<div class="shaft-empty">点击计算刷新结果</div>';
+    `).join('');
+    $('shaft-contribution-list').innerHTML = (characterRows || sourceRows)
+      ? `${characterRows}${sourceRows}`
+      : '<div class="shaft-empty">点击计算刷新结果</div>';
     renderBuildPanel();
     renderWorkbenchSummary();
+  }
+
+  function actionContributionForSlot(slot) {
+    const result = freshResult();
+    const projected = (result?.damage_by_action_by_slot || []).find((item) => Number(item.slot) === Number(slot));
+    if (projected) {
+      return projected;
+    }
+    const details = (result?.details || []).filter((detail) => Number(detail.slot) === Number(slot));
+    const actions = new Map();
+    details.forEach((detail) => {
+      const key = detail.action_id || detail.action_name;
+      const current = actions.get(key) || {
+        action_id: detail.action_id,
+        action_name: detail.action_name,
+        damage: 0,
+      };
+      current.damage += Number(detail.direct_damage || 0);
+      actions.set(key, current);
+    });
+    const totalDamage = Array.from(actions.values()).reduce((sum, item) => sum + item.damage, 0);
+    return {
+      slot,
+      character_name: memberName(slot),
+      total_damage: totalDamage,
+      actions: Array.from(actions.values())
+        .filter((item) => item.damage > 0)
+        .sort((left, right) => right.damage - left.damage)
+        .map((item) => ({ ...item, percent: totalDamage > 0 ? item.damage / totalDamage * 100 : 0 })),
+    };
+  }
+
+  function actionContributionPie(actions) {
+    const radius = 21;
+    const circumference = 2 * Math.PI * radius;
+    let offset = 0;
+    const segments = actions.map((action, index) => {
+      const length = circumference * Math.max(0, Math.min(100, Number(action.percent || 0))) / 100;
+      const segment = `
+        <circle
+          cx="50" cy="50" r="${radius}"
+          fill="none"
+          stroke="${ACTION_CONTRIBUTION_COLORS[index % ACTION_CONTRIBUTION_COLORS.length]}"
+          stroke-width="42"
+          stroke-dasharray="${length} ${Math.max(0, circumference - length)}"
+          stroke-dashoffset="${-offset}"
+        >
+          <title>${escapeHtml(action.action_name)} ${formatNumber(action.percent || 0, 1)}%</title>
+        </circle>
+      `;
+      offset += length;
+      return segment;
+    }).join('');
+    return `
+      <svg class="shaft-action-contribution-pie" viewBox="0 0 100 100" role="img" aria-label="角色各动作伤害贡献饼图">
+        <g transform="rotate(-90 50 50)">${segments}</g>
+      </svg>
+    `;
+  }
+
+  function openActionContribution(slot, trigger = null) {
+    const dialog = $('shaft-action-contribution-dialog');
+    const content = $('shaft-action-contribution-content');
+    const contribution = actionContributionForSlot(slot);
+    if (!dialog || !content || !contribution) {
+      return;
+    }
+    const actions = contribution.actions || [];
+    $('shaft-action-contribution-title').textContent = `${contribution.character_name || memberName(slot)} · 动作贡献`;
+    content.innerHTML = actions.length ? `
+      <div class="shaft-action-contribution-body">
+        <div class="shaft-action-contribution-chart">
+          ${actionContributionPie(actions)}
+          <strong>${formatNumber(contribution.total_damage || 0)}</strong>
+          <span>角色总伤</span>
+        </div>
+        <div class="shaft-action-contribution-legend">
+          ${actions.map((action, index) => `
+            <div class="shaft-action-contribution-item">
+              <i style="--action-color:${ACTION_CONTRIBUTION_COLORS[index % ACTION_CONTRIBUTION_COLORS.length]}"></i>
+              <span>${escapeHtml(action.action_name || '未命名动作')}</span>
+              <strong>${formatNumber(action.damage || 0)}</strong>
+              <b>${formatNumber(action.percent || 0, 1)}%</b>
+            </div>
+          `).join('')}
+        </div>
+      </div>
+    ` : '<div class="shaft-empty">该角色当前没有造成动作伤害</div>';
+    dialog._returnFocus = trigger;
+    dialog.showModal();
+  }
+
+  function closeActionContribution() {
+    const dialog = $('shaft-action-contribution-dialog');
+    if (!dialog?.open) {
+      return;
+    }
+    const returnFocus = dialog._returnFocus;
+    dialog.close();
+    if (returnFocus?.isConnected) {
+      returnFocus.focus();
+    }
+  }
+
+  function openShortcutHelp() {
+    const dialog = $('shaft-shortcut-dialog');
+    if (dialog && !dialog.open) {
+      dialog.showModal();
+    }
+  }
+
+  function closeShortcutHelp() {
+    const dialog = $('shaft-shortcut-dialog');
+    if (dialog?.open) {
+      dialog.close();
+      $('shaft-shortcut-help-btn')?.focus();
+    }
+  }
+
+  function handleContributionClick(event) {
+    const button = event.target.closest('[data-action-contribution-slot]');
+    if (button) {
+      openActionContribution(Number(button.dataset.actionContributionSlot), button);
+    }
   }
 
   function renderSelfCheck() {
@@ -1710,7 +1986,13 @@
     if (!node) {
       return;
     }
-    const warnings = window.ShaftSelfCheck?.inspectAxis(state.axis, state.catalog) || [];
+    const axisWarnings = window.ShaftSelfCheck?.inspectAxis(state.axis, state.catalog) || [];
+    const simulationWarnings = (freshResult()?.details || []).flatMap((detail) =>
+      (detail.warnings || []).map((warning) =>
+        `${detail.character_name || memberName(detail.slot)}「${detail.action_name || '动作'}」：${warning}`
+      )
+    );
+    const warnings = Array.from(new Set([...axisWarnings, ...simulationWarnings]));
     node.hidden = warnings.length === 0;
     node.innerHTML = warnings.length ? `
       <strong>自检提示</strong>
@@ -1867,45 +2149,6 @@
     `;
   }
 
-  function applySwitchLossToTimelineDetails(details) {
-    const switchLossTicks = Math.max(
-      0,
-      Number(state.axis?.options?.switch_loss_ticks ?? state.catalog?.formula_constants?.switch_loss_ticks ?? 2),
-    );
-    let frontSlot = null;
-    let previousForegroundDurationTicks = 0;
-    let previousForegroundIsQ = false;
-    let previousForegroundEndTick = 0;
-    details
-      .slice()
-      .sort((a, b) => Number(a.start_tick || 0) - Number(b.start_tick || 0) || Number(a.slot || 0) - Number(b.slot || 0))
-      .forEach((detail) => {
-        if (detail.is_background_damage) {
-          return;
-        }
-        const action = actionForStep({ action_id: detail.action_id });
-        const actionIsSupport = isSupportAction(action);
-        const qEndSwitch = previousForegroundIsQ && Number(detail.start_tick || 0) >= previousForegroundEndTick;
-        if (
-          !actionIsSupport &&
-          frontSlot !== null &&
-          Number(frontSlot) !== Number(detail.slot) &&
-          previousForegroundDurationTicks > 0 &&
-          !qEndSwitch
-        ) {
-          detail.start_tick = Number(detail.start_tick || 0) + switchLossTicks;
-          detail.end_tick = Number(detail.end_tick || 0) + switchLossTicks;
-          detail.visual_end_tick = Number(detail.visual_end_tick || detail.end_tick || 0) + switchLossTicks;
-        }
-        frontSlot = Number(detail.slot);
-        previousForegroundDurationTicks = Math.max(0, Number(detail.duration_ticks || 0));
-        const detailStep = (state.axis?.steps || []).find((step) => step.id === detail.step_id) || { action_id: detail.action_id };
-        previousForegroundIsQ = isZeroForegroundQStep(detailStep, action);
-        previousForegroundEndTick = Number(detail.end_tick || detail.start_tick || 0);
-      });
-    return details;
-  }
-
   function renderedAxisEndTick(details = []) {
     return Math.max(
       1,
@@ -1917,15 +2160,19 @@
   }
 
   function timelineMaxTick(renderDetails = null) {
-    const result = freshResult();
+    const result = timelineResult();
     const details = renderDetails || result?.details || [];
     const windows = renderDetails ? [] : (result?.front_windows || []);
+    const reactionEffects = result?.reaction_effects || [];
+    const reactionDamageEvents = result?.reaction_damage_events || [];
     const axisEnd = details.length ? renderedAxisEndTick(details) : axisEndTick(true);
     const lastTick = Math.max(
       axisEnd,
       Number(state.cursorTick || 0) + 1,
       ...details.map((detail) => Number(detail.display_visual_end_tick ?? detail.visual_end_tick ?? detail.end_tick ?? detail.start_tick ?? 0) + 10),
       ...windows.map((windowItem) => Number(windowItem.end_tick || windowItem.start_tick || 0)),
+      ...reactionEffects.map((effect) => Number(effect.visual_end_tick ?? effect.end_tick ?? effect.visual_start_tick ?? effect.start_tick ?? 0)),
+      ...reactionDamageEvents.map((event) => Number(event.visual_tick ?? event.tick ?? 0)),
     );
     return Math.max(1, lastTick + TIMELINE_END_PADDING_TICKS);
   }
@@ -1940,7 +2187,14 @@
   }
 
   function buffRuleDisplayName(buff) {
-    return String(buff?.name || '').trim() || buffDisplayName(buff);
+    const provider = String(buff?.provider_name || '').trim();
+    const name = String(buff?.name || '').trim();
+    if (name && name !== provider) {
+      return name;
+    }
+    const ruleId = String(buff?.rule_id || buff?.definition_id || '').trim();
+    const passiveName = ruleId ? `被动 ${ruleId}` : '未命名被动';
+    return provider ? `${provider}·${passiveName}` : passiveName;
   }
 
   function isUnlinedBuff(buff) {
@@ -1990,27 +2244,36 @@
     ].filter((segment) => segment.endTick > segment.startTick);
   }
 
-  function triggeredBuffLines(detail, axisEndTick = 0, loopEnabled = false) {
+  function triggeredBuffLines(detail, axisEndTick = 0, loopEnabled = false, trackSlot = null) {
     const seen = new Set();
     return (detail?.triggered_buffs || [])
       .filter((buff) => shouldDrawBuffLine(buff))
+      .filter((buff) => {
+        if (trackSlot === null) {
+          return true;
+        }
+        const ownerSlot = Number(buff?.owner_slot ?? -1);
+        return ownerSlot >= 0
+          ? ownerSlot === Number(trackSlot)
+          : Number(detail?.slot) === Number(trackSlot);
+      })
       .map((buff) => {
         const startTick = Math.max(
-          Number(detail?.start_tick || 0),
-          Number(buff?.visual_start_tick ?? buff?.trigger_tick ?? buff?.start_tick ?? detail?.start_tick ?? 0),
+          Number(detail?.display_start_tick ?? detail?.visual_start_tick ?? detail?.start_tick ?? 0),
+          Number(buff?.visual_start_tick ?? buff?.trigger_tick ?? buff?.start_tick ?? detail?.display_start_tick ?? 0),
         );
         const endTick = Math.max(
           startTick + 1,
-          Number(buff?.end_tick ?? startTick + 1),
+          Number(buff?.visual_end_tick ?? buff?.display_end_tick ?? buff?.end_tick ?? startTick + 1),
         );
-        const name = buffDisplayName(buff);
+        const name = buffRuleDisplayName(buff);
         const segments = buffLineSegments(startTick, endTick, axisEndTick, loopEnabled);
         return {
           id: String(buff?.rule_id || `${name}_${startTick}_${endTick}`),
           name,
           startTick,
           endTick,
-          durationTicks: Math.max(1, endTick - startTick),
+          durationTicks: Math.max(1, Number(buff?.duration_ticks ?? endTick - startTick)),
           segments,
           stackCount: buff?.stack_count ?? 1,
         };
@@ -2047,15 +2310,21 @@
     return value > 1 ? ` · ${formatNumber(value, Number.isInteger(value) ? 0 : 1)}层` : '';
   }
 
-  function buffTooltipText(buff) {
+  function buffTooltipText(buff, atVisualTick = buff.startTick) {
     const stackText = buffStackText(buff.stackCount);
-    const durationText = ticksToSeconds(Math.max(1, Number(buff.durationTicks || 1)));
-    return `${buff.name} · ${durationText}s${stackText}`;
+    const durationTicks = Math.max(1, Number(buff.durationTicks || 1));
+    const durationText = durationTicks > BUFF_DURATION_LABEL_LIMIT_TICKS
+      ? ''
+      : ` · 剩余${ticksToSeconds(Math.max(
+        0,
+        calculationTickFromVisual(Number(buff.endTick || 0)) - calculationTickFromVisual(Number(atVisualTick || 0)),
+      ))}s`;
+    return `${buff.name}${durationText}${stackText}`;
   }
 
   function activeBuffSegmentKey(buffs = []) {
     return buffs
-      .map((buff) => `${buff.id}:${buff.name}:${buffStackKey(buff.stackCount)}`)
+      .map((buff) => `${buff.id}:${buff.name}:${buffStackKey(buff.stackCount)}:${Number(buff.endTick || 0)}`)
       .sort()
       .join('|');
   }
@@ -2074,13 +2343,13 @@
     return Array.from(latestById.values());
   }
 
-  function mergedBuffLineSegments(details = [], axisEndTick = 0, loopEnabled = false) {
+  function mergedBuffLineSegments(details = [], axisEndTick = 0, loopEnabled = false, trackSlot = null) {
     const entries = [];
     (details || [])
       .slice()
       .sort((a, b) => Number(a.start_tick || 0) - Number(b.start_tick || 0))
       .forEach((detail) => {
-        triggeredBuffLines(detail, axisEndTick, loopEnabled).forEach((buff) => {
+        triggeredBuffLines(detail, axisEndTick, loopEnabled, trackSlot).forEach((buff) => {
           buff.segments.forEach((segment) => {
             entries.push({
               id: buff.id,
@@ -2126,16 +2395,73 @@
           seen.add(buffKey);
           return true;
         })
-        .map(buffTooltipText);
+        .map((buff) => buffTooltipText(buff, startTick));
       segments.push({
         key,
         startTick,
         endTick,
         tooltip: tooltipLines.join('\n'),
+        tooltipItems: activeBuffs.map((buff) => ({
+          id: buff.id,
+          name: buff.name,
+          endTick: buff.endTick,
+          durationTicks: buff.durationTicks,
+          stackCount: buff.stackCount,
+        })),
         buffIds: activeBuffs.map((buff) => buff.id).join(' '),
       });
     }
     return segments;
+  }
+
+  function mergedRenderedBuffSegments(segments = []) {
+    const normalized = segments
+      .map((segment) => ({
+        ...segment,
+        startTick: Number(segment.startTick || 0),
+        endTick: Number(segment.endTick || 0),
+      }))
+      .filter((segment) => Number.isFinite(segment.startTick) && Number.isFinite(segment.endTick) && segment.endTick > segment.startTick);
+    const boundaries = Array.from(new Set(normalized
+      .flatMap((segment) => [segment.startTick, segment.endTick])))
+      .sort((left, right) => left - right);
+    const merged = [];
+    for (let index = 0; index < boundaries.length - 1; index += 1) {
+      const startTick = boundaries[index];
+      const endTick = boundaries[index + 1];
+      const active = normalized.filter((segment) => segment.startTick <= startTick && segment.endTick >= endTick);
+      if (!active.length) {
+        continue;
+      }
+      const tooltipLines = Array.from(new Set(active
+        .flatMap((segment) => String(segment.tooltip || '').split('\n'))
+        .map((line) => line.trim())
+        .filter(Boolean)));
+      const buffIds = Array.from(new Set(active
+        .flatMap((segment) => String(segment.buffIds || '').split(/\s+/))
+        .filter(Boolean)));
+      const colors = Array.from(new Set(active.map((segment) => String(segment.color || '')).filter(Boolean)));
+      const tooltipItems = Array.from(new Map(active
+        .flatMap((segment) => Array.isArray(segment.tooltipItems) ? segment.tooltipItems : [])
+        .map((item) => [`${item.id}:${item.endTick}:${buffStackKey(item.stackCount)}`, item]))
+        .values());
+      const key = JSON.stringify({ buffIds: buffIds.slice().sort(), tooltipLines: tooltipLines.slice().sort(), colors: colors.slice().sort() });
+      const previous = merged[merged.length - 1];
+      if (previous && previous.key === key && previous.endTick === startTick) {
+        previous.endTick = endTick;
+        continue;
+      }
+      merged.push({
+        key,
+        startTick,
+        endTick,
+        tooltip: tooltipLines.join('\n'),
+        tooltipItems,
+        buffIds: buffIds.join(' '),
+        color: colors[0] || '#ffffff',
+      });
+    }
+    return merged;
   }
 
   function triggeredUnlinedBuffs(detail) {
@@ -2144,10 +2470,13 @@
       .filter((buff) => isUnlinedBuff(buff))
       .map((buff) => {
         const startTick = Math.max(
-          Number(detail?.start_tick || 0),
-          Number(buff?.visual_start_tick ?? buff?.trigger_tick ?? buff?.start_tick ?? detail?.start_tick ?? 0),
+          Number(detail?.display_start_tick ?? detail?.visual_start_tick ?? detail?.start_tick ?? 0),
+          Number(buff?.visual_start_tick ?? buff?.trigger_tick ?? buff?.start_tick ?? detail?.display_start_tick ?? 0),
         );
-        const endTick = Math.max(startTick + 1, Number(buff?.end_tick ?? startTick + 1));
+        const endTick = Math.max(
+          startTick + 1,
+          Number(buff?.visual_end_tick ?? buff?.display_end_tick ?? buff?.end_tick ?? startTick + 1),
+        );
         return {
           id: String(buff?.rule_id || `${buffRuleDisplayName(buff)}_${startTick}_${endTick}`),
           name: buffRuleDisplayName(buff),
@@ -2211,9 +2540,22 @@
     return BUFF_LINE_COLORS[index % BUFF_LINE_COLORS.length];
   }
 
+  function reactionLineColor(reaction) {
+    return {
+      '创生': DAMAGE_SOURCE_COLORS['创生'],
+      '延滞': '#f4d66f',
+      '覆纹': '#ff7f9d',
+      '浊燃': DAMAGE_SOURCE_COLORS['浊燃'],
+      '黯星': DAMAGE_SOURCE_COLORS['黯星'],
+      '浸染': '#65c8ff',
+    }[reaction] || '#ffffff';
+  }
+
   function renderTimeline() {
     const drag = state.dragState || null;
     const result = timelineResult();
+    const reactionEffects = result?.reaction_effects || [];
+    const reactionDamageEvents = result?.reaction_damage_events || [];
     const usesDragPreviewResult = Boolean(drag?.previewResult && result === drag.previewResult);
     const usesStaleResult = Boolean(state.isResultStale && state.result && result === state.result);
     const resultDetails = result?.details || [];
@@ -2253,7 +2595,7 @@
           return buff;
         }
         const projectedBuff = Object.assign({}, buff);
-        ['visual_start_tick', 'trigger_tick', 'start_tick', 'end_tick'].forEach((key) => {
+        ['visual_start_tick', 'visual_end_tick', 'display_start_tick', 'display_end_tick'].forEach((key) => {
           if (projectedBuff[key] !== undefined && projectedBuff[key] !== null) {
             projectedBuff[key] = Number(projectedBuff[key]) + projectionShiftTicks;
           }
@@ -2302,8 +2644,14 @@
       });
     });
     state.timelineDisplayDetails = details;
-    const buffAxisEndTick = renderedAxisEndTick(details);
     const loopEnabled = Boolean(state.axis?.options?.loop_enabled);
+    const actionAxisEndTick = renderedAxisEndTick(details);
+    const buffAxisEndTick = loopEnabled
+      ? actionAxisEndTick
+      : Math.max(
+        actionAxisEndTick,
+        ...reactionEffects.map((effect) => Number(effect.visual_end_tick ?? effect.end_tick ?? effect.visual_start_tick ?? effect.start_tick ?? 0)),
+      );
     const heldBuffPreview = state.dragState?.buffPreview || null;
     const durationTicks = timelineMaxTick(details);
     state.timelineDurationTicks = durationTicks;
@@ -2410,43 +2758,38 @@
         end_tick: endTick,
       });
     });
-    let selectedCursorLeftPx = null;
-    let primarySelectedLayoutForCursor = null;
     const actionTracks = (state.axis.team || []).map((member) => {
       const selectedIds = new Set(selectedStepIds());
       const color = SLOT_COLORS[Number(member.slot) % SLOT_COLORS.length];
       const resources = slotResourcesForAxis(member.slot);
       const energyLabel = formatNumber(resources.energy || 0, 1);
       const harmonyLabel = formatNumber(resources.harmony || 0, 1);
+      const personalResourceLabels = Object.entries(resources.personalResources || {})
+        .filter(([, value]) => Number(value))
+        .map(([name, value]) => `<small>${escapeHtml(name)} ${formatNumber(value, 1)}</small>`)
+        .join('');
       const slotDetails = details
         .filter((detail) => Number(detail.slot) === Number(member.slot))
         .sort((a, b) => Number(a.display_start_tick ?? a.start_tick ?? 0) - Number(b.display_start_tick ?? b.start_tick ?? 0));
       const backgroundLaneEnds = [];
-      let slotBlockingEndPx = 0;
       const laidOut = slotDetails.map((detail) => {
         const displayStartTick = Number(detail.display_start_tick ?? detail.start_tick ?? 0);
         const displayEndTick = Number(detail.display_end_tick ?? detail.end_tick ?? displayStartTick);
         const displayVisualEndTick = Number(detail.display_visual_end_tick ?? detail.visual_end_tick ?? displayEndTick);
-        const nominalDisplayVisualEndTick = Number(detail.nominal_display_visual_end_tick ?? displayVisualEndTick);
         let startPx = leftPx(displayStartTick);
         let cardWidth = widthPx(displayStartTick, displayEndTick, displayVisualEndTick);
-        let blockingCardWidth = widthPx(displayStartTick, displayEndTick, nominalDisplayVisualEndTick);
         if (
           Number(detail.display_duration_ticks ?? detail.duration_ticks ?? 0) === 0 &&
           !detail.is_background_damage &&
           isQAction(actionForStep({ action_id: detail.action_id }))
         ) {
           cardWidth = MIN_ACTION_CARD_PX;
-          blockingCardWidth = MIN_ACTION_CARD_PX;
           if (displayVisualEndTick > displayStartTick + ZERO_ACTION_VISUAL_TICKS) {
             cardWidth = widthPx(displayStartTick, displayEndTick, displayVisualEndTick);
-            blockingCardWidth = cardWidth;
           }
         }
         let laneIndex = 0;
-        if (!detail.is_background_damage) {
-          startPx = Math.max(startPx, slotBlockingEndPx);
-        } else {
+        if (detail.is_background_damage) {
           const backgroundLaneLimit = Math.max(1, MAX_VISUAL_LANES_PER_SLOT - 1);
           let backgroundLaneIndex = backgroundLaneEnds.findIndex((endPx) => startPx >= endPx + 6);
           if (backgroundLaneIndex < 0) {
@@ -2460,40 +2803,9 @@
           backgroundLaneEnds[backgroundLaneIndex] = startPx + cardWidth;
           laneIndex = backgroundLaneIndex + 1;
         }
-        if (!detail.is_background_damage || detail.is_basic_background) {
-          slotBlockingEndPx = Math.max(slotBlockingEndPx, startPx + blockingCardWidth);
-        }
         return { detail, laneIndex, startPx, cardWidth };
       });
-      const primarySelectedLayout = laidOut.find((entry) => entry.detail.step_id === state.selectedStepId);
-      if (primarySelectedLayout) {
-        selectedCursorLeftPx = primarySelectedLayout.startPx;
-        primarySelectedLayoutForCursor = primarySelectedLayout;
-      }
-      const layoutPxAtTick = (tick) => {
-        const safeTick = Math.max(0, Number(tick || 0));
-        const exactEntry = laidOut.find((entry) => Number(entry.detail.display_start_tick ?? entry.detail.start_tick ?? 0) === safeTick);
-        if (exactEntry) {
-          return exactEntry.startPx;
-        }
-        const containingEntry = laidOut
-          .slice()
-          .reverse()
-          .find((entry) => {
-            const detail = entry.detail;
-            const startTick = Number(detail.display_start_tick ?? detail.start_tick ?? 0);
-            const endTick = Math.max(
-              startTick + 1,
-              Number(detail.display_visual_end_tick ?? detail.visual_end_tick ?? detail.end_tick ?? startTick + 1),
-            );
-            return safeTick > startTick && safeTick <= endTick;
-          });
-        if (!containingEntry) {
-          return leftPx(safeTick);
-        }
-        const startTick = Number(containingEntry.detail.display_start_tick ?? containingEntry.detail.start_tick ?? 0);
-        return leftPx(safeTick) + (containingEntry.startPx - leftPx(startTick));
-      };
+      const layoutPxAtTick = (tick) => leftPx(Math.max(0, Number(tick || 0)));
       const layoutWidthPx = (startTick, endTick, minWidth = 1) => Math.max(
         minWidth,
         layoutPxAtTick(Math.max(Number(endTick || startTick), Number(startTick || 0) + 1)) - layoutPxAtTick(startTick),
@@ -2507,7 +2819,28 @@
             title="${escapeHtml(memberName(windowItem.slot))} 前台 ${escapeHtml(visualTickLabel(windowItem.start_tick))}"
           ></span>
         `).join('');
-      const buffSegments = mergedBuffLineSegments(slotDetails, buffAxisEndTick, loopEnabled);
+      const buffSegments = mergedBuffLineSegments(details, buffAxisEndTick, loopEnabled, member.slot);
+      const reactionSegmentMap = new Map();
+      reactionEffects
+        .filter((effect) => Number(effect.trigger_slot) === Number(member.slot))
+        .forEach((effect) => {
+          buffLineSegments(
+            Number(effect.visual_start_tick ?? effect.start_tick ?? 0),
+            Number(effect.visual_end_tick ?? effect.end_tick ?? effect.start_tick ?? 0),
+            buffAxisEndTick,
+            loopEnabled,
+          ).forEach((segment) => {
+            const key = `${effect.reaction}:${segment.startTick}:${segment.endTick}`;
+            reactionSegmentMap.set(key, {
+              startTick: segment.startTick,
+              endTick: segment.endTick,
+              reaction: effect.reaction,
+              buffIds: effect.id,
+              tooltip: `${effect.reaction} · ${ticksToSeconds(effect.duration_ticks || 1)}s`,
+            });
+          });
+        });
+      const reactionSegments = Array.from(reactionSegmentMap.values());
       const maxLaneIndex = laidOut.reduce((maxIndex, entry) => Math.max(maxIndex, entry.laneIndex), 0);
       let actionTopBase = 18;
       actionTopBase = Math.max(actionTopBase, Number(heldBuffPreview?.actionTopBaseBySlot?.[member.slot] || 0));
@@ -2515,19 +2848,34 @@
       trackHeight = Math.max(trackHeight, Number(heldBuffPreview?.trackHeightBySlot?.[member.slot] || 0));
       const buffLineTop = actionTopBase - 12;
       const heldBuffLines = heldBuffPreview?.buffLinesBySlot?.[String(member.slot)];
-      const buffLines = Array.isArray(heldBuffLines) ? heldBuffLines.join('') : buffSegments.map((segment, index) => {
+      const allBuffSegments = mergedRenderedBuffSegments([
+        ...buffSegments.map((segment, index) => ({ ...segment, color: buffLineColor(index) })),
+        ...reactionSegments.map((segment) => ({ ...segment, color: reactionLineColor(segment.reaction) })),
+      ]);
+      const buffLines = Array.isArray(heldBuffLines) ? heldBuffLines.join('') : allBuffSegments.map((segment) => {
         const tooltip = segment.tooltip || '';
         return `
           <span
             class="shaft-buff-trigger-line"
             data-buff-id="${escapeHtml(segment.buffIds || '')}"
             data-tooltip="${escapeHtml(tooltip)}"
+            data-tooltip-items="${escapeHtml(JSON.stringify(segment.tooltipItems || []))}"
             tabindex="0"
-            style="left:${layoutPxAtTick(segment.startTick)}px; top:${buffLineTop}px; width:${layoutWidthPx(segment.startTick, segment.endTick, 22)}px; --slot-color:${color}; --buff-color:${buffLineColor(index)}"
+            style="left:${layoutPxAtTick(segment.startTick)}px; top:${buffLineTop}px; width:${layoutWidthPx(segment.startTick, segment.endTick)}px; --slot-color:${color}; --buff-color:${segment.color}"
             aria-label="${escapeHtml(tooltip)}"
           ></span>
         `;
       }).join('');
+      const reactionDamageMarkers = reactionDamageEvents
+        .filter((event) => Number(event.contributor_slot) === Number(member.slot))
+        .map((event) => `
+          <span
+            class="shaft-reaction-damage-marker"
+            style="left:${leftPx(Number(event.visual_tick ?? event.tick ?? 0))}px; top:${buffLineTop + 9}px; --reaction-color:${reactionLineColor(event.reaction)}"
+            title="${escapeHtml(`${event.reaction} · ${event.contributor_character_name || memberName(event.contributor_slot)} · ${formatNumber(event.damage || 0)} 伤害`)}"
+            aria-label="${escapeHtml(`${event.reaction}伤害触发点`)}"
+          ></span>
+        `).join('');
       const bars = laidOut
         .map((entry) => {
           const detail = entry.detail;
@@ -2538,7 +2886,15 @@
           const basicBackground = detail.is_basic_background ? 'basic-background' : '';
           const qInstant = detail.q_instant_release ? `q-instant-release q-instant-${detail.q_instant_release_kind || 'release'}` : '';
           const top = actionTopBase + entry.laneIndex * 38;
-          const durationLabel = Number(detail.duration_ticks || 0) > 0 ? `<em>${ticksToSeconds(detail.duration_ticks)}s</em>` : '';
+          const actionMultiplier = backgroundActionMultiplier(
+            (state.axis.steps || []).find((step) => step.id === detail.step_id),
+            actionForStep({ action_id: detail.action_id }),
+          );
+          const actionMeta = [
+            actionMultiplier > 1 ? `×${actionMultiplier}` : '',
+            Number(detail.duration_ticks || 0) > 0 ? `${ticksToSeconds(detail.duration_ticks)}s` : '',
+          ].filter(Boolean).join(' · ');
+          const durationLabel = actionMeta ? `<em>${actionMeta}</em>` : '';
           return `
             <span class="shaft-action-bar ${actionTypeClass(detail.action_type)} ${detail.is_background_damage ? 'background-damage' : ''} ${basicBackground} ${frontStart} ${qInstant} ${selected} ${dragging}" data-step-id="${escapeHtml(detail.step_id)}" style="left:${entry.startPx}px; top:${top}px; width:${entry.cardWidth}px; --slot-color:${color}" title="${escapeHtml(detail.action_name)}${detail.q_instant_release ? ' · Q即时释放' : ''}">
               <span>${escapeHtml(detail.action_name)}</span>
@@ -2553,26 +2909,18 @@
               <img src="${escapeHtml(member.character_avatar || '')}" alt="">
               <small>能量 ${energyLabel}</small>
               <small>环合 ${harmonyLabel}</small>
+              ${personalResourceLabels}
             </span>
             <span class="shaft-track-name">${escapeHtml(member.character_name)}</span>
           </span>
           <span class="shaft-track-surface"></span>
-          ${frontBands}${buffLines}${bars}${cursor(false)}
+          ${frontBands}${buffLines}${reactionDamageMarkers}${bars}${cursor(false)}
         </div>
       `;
     }).join('');
     $('shaft-timeline').innerHTML = actionTracks;
-    const primarySelectedStartTick = primarySelectedLayoutForCursor
-      ? Number(primarySelectedLayoutForCursor.detail.display_start_tick ?? primarySelectedLayoutForCursor.detail.visual_start_tick ?? primarySelectedLayoutForCursor.detail.start_tick ?? 0)
-      : NaN;
-    const primarySelectedRawTick = primarySelectedLayoutForCursor
-      ? Number((state.axis.steps || []).find((step) => step.id === primarySelectedLayoutForCursor.detail.step_id)?.start_tick ?? primarySelectedLayoutForCursor.detail.raw_start_tick ?? primarySelectedStartTick)
-      : NaN;
-    const cursorTick = Number(state.cursorTick || 0);
-    const cursorOnSelectedStart = primarySelectedLayoutForCursor && [primarySelectedStartTick, primarySelectedRawTick].some((tick) => Number.isFinite(tick) && tick === cursorTick);
-    const finalCursorLeftPx = cursorOnSelectedStart && Number.isFinite(selectedCursorLeftPx) ? selectedCursorLeftPx : leftPx(state.cursorTick);
     document.querySelectorAll('.shaft-cursor-line').forEach((node) => {
-      node.style.left = `${finalCursorLeftPx}px`;
+      node.style.left = `${leftPx(state.cursorTick)}px`;
     });
   }
 
@@ -2605,9 +2953,29 @@
     const dpsSeconds = Math.max(durationSeconds, 0.1);
     const actionDamage = Number(detail?.direct_damage || 0) + Number(detail?.stagger_damage || 0);
     const actionDps = actionDamage / dpsSeconds;
-    const energyGain = Number(action.energy_gain || 0) + Number(action.energy_return || 0);
+    const energyGain = Number(detail?.energy_gain ?? (Number(action.energy_gain || 0) + Number(action.energy_return || 0)));
     const harmonyGain = Number(detail?.harmony ?? action.harmony ?? 0);
-    const appliedBuffs = (detail?.applied_buffs || []).map((buff) => buff.name).join('、') || '无';
+    const buffEffectLabels = {
+      atk_pct: '攻击', flat_atk: '固定攻击', hp_pct: '生命', flat_hp: '固定生命',
+      def_pct: '防御', flat_def: '固定防御', crit_rate: '暴击', crit_dmg: '暴伤',
+      def_ignore: '无视防御', res_down: '抗性降低', energy_recharge: '充能',
+      harmony_strength: '环合强度', stagger_strength: '倾陷强度', basic_dmg: '普攻增伤',
+      skill_dmg: '变轨增伤', ultimate_dmg: '终结增伤', follow_dmg: '追击增伤',
+      mind_dmg: '心灵增伤', attach_dmg: '附着增伤', element_dmg: '属性增伤',
+      all_dmg: '全伤增伤', final_dmg: '最终增伤',
+    };
+    const flatBuffEffects = new Set(['flat_atk', 'flat_hp', 'flat_def', 'harmony_strength', 'stagger_strength']);
+    const describeBuff = (buff) => {
+      const effects = Object.entries(buff?.effects || {}).filter(([, value]) => Number(value));
+      const effectText = effects.map(([key, value]) => {
+        const label = buffEffectLabels[key] || (key.startsWith('res_down_') ? `${key.slice('res_down_'.length)}抗降低` : key);
+        return `${label} ${Number(value) >= 0 ? '+' : ''}${flatBuffEffects.has(key) ? formatNumber(value, 1) : `${formatNumber(Number(value) * 100, 1)}%`}`;
+      }).join('、');
+      return `${buff?.name || '未命名增益'}${effectText ? `：${effectText}` : ''}`;
+    };
+    const appliedBuffList = detail?.applied_buffs || [];
+    const appliedBuffs = appliedBuffList.map((buff) => buff.name).join('、') || '无';
+    const appliedBuffExplanations = appliedBuffList.map(describeBuff).join('；') || '无';
     const triggeredBuffs = (detail?.triggered_buffs || []).map((buff) => buff.name).join('、') || '无';
     const warnings = (detail?.warnings || []).join('；') || '无';
     const specialStats = [];
@@ -2616,6 +2984,7 @@
     const hitCount = detail?.hit_count ?? action.hit_count;
     const expectedCriticalHits = detail?.expected_critical_hits;
     const appliedEnemyDebuffs = (detail?.applied_enemy_debuffs || []).join('、');
+    const actionMultiplier = backgroundActionMultiplier(step, action);
     if (hitCount !== undefined && hitCount !== null) {
       specialStats.push(`<div class="shaft-detail-kv"><span>伤害段数</span><strong>${formatNumber(hitCount, 0)}</strong></div>`);
     }
@@ -2640,6 +3009,13 @@
         <strong>${escapeHtml(action.name)}</strong>
         <span class="shaft-detail-muted">${escapeHtml(memberName(step.slot))} · ${escapeHtml(action.action_type || '动作')} · ${isStepBackground(step, action) ? (isBasicBackgroundOverride(step, action) ? '后台普攻' : '后台伤害') : '前台动作'}</span>
       </div>
+      ${isBackgroundAction(action) ? `
+        <label class="shaft-detail-multiplier">
+          <span>动作倍数</span>
+          <input data-background-action-multiplier data-step-id="${escapeHtml(step.id)}" type="number" min="1" max="12" step="1" inputmode="numeric" value="${actionMultiplier}">
+          <small>等效为同一时刻重叠 ${actionMultiplier} 个该后台动作</small>
+        </label>
+      ` : ''}
       <div class="shaft-detail-grid">
         <div class="shaft-detail-kv"><span>显示开始</span><strong>${escapeHtml(visualTickLabel(detail?.display_start_tick ?? detail?.visual_start_tick ?? step.start_tick))}</strong></div>
         <div class="shaft-detail-kv"><span>计算开始</span><strong>${ticksToSeconds(detail?.start_tick ?? calculationTickFromVisual(step.start_tick))}s</strong></div>
@@ -2670,6 +3046,10 @@
         <strong>${escapeHtml(appliedBuffs)}</strong>
       </div>
       <div class="shaft-detail-hero">
+        <span class="shaft-detail-muted">增益解释</span>
+        <strong>${escapeHtml(appliedBuffExplanations)}</strong>
+      </div>
+      <div class="shaft-detail-hero">
         <span class="shaft-detail-muted">触发增益</span>
         <strong>${escapeHtml(triggeredBuffs)}</strong>
       </div>
@@ -2682,7 +3062,7 @@
 
   function renderMarketFilters() {
     const selected = new Set(state.marketCharacterIds);
-    const characters = state.catalog?.characters || [];
+    const characters = (state.catalog?.characters || []).filter((character) => !character.selection_disabled);
     $('shaft-character-filter-grid').innerHTML = characters.map((character) => `
       <button class="shaft-character-filter-option ${selected.has(character.id) ? 'selected' : ''}"
               data-market-character-id="${escapeHtml(character.id)}"
@@ -2792,9 +3172,10 @@
   }
 
   function applyForegroundConflictOrder(orderedSteps) {
-    const usedForegroundStarts = new Set();
-    const foregroundStarts = [];
     const slotBlockingEnd = new Map();
+    let previousForegroundSlot = null;
+    let previousForegroundStartTick = null;
+    const foregroundLocks = [];
     for (const step of orderedSteps) {
       const action = actionForStep(step);
       const foregroundStart = startsForeground(step, action);
@@ -2803,57 +3184,48 @@
         continue;
       }
       let startTick = Math.max(0, Number(step.start_tick || 0));
-      let guard = 0;
-      while (guard < 1000) {
-        guard += 1;
-        const currentIsQ = isZeroForegroundQStep(step, action);
-        if (slotBlocking) {
-          startTick = Math.max(startTick, Number(slotBlockingEnd.get(Number(step.slot)) || 0));
+      if (slotBlocking) {
+        startTick = Math.max(startTick, Number(slotBlockingEnd.get(Number(step.slot)) || 0));
+      }
+      if (foregroundStart) {
+        let lockEndTick = Math.max(
+          0,
+          ...foregroundLocks
+            .filter((lock) => startTick < Number(lock.endTick))
+            .map((lock) => Number(lock.endTick)),
+        );
+        while (lockEndTick > startTick) {
+          startTick = lockEndTick;
+          lockEndTick = Math.max(
+            0,
+            ...foregroundLocks
+              .filter((lock) => startTick < Number(lock.endTick))
+              .map((lock) => Number(lock.endTick)),
+          );
         }
-        const supportConflict = foregroundStarts.find((item) => (
-          item.isSupport &&
-          item.tick <= startTick &&
-          startTick < item.endTick
-        ));
-        if (supportConflict) {
-          startTick = supportConflict.endTick;
-          continue;
-        }
-        if (currentIsQ) {
-          const qConflict = foregroundStarts.find((item) => (
-            item.isQ &&
-            startTick < item.endTick
-          ));
-          if (qConflict) {
-            startTick = qConflict.endTick;
-            continue;
-          }
-        }
-        if (usedForegroundStarts.has(startTick)) {
-          startTick += 1;
-          continue;
-        }
-        const gapConflict = foregroundStarts.find((item) => Math.abs(startTick - item.tick) < MIN_FOREGROUND_START_GAP_TICKS);
-        if (gapConflict) {
-          startTick = gapConflict.tick + MIN_FOREGROUND_START_GAP_TICKS;
-          continue;
-        }
-        break;
+      }
+      if (
+        foregroundStart &&
+        previousForegroundSlot !== null &&
+        previousForegroundSlot !== Number(step.slot) &&
+        previousForegroundStartTick !== null
+      ) {
+        startTick = Math.max(startTick, previousForegroundStartTick + MIN_FOREGROUND_START_GAP_TICKS);
       }
       step.start_tick = startTick;
       const endTick = startTick + actionVisualDurationTicks(action, step);
-      if (foregroundStart || slotBlocking) {
-        usedForegroundStarts.add(startTick);
-        foregroundStarts.push({
-          tick: startTick,
-          endTick,
-          slot: Number(step.slot),
-          isQ: isZeroForegroundQStep(step, action),
-          isSupport: isSupportAction(action),
-        });
+      if (foregroundStart) {
+        previousForegroundSlot = Number(step.slot);
+        previousForegroundStartTick = startTick;
       }
       if (slotBlocking) {
         slotBlockingEnd.set(Number(step.slot), endTick);
+      }
+      if (locksForegroundSwitch(step, action)) {
+        foregroundLocks.push({
+          slot: Number(step.slot),
+          endTick: foregroundLockEndTick(step, action, startTick),
+        });
       }
     }
   }
@@ -2863,8 +3235,8 @@
     if (startDelta) {
       return startDelta;
     }
-    const supportDelta = Number(isSupportAction(actionForStep(b))) - Number(isSupportAction(actionForStep(a)));
-    return supportDelta || Number(a.slot) - Number(b.slot);
+    const lockDelta = Number(locksForegroundSwitch(b)) - Number(locksForegroundSwitch(a));
+    return lockDelta || Number(a.slot) - Number(b.slot);
   }
 
   function resolveForegroundConflicts() {
@@ -2889,9 +3261,6 @@
       return;
     }
     const priorityMinTick = Math.min(...prioritySteps.map((step) => Number(step.start_tick || 0)));
-    const prioritySlots = new Set(prioritySteps
-      .filter((step) => blocksSlotOverlap(step, actionForStep(step)))
-      .map((step) => Number(step.slot)));
     const preSteps = [];
     const postSteps = [];
     state.axis.steps.forEach((step) => {
@@ -2900,14 +3269,7 @@
         return;
       }
       const startTick = Number(step.start_tick || 0);
-      const endTick = stepEndTick(step, true);
-      const supportProtectsItsInterval = startsForeground(step, action) &&
-        isSupportAction(action) &&
-        startTick <= priorityMinTick;
-      const mustStayAhead = supportProtectsItsInterval || (startTick < priorityMinTick && (
-        endTick <= priorityMinTick ||
-        prioritySlots.has(Number(step.slot))
-      ));
+      const mustStayAhead = startTick < priorityMinTick;
       if (mustStayAhead) {
         preSteps.push(step);
       } else {
@@ -2980,7 +3342,7 @@
     updateAxisDuration();
   }
 
-  function actionIntervalAtTick(tick) {
+  function actionIntervalAtTick(tick, slot = null) {
     const target = Math.max(0, Number(tick || 0));
     return (state.axis.steps || [])
       .map((step) => ({
@@ -2989,14 +3351,25 @@
         start: Number(step.start_tick || 0),
         end: Number(step.start_tick || 0) + actionVisualDurationTicks(actionForStep(step), step),
       }))
-      .filter((item) => startsForeground(item.step, item.action) && item.start < target && target < item.end)
+      .filter((item) => (
+        startsForeground(item.step, item.action) &&
+        item.start < target &&
+        target < item.end &&
+        (slot === null || Number(item.step.slot) === Number(slot))
+      ))
       .sort((a, b) => b.end - a.end)[0] || null;
   }
 
-  function prepareInsertionTick(tick, action = null) {
+  function prepareInsertionTick(tick, action = null, slot = null) {
     const target = Math.max(0, Number(tick || 0));
     const candidateStep = { action_id: action?.id || '' };
     if (isZeroForegroundQStep(candidateStep, action || {}) || tickHasForegroundQ(target)) {
+      return target;
+    }
+    if (
+      startsForeground(candidateStep, action || {}) &&
+      !actionIntervalAtTick(target, slot)
+    ) {
       return target;
     }
     const interval = actionIntervalAtTick(tick);
@@ -3056,7 +3429,7 @@
       return;
     }
     pushUndoSnapshot();
-    const insertTick = prepareInsertionTick(startTick, action);
+    const insertTick = prepareInsertionTick(startTick, action, slot);
     const step = {
       id: `step_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`,
       slot,
@@ -3098,17 +3471,30 @@
     if (!ids.size || !(state.axis?.steps || []).some((step) => ids.has(step.id))) {
       return;
     }
+    const removedSteps = state.axis.steps.filter((step) => ids.has(step.id));
+    const primaryRemovedStep = removedSteps.find((step) => step.id === state.selectedStepId)
+      || removedSteps.slice().sort((left, right) => Number(left.start_tick || 0) - Number(right.start_tick || 0))[0];
+    const removedAtTick = Number(primaryRemovedStep?.start_tick ?? state.cursorTick ?? 0);
     pushUndoSnapshot();
     state.axis.steps = state.axis.steps.filter((step) => !ids.has(step.id));
     normalizeEditedSteps();
     state.selectedStepIds = selectedStepIds().filter((id) => !ids.has(id));
-    state.selectedStepId = state.selectedStepIds[state.selectedStepIds.length - 1] || state.axis.steps[0]?.id || '';
+    if (!state.selectedStepIds.length) {
+      const nearestStep = state.axis.steps.slice().sort((left, right) => (
+        Math.abs(Number(left.start_tick || 0) - removedAtTick) - Math.abs(Number(right.start_tick || 0) - removedAtTick) ||
+        Number(Number(left.start_tick || 0) < removedAtTick) - Number(Number(right.start_tick || 0) < removedAtTick) ||
+        Number(left.start_tick || 0) - Number(right.start_tick || 0)
+      ))[0];
+      state.selectedStepIds = nearestStep ? [nearestStep.id] : [];
+    }
+    state.selectedStepId = state.selectedStepIds[state.selectedStepIds.length - 1] || '';
     syncSelection(Boolean(state.selectedStepId));
-    state.cursorTick = Number(selectedStep()?.start_tick || state.cursorTick || 0);
+    state.cursorTick = removedAtTick;
     syncAddTimeInput(state.cursorTick);
     closeContextMenu();
     renderAll();
     scheduleSimulation();
+    revealTimelineTick(removedAtTick);
   }
 
   function removeSelectedSteps() {
@@ -3157,6 +3543,7 @@
     closeContextMenu();
     renderAll();
     scheduleSimulation();
+    revealTimelineTick(state.cursorTick);
   }
 
   function addBuffRule() {
@@ -3208,7 +3595,14 @@
     }
     if (control.dataset.field === 'awakening') {
       const level = Math.max(1, Math.min(6, Number(control.dataset.awakeningLevel || 1)));
-      member.awakening = control.checked ? level : level - 1;
+      const awakeningNodes = new Set(normalizeAwakeningNodes(member.awakening_nodes, member.awakening));
+      if (control.checked) {
+        awakeningNodes.add(level);
+      } else {
+        awakeningNodes.delete(level);
+      }
+      member.awakening_nodes = Array.from(awakeningNodes).sort((left, right) => left - right);
+      member.awakening = member.awakening_nodes.length;
       rememberMemberBuild(member);
     } else if (control.dataset.field === 'bond_full') {
       member.bond_full = control.checked;
@@ -3227,7 +3621,14 @@
       rememberMemberBuild(member);
       removeInvalidStepsForSlot(slot);
     } else {
-      member[control.dataset.field] = control.value;
+      if (control.dataset.field === 'arc_id') {
+        member.arc_id = control.value;
+        member.arc_refinement = defaultArcRefinement(member.arc_id);
+      } else if (control.dataset.field === 'arc_refinement') {
+        member.arc_refinement = clampArcRefinement(control.value, member.arc_id);
+      } else {
+        member[control.dataset.field] = control.value;
+      }
       updateMemberNames(member);
       rememberMemberBuild(member);
     }
@@ -3371,6 +3772,37 @@
     renderTimeline();
     renderStepDetail();
     scheduleSimulation();
+  }
+
+  function handleStepDetailChange(event) {
+    const input = event.target.closest('[data-background-action-multiplier]');
+    if (!input) {
+      return;
+    }
+    const step = state.axis.steps.find((item) => item.id === input.dataset.stepId);
+    const action = step ? actionForStep(step) : null;
+    if (!step || !isBackgroundAction(action)) {
+      return;
+    }
+    const nextMultiplier = Math.max(1, Math.min(12, Math.round(Number(input.value || 1))));
+    input.value = String(nextMultiplier);
+    if (backgroundActionMultiplier(step, action) === nextMultiplier) {
+      return;
+    }
+    if (input.dataset.undoCaptured !== 'true') {
+      pushUndoSnapshot();
+      input.dataset.undoCaptured = 'true';
+    }
+    step.repeat = nextMultiplier;
+    renderTimeline();
+    window.clearTimeout(state.simulationTimer);
+    markSimulationStale();
+    persistAxisDraft();
+    renderResults();
+    renderSteps();
+    renderEditorActions();
+    setStatus(`后台动作倍数已设为 ×${nextMultiplier}`, 'dirty');
+    state.simulationTimer = window.setTimeout(runSimulation, SIMULATION_DEBOUNCE_MS);
   }
 
   function handleStepClick(event) {
@@ -3695,6 +4127,31 @@
     const rect = buffLine.getBoundingClientRect();
     const offsetX = Math.max(0, Math.min(rect.width, event.clientX - rect.left));
     buffLine.style.setProperty('--buff-tooltip-x', `${offsetX}px`);
+    let tooltipItems = [];
+    try {
+      tooltipItems = JSON.parse(buffLine.dataset.tooltipItems || '[]');
+    } catch (_error) {
+      tooltipItems = [];
+    }
+    if (!tooltipItems.length) {
+      return;
+    }
+    const pointerCalculationTick = calculationTickFromVisual(timelineTickFromEvent(event));
+    buffLine.dataset.tooltipCalculationTick = String(pointerCalculationTick);
+    const tooltip = tooltipItems.map((item) => {
+      const stackText = buffStackText(item.stackCount);
+      const durationTicks = Math.max(1, Number(item.durationTicks || 1));
+      if (durationTicks > BUFF_DURATION_LABEL_LIMIT_TICKS) {
+        return `${item.name}${stackText}`;
+      }
+      const remainingTicks = Math.max(
+        0,
+        calculationTickFromVisual(Number(item.endTick || 0)) - pointerCalculationTick,
+      );
+      return `${item.name} · 剩余${ticksToSeconds(remainingTicks)}s${stackText}`;
+    }).join('\n');
+    buffLine.dataset.tooltip = tooltip;
+    buffLine.setAttribute('aria-label', tooltip);
   }
 
   function slotFromTimelineEvent(event) {
@@ -3813,6 +4270,15 @@
 
   function isEditableTarget(target) {
     return Boolean(target?.closest?.('input, textarea, select, [contenteditable="true"]'));
+  }
+
+  function focusTimelineForShortcuts() {
+    const timeline = $('shaft-timeline');
+    if (!timeline) {
+      return;
+    }
+    timeline.tabIndex = -1;
+    timeline.focus({ preventScroll: true });
   }
 
   function moveTimelineCursorTo(tick) {
@@ -3980,6 +4446,14 @@
 
   function handleKeydown(event) {
     if (event.key === 'Escape') {
+      if ($('shaft-shortcut-dialog')?.open) {
+        closeShortcutHelp();
+        return;
+      }
+      if ($('shaft-action-contribution-dialog')?.open) {
+        closeActionContribution();
+        return;
+      }
       closeContextMenu();
       return;
     }
@@ -4319,11 +4793,20 @@
         total_harmony: 0,
       },
       damage_by_slot: [],
+      damage_by_action_by_slot: [],
       damage_by_source: [],
       resources_by_slot: [],
       build_panels_by_slot: currentBuildPanels(),
       details: [],
+      reaction_effects: [],
+      reaction_damage_events: [],
       front_windows: [],
+      time_axis: {
+        tick_seconds: 0.1,
+        timeline_ticks: 0,
+        real_duration_ticks: 0,
+        frozen_intervals: [],
+      },
       enemy: state.axis?.enemy || {},
     };
   }
@@ -4634,6 +5117,12 @@
       });
     });
     $('shaft-run-btn').addEventListener('click', runSimulation);
+    $('shaft-shortcut-help-btn').addEventListener('click', openShortcutHelp);
+    $('shaft-shortcut-dialog').addEventListener('click', (event) => {
+      if (event.target === event.currentTarget || event.target.closest('[data-close-shortcut-help]')) {
+        closeShortcutHelp();
+      }
+    });
     $('shaft-new-btn').addEventListener('click', newAxis);
     $('shaft-save-btn').addEventListener('click', () => saveAxis('private'));
     $('shaft-publish-btn').addEventListener('click', () => saveAxis('public'));
@@ -4726,8 +5215,20 @@
       state.axis.enemy.weakness_elements = Array.from($('shaft-weakness-row').querySelectorAll('input:checked')).map((input) => input.value);
       scheduleSimulation();
     });
+    $('shaft-resistance-grid').addEventListener('input', (event) => {
+      const element = event.target?.dataset?.resistanceElement;
+      if (!element) return;
+      state.axis.enemy.resistances[element] = Math.max(-1, Math.min(1, Number(event.target.value || 0) / 100));
+      scheduleSimulation();
+    });
     $('shaft-compare-controls').addEventListener('click', handleCompareControls);
     $('shaft-compare-controls').addEventListener('change', handleCompareControlChange);
+    $('shaft-contribution-list').addEventListener('click', handleContributionClick);
+    $('shaft-action-contribution-dialog').addEventListener('click', (event) => {
+      if (event.target === event.currentTarget || event.target.closest('[data-close-action-contribution]')) {
+        closeActionContribution();
+      }
+    });
     $('shaft-team-slots').addEventListener('change', handleTeamChange);
     $('shaft-team-slots').addEventListener('change', handleCurtainInput);
     $('shaft-team-slots').addEventListener('input', handleSubstatInput);
@@ -4742,6 +5243,7 @@
       $('shaft-step-list').addEventListener('input', handleStepChange);
       $('shaft-step-list').addEventListener('click', handleStepClick);
     }
+    $('shaft-step-detail').addEventListener('input', handleStepDetailChange);
     $('shaft-timeline').addEventListener('click', handleTimelineClick);
     $('shaft-timeline').addEventListener('contextmenu', handleTimelineContextMenu);
     $('shaft-timeline').addEventListener('mousedown', handleTimelineMouseDown);
@@ -4773,6 +5275,7 @@
     state.page = active;
     window.NTE_BEFORE_LOGIN_REDIRECT = persistAxisDraft;
     bindEvents();
+    focusTimelineForShortcuts();
     try {
       state.catalog = await shaftRequest('/api/shaft/catalog');
       const restoredDraft = restoreAxisDraft(active);

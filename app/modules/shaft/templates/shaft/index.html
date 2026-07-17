@@ -14,6 +14,7 @@
             <a class="shaft-page-tab" data-shaft-page-link="plaza" href="{{ url_for('main.shaft_page', page='plaza') }}">广场</a>
         </nav>
         <div class="header-actions">
+            <button class="secondary-btn shaft-shortcut-help-btn" id="shaft-shortcut-help-btn" type="button" aria-label="查看快捷键说明" aria-haspopup="dialog" title="快捷键说明" hidden>?</button>
             <a class="secondary-btn" href="{{ url_for('main.default_page') }}">工具主页</a>
             <a class="secondary-btn" href="{{ url_for('main.login_page') }}" id="shaft-login-link">登录</a>
             <button class="primary-btn" id="shaft-run-btn" type="button">计算</button>
@@ -44,6 +45,8 @@
                     </div>
                     <p class="shaft-field-hint">弱点属性</p>
                     <div class="shaft-weakness-row" id="shaft-weakness-row"></div>
+                    <p class="shaft-field-hint">属性抗性</p>
+                    <div class="shaft-enemy-grid" id="shaft-resistance-grid"></div>
                 </section>
             </aside>
 
@@ -225,6 +228,57 @@
         </section>
     </section>
     <div class="shaft-toast" id="shaft-toast" role="status" aria-live="polite" hidden></div>
+    <dialog class="shaft-action-contribution-dialog" id="shaft-action-contribution-dialog" aria-labelledby="shaft-action-contribution-title">
+        <div class="shaft-action-contribution-modal">
+            <div class="section-title-row">
+                <div>
+                    <span class="shaft-panel-kicker">角色伤害构成</span>
+                    <h2 id="shaft-action-contribution-title">动作贡献占比</h2>
+                </div>
+                <button class="secondary-btn shaft-dialog-close" data-close-action-contribution type="button" aria-label="关闭">×</button>
+            </div>
+            <div id="shaft-action-contribution-content"></div>
+        </div>
+    </dialog>
+    <dialog class="shaft-shortcut-dialog" id="shaft-shortcut-dialog" aria-labelledby="shaft-shortcut-dialog-title">
+        <div class="shaft-shortcut-modal">
+            <div class="section-title-row">
+                <div>
+                    <span class="shaft-panel-kicker">排轴编辑器</span>
+                    <h2 id="shaft-shortcut-dialog-title">快捷键说明</h2>
+                </div>
+                <button class="secondary-btn shaft-dialog-close" data-close-shortcut-help type="button" aria-label="关闭">×</button>
+            </div>
+            <div class="shaft-shortcut-groups">
+                <section class="shaft-shortcut-group">
+                    <h3>编辑</h3>
+                    <dl>
+                        <div><dt><kbd>Ctrl / ⌘</kbd><span>+</span><kbd>A</kbd></dt><dd>全选动作</dd></div>
+                        <div><dt><kbd>Ctrl / ⌘</kbd><span>+</span><kbd>C</kbd></dt><dd>复制所选动作</dd></div>
+                        <div><dt><kbd>Ctrl / ⌘</kbd><span>+</span><kbd>V</kbd></dt><dd>粘贴到时间光标</dd></div>
+                        <div><dt><kbd>Delete</kbd><span>/</span><kbd>Backspace</kbd></dt><dd>删除所选动作</dd></div>
+                        <div><dt><kbd>Ctrl / ⌘</kbd><span>+</span><kbd>Z</kbd></dt><dd>撤销</dd></div>
+                        <div><dt><kbd>Ctrl / ⌘</kbd><span>+</span><kbd>Shift</kbd><span>+</span><kbd>Z</kbd></dt><dd>重做（也支持 Ctrl / ⌘ + Y）</dd></div>
+                    </dl>
+                </section>
+                <section class="shaft-shortcut-group">
+                    <h3>选择与定位</h3>
+                    <dl>
+                        <div><dt><kbd>←</kbd><span>/</span><kbd>→</kbd></dt><dd>时间光标前后移动 0.1 秒</dd></div>
+                        <div><dt><kbd>A</kbd><span>/</span><kbd>D</kbd></dt><dd>选择同角色的上一个 / 下一个动作</dd></div>
+                        <div><dt><kbd>W</kbd><span>/</span><kbd>S</kbd></dt><dd>选择相邻角色轨道中最近的动作</dd></div>
+                    </dl>
+                </section>
+                <section class="shaft-shortcut-group">
+                    <h3>动作微调</h3>
+                    <dl>
+                        <div><dt><kbd>Q</kbd><span>/</span><kbd>E</kbd></dt><dd>所选动作前后移动 0.1 秒；与相邻前台动作相交时交换顺序</dd></div>
+                        <div><dt><kbd>Esc</kbd></dt><dd>关闭弹窗或右键菜单</dd></div>
+                    </dl>
+                </section>
+            </div>
+        </div>
+    </dialog>
 </main>
 <script src="{{ url_for('static', filename='common/js/common.js') }}"></script>
 <script src="{{ url_for('shaft_module.static', filename='js/shaft_engine.js') }}"></script>

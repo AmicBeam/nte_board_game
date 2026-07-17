@@ -5,11 +5,15 @@ from typing import Any
 
 
 SUPPORTED_TRIGGER_EVENTS = {
+    'passive',
     'action_start',
     'action_hit',
     'action_end',
     'loop_start',
+    'reaction_trigger',
 }
+
+PERMANENT_BUFF_END_TICK = 1_000_000_000
 
 
 def _num(value: Any, default: float = 0.0) -> float:
@@ -31,6 +35,13 @@ def _stack_num(value: Any, default: float = 1.0) -> float:
 
 def _as_list(value: Any) -> list[Any]:
     return value if isinstance(value, list) else []
+
+
+def _awakening_nodes(source: dict[str, Any]) -> set[int]:
+    raw_nodes = source.get('awakening_nodes')
+    if isinstance(raw_nodes, list):
+        return {level for value in raw_nodes if 1 <= (level := _int(value)) <= 6}
+    return set(range(1, max(0, min(6, _int(source.get('awakening')))) + 1))
 
 
 def _str_set(value: Any) -> set[str]:
@@ -74,8 +85,31 @@ def registered_buff_rules(team: list[dict[str, Any]], catalog: dict[str, Any]) -
                 rule['owner_slot'] = _int(member.get('slot'))
                 rule['owner_character_id'] = str(member.get('character_id') or '')
                 rule['owner_character_name'] = str(member.get('character_name') or '')
-                rule['owner_awakening'] = _int(member.get('awakening'))
+                rule['owner_awakening'] = len(_awakening_nodes(member))
+                rule['owner_awakening_nodes'] = sorted(_awakening_nodes(member))
+                arc_refinement_record = (
+                    (((catalog.get('arc_refinements') or {}).get('arcs') or {}).get(provider_id) or {})
+                    if kind == 'arc'
+                    else {}
+                )
+                requested_arc_refinement = _int(member.get('arc_refinement'))
+                rule['owner_arc_refinement'] = (
+                    requested_arc_refinement
+                    if 1 <= requested_arc_refinement <= 5
+                    else max(1, min(5, _int(arc_refinement_record.get('default_level'), 1)))
+                )
                 if kind == 'arc':
+                    refinement = (
+                        arc_refinement_record.get('levels', {})
+                        .get(str(rule['owner_arc_refinement']))
+                    )
+                    refinement_effects = (
+                        (refinement.get('buff_effects') or {}).get(str(rule.get('id') or ''))
+                        if isinstance(refinement, dict)
+                        else None
+                    )
+                    if isinstance(refinement_effects, dict):
+                        rule['effects'] = deepcopy(refinement_effects)
                     rule['provider_name'] = (arcs.get(provider_id) or {}).get('name') or ''
                 elif kind == 'cartridge':
                     rule['provider_name'] = (cartridges.get(provider_id) or {}).get('name') or ''
@@ -167,7 +201,23 @@ def _conditions_match(conditions: Any, context: dict[str, Any]) -> bool:
                 return False
             continue
         if condition_type == 'awakening_min':
-            if _int(context.get('owner_awakening')) < _int(condition.get('min'), _int(condition.get('value'))):
+            level = _int(condition.get('min'), _int(condition.get('value')))
+            raw_nodes = context.get('owner_awakening_nodes')
+            if (
+                level not in {_int(value) for value in raw_nodes}
+                if isinstance(raw_nodes, list)
+                else _int(context.get('owner_awakening')) < level
+            ):
+                return False
+            continue
+        if condition_type == 'awakening_max':
+            next_level = _int(condition.get('max'), _int(condition.get('value'))) + 1
+            raw_nodes = context.get('owner_awakening_nodes')
+            if (
+                next_level in {_int(value) for value in raw_nodes}
+                if isinstance(raw_nodes, list)
+                else _int(context.get('owner_awakening')) >= next_level
+            ):
                 return False
             continue
         if condition_type == 'expected_critical_hit':
@@ -198,6 +248,10 @@ def _conditions_match(conditions: Any, context: dict[str, Any]) -> bool:
             if not bool(context.get('shield_active')):
                 return False
             continue
+        if condition_type == 'owner_character_id':
+            if str(context.get('owner_character_id') or '') not in _str_set(condition.get('ids')):
+                return False
+            continue
         if condition_type == 'take_damage':
             if not bool(context.get('take_damage')):
                 return False
@@ -216,6 +270,26 @@ def _conditions_match(conditions: Any, context: dict[str, Any]) -> bool:
             if element not in set(enemy.get('weakness_elements') or []):
                 return False
             continue
+        if condition_type == 'active_buff_key':
+            if str(condition.get('key') or '') not in {str(item) for item in _as_list(context.get('active_buff_keys'))}:
+                return False
+            continue
+        if condition_type == 'active_buff_any':
+            active_keys = {str(item) for item in _as_list(context.get('active_buff_keys'))}
+            if not any(str(key) in active_keys for key in _as_list(condition.get('keys'))):
+                return False
+            continue
+        if condition_type == 'reaction_owner_involved':
+            reaction = context.get('reaction') if isinstance(context.get('reaction'), dict) else {}
+            owner_slot = _int(context.get('owner_slot'), -1)
+            if owner_slot not in {_int(reaction.get('previous_slot'), -2), _int(reaction.get('support_slot'), -2)}:
+                return False
+            continue
+        if condition_type == 'reaction_type':
+            reaction = context.get('reaction') if isinstance(context.get('reaction'), dict) else {}
+            if str(reaction.get('reaction') or '') not in _str_set(condition.get('reactions')):
+                return False
+            continue
         return False
     return True
 
@@ -224,6 +298,8 @@ def stack_gain_for_rule(rule: dict[str, Any], context: dict[str, Any] | None = N
     stacking = rule.get('stacking') if isinstance(rule.get('stacking'), dict) else {}
     if stacking.get('stack_gain') not in (None, ''):
         return _stack_num(stacking.get('stack_gain'), 1.0)
+    if str(stacking.get('stack_gain_from') or '') == 'hit_count':
+        return _stack_num((context or {}).get('hit_count'), 0.0)
     trigger = rule.get('trigger') if isinstance(rule.get('trigger'), dict) else {}
     for condition in _as_list(trigger.get('conditions')):
         if isinstance(condition, dict) and str(condition.get('type') or '') == 'expected_critical_hit':
@@ -251,6 +327,7 @@ def event_matches_rule(
     event_context = dict(context or {})
     event_context.setdefault('snapshot', snapshot)
     event_context.setdefault('owner_awakening', rule.get('owner_awakening'))
+    event_context.setdefault('owner_awakening_nodes', rule.get('owner_awakening_nodes'))
     return _conditions_match(trigger.get('conditions'), event_context)
 
 
@@ -261,6 +338,7 @@ def _target_matches(
     action: dict[str, Any],
     snapshot: dict[str, Any],
     is_background: bool,
+    context: dict[str, Any] | None = None,
 ) -> bool:
     scope = str(target.get('scope') or 'registrar')
     owner_slot = _int(instance.get('owner_slot'))
@@ -301,10 +379,20 @@ def _target_matches(
     character = snapshot.get('character') if isinstance(snapshot.get('character'), dict) else {}
     if elements and str(character.get('element') or '') not in elements:
         return False
+    target_context = dict(context or {})
+    target_context.setdefault('snapshot', snapshot)
+    if not _conditions_match(target.get('conditions'), target_context):
+        return False
     return True
 
 
-def active_buff_resets_on_action_start(instance: dict[str, Any], step: dict[str, Any], action: dict[str, Any], is_background: bool) -> bool:
+def active_buff_resets_on_action_start(
+    instance: dict[str, Any],
+    step: dict[str, Any],
+    action: dict[str, Any],
+    is_background: bool,
+    tick: int = 0,
+) -> bool:
     rule = instance.get('rule') if isinstance(instance.get('rule'), dict) else {}
     reset = rule.get('reset') if isinstance(rule.get('reset'), dict) else {}
     if not reset or is_background:
@@ -315,6 +403,11 @@ def active_buff_resets_on_action_start(instance: dict[str, Any], step: dict[str,
         return True
     if bool(reset.get('owner_leaves_foreground')) and step_slot != owner_slot:
         return True
+    if bool(reset.get('owner_leaves_foreground_after_start')) and step_slot != owner_slot:
+        if tick < _int(instance.get('start_tick')):
+            instance['ignore_owner_leave_reset'] = True
+            return False
+        return not bool(instance.get('ignore_owner_leave_reset'))
     action_ids = _str_set(reset.get('action_ids'))
     if action_ids and str(action.get('id') or '') in action_ids:
         return True
@@ -338,15 +431,22 @@ def active_buff_applies(
     action: dict[str, Any],
     snapshot: dict[str, Any],
     is_background: bool,
+    context: dict[str, Any] | None = None,
 ) -> bool:
     rule = instance.get('rule') if isinstance(instance.get('rule'), dict) else {}
     target = rule.get('target') if isinstance(rule.get('target'), dict) else {}
-    return _target_matches(target, instance, step, action, snapshot, is_background)
+    return _target_matches(target, instance, step, action, snapshot, is_background, context)
 
 
-def activate_buff(active_buffs: list[dict[str, Any]], rule: dict[str, Any], trigger_tick: int, stack_gain: float = 1.0) -> dict[str, Any] | None:
+def activate_buff(
+    active_buffs: list[dict[str, Any]],
+    rule: dict[str, Any],
+    trigger_tick: int,
+    stack_gain: float = 1.0,
+    context: dict[str, Any] | None = None,
+) -> dict[str, Any] | None:
     duration = rule.get('duration') if isinstance(rule.get('duration'), dict) else {}
-    duration_ticks = max(0, _int(duration.get('ticks')))
+    duration_ticks = PERMANENT_BUFF_END_TICK if str(duration.get('type') or '') == 'permanent' else max(0, _int(duration.get('ticks')))
     if duration_ticks <= 0:
         return None
     start_tick = trigger_tick + max(0, _int(duration.get('delay_ticks')))
@@ -357,18 +457,29 @@ def activate_buff(active_buffs: list[dict[str, Any]], rule: dict[str, Any], trig
     stack_gain = max(0.0, stack_gain)
     if stack_gain <= 0:
         return None
-    definition_id = str(rule.get('id') or '')
+    definition_id = str(stacking.get('key') or rule.get('id') or '')
     owner_slot = _int(rule.get('owner_slot'))
     for instance in active_buffs:
         existing_rule = instance.get('rule') if isinstance(instance.get('rule'), dict) else {}
-        if str(existing_rule.get('id') or '') != definition_id or _int(instance.get('owner_slot')) != owner_slot:
+        existing_stacking = existing_rule.get('stacking') if isinstance(existing_rule.get('stacking'), dict) else {}
+        existing_definition_id = str(instance.get('definition_id') or existing_stacking.get('key') or existing_rule.get('id') or '')
+        if existing_definition_id != definition_id or _int(instance.get('owner_slot')) != owner_slot:
             continue
         if stacking_mode == 'independent':
             continue
         if stacking_mode == 'add_stack':
+            if stacking.get('unique_source_slots'):
+                source_slot = _int((context or {}).get('source_slot'), -1)
+                source_slots = {_int(item) for item in _as_list(instance.get('source_slots'))}
+                if source_slot in source_slots:
+                    return None
+                source_slots.add(source_slot)
+                instance['source_slots'] = sorted(source_slots)
             instance['stack_count'] = min(max_stacks, max(0.0, _num(instance.get('stack_count'), 1)) + stack_gain)
             instance['start_tick'] = min(_int(instance.get('start_tick'), start_tick), start_tick)
             instance['end_tick'] = end_tick
+            instance['rule'] = rule
+            instance['name'] = rule.get('name') or instance.get('name') or ''
             return instance
         if stacking_mode == 'extend':
             instance['end_tick'] = max(_int(instance.get('end_tick')), end_tick)
@@ -377,6 +488,33 @@ def activate_buff(active_buffs: list[dict[str, Any]], rule: dict[str, Any], trig
         instance['end_tick'] = end_tick
         instance['stack_count'] = min(max_stacks, max(1.0, stack_gain))
         return instance
+    if stacking_mode == 'independent':
+        latest_instance = None
+        for _ in range(max(1, int(stack_gain))):
+            siblings = sorted(
+                (
+                    instance
+                    for instance in active_buffs
+                    if str(instance.get('definition_id') or '') == definition_id
+                    and _int(instance.get('owner_slot')) == owner_slot
+                ),
+                key=lambda instance: (_int(instance.get('end_tick')), _int(instance.get('start_tick'))),
+            )
+            while len(siblings) >= int(max_stacks):
+                active_buffs.remove(siblings.pop(0))
+            latest_instance = {
+                'rule': rule,
+                'definition_id': definition_id,
+                'name': rule.get('name') or '',
+                'owner_slot': owner_slot,
+                'start_tick': start_tick,
+                'end_tick': end_tick,
+                'stack_count': 1,
+            }
+            if stacking.get('unique_source_slots'):
+                latest_instance['source_slots'] = [_int((context or {}).get('source_slot'), -1)]
+            active_buffs.append(latest_instance)
+        return latest_instance
     instance = {
         'rule': rule,
         'definition_id': definition_id,
@@ -386,15 +524,55 @@ def activate_buff(active_buffs: list[dict[str, Any]], rule: dict[str, Any], trig
         'end_tick': end_tick,
         'stack_count': min(max_stacks, max(1.0, stack_gain) if stacking_mode != 'add_stack' else stack_gain),
     }
+    if stacking.get('unique_source_slots'):
+        instance['source_slots'] = [_int((context or {}).get('source_slot'), -1)]
     active_buffs.append(instance)
     return instance
 
 
-def buff_effects(instance: dict[str, Any]) -> dict[str, float]:
+def buff_effects(instance: dict[str, Any], context: dict[str, Any] | None = None) -> dict[str, float]:
     rule = instance.get('rule') if isinstance(instance.get('rule'), dict) else {}
     effects = rule.get('effects') if isinstance(rule.get('effects'), dict) else {}
     factor = max(0.0, _num(instance.get('stack_count'), 1))
-    return {str(key): _num(value) * factor for key, value in effects.items() if _num(value) != 0}
+    resolved = {str(key): _num(value) * factor for key, value in effects.items() if _num(value) != 0}
+    dynamic = rule.get('dynamic_effects') if isinstance(rule.get('dynamic_effects'), dict) else {}
+    runtime = context or {}
+    negative = dynamic.get('negative_effect_count') if isinstance(dynamic.get('negative_effect_count'), dict) else {}
+    if negative.get('effect_key'):
+        enemy_debuffs = set((runtime.get('enemy_debuffs') or {}).keys())
+        active_keys = {str(key) for key in _as_list(runtime.get('active_buff_keys'))}
+        count = min(
+            max(0, _int(negative.get('max_count'), 1)),
+            sum(str(key) in enemy_debuffs for key in _as_list(negative.get('enemy_debuffs')))
+            + sum(str(key) in active_keys for key in _as_list(negative.get('buff_keys'))),
+        )
+        effect_key = str(negative.get('effect_key'))
+        resolved[effect_key] = _num(resolved.get(effect_key)) + count * _num(negative.get('per_count'))
+    active_stack = dynamic.get('active_stack_count') if isinstance(dynamic.get('active_stack_count'), dict) else {}
+    if active_stack.get('effect_key') and active_stack.get('key'):
+        count = min(
+            max(0, _int(active_stack.get('max_count'), 1)),
+            sum(
+                max(0.0, _num(buff.get('stack_count'), 1))
+                for buff in _as_list(runtime.get('active_buffs'))
+                if isinstance(buff, dict) and str(buff.get('definition_id') or '') == str(active_stack.get('key'))
+            ),
+        )
+        effect_key = str(active_stack.get('effect_key'))
+        resolved[effect_key] = _num(resolved.get(effect_key)) + count * _num(active_stack.get('per_count'))
+    elapsed = dynamic.get('elapsed_ticks') if isinstance(dynamic.get('elapsed_ticks'), dict) else {}
+    if elapsed.get('effect_key'):
+        intervals = max(
+            0,
+            (_int(runtime.get('tick')) - _int(instance.get('start_tick')))
+            // max(1, _int(elapsed.get('interval_ticks'), 10)),
+        )
+        effect_key = str(elapsed.get('effect_key'))
+        resolved[effect_key] = _num(resolved.get(effect_key)) + min(
+            _num(elapsed.get('max_value'), float('inf')),
+            intervals * _num(elapsed.get('per_interval')),
+        )
+    return {key: value for key, value in resolved.items() if value != 0}
 
 
 def buff_displays_as_line(rule: dict[str, Any]) -> bool:
@@ -413,20 +591,22 @@ def buff_displays_as_line(rule: dict[str, Any]) -> bool:
     return True
 
 
-def buff_summary(instance: dict[str, Any]) -> dict[str, Any]:
+def buff_summary(instance: dict[str, Any], context: dict[str, Any] | None = None) -> dict[str, Any]:
     rule = instance.get('rule') if isinstance(instance.get('rule'), dict) else {}
     stack_count = max(0.0, _num(instance.get('stack_count'), 1))
     display_as_line = buff_displays_as_line(rule)
     return {
         'rule_id': rule.get('id') or '',
+        'definition_id': str(instance.get('definition_id') or (rule.get('stacking') or {}).get('key') or rule.get('id') or ''),
         'name': rule.get('name') or '',
         'provider_name': rule.get('provider_name') or '',
         'owner_slot': _int(instance.get('owner_slot')),
         'start_tick': _int(instance.get('start_tick')),
         'end_tick': _int(instance.get('end_tick')),
         'stack_count': int(stack_count) if stack_count.is_integer() else stack_count,
+        'effects': buff_effects(instance, context),
         'display_as_line': display_as_line,
-        'line_hidden_reason': '' if display_as_line else 'self_action',
+        'line_hidden_reason': '' if display_as_line else ('passive' if str(rule.get('duration', {}).get('type') or '') == 'permanent' else 'self_action'),
     }
 
 
