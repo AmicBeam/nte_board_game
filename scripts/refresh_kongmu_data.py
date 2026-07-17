@@ -12,9 +12,9 @@ from typing import Any
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
-DATA_DIR = PROJECT_ROOT / 'app' / 'static' / 'data' / 'kongmu'
+DATA_DIR = PROJECT_ROOT / 'app' / 'modules' / 'kongmu' / 'static' / 'data'
 CHARACTER_DIR = DATA_DIR / 'characters'
-IMAGE_DIR = PROJECT_ROOT / 'app' / 'static' / 'images' / 'kongmu'
+IMAGE_DIR = PROJECT_ROOT / 'app' / 'modules' / 'kongmu' / 'static' / 'images'
 SHARED_AVATAR_DIR = PROJECT_ROOT / 'app' / 'static' / 'images' / 'characters' / 'avatar'
 
 STATIC_BASE = 'https://static.nanoka.cc'
@@ -254,7 +254,7 @@ def attach_drive_icons(drives_data: dict[str, Any], insecure: bool = False) -> i
         icon = str(drive.get('icon') or '')
         if not geometry or not icon:
             continue
-        local_icon = Path('images') / 'kongmu' / 'drive_icons' / f'{geometry}.webp'
+        local_icon = Path('kongmu') / 'images' / 'drive_icons' / f'{geometry}.webp'
         output_path = PROJECT_ROOT / 'app' / 'static' / local_icon
         if download_if_missing(asset_url(icon), output_path, insecure=insecure):
             count += 1

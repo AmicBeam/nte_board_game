@@ -19,12 +19,12 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from app.engine.flow import turn_flow
-from app.engine.rules import board_state, declarations
-from app.engine.setup import snapshot_factory
-from app.engine.application.build_service import card_by_id
-from app.content.effects import cards as card_effects
-from app.content.duel_decks import DUEL_DECKS
+from app.modules.card_game.engine.flow import turn_flow
+from app.modules.card_game.engine.rules import board_state, declarations
+from app.modules.card_game.engine.setup import snapshot_factory
+from app.modules.card_game.engine.application.build_service import card_by_id
+from app.modules.card_game.content.effects import cards as card_effects
+from app.modules.card_game.content.duel_decks import DUEL_DECKS
 
 
 TRIAD_PAIRINGS = [
@@ -47,7 +47,7 @@ DECK_LABELS = {
     'discord_control': '失谐',
 }
 
-ANALYTICS_OUTPUT_PATH = PROJECT_ROOT / 'app' / 'static' / 'data' / 'duel_analytics_latest.json'
+ANALYTICS_OUTPUT_PATH = PROJECT_ROOT / 'app' / 'modules' / 'card_game' / 'static' / 'data' / 'duel_analytics_latest.json'
 
 
 def configure_eval_runtime() -> None:

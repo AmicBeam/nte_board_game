@@ -1,10 +1,10 @@
-# NTE Board Game Architecture
+# NTE Tools Architecture
 
 ## 当前目标
 
-本项目是一个独立的 Flask 网站，提供异环主题的网页卡牌牌桌，并通过数据库保存玩家、登录态、构筑和对局状态。
+本项目是一个独立的 Flask 网站，以仓库级工具主页承载异象对决、空幕计算、预配队和排轴计算四个业务模块。各模块共享玩家账号、数据库、基础模板和通用角色资源，但分别维护自己的 README、服务、模板和静态资源。
 
-当前主游戏模式是“异象对决”：玩家使用异象道具作为主牌组，通过启动、调度、回收和小干扰争夺资源；异能者作为异能者编队，满足复杂素材条件后登场或再次共鸣，并立刻带来铺场、清场、返场、资源中转或终端爆发。
+桌游模块的当前主游戏模式是“异象对决”：玩家使用异象道具作为主牌组，通过启动、调度、回收和小干扰争夺资源；异能者作为异能者编队，满足复杂素材条件后登场或再次共鸣，并立刻带来铺场、清场、返场、资源中转或终端爆发。
 
 异象对决的现行规则、术语、卡牌设计和异能者职责必须遵循 `docs/everness-item-chain-card-design.md`。该文件是当前唯一设计真源；`docs/duel-balance-iteration.md` 只保留测试流程、三角看板验收标准和迭代报告索引。
 
@@ -40,42 +40,44 @@
   管理对局内快照的进程内最新态缓存与异步入库队列；只用于对局快照，不用于账号、构筑、登录态等关键资料。
 - `app/auth.py`
   负责 token 创建、校验，以及 Flask 路由鉴权装饰器。
-- `app/content/duel_common.py`
-  内容层薄聚合入口。仅汇总 `app/content/common/` 与 `app/content/effects/` 中的定义；新增卡牌内容优先直接从 `app/content/effects/` 导入通用效果工具。
-- `app/content/common/`
+- `app/modules/`
+  维护四个业务模块。每个模块以自己的 `README.md` 说明产品范围、代码边界和验证命令，并自行拥有模板与模块静态资源。
+- `app/modules/card_game/content/duel_common.py`
+  内容层薄聚合入口。仅汇总 `app/modules/card_game/content/common/` 与 `app/modules/card_game/content/effects/` 中的定义；新增卡牌内容优先直接从 `app/modules/card_game/content/effects/` 导入通用效果工具。
+- `app/modules/card_game/content/common/`
   维护异象对决内容层可复用的常量、卡牌工厂、区域操作、衍生牌定义等底层工具；不应反向依赖引擎服务层。
-- `app/content/effects/`
+- `app/modules/card_game/content/effects/`
   维护卡牌效果共用工具，按战斗、区域、标记、创生、目标、复制等用途拆分；卡牌文件应优先从这里导入效果能力，单张卡私有逻辑保留在对应卡牌定义文件。
-- `app/content/duel_decks.py`
+- `app/modules/card_game/content/duel_decks.py`
   维护异象对决的流派构筑。
-- `app/content/items/`
+- `app/modules/card_game/content/items/`
   维护异象对决的异象道具卡牌定义；卡面名称和图标应优先使用 `app/static/images/item/` 中已有资源。
-- `app/content/characters/`
+- `app/modules/card_game/content/characters/`
   维护异象对决的异能者卡牌定义。异能者必须使用真实角色名、有效属性和有效立绘路径。
-- `app/engine/events.py`
+- `app/modules/card_game/engine/events.py`
   定义通用事件常量。新增卡牌规则需要跨内容共享监听时，优先加明确事件，不要在主流程拼裸字符串。
-- `app/engine/event_bus.py`
+- `app/modules/card_game/engine/event_bus.py`
   统一执行事件队列；支持 `default handler`、`append`、`replace` 三类语义。
-- `app/engine/application/`
+- `app/modules/card_game/engine/application/`
   应用服务层与外部资源适配层。`build_service.py` 维护构筑保存、图鉴、catalog 等非对局内操作；`run_state.py` 维护对局快照加载、公开投影适配和持久化排队。可以读取内容定义和调用 DAO，但不承载回合推进、揭示结算、素材消耗等战斗规则。
-- `app/engine/setup/`
+- `app/modules/card_game/engine/setup/`
   对局初始化层。维护战场配置、开局快照、套牌解析、初始手牌与牌库实例化；需要调用核心流程时使用显式回调对象，不从该层反向 import `game_service.py`。
-- `app/engine/state/`
+- `app/modules/card_game/engine/state/`
   状态契约层。维护 `JsonDict`、卡牌状态、阵营状态、地点状态、选择状态和 action payload 等 TypedDict/TypeAlias；运行时仍使用普通 JSON dict，避免影响快照存储和前端协议。
-- `app/engine/flow/`
+- `app/modules/card_game/engine/flow/`
   回合流程层。维护规划同步、回合开始/结束、揭示顺序、素材消耗、撤退/胜负、undo checkpoint 等流程编排；可依赖 `rules`、`state` 和 `event_bus`，不得访问 Flask、路由、DAO、数据库模型或异步持久化。
-- `app/engine/rules/`
+- `app/modules/card_game/engine/rules/`
   领域规则层。维护宣言、目标选择、素材匹配、战场状态、环合结算等可复用规则；规则函数应尽量保持纯规则计算或只修改传入快照，不访问 Flask、路由、异步持久化或数据库。
-- `app/engine/ai/`
+- `app/modules/card_game/engine/ai/`
   AI 策略层。维护人机对手的部署、宣言和异能者行动决策；通过显式规则回调访问核心能力，不直接负责持久化或公开状态组装。
-- `app/engine/projection/`
+- `app/modules/card_game/engine/projection/`
   状态投影层。负责把内部对局快照转换为面向某个玩家的公开 JSON，包括隐藏对手手牌、换算视角、日志文本替换、选择面板与战场公开信息；不承载规则结算和数据库写入。
-- `app/engine/game_service.py`
+- `app/modules/card_game/engine/game_service.py`
   对局编排层。负责加载最新对局快照、校验玩家操作、推进回合、协调规则模块、派发事件并把结算后的快照交给异步持久化队列；不应继续吸收构筑/catalog、开局工厂、AI 策略、素材规则、宣言规则或公开状态投影等可独立分层的职责。
 - `app/routes.py`
   提供 HTML 页面和 JSON API。只做参数校验、鉴权和调用服务。
 - `app/templates/` + `app/static/`
-  前端页面。前端不做规则计算，只根据后端状态渲染页面和发送操作；页面拆分为登录页、资料页、主界面、构筑页和对局页。
+  只维护仓库入口、共享基础模板、通用样式和跨模块图片；模块页面、脚本、样式和数据分别位于 `app/modules/<module>/templates/` 与 `app/modules/<module>/static/`。
 - `plugins/nte_account_db.py`
   插件侧独立数据库桥接层。直接连接同一个数据库文件，并使用相同表名进行数据交互，不引用 `app/` 下的业务代码。
 - `plugins/nte_account.py`
@@ -85,16 +87,18 @@
 
 ## 架构规则
 
+- 模块业务代码必须进入 `app/modules/card_game`、`app/modules/kongmu`、`app/modules/preteam` 或 `app/modules/shaft`，不能重新散落到 `app/engine`、`app/content`、`app/shaft` 或共享静态目录。
+- 模块可依赖 `app/auth.py`、`app/db.py`、`app/models.py`、`app/dao.py` 等共享基础设施；模块之间不得直接依赖对方的领域服务。共享角色图片等资源保留在 `app/static/images/`。
 - 路由层只做参数校验、鉴权和调用服务；不要在 `app/routes.py` 中写费用、抽牌、宣言、素材、胜负或 AI 决策。
-- `app/engine/game_service.py` 是对局 API 编排入口，不是所有规则的堆放点。只保留路由直接调用的对局操作，加载/持久化/公开投影通过 `app/engine/application/run_state.py` 适配，新增可复用规则优先进入 `app/engine/rules/`，新增公开状态字段优先进入 `app/engine/projection/`，新增开局/套牌/战场初始化逻辑优先进入 `app/engine/setup/`，新增 AI 行为优先进入 `app/engine/ai/`。
-- `app/engine/application/` 不写战斗规则；除 `run_state.py` 作为对局快照适配层外，应用服务不应依赖对局内临时快照、行动队列或揭示结算流程。
-- `app/engine/flow/` 不访问 Flask、路由、异步持久化、数据库或 ORM 模型；需要加载快照、组装公开状态或排队持久化时，由 `app/engine/application/run_state.py` 或 `app/engine/game_service.py` 在上层完成。
-- `app/engine/rules/` 不访问 Flask、路由、异步持久化或数据库；需要外部能力时通过参数、回调或显式规则对象传入。
-- `app/engine/setup/` 和 `app/engine/projection/` 不反向 import `app/engine/game_service.py`；若必须复用核心流程能力，使用 `SnapshotFactoryRules`、`ProjectionRules` 这类显式回调对象。
-- `app/engine/ai/` 不直接写库、不组装公开响应；AI 只决定动作，具体状态修改仍通过规则回调和快照完成。
-- 内容层的卡牌效果优先写在对应 `app/content/items/*.py` 或 `app/content/characters/*.py` 中；通用效果工具进入 `app/content/effects/` 或 `app/content/common/`。主流程不得为单张卡长期增加硬编码分支。
+- `app/modules/card_game/engine/game_service.py` 是对局 API 编排入口，不是所有规则的堆放点。只保留路由直接调用的对局操作，加载/持久化/公开投影通过 `app/modules/card_game/engine/application/run_state.py` 适配，新增可复用规则优先进入 `app/modules/card_game/engine/rules/`，新增公开状态字段优先进入 `app/modules/card_game/engine/projection/`，新增开局/套牌/战场初始化逻辑优先进入 `app/modules/card_game/engine/setup/`，新增 AI 行为优先进入 `app/modules/card_game/engine/ai/`。
+- `app/modules/card_game/engine/application/` 不写战斗规则；除 `run_state.py` 作为对局快照适配层外，应用服务不应依赖对局内临时快照、行动队列或揭示结算流程。
+- `app/modules/card_game/engine/flow/` 不访问 Flask、路由、异步持久化、数据库或 ORM 模型；需要加载快照、组装公开状态或排队持久化时，由 `app/modules/card_game/engine/application/run_state.py` 或 `app/modules/card_game/engine/game_service.py` 在上层完成。
+- `app/modules/card_game/engine/rules/` 不访问 Flask、路由、异步持久化或数据库；需要外部能力时通过参数、回调或显式规则对象传入。
+- `app/modules/card_game/engine/setup/` 和 `app/modules/card_game/engine/projection/` 不反向 import `app/modules/card_game/engine/game_service.py`；若必须复用核心流程能力，使用 `SnapshotFactoryRules`、`ProjectionRules` 这类显式回调对象。
+- `app/modules/card_game/engine/ai/` 不直接写库、不组装公开响应；AI 只决定动作，具体状态修改仍通过规则回调和快照完成。
+- 内容层的卡牌效果优先写在对应 `app/modules/card_game/content/items/*.py` 或 `app/modules/card_game/content/characters/*.py` 中；通用效果工具进入 `app/modules/card_game/content/effects/` 或 `app/modules/card_game/content/common/`。主流程不得为单张卡长期增加硬编码分支。
 - 宣言配置必须写在卡牌定义里；上层根据宣言配置统一处理“选择战场”“选择手牌”“选择墓地或牌库”等流程。墓地和牌库候选默认去重，并按通用牌库规则排序。
-- 事件常量统一放在 `app/engine/events.py`。跨多张卡共享的时机加事件；单张卡私有逻辑优先留在内容文件中。
+- 事件常量统一放在 `app/modules/card_game/engine/events.py`。跨多张卡共享的时机加事件；单张卡私有逻辑优先留在内容文件中。
 - 保持依赖方向稳定：`routes -> engine/game_service 或 engine/application -> engine/flow/setup/rules/ai/projection/event_bus -> engine/state/content`；DAO、数据库模型和异步持久化只允许在 `game_service` 或 `engine/application` 这类上层适配处使用。底层模块不应为了省事 import 上层模块。
 
 ## 数据流
@@ -213,7 +217,7 @@
 
 ## 内容扩展规范
 
-- 异象对决卡牌按类型维护在 `app/content/items/` 和 `app/content/characters/` 中，通用工具、衍生牌与构筑分别维护在 `app/content/common/`、`app/content/effects/` 和 `app/content/duel_decks.py`；`app/content/duel_common.py` 只作为薄聚合入口保留。
+- 异象对决卡牌按类型维护在 `app/modules/card_game/content/items/` 和 `app/modules/card_game/content/characters/` 中，通用工具、衍生牌与构筑分别维护在 `app/modules/card_game/content/common/`、`app/modules/card_game/content/effects/` 和 `app/modules/card_game/content/duel_decks.py`；`app/modules/card_game/content/duel_common.py` 只作为薄聚合入口保留。
 - 新增异能者时必须使用真实角色名、属性、头像、立绘和清晰素材条件；不要用临时虚构角色补位。
 - 新增异象道具时必须使用 `app/static/images/item/` 里的真实图片和名称；缺资源时先补资源，再接入牌表。
 - 内容定义中的效果描述应与实际字段一致，避免“xx件”“专属件”“盈蓄件”“失谐件”等玩家无法从规则中理解的说法。
@@ -222,7 +226,7 @@
 
 ## 事件规则约束
 
-- 事件常量统一定义在 `app/engine/events.py`，不要在主链路里直接拼裸字符串。
+- 事件常量统一定义在 `app/modules/card_game/engine/events.py`，不要在主链路里直接拼裸字符串。
 - 当某段规则需要被多个内容定义共享监听时，加新的 `GameEvent`。
 - 当主流程里的一个时机已经稳定存在，但内容层拿不到它时，加新的 `GameEvent`。
 - 如果只是单个内容私有的小逻辑，不要为它单独加事件，优先挂在已有事件上。

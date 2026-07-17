@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <title>{% block title %}NTE Board Game{% endblock %}</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="icon" href="{{ url_for('static', filename='images/brand/duel-icon.webp') }}" type="image/webp">
+    <link rel="stylesheet" href="{{ url_for('static', filename='common/css/app.css') }}">
+    {% set login_guard_exempt_endpoints = ['main.default_page', 'main.login_page', 'main.kongmu_page'] %}
+    {% if request.endpoint not in login_guard_exempt_endpoints and (request.endpoint != 'main.shaft_page' or config['SHAFT_LOGIN_REQUIRED']) %}
+    <script>
+        (function () {
+            function currentRelativeUrl() {
+                return window.location.pathname + window.location.search + window.location.hash;
+            }
+            function loginUrlForCurrentPage() {
+                var target = currentRelativeUrl();
+                try {
+                    window.localStorage.setItem('nte_login_redirect', target);
+                } catch (error) {
+                    // query 参数仍可用于登录后回跳。
+                }
+                return "{{ url_for('main.login_page') }}" + "?next=" + encodeURIComponent(target);
+            }
+            try {
+                if (!window.localStorage.getItem('nte_token')) {
+                    window.location.replace(loginUrlForCurrentPage());
+                }
+            } catch (error) {
+                window.location.replace(loginUrlForCurrentPage());
+            }
+        }());
+    </script>
+    {% endif %}
+    {% block head %}{% endblock %}
+</head>
+<body>
+    <div class="shell">
+        {% block body %}{% endblock %}
+    </div>
+</body>
+</html>

@@ -91,3 +91,72 @@ class GameRun(BaseModel):
     status = CharField(default='idle')
     snapshot = TextField(default='{}')
     updated_at = DateTimeField(default=datetime.utcnow)
+
+
+class ShaftAxis(BaseModel):
+    id = AutoField()
+    owner = ForeignKeyField(Player, backref='shaft_axes', on_delete='CASCADE')
+    title = CharField(max_length=80, default='')
+    description = TextField(default='')
+    visibility = CharField(max_length=16, default='private')
+    source_version = CharField(max_length=64, default='')
+    team_json = TextField(default='[]')
+    axis_json = TextField(default='{}')
+    enemy_json = TextField(default='{}')
+    result_json = TextField(default='{}')
+    duration_ticks = IntegerField(default=0)
+    direct_damage = IntegerField(default=0)
+    stagger_damage = IntegerField(default=0)
+    total_damage = IntegerField(default=0)
+    dps_x100 = IntegerField(default=0)
+    like_count = IntegerField(default=0)
+    favorite_count = IntegerField(default=0)
+    dedupe_hash = CharField(max_length=64, default='')
+    created_at = DateTimeField(default=datetime.utcnow)
+    updated_at = DateTimeField(default=datetime.utcnow)
+    published_at = DateTimeField(null=True)
+
+    class Meta:
+        indexes = (
+            (('visibility', 'updated_at'), False),
+            (('visibility', 'dedupe_hash'), False),
+        )
+
+
+class ShaftAxisCharacter(BaseModel):
+    id = AutoField()
+    axis = ForeignKeyField(ShaftAxis, backref='characters', on_delete='CASCADE')
+    character_id = CharField(max_length=64)
+    slot = IntegerField(default=0)
+
+    class Meta:
+        indexes = (
+            (('axis', 'slot'), True),
+            (('character_id',), False),
+        )
+
+
+class ShaftAxisLike(BaseModel):
+    id = AutoField()
+    axis = ForeignKeyField(ShaftAxis, backref='likes', on_delete='CASCADE')
+    player = ForeignKeyField(Player, backref='shaft_likes', on_delete='CASCADE')
+    created_at = DateTimeField(default=datetime.utcnow)
+
+    class Meta:
+        indexes = (
+            (('axis', 'player'), True),
+        )
+
+
+class ShaftAxisFavorite(BaseModel):
+    id = AutoField()
+    axis = ForeignKeyField(ShaftAxis, backref='favorites', on_delete='CASCADE')
+    player = ForeignKeyField(Player, backref='shaft_favorites', on_delete='CASCADE', null=True)
+    visitor_key = CharField(max_length=96, default='')
+    created_at = DateTimeField(default=datetime.utcnow)
+
+    class Meta:
+        indexes = (
+            (('axis', 'player'), False),
+            (('axis', 'visitor_key'), False),
+        )

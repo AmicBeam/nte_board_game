@@ -1,0 +1,58 @@
+{% extends 'common/base.html' %}
+{% block title %}NTE Board Game{% endblock %}
+{% block body %}
+<main class="main-page">
+    <section class="glass-card panel-header home-header">
+        <div class="home-brand-block">
+            <img class="home-brand-logo" src="{{ url_for('static', filename='images/brand/duel-logo.webp') }}" alt="异象对决" width="858" height="282">
+            <div class="home-brand-copy">
+                <p class="eyebrow">NTE Home</p>
+                <h1>主界面</h1>
+            </div>
+        </div>
+        <div class="header-actions">
+            <button class="icon-btn tutorial-help-btn" data-tutorial-open="home" type="button" aria-label="打开主界面手册" title="打开手册">
+                <span aria-hidden="true">?</span>
+                <span class="sr-only">打开主界面手册</span>
+            </button>
+            <a class="secondary-btn" href="{{ url_for('main.profile_page') }}">账号设置</a>
+            <a class="secondary-btn" href="{{ url_for('main.build_page') }}">查看构筑</a>
+            <a class="secondary-btn" href="{{ url_for('main.codex_page') }}">空间档案</a>
+            <a class="secondary-btn" href="{{ url_for('main.default_page') }}">工具主页</a>
+            <button class="primary-btn" id="logout-btn" type="button">退出登录</button>
+        </div>
+    </section>
+    <section class="glass-card mode-panel">
+        <div class="section-title-row">
+            <div>
+                <h2>模式选择</h2>
+                <p class="subtle">当前开放单人异象对决，支持持久化保存与刷新恢复；后续会接入匹配与主动开房间 1v1。</p>
+            </div>
+            <div class="note-box compact-note">
+                <strong id="main-display-name">-</strong>
+                <p id="main-display-id">账号：-</p>
+            </div>
+        </div>
+        <div class="mode-grid" id="mode-grid"></div>
+        <div class="trial-config-panel" id="trial-config-panel" hidden>
+            <label>
+                <span>我方套牌</span>
+                <select id="player-deck-select"></select>
+            </label>
+            <label>
+                <span>敌方套牌</span>
+                <select id="enemy-deck-select"></select>
+            </label>
+        </div>
+        <div class="note-box">
+            <strong>当前牌组</strong>
+            <p id="build-summary-copy">尚未读取牌组。</p>
+        </div>
+        <div class="hero-actions">
+            <button class="primary-btn" id="start-mode-btn" type="button">开始对局</button>
+        </div>
+    </section>
+</main>
+<script src="{{ url_for('static', filename='common/js/common.js') }}"></script>
+<script src="{{ url_for('card_game_module.static', filename='js/home.js') }}"></script>
+{% endblock %}

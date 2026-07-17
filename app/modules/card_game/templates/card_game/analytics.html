@@ -1,0 +1,63 @@
+{% extends 'common/base.html' %}
+{% block title %}异象对决数据看板{% endblock %}
+{% block head %}<link rel="stylesheet" href="{{ url_for('card_game_module.static', filename='css/analytics-page.css') }}">{% endblock %}
+{% block body %}
+<main class="analytics-page">
+    <section class="analytics-topbar">
+        <div>
+            <p class="eyebrow">Duel Analytics</p>
+            <h1>数据看板</h1>
+        </div>
+        <div class="analytics-actions">
+            <a class="secondary-btn" href="{{ url_for('main.card_game_home') }}">主界面</a>
+            <a class="secondary-btn" href="{{ url_for('main.build_page') }}">构筑</a>
+            <a class="primary-btn" href="{{ url_for('main.table_page') }}">牌桌</a>
+        </div>
+    </section>
+
+    <section class="analytics-kpis" id="analytics-kpis"></section>
+
+    <section class="analytics-toolbar">
+        <div class="analytics-tabs" role="tablist" aria-label="数据视图">
+            <button class="analytics-tab active" type="button" data-view="decks">套牌</button>
+            <button class="analytics-tab" type="button" data-view="matchups">对局</button>
+            <button class="analytics-tab" type="button" data-view="cards">卡牌</button>
+            <button class="analytics-tab" type="button" data-view="espers">异能者</button>
+            <button class="analytics-tab" type="button" data-view="delay">拖延</button>
+        </div>
+        <label class="analytics-filter">
+            <span class="sr-only">套牌筛选</span>
+            <select id="analytics-deck-filter">
+                <option value="">全部套牌</option>
+            </select>
+        </label>
+        <label class="analytics-filter">
+            <span class="sr-only">状态筛选</span>
+            <select id="analytics-status-filter">
+                <option value="">全部状态</option>
+                <option value="item">只看道具</option>
+                <option value="esper">只看异能者</option>
+                <option value="zero-appearance">0% 登场</option>
+                <option value="material-gap">素材缺口</option>
+                <option value="successful-delay">拖延成功</option>
+            </select>
+        </label>
+        <label class="analytics-search">
+            <span class="sr-only">搜索</span>
+            <input id="analytics-search" type="search" placeholder="搜索卡牌 / 套牌">
+        </label>
+    </section>
+
+    <section class="analytics-main">
+        <div class="analytics-summary" id="analytics-summary"></div>
+        <div class="analytics-table-wrap">
+            <table class="analytics-table" id="analytics-table">
+                <thead></thead>
+                <tbody></tbody>
+            </table>
+        </div>
+    </section>
+</main>
+<script src="{{ url_for('static', filename='common/js/common.js') }}"></script>
+<script src="{{ url_for('card_game_module.static', filename='js/analytics.js') }}"></script>
+{% endblock %}

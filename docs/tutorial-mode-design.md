@@ -466,14 +466,14 @@
 
 推荐边界：
 
-- `app/content/items/tutorial_basics.py` 或等价教学内容模块：维护教学专用道具定义，不复用常规卡牌定义。
-- `app/content/characters/tutorial_basics.py` 或等价教学内容模块：维护教学专用「鉴定师」「薄荷」定义，不复用常规异能者定义。
-- `app/engine/setup/tutorial_scripts.py`：维护固定手牌、固定牌库、固定对手行动、固定战场特性、异能者显示表和步骤定义。
-- `app/engine/setup/snapshot_factory.py`：当 `scenario = tutorial_basics` 时调用教程脚本生成开局快照，不洗牌；第 1 回合直接进入部署阶段。
-- `app/engine/application/run_state.py`：读取与持久化教程进度，仍然只负责对局快照适配。
-- `app/engine/game_service.py`：在提交部署草稿和完成部署时调用教程步骤校验，不承载卡牌规则。
-- `app/engine/projection/public_state.py`：向前端投影 `tutorial` 字段，包括当前弹窗、遮罩、框选、允许动作和已显示异能者。
-- `app/static/js/table.js`：渲染弹窗、遮罩和框选；屏蔽非法点击；不计算规则。
+- `app/modules/card_game/content/items/tutorial_basics.py` 或等价教学内容模块：维护教学专用道具定义，不复用常规卡牌定义。
+- `app/modules/card_game/content/characters/tutorial_basics.py` 或等价教学内容模块：维护教学专用「鉴定师」「薄荷」定义，不复用常规异能者定义。
+- `app/modules/card_game/engine/setup/tutorial_scripts.py`：维护固定手牌、固定牌库、固定对手行动、固定战场特性、异能者显示表和步骤定义。
+- `app/modules/card_game/engine/setup/snapshot_factory.py`：当 `scenario = tutorial_basics` 时调用教程脚本生成开局快照，不洗牌；第 1 回合直接进入部署阶段。
+- `app/modules/card_game/engine/application/run_state.py`：读取与持久化教程进度，仍然只负责对局快照适配。
+- `app/modules/card_game/engine/game_service.py`：在提交部署草稿和完成部署时调用教程步骤校验，不承载卡牌规则。
+- `app/modules/card_game/engine/projection/public_state.py`：向前端投影 `tutorial` 字段，包括当前弹窗、遮罩、框选、允许动作和已显示异能者。
+- `app/modules/card_game/static/js/table.js`：渲染弹窗、遮罩和框选；屏蔽非法点击；不计算规则。
 
 公开状态建议：
 

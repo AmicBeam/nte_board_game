@@ -1,70 +1,46 @@
-{% extends 'base.html' %}
-{% block title %}NTE Board Game{% endblock %}
-{% block head %}
-<script>
-    (function () {
-        try {
-            if (!window.localStorage.getItem('nte_token')) {
-                window.location.replace("{{ url_for('main.login_page') }}");
-            }
-        } catch (error) {
-            window.location.replace("{{ url_for('main.login_page') }}");
-        }
-    }());
-</script>
-{% endblock %}
+{% extends 'common/base.html' %}
+{% block title %}异环工具主页{% endblock %}
 {% block body %}
-<main class="main-page">
-    <section class="glass-card panel-header home-header">
-        <div class="home-brand-block">
-            <img class="home-brand-logo" src="{{ url_for('static', filename='images/brand/duel-logo.webp') }}" alt="异象对决" width="858" height="282">
-            <div class="home-brand-copy">
-                <p class="eyebrow">NTE Home</p>
-                <h1>主界面</h1>
-            </div>
+<main class="portal-page">
+    <section class="glass-card panel-header portal-header">
+        <div class="portal-heading">
+            <p class="eyebrow">NTE Tools</p>
+            <h1>异环工具主页</h1>
+            <p class="subtle">从这里进入卡牌桌游、空幕计算、预配队和排轴计算。</p>
         </div>
         <div class="header-actions">
-            <button class="icon-btn tutorial-help-btn" data-tutorial-open="home" type="button" aria-label="打开主界面手册" title="打开手册">
-                <span aria-hidden="true">?</span>
-                <span class="sr-only">打开主界面手册</span>
-            </button>
+            <a class="secondary-btn" href="{{ url_for('main.login_page') }}" data-login-link>登录</a>
             <a class="secondary-btn" href="{{ url_for('main.profile_page') }}">账号设置</a>
-            <a class="secondary-btn" href="{{ url_for('main.build_page') }}">查看构筑</a>
-            <a class="secondary-btn" href="{{ url_for('main.codex_page') }}">空间档案</a>
-            <button class="primary-btn" id="logout-btn" type="button">退出登录</button>
         </div>
     </section>
-    <section class="glass-card mode-panel">
-        <div class="section-title-row">
-            <div>
-                <h2>模式选择</h2>
-                <p class="subtle">当前开放单人异象对决，支持持久化保存与刷新恢复；后续会接入匹配与主动开房间 1v1。</p>
-            </div>
-            <div class="note-box compact-note">
-                <strong id="main-display-name">-</strong>
-                <p id="main-display-id">账号：-</p>
-            </div>
-        </div>
-        <div class="mode-grid" id="mode-grid"></div>
-        <div class="trial-config-panel" id="trial-config-panel" hidden>
-            <label>
-                <span>我方套牌</span>
-                <select id="player-deck-select"></select>
-            </label>
-            <label>
-                <span>敌方套牌</span>
-                <select id="enemy-deck-select"></select>
-            </label>
-        </div>
-        <div class="note-box">
-            <strong>当前牌组</strong>
-            <p id="build-summary-copy">尚未读取牌组。</p>
-        </div>
-        <div class="hero-actions">
-            <button class="primary-btn" id="start-mode-btn" type="button">开始对局</button>
-        </div>
+
+    <section class="portal-module-grid" aria-label="模块入口">
+        <a class="glass-card portal-module-card" href="{{ url_for('main.card_game_home') }}">
+            <span class="portal-module-kicker">Card Table</span>
+            <strong>卡牌桌游</strong>
+            <p>进入异象对决牌桌、构筑、空间档案和对局数据。</p>
+            <span class="portal-module-action">进入桌游</span>
+        </a>
+        <a class="glass-card portal-module-card" href="{{ url_for('main.kongmu_page') }}">
+            <span class="portal-module-kicker">Kongmu</span>
+            <strong>空幕</strong>
+            <p>计算角色空幕与卡带搭配，快速查看可用方案。</p>
+            <span class="portal-module-action">打开空幕</span>
+        </a>
+        <a class="glass-card portal-module-card" href="{{ url_for('main.preteam_page') }}">
+            <span class="portal-module-kicker">Preteam</span>
+            <strong>预配队</strong>
+            <p>浏览主 C、队友和属性搭配，保存配队思路。</p>
+            <span class="portal-module-action">进入配队</span>
+        </a>
+        <a class="glass-card portal-module-card" href="{{ url_for('main.shaft_page', page='rotation') }}">
+            <span class="portal-module-kicker">Shaft Lab</span>
+            <strong>排轴计算</strong>
+            <p>编辑动作轴、计算输出，并在排轴广场查看已发布方案。</p>
+            <span class="portal-module-action">编辑排轴</span>
+        </a>
     </section>
 </main>
-<script src="{{ url_for('static', filename='js/common.js') }}"></script>
-<script src="{{ url_for('static', filename='js/home.js') }}"></script>
+<script src="{{ url_for('static', filename='common/js/common.js') }}"></script>
+<script src="{{ url_for('static', filename='common/js/portal.js') }}"></script>
 {% endblock %}

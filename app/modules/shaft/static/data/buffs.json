@@ -1,0 +1,1711 @@
+[
+  {
+    "id": "character_protagonist_q_damage", "name": "鉴定师·极轨终结增伤",
+    "providers": [{"kind": "character", "id": "char_dd034941ef"}], "priority": 20,
+    "trigger": {"event": "passive"}, "target": {"scope": "registrar", "action_types": ["Q"]},
+    "duration": {"type": "permanent"}, "effects": {"ultimate_dmg": 0.25}, "display": {"line": false}
+  },
+  {
+    "id": "character_protagonist_a1_attach_def_ignore", "name": "鉴定师1觉·附着无视防御",
+    "providers": [{"kind": "character", "id": "char_dd034941ef"}], "priority": 20,
+    "trigger": {"event": "passive", "conditions": [{"type": "awakening_min", "min": 1}]},
+    "target": {"scope": "registrar", "action_names": ["e额外"]},
+    "duration": {"type": "permanent"}, "effects": {"def_ignore": 0.75}, "display": {"line": false}
+  },
+  {
+    "id": "character_protagonist_a3_q_crit", "name": "鉴定师3觉·终结暴击",
+    "providers": [{"kind": "character", "id": "char_dd034941ef"}], "priority": 20,
+    "trigger": {"event": "passive", "conditions": [{"type": "awakening_min", "min": 3}]},
+    "target": {"scope": "registrar", "action_types": ["Q"]},
+    "duration": {"type": "permanent"}, "effects": {"crit_rate": 0.5}, "display": {"line": false}
+  },
+  {
+    "id": "character_protagonist_a4_q_damage", "name": "鉴定师4觉·终结增伤上限",
+    "providers": [{"kind": "character", "id": "char_dd034941ef"}], "priority": 20,
+    "trigger": {"event": "passive", "conditions": [{"type": "awakening_min", "min": 4}]},
+    "target": {"scope": "registrar", "action_types": ["Q"]},
+    "duration": {"type": "permanent"}, "effects": {"all_dmg": 0.25}, "display": {"line": false}
+  },
+  {
+    "id": "character_protagonist_a5_support_atk", "name": "鉴定师5觉·援护攻击",
+    "providers": [{"kind": "character", "id": "char_dd034941ef"}], "priority": 20,
+    "trigger": {"event": "action_hit", "source": {"scope": "registrar", "action_types": ["援护"]}, "conditions": [{"type": "awakening_min", "min": 5}]},
+    "target": {"scope": "registrar"}, "duration": {"type": "time", "ticks": 200},
+    "stacking": {"mode": "refresh", "max_stacks": 1}, "effects": {"atk_pct": 0.1}
+  },
+  {
+    "id": "character_protagonist_a6_attach_damage", "name": "鉴定师6觉·附着强化",
+    "providers": [{"kind": "character", "id": "char_dd034941ef"}], "priority": 20,
+    "trigger": {"event": "passive", "conditions": [{"type": "awakening_min", "min": 6}]},
+    "target": {"scope": "registrar", "action_names": ["e额外"]},
+    "duration": {"type": "permanent"}, "effects": {"all_dmg": 0.5}, "display": {"line": false}
+  },
+  {
+    "id": "character_zhenhong_a1_def_ignore", "name": "真红1觉·无视防御",
+    "providers": [{"kind": "character", "id": "char_b52cc8f160"}], "priority": 20,
+    "trigger": {"event": "passive", "conditions": [{"type": "awakening_min", "min": 1}]}, "target": {"scope": "registrar"},
+    "duration": {"type": "permanent"}, "effects": {"def_ignore": 0.12}, "display": {"line": false}
+  },
+  {
+    "id": "character_zhenhong_a2_q_res_down", "name": "真红2觉·终结降抗",
+    "providers": [{"kind": "character", "id": "char_b52cc8f160"}], "priority": 20,
+    "trigger": {"event": "action_hit", "source": {"scope": "registrar", "action_types": ["Q"]}, "conditions": [{"type": "awakening_min", "min": 2}]},
+    "target": {"scope": "team"}, "duration": {"type": "time", "ticks": 200},
+    "stacking": {"mode": "refresh", "max_stacks": 1}, "effects": {"res_down": 0.1}
+  },
+  {
+    "id": "character_zhenhong_a6_skill_multiplier", "name": "真红6觉·变轨终结强化",
+    "providers": [{"kind": "character", "id": "char_b52cc8f160"}], "priority": 20,
+    "trigger": {"event": "passive", "conditions": [{"type": "awakening_min", "min": 6}]},
+    "target": {"scope": "registrar", "action_types": ["E", "Q"]},
+    "duration": {"type": "permanent"}, "effects": {"all_dmg": 0.3}, "display": {"line": false}
+  },
+  {
+    "id": "character_xun_q_damage", "name": "浔·极轨终结强化",
+    "providers": [{"kind": "character", "id": "char_15f458f7ef"}], "priority": 20,
+    "trigger": {"event": "passive"}, "target": {"scope": "registrar", "action_types": ["Q"]},
+    "duration": {"type": "permanent"}, "effects": {"all_dmg": 1.0}, "display": {"line": false}
+  },
+  {
+    "id": "character_xun_a5_single_enemy_damage", "name": "浔5觉·单目标全队增伤",
+    "providers": [{"kind": "character", "id": "char_15f458f7ef"}], "priority": 20,
+    "trigger": {"event": "passive", "conditions": [{"type": "awakening_min", "min": 5}]}, "target": {"scope": "team"},
+    "duration": {"type": "permanent"}, "effects": {"all_dmg": 0.15}, "display": {"line": false}
+  },
+  {
+    "id": "character_xun_a6_team_atk", "name": "浔6觉·全队攻击",
+    "providers": [{"kind": "character", "id": "char_15f458f7ef"}], "priority": 20,
+    "trigger": {"event": "passive", "conditions": [{"type": "awakening_min", "min": 6}]}, "target": {"scope": "team"},
+    "duration": {"type": "permanent"}, "effects": {"atk_pct": 0.3}, "display": {"line": false}
+  },
+  {
+    "id": "character_xiaozhi_front_recharge", "name": "小吱·前台充能",
+    "providers": [{"kind": "character", "id": "char_4f917797cb"}], "priority": 20,
+    "trigger": {"event": "passive"}, "target": {"scope": "front"},
+    "duration": {"type": "permanent"}, "effects": {"energy_recharge": 0.2}, "display": {"line": false}
+  },
+  {
+    "id": "character_xiaozhi_a6_gold_damage", "name": "小吱6觉·金谷强化",
+    "providers": [{"kind": "character", "id": "char_4f917797cb"}], "priority": 20,
+    "trigger": {"event": "passive", "conditions": [{"type": "awakening_min", "min": 6}]},
+    "target": {"scope": "registrar", "action_names": ["转圈金谷", "金谷", "双倍金谷", "暴击金谷"]},
+    "duration": {"type": "permanent"}, "effects": {"all_dmg": 0.15}, "display": {"line": false}
+  },
+  {
+    "id": "character_edgar_a4_e_damage", "name": "埃德嘉4觉·变轨强化",
+    "providers": [{"kind": "character", "id": "char_31c5130304"}], "priority": 20,
+    "trigger": {"event": "passive", "conditions": [{"type": "awakening_min", "min": 4}]}, "target": {"scope": "registrar", "action_types": ["E"]},
+    "duration": {"type": "permanent"}, "effects": {"all_dmg": 0.5}, "display": {"line": false}
+  },
+  {
+    "id": "character_edgar_a5_hp", "name": "埃德嘉5觉·生命",
+    "providers": [{"kind": "character", "id": "char_31c5130304"}], "priority": 20,
+    "trigger": {"event": "passive", "conditions": [{"type": "awakening_min", "min": 5}]}, "target": {"scope": "registrar"},
+    "duration": {"type": "permanent"}, "effects": {"hp_pct": 0.2}, "display": {"line": false}
+  },
+  {
+    "id": "character_iloy_a6_team_crit_dmg", "name": "伊洛伊6觉·全队暴伤",
+    "providers": [{"kind": "character", "id": "char_a01c39f576"}], "priority": 20,
+    "trigger": {"event": "passive", "conditions": [{"type": "awakening_min", "min": 6}]}, "target": {"scope": "team"},
+    "duration": {"type": "permanent"}, "effects": {"crit_dmg": 0.25}, "display": {"line": false}
+  },
+  {
+    "id": "character_nanali_a6_damage", "name": "娜娜莉6觉·全伤",
+    "providers": [{"kind": "character", "id": "char_bdc43f82c6"}], "priority": 20,
+    "trigger": {"event": "passive", "conditions": [{"type": "awakening_min", "min": 6}]}, "target": {"scope": "registrar"},
+    "duration": {"type": "permanent"}, "effects": {"all_dmg": 0.15}, "display": {"line": false}
+  },
+  {
+    "id": "character_nanali_a5_pursuit_atk", "name": "娜娜莉5觉·追击攻击叠层",
+    "providers": [{"kind": "character", "id": "char_bdc43f82c6"}], "priority": 20,
+    "trigger": {"event": "action_hit", "source": {"scope": "registrar", "tags": ["追击"]}, "conditions": [{"type": "awakening_min", "min": 5}]},
+    "target": {"scope": "registrar"}, "duration": {"type": "time", "ticks": 1000000},
+    "stacking": {"mode": "add_stack", "max_stacks": 10}, "reset": {"owner_leaves_foreground": true},
+    "effects": {"atk_pct": 0.02}, "display": {"line": false}
+  },
+  {
+    "id": "character_nanali_offhand_damage", "name": "娜娜莉·副手强化",
+    "providers": [{"kind": "character", "id": "char_bdc43f82c6"}], "priority": 20,
+    "trigger": {"event": "passive"},
+    "target": {
+      "scope": "registrar",
+      "action_ids": [
+        "action_2a1e2207f2", "action_e386c01333", "action_b2844b7de0",
+        "action_9e0a496d30", "action_e7f047fd5d", "action_98cf65a8b3",
+        "action_66821759a0", "action_0640f9e8b4", "action_2346434fc4",
+        "action_2d0c051441", "action_634a6398e3"
+      ]
+    },
+    "duration": {"type": "permanent"}, "effects": {"all_dmg": 1.0}, "display": {"line": false}
+  },
+  {
+    "id": "character_nanali_authority", "name": "娜娜莉·一代目的权柄",
+    "providers": [{"kind": "character", "id": "char_bdc43f82c6"}], "priority": 100,
+    "trigger": {"event": "action_start", "source": {"scope": "registrar", "action_ids": ["action_5870d8ba67"]}},
+    "target": {"scope": "registrar"},
+    "duration": {"type": "time", "ticks": 120, "delay_ticks": 4, "loop_carry": true},
+    "stacking": {"mode": "refresh", "max_stacks": 1},
+    "reset": {"owner_leaves_foreground_after_start": true},
+    "effects": {}
+  },
+  {
+    "id": "character_mint_front_def", "name": "薄荷·前台防御",
+    "providers": [{"kind": "character", "id": "char_dda9fae1ef"}], "priority": 20,
+    "trigger": {"event": "passive"}, "target": {"scope": "front_registrar"},
+    "duration": {"type": "permanent"}, "effects": {"def_pct": 0.2}, "display": {"line": false}
+  },
+  {
+    "id": "character_mint_a2_e_damage", "name": "薄荷2觉·变轨强化",
+    "providers": [{"kind": "character", "id": "char_dda9fae1ef"}], "priority": 20,
+    "trigger": {"event": "passive", "conditions": [{"type": "awakening_min", "min": 2}]}, "target": {"scope": "registrar", "action_types": ["E"]},
+    "duration": {"type": "permanent"}, "effects": {"all_dmg": 0.4}, "display": {"line": false}
+  },
+  {
+    "id": "character_mint_a4_single_enemy_crit", "name": "薄荷4觉·单目标暴击",
+    "providers": [{"kind": "character", "id": "char_dda9fae1ef"}], "priority": 20,
+    "trigger": {"event": "action_hit", "source": {"scope": "registrar"}, "conditions": [{"type": "awakening_min", "min": 4}]},
+    "target": {"scope": "registrar"}, "duration": {"type": "time", "ticks": 1000000},
+    "stacking": {"mode": "refresh", "max_stacks": 1}, "effects": {"crit_rate": 0.12}, "display": {"line": false}
+  },
+  {
+    "id": "character_mint_a5_e_crit_dmg", "name": "薄荷5觉·变轨后暴伤",
+    "providers": [{"kind": "character", "id": "char_dda9fae1ef"}], "priority": 20,
+    "trigger": {"event": "action_hit", "source": {"scope": "registrar", "action_types": ["E"]}, "conditions": [{"type": "awakening_min", "min": 5}]},
+    "target": {"scope": "registrar"}, "duration": {"type": "time", "ticks": 60},
+    "stacking": {"mode": "refresh", "max_stacks": 1}, "effects": {"crit_dmg": 0.25}
+  },
+  {
+    "id": "character_mint_a6_low_hp_damage", "name": "薄荷6觉·低血目标增伤",
+    "providers": [{"kind": "character", "id": "char_dda9fae1ef"}], "priority": 20,
+    "trigger": {"event": "passive", "conditions": [{"type": "awakening_min", "min": 6}]},
+    "target": {"scope": "registrar", "conditions": [{"type": "enemy_hp_below", "threshold": 0.4}]},
+    "duration": {"type": "permanent"}, "effects": {"all_dmg": 0.15}, "display": {"line": false}
+  },
+  {
+    "id": "character_baizang_atk", "name": "白藏·攻击提升",
+    "providers": [{"kind": "character", "id": "char_701295143d"}], "priority": 20,
+    "trigger": {"event": "passive"}, "target": {"scope": "registrar"},
+    "duration": {"type": "permanent"}, "effects": {"atk_pct": 0.2}, "display": {"line": false}
+  },
+  {
+    "id": "character_baizang_a6_q_crit", "name": "白藏6觉·判予秋暴击",
+    "providers": [{"kind": "character", "id": "char_701295143d"}], "priority": 20,
+    "trigger": {"event": "action_start", "source": {"scope": "registrar", "action_types": ["Q"]}, "conditions": [{"type": "awakening_min", "min": 6}]},
+    "target": {"scope": "registrar"}, "duration": {"type": "time", "ticks": 160},
+    "stacking": {"mode": "refresh", "max_stacks": 1}, "effects": {"crit_rate": 0.3}
+  },
+  {
+    "id": "character_baizang_a6_team_atk", "name": "白藏6觉·判予秋全队攻击",
+    "providers": [{"kind": "character", "id": "char_701295143d"}], "priority": 20,
+    "trigger": {"event": "action_start", "source": {"scope": "registrar", "action_types": ["Q"]}, "conditions": [{"type": "awakening_min", "min": 6}]},
+    "target": {"scope": "team"}, "duration": {"type": "time", "ticks": 160},
+    "stacking": {"mode": "refresh", "max_stacks": 1}, "effects": {"atk_pct": 0.2}
+  },
+  {
+    "id": "character_adler_def", "name": "阿德勒·防御提升",
+    "providers": [{"kind": "character", "id": "char_6f46705fd1"}], "priority": 20,
+    "trigger": {"event": "passive"}, "target": {"scope": "registrar"},
+    "duration": {"type": "permanent"}, "effects": {"def_pct": 0.2}, "display": {"line": false}
+  },
+  {
+    "id": "character_adler_e_shield",
+    "name": "阿德勒：明悟之慧佑",
+    "providers": [{"kind": "character", "id": "char_6f46705fd1"}],
+    "priority": 90,
+    "tags": ["护盾"],
+    "trigger": {"event": "action_start", "source": {"scope": "registrar", "action_types": ["E"]}},
+    "target": {"scope": "front"},
+    "duration": {"type": "time", "ticks": 80, "loop_carry": true},
+    "stacking": {"mode": "refresh", "max_stacks": 1},
+    "effects": {}
+  },
+  {
+    "id": "character_adler_e_team_curse",
+    "name": "阿德勒：明悟之慧佑咒伤",
+    "providers": [{"kind": "character", "id": "char_6f46705fd1"}],
+    "priority": 95,
+    "trigger": {"event": "action_start", "source": {"scope": "registrar", "action_types": ["E"]}},
+    "target": {"scope": "team", "elements": ["咒"]},
+    "duration": {"type": "time", "ticks": 80, "loop_carry": true},
+    "stacking": {"mode": "refresh", "max_stacks": 1},
+    "effects": {"element_dmg": 0.1}
+  },
+  {
+    "id": "character_requiem_a2_support_damage", "name": "安魂曲2觉·援护入场增伤",
+    "providers": [{"kind": "character", "id": "char_c78f7a08d5"}], "priority": 20,
+    "trigger": {"event": "action_hit", "source": {"scope": "registrar", "action_types": ["援护"]}, "conditions": [{"type": "awakening_min", "min": 2}]},
+    "target": {"scope": "registrar"}, "duration": {"type": "time", "ticks": 150},
+    "stacking": {"mode": "refresh", "max_stacks": 1}, "effects": {"all_dmg": 0.15}
+  },
+  {
+    "id": "character_requiem_a6_def_ignore", "name": "安魂曲6觉·无视防御",
+    "providers": [{"kind": "character", "id": "char_c78f7a08d5"}], "priority": 20,
+    "trigger": {"event": "passive", "conditions": [{"type": "awakening_min", "min": 6}]}, "target": {"scope": "registrar"},
+    "duration": {"type": "permanent"}, "effects": {"def_ignore": 0.2}, "display": {"line": false}
+  },
+  {
+    "id": "character_daphne_stagger", "name": "达芙蒂尔·倾陷伤害提升",
+    "providers": [{"kind": "character", "id": "char_e8ad982185"}], "priority": 20,
+    "trigger": {"event": "passive"}, "target": {"scope": "registrar"},
+    "duration": {"type": "permanent"}, "effects": {"stagger_strength": 60}, "display": {"line": false}
+  },
+  {
+    "id": "character_daphne_shift_damage", "name": "达芙蒂尔·幻影移行强化",
+    "providers": [{"kind": "character", "id": "char_e8ad982185"}], "priority": 20,
+    "trigger": {"event": "passive"}, "target": {"scope": "registrar", "action_names": ["移行", "移行附加"]},
+    "duration": {"type": "permanent"}, "effects": {"all_dmg": 0.8}, "display": {"line": false}
+  },
+  {
+    "id": "character_daphne_a6_def_ignore", "name": "达芙蒂尔6觉·无视防御",
+    "providers": [{"kind": "character", "id": "char_e8ad982185"}], "priority": 20,
+    "trigger": {"event": "passive", "conditions": [{"type": "awakening_min", "min": 6}]}, "target": {"scope": "registrar"},
+    "duration": {"type": "permanent"}, "effects": {"def_ignore": 0.15}, "display": {"line": false}
+  },
+  {
+    "id": "character_fadia_team_hp", "name": "法帝娅·全队生命",
+    "providers": [{"kind": "character", "id": "char_caa6c2e5a8"}], "priority": 20,
+    "trigger": {"event": "passive"}, "target": {"scope": "team"},
+    "duration": {"type": "permanent"}, "effects": {"hp_pct": 0.1}, "display": {"line": false}
+  },
+  {
+    "id": "character_fadia_a3_hp", "name": "法帝娅3觉·自身生命",
+    "providers": [{"kind": "character", "id": "char_caa6c2e5a8"}], "priority": 20,
+    "trigger": {"event": "passive", "conditions": [{"type": "awakening_min", "min": 3}]}, "target": {"scope": "registrar"},
+    "duration": {"type": "permanent"}, "effects": {"hp_pct": 0.3}, "display": {"line": false}
+  },
+  {
+    "id": "character_haiyue_jellyfish_atk", "name": "海月·水母弹攻击叠层",
+    "providers": [{"kind": "character", "id": "char_699966e2e7"}], "priority": 20,
+    "trigger": {"event": "action_hit", "source": {"scope": "registrar", "action_names": ["水母弹"]}},
+    "target": {"scope": "registrar"}, "duration": {"type": "time", "ticks": 50},
+    "stacking": {"key": "character_haiyue_jianqiang", "mode": "add_stack", "max_stacks": 10}, "effects": {"atk_pct": 0.01}
+  },
+  {
+    "id": "character_haiyue_a6_e_full_jianqiang", "name": "海月6觉·变轨直接满渐强",
+    "providers": [{"kind": "character", "id": "char_699966e2e7"}], "priority": 20,
+    "trigger": {"event": "action_hit", "source": {"scope": "registrar", "action_ids": ["action_36a6d1d153"]}, "conditions": [{"type": "awakening_min", "min": 6}]},
+    "target": {"scope": "registrar"}, "duration": {"type": "time", "ticks": 50},
+    "stacking": {"key": "character_haiyue_jianqiang", "mode": "add_stack", "max_stacks": 10, "stack_gain": 10},
+    "effects": {"atk_pct": 0.01}
+  },
+  {
+    "id": "character_haiyue_a4_basic_def", "name": "海月4觉·普攻防御",
+    "providers": [{"kind": "character", "id": "char_699966e2e7"}], "priority": 20,
+    "trigger": {"event": "passive", "conditions": [{"type": "awakening_min", "min": 4}]}, "target": {"scope": "registrar", "action_types": ["普攻"]},
+    "duration": {"type": "permanent"}, "effects": {"def_pct": 0.2}, "display": {"line": false}
+  },
+  {
+    "id": "character_haiyue_a5_q_crit", "name": "海月5觉·终结暴击",
+    "providers": [{"kind": "character", "id": "char_699966e2e7"}], "priority": 20,
+    "trigger": {"event": "passive", "conditions": [{"type": "awakening_min", "min": 5}]}, "target": {"scope": "registrar", "action_types": ["Q"]},
+    "duration": {"type": "permanent"}, "effects": {"crit_rate": 0.15}, "display": {"line": false}
+  },
+  {
+    "id": "character_chaos_a3_q_crit_dmg", "name": "卡厄斯3觉·终结后暴伤",
+    "providers": [{"kind": "character", "id": "char_d38b672525"}], "priority": 20,
+    "trigger": {"event": "action_hit", "source": {"scope": "registrar", "action_types": ["Q"]}, "conditions": [{"type": "awakening_min", "min": 3}]},
+    "target": {"scope": "registrar"}, "duration": {"type": "time", "ticks": 200},
+    "stacking": {"mode": "refresh", "max_stacks": 1}, "effects": {"crit_dmg": 0.3}
+  },
+  {
+    "id": "character_hathor_delay_crit", "name": "哈索尔·延滞目标全队暴击",
+    "providers": [{"kind": "character", "id": "char_912dbfe17c"}], "priority": 20,
+    "trigger": {"event": "passive"},
+    "target": {"scope": "team", "conditions": [{"type": "enemy_debuff_active", "debuffs": ["延滞"]}]},
+    "duration": {"type": "permanent"}, "effects": {"crit_rate": 0.1}, "display": {"line": false}
+  },
+  {
+    "id": "character_yi_q_beast_damage", "name": "翳·终结后兽牙强化",
+    "providers": [{"kind": "character", "id": "char_7578b18979"}], "priority": 20,
+    "trigger": {"event": "action_hit", "source": {"scope": "registrar", "action_types": ["Q"]}},
+    "target": {"scope": "registrar", "tags": ["附着"]}, "duration": {"type": "time", "ticks": 150},
+    "stacking": {"mode": "refresh", "max_stacks": 1}, "effects": {"all_dmg": 0.1}
+  },
+  {
+    "id": "character_yi_a1_beast_damage", "name": "翳1觉·兽牙强化",
+    "providers": [{"kind": "character", "id": "char_7578b18979"}], "priority": 20,
+    "trigger": {"event": "passive", "conditions": [{"type": "awakening_min", "min": 1}]}, "target": {"scope": "registrar", "action_names": ["兽牙"]},
+    "duration": {"type": "permanent"}, "effects": {"all_dmg": 0.6}, "display": {"line": false}
+  },
+  {
+    "id": "character_yi_a2_e_crit", "name": "翳2觉·变轨后暴击",
+    "providers": [{"kind": "character", "id": "char_7578b18979"}], "priority": 20,
+    "trigger": {"event": "action_hit", "source": {"scope": "registrar", "action_types": ["E"]}, "conditions": [{"type": "awakening_min", "min": 2}]},
+    "target": {"scope": "registrar"}, "duration": {"type": "time", "ticks": 150},
+    "stacking": {"mode": "refresh", "max_stacks": 1}, "effects": {"crit_rate": 0.1}
+  },
+  {
+    "id": "character_yi_a6_extra_damage", "name": "翳6觉·兽牙额外强化",
+    "providers": [{"kind": "character", "id": "char_7578b18979"}], "priority": 20,
+    "trigger": {"event": "passive", "conditions": [{"type": "awakening_min", "min": 6}]}, "target": {"scope": "registrar", "action_names": ["兽牙额外"]},
+    "duration": {"type": "permanent"}, "effects": {"all_dmg": 0.2}, "display": {"line": false}
+  },
+  {
+    "id": "character_zhenhong_ascendant_red",
+    "name": "升腾之赤",
+    "description": "龙形态攻击增伤30%，防御提升50%",
+    "providers": [{"kind": "character", "id": "char_b52cc8f160"}],
+    "priority": 100,
+    "trigger": {
+      "event": "action_start",
+      "source": {
+        "scope": "registrar",
+        "action_ids": [
+          "action_c32b4b9417",
+          "action_40e3b63106",
+          "action_c2c019771f",
+          "action_f0625f9268",
+          "action_5cd7ad2380",
+          "action_cf3b21dac1",
+          "action_7773821d79",
+          "action_a17ac7c5b7",
+          "action_e3711f0cf5"
+        ]
+      }
+    },
+    "target": {
+      "scope": "registrar",
+      "action_ids": [
+        "action_c32b4b9417",
+        "action_40e3b63106",
+        "action_c2c019771f",
+        "action_f0625f9268",
+        "action_5cd7ad2380",
+        "action_cf3b21dac1",
+        "action_7773821d79",
+        "action_a17ac7c5b7",
+        "action_e3711f0cf5"
+      ]
+    },
+    "duration": {"type": "time", "ticks": 1, "loop_carry": false},
+    "stacking": {"mode": "refresh", "max_stacks": 1},
+    "effects": {"all_dmg": 0.3, "def_pct": 0.5}
+  },
+  {
+    "id": "character_zhenhong_q1_self_all_dmg",
+    "name": "真红3觉共鸣",
+    "providers": [{"kind": "character", "id": "char_b52cc8f160"}],
+    "priority": 100,
+    "trigger": {
+      "event": "action_start",
+      "source": {"scope": "registrar", "action_ids": ["action_c32b4b9417"]},
+      "conditions": [{"type": "awakening_min", "min": 3}]
+    },
+    "target": {"scope": "registrar"},
+    "duration": {"type": "time", "ticks": 130, "delay_ticks": 0, "loop_carry": false},
+    "activation": {"exclude_trigger_action": true},
+    "stacking": {"mode": "refresh", "max_stacks": 1},
+    "reset": {"owner_leaves_foreground": true, "action_ids": ["action_e3711f0cf5"]},
+    "effects": {"all_dmg": 0.3}
+  },
+  {
+    "id": "arc_time_outside_recorded_crit_def",
+    "name": "行进于时间之外：Q 消耗荒时",
+    "providers": [{"kind": "arc", "id": "arc_7d0ca08e3d"}],
+    "priority": 120,
+    "trigger": {
+      "event": "action_start",
+      "source": {"scope": "registrar", "action_types": ["Q"]},
+      "conditions": [{"type": "active_buff_key", "key": "arc_time_outside_maze"}]
+    },
+    "target": {"scope": "registrar", "action_types": ["Q"]},
+    "duration": {"type": "time", "ticks": 700, "loop_carry": true},
+    "stacking": {"mode": "refresh", "max_stacks": 1},
+    "activation": {
+      "clear_keys": ["arc_time_outside_maze", "arc_time_outside_stack"],
+      "effects_from_stack": {
+        "key": "arc_time_outside_stack",
+        "per_stack_from_effect": {"crit_dmg": {"source": "crit_dmg", "factor": 0.3333333333}},
+        "full_stacks": 3,
+        "full_effect_keys": ["def_ignore"]
+      }
+    },
+    "effects": {"crit_dmg": 0.24, "def_ignore": 0.12}
+  },
+  {
+    "id": "arc_time_outside_maze",
+    "name": "行进于时间之外：荒时迷宫",
+    "providers": [{"kind": "arc", "id": "arc_7d0ca08e3d"}],
+    "priority": 80,
+    "trigger": {"event": "action_start", "source": {"scope": "registrar", "action_types": ["E"]}},
+    "target": {"scope": "registrar"},
+    "duration": {"type": "time", "ticks": 9990, "loop_carry": true},
+    "stacking": {"mode": "refresh", "max_stacks": 1, "key": "arc_time_outside_maze"},
+    "activation": {"clear_keys": ["arc_time_outside_maze", "arc_time_outside_stack"]},
+    "effects": {}
+  },
+  {
+    "id": "arc_time_outside_stack",
+    "name": "行进于时间之外：荒时",
+    "providers": [{"kind": "arc", "id": "arc_7d0ca08e3d"}],
+    "priority": 100,
+    "trigger": {
+      "event": "action_start",
+      "source": {"scope": "non_registrar", "action_types": ["E", "援护"]},
+      "conditions": [{"type": "active_buff_key", "key": "arc_time_outside_maze"}]
+    },
+    "target": {"scope": "registrar"},
+    "duration": {"type": "time", "ticks": 9990, "loop_carry": true},
+    "stacking": {"mode": "add_stack", "max_stacks": 3, "key": "arc_time_outside_stack"},
+    "effects": {}
+  },
+  {
+    "id": "arc_rain_e_harmony",
+    "name": "倾世之雨：E 后环合强度",
+    "providers": [{"kind": "arc", "id": "arc_facc69ac01"}],
+    "priority": 100,
+    "trigger": {"event": "action_start", "source": {"scope": "registrar", "action_types": ["E"]}},
+    "target": {"scope": "registrar"},
+    "duration": {"type": "time", "ticks": 150, "loop_carry": true},
+    "stacking": {"mode": "refresh", "max_stacks": 1},
+    "effects": {"harmony_strength": 36.0}
+  },
+  {
+    "id": "arc_fearless_q_atk",
+    "name": "无畏之棉：Q 后攻击",
+    "providers": [{"kind": "arc", "id": "arc_1a476075cd"}],
+    "priority": 100,
+    "trigger": {"event": "action_start", "source": {"scope": "registrar", "action_types": ["Q"]}},
+    "target": {"scope": "registrar"},
+    "duration": {"type": "time", "ticks": 100, "loop_carry": true},
+    "stacking": {"mode": "refresh", "max_stacks": 1},
+    "effects": {"atk_pct": 0.25}
+  },
+  {
+    "id": "arc_fearless_full_q_atk",
+    "name": "无畏之棉·满精：Q 后攻击",
+    "providers": [{"kind": "arc", "id": "arc_57b6c49b66"}],
+    "priority": 100,
+    "trigger": {"event": "action_start", "source": {"scope": "registrar", "action_types": ["Q"]}},
+    "target": {"scope": "registrar"},
+    "duration": {"type": "time", "ticks": 100, "loop_carry": true},
+    "stacking": {"mode": "refresh", "max_stacks": 1},
+    "effects": {"atk_pct": 0.45}
+  },
+  {
+    "id": "arc_reality_shelter_q_attach",
+    "name": "现实避难所：Q 后附着伤害",
+    "providers": [{"kind": "arc", "id": "arc_f317782734"}],
+    "priority": 100,
+    "trigger": {"event": "action_start", "source": {"scope": "registrar", "action_types": ["Q"]}},
+    "target": {"scope": "registrar", "tags": ["附着"]},
+    "duration": {"type": "time", "ticks": 60, "loop_carry": true},
+    "stacking": {"mode": "refresh", "max_stacks": 1},
+    "effects": {"attach_dmg": 0.1}
+  },
+  {
+    "id": "arc_time_thief_e_stagger",
+    "name": "时间大盗：E 后倾陷强度",
+    "providers": [{"kind": "arc", "id": "arc_74578e2ec4"}],
+    "priority": 100,
+    "trigger": {"event": "action_start", "source": {"scope": "registrar", "action_types": ["E"]}},
+    "target": {"scope": "registrar"},
+    "duration": {"type": "time", "ticks": 500, "loop_carry": true},
+    "stacking": {"mode": "refresh", "max_stacks": 1},
+    "effects": {"stagger_strength": 162.0}
+  },
+  {
+    "id": "arc_first_step_e_atk",
+    "name": "成功的第一步：E 后攻击",
+    "providers": [{"kind": "arc", "id": "arc_1b828c9173"}],
+    "priority": 100,
+    "trigger": {"event": "action_start", "source": {"scope": "registrar", "action_types": ["E"]}, "cooldown_ticks": 200},
+    "target": {"scope": "registrar"},
+    "duration": {"type": "time", "ticks": 100, "loop_carry": true},
+    "stacking": {"mode": "refresh", "max_stacks": 1},
+    "effects": {"atk_pct": 0.16}
+  },
+  {
+    "id": "arc_wrong_door_heal_spirit",
+    "name": "错误的门：治疗后灵伤",
+    "providers": [{"kind": "arc", "id": "arc_bab179ec33"}],
+    "priority": 100,
+    "trigger": {"event": "action_hit", "source": {"scope": "registrar"}, "conditions": [{"type": "heal"}]},
+    "target": {"scope": "registrar", "elements": ["灵"]},
+    "duration": {"type": "time", "ticks": 200, "loop_carry": true},
+    "stacking": {"mode": "refresh", "max_stacks": 1},
+    "effects": {"element_dmg": 0.3}
+  },
+  {
+    "id": "arc_wrong_door_heal_team_damage",
+    "name": "错误的门：治疗后其他队友通用增伤",
+    "providers": [{"kind": "arc", "id": "arc_bab179ec33"}],
+    "priority": 101,
+    "trigger": {"event": "action_hit", "source": {"scope": "registrar"}, "conditions": [{"type": "heal"}]},
+    "target": {"scope": "other_team"},
+    "duration": {"type": "time", "ticks": 200, "loop_carry": true},
+    "stacking": {"mode": "refresh", "max_stacks": 1},
+    "calculation": {"team_unique_key": "arc_wrong_door_heal_team_damage"},
+    "effects": {"all_dmg": 0.15}
+  },
+  {
+    "id": "arc_last_rose_crit_stack",
+    "name": "最后一朵玫瑰：暴伤叠层",
+    "providers": [{"kind": "arc", "id": "arc_dcd5900afc"}],
+    "priority": 100,
+    "trigger": {"event": "action_hit", "source": {"scope": "registrar", "tags": ["DOT"]}, "cooldown_ticks": 3},
+    "target": {"scope": "registrar"},
+    "duration": {"type": "time", "ticks": 30, "loop_carry": true},
+    "stacking": {"mode": "add_stack", "max_stacks": 10, "key": "arc_last_rose_dark_thorn"},
+    "effects": {"crit_dmg": 0.06}
+  },
+  {
+    "id": "arc_last_rose_e_full_stack",
+    "name": "最后一朵玫瑰：E 后暗棘满层",
+    "providers": [{"kind": "arc", "id": "arc_dcd5900afc"}],
+    "priority": 100,
+    "trigger": {"event": "action_start", "source": {"scope": "registrar", "action_types": ["E"]}},
+    "target": {"scope": "registrar"},
+    "duration": {"type": "time", "ticks": 30, "loop_carry": true},
+    "stacking": {"mode": "add_stack", "stack_gain": 10, "max_stacks": 10, "key": "arc_last_rose_dark_thorn"},
+    "effects": {"crit_dmg": 0.06}
+  },
+  {
+    "id": "arc_speed_cotton_front_atk",
+    "name": "极速之棉：前台驻场攻击",
+    "providers": [{"kind": "arc", "id": "arc_126824ee1b"}],
+    "priority": 100,
+    "trigger": {"event": "front_time"},
+    "target": {"scope": "front_registrar"},
+    "duration": {"type": "permanent"},
+    "stacking": {"mode": "front_time", "interval_ticks": 10, "max_stacks": 5},
+    "effects": {"atk_pct": 0.05}
+  },
+  {
+    "id": "arc_speed_cotton_full_front_atk",
+    "name": "极速之棉·满精：前台驻场攻击",
+    "providers": [{"kind": "arc", "id": "arc_b3c0b59d01"}],
+    "priority": 100,
+    "trigger": {"event": "front_time"},
+    "target": {"scope": "front_registrar"},
+    "duration": {"type": "permanent"},
+    "stacking": {"mode": "front_time", "interval_ticks": 10, "max_stacks": 5},
+    "effects": {"atk_pct": 0.09}
+  },
+  {
+    "id": "arc_thinking_cat_fons_light",
+    "name": "思考喵：方斯叠满光伤",
+    "providers": [{"kind": "arc", "id": "arc_112b3492d8"}],
+    "priority": 100,
+    "trigger": {"event": "action_start", "source": {"scope": "registrar"}, "conditions": [{"type": "fons_full"}]},
+    "target": {"scope": "registrar", "elements": ["光"]},
+    "duration": {"type": "time", "ticks": 9999, "loop_carry": true},
+    "stacking": {"mode": "refresh", "max_stacks": 1},
+    "effects": {"element_dmg": 0.25}
+  },
+  {
+    "id": "arc_thinking_cat_full_fons_light",
+    "name": "思考喵·满精：方斯叠满光伤",
+    "providers": [{"kind": "arc", "id": "arc_5fb06c9645"}],
+    "priority": 100,
+    "trigger": {"event": "action_start", "source": {"scope": "registrar"}, "conditions": [{"type": "fons_full"}]},
+    "target": {"scope": "registrar", "elements": ["光"]},
+    "duration": {"type": "time", "ticks": 9999, "loop_carry": true},
+    "stacking": {"mode": "refresh", "max_stacks": 1},
+    "effects": {"element_dmg": 0.45}
+  },
+  {
+    "id": "arc_bit_game_background_front_atk",
+    "name": "引爆全场：后台前台攻击",
+    "providers": [{"kind": "arc", "id": "arc_a5b483cca6"}],
+    "priority": 100,
+    "trigger": {"event": "action_start", "source": {"scope": "non_registrar", "placements": ["foreground"]}},
+    "target": {"scope": "front_non_registrar"},
+    "duration": {"type": "time", "ticks": 9990, "loop_carry": true},
+    "stacking": {"mode": "refresh", "max_stacks": 1},
+    "calculation": {"team_unique_key": "arc_bit_game_background_front_atk"},
+    "effects": {"atk_pct": 0.1}
+  },
+  {
+    "id": "arc_bit_game_background_damage_front_atk_stack",
+    "name": "引爆全场：后台伤害叠前台攻击",
+    "providers": [{"kind": "arc", "id": "arc_a5b483cca6"}],
+    "priority": 100,
+    "trigger": {
+      "event": "action_hit",
+      "source": {"scope": "registrar", "placements": ["background"]},
+      "conditions": [{"type": "hit_count_positive"}],
+      "cooldown_ticks": 20
+    },
+    "target": {"scope": "front_non_registrar"},
+    "duration": {"type": "time", "ticks": 9990, "loop_carry": true},
+    "stacking": {"mode": "add_stack", "max_stacks": 4},
+    "reset": {"owner_foreground": true},
+    "calculation": {"team_unique_key": "arc_bit_game_background_damage_front_atk_stack"},
+    "effects": {"atk_pct": 0.02}
+  },
+  {
+    "id": "arc_bit_game_foreground_psyche_dmg",
+    "name": "引爆全场：前台魂伤",
+    "providers": [{"kind": "arc", "id": "arc_a5b483cca6"}],
+    "priority": 100,
+    "trigger": {"event": "action_start", "source": {"scope": "registrar", "placements": ["foreground"]}},
+    "target": {"scope": "front_registrar", "elements": ["魂"]},
+    "duration": {"type": "time", "ticks": 9990, "loop_carry": true},
+    "stacking": {"mode": "refresh", "max_stacks": 1},
+    "calculation": {"team_unique_key": "arc_bit_game_foreground_psyche_dmg"},
+    "effects": {"element_dmg": 0.12}
+  },
+  {
+    "id": "arc_bit_game_basic_psyche_stack",
+    "name": "引爆全场：普攻魂伤叠层",
+    "providers": [{"kind": "arc", "id": "arc_a5b483cca6"}],
+    "priority": 100,
+    "trigger": {
+      "event": "action_hit",
+      "source": {"scope": "registrar", "action_types": ["普攻"], "placements": ["foreground"], "elements": ["魂"]},
+      "conditions": [{"type": "hit_count_positive"}],
+      "cooldown_ticks": 3
+    },
+    "target": {"scope": "front_registrar", "elements": ["魂"]},
+    "duration": {"type": "time", "ticks": 9990, "loop_carry": true},
+    "stacking": {"mode": "add_stack", "max_stacks": 10},
+    "reset": {"owner_leaves_foreground": true},
+    "calculation": {"team_unique_key": "arc_bit_game_basic_psyche_stack"},
+    "effects": {"element_dmg": 0.02}
+  },
+  {
+    "id": "arc_good_dog_q_team_atk",
+    "name": "好狗狗走四方：Q 后全队攻击",
+    "providers": [{"kind": "arc", "id": "arc_5167a86a24"}],
+    "priority": 100,
+    "trigger": {"event": "action_start", "source": {"scope": "registrar", "action_types": ["Q"]}},
+    "target": {"scope": "team"},
+    "duration": {"type": "time", "ticks": 200, "loop_carry": true},
+    "stacking": {"mode": "refresh", "max_stacks": 1},
+    "calculation": {"team_unique_key": "arc_good_dog_q_team_atk"},
+    "effects": {"atk_pct": 0.1}
+  },
+  {
+    "id": "arc_good_dog_q_control_extra_atk",
+    "name": "好狗狗走四方：早雾Q控制额外攻击",
+    "providers": [{"kind": "arc", "id": "arc_5167a86a24"}],
+    "priority": 110,
+    "trigger": {
+      "event": "action_start",
+      "source": {"scope": "registrar", "action_types": ["Q"]},
+      "conditions": [{"type": "owner_character_id", "ids": ["char_1895e259be"]}]
+    },
+    "target": {"scope": "team"},
+    "duration": {"type": "time", "ticks": 200, "loop_carry": true},
+    "stacking": {"mode": "refresh", "max_stacks": 1},
+    "calculation": {"team_unique_key": "arc_good_dog_q_control_extra_atk"},
+    "effects": {"atk_pct": 0.06}
+  },
+  {
+    "id": "arc_dazzle_support_all_dmg",
+    "name": "光波眩晕，迷走狂欢：援护后增伤",
+    "providers": [{"kind": "arc", "id": "arc_4c291f3966"}],
+    "priority": 100,
+    "trigger": {"event": "action_start", "source": {"scope": "registrar", "action_types": ["援护"]}, "cooldown_ticks": 200},
+    "target": {"scope": "registrar"},
+    "duration": {"type": "time", "ticks": 100, "loop_carry": true},
+    "stacking": {"mode": "refresh", "max_stacks": 1},
+    "effects": {"all_dmg": 0.3}
+  },
+  {
+    "id": "arc_overhead_e_atk",
+    "name": "当心头顶：E 后攻击",
+    "providers": [{"kind": "arc", "id": "arc_320435ce51"}],
+    "priority": 100,
+    "trigger": {"event": "action_start", "source": {"scope": "registrar", "action_types": ["E"]}},
+    "target": {"scope": "registrar"},
+    "duration": {"type": "time", "ticks": 150, "loop_carry": true},
+    "stacking": {"mode": "refresh", "max_stacks": 1},
+    "effects": {"atk_pct": 0.18}
+  },
+  {
+    "id": "arc_overhead_delay_element",
+    "name": "当心头顶：延滞下相伤",
+    "providers": [{"kind": "arc", "id": "arc_320435ce51"}],
+    "priority": 110,
+    "trigger": {"event": "action_start", "source": {"scope": "registrar", "action_types": ["E"]}},
+    "target": {"scope": "registrar", "elements": ["相"], "conditions": [{"type": "enemy_debuff_active", "debuffs": ["延滞", "浸染"]}]},
+    "duration": {"type": "time", "ticks": 150, "loop_carry": true},
+    "stacking": {"mode": "refresh", "max_stacks": 1},
+    "effects": {"element_dmg": 0.18}
+  },
+  {
+    "id": "arc_ready_eq_basic_dodge",
+    "name": "预备备：EQ 后普攻闪反增伤",
+    "providers": [{"kind": "arc", "id": "arc_ce53905d70"}],
+    "priority": 100,
+    "trigger": {"event": "action_start", "source": {"scope": "registrar", "action_types": ["E", "Q"]}},
+    "target": {"scope": "registrar", "action_types": ["普攻", "闪反"]},
+    "duration": {"type": "time", "ticks": 150, "loop_carry": true},
+    "stacking": {"mode": "add_stack", "max_stacks": 2},
+    "effects": {"basic_dmg": 0.15, "dodge_counter_dmg": 0.15}
+  },
+  {
+    "id": "arc_galaxy_soul_hit_crit",
+    "name": "银河暂留：魂攻击暴伤",
+    "providers": [{"kind": "arc", "id": "arc_8fbb15cb26"}],
+    "priority": 100,
+    "trigger": {"event": "action_hit", "source": {"scope": "registrar", "elements": ["魂"]}, "cooldown_ticks": 1},
+    "target": {"scope": "registrar"},
+    "duration": {"type": "time", "ticks": 50, "loop_carry": true},
+    "stacking": {"mode": "add_stack", "max_stacks": 10},
+    "effects": {"crit_dmg": 0.02}
+  },
+  {
+    "id": "arc_ora_basic_stack",
+    "name": "欧拉欧拉！：普伤叠层",
+    "providers": [{"kind": "arc", "id": "arc_4d19ef5194"}],
+    "priority": 100,
+    "trigger": {"event": "action_hit", "source": {"scope": "registrar", "action_types": ["普攻"]}},
+    "target": {"scope": "registrar", "action_types": ["普攻"]},
+    "duration": {"type": "time", "ticks": 100, "loop_carry": true},
+    "stacking": {"mode": "independent", "max_stacks": 10},
+    "effects": {"basic_dmg": 0.036}
+  },
+  {
+    "id": "arc_crimson_mirage_q_light_def",
+    "name": "穿过胭红蜃景：Q 后光伤穿防",
+    "providers": [{"kind": "arc", "id": "arc_27dc4a7281"}],
+    "priority": 100,
+    "trigger": {"event": "action_start", "source": {"scope": "registrar", "action_types": ["Q"]}},
+    "target": {"scope": "registrar", "elements": ["光"]},
+    "duration": {"type": "time", "ticks": 200, "loop_carry": true},
+    "stacking": {"mode": "refresh", "max_stacks": 1},
+    "effects": {"element_dmg": 0.32, "def_ignore": 0.12}
+  },
+  {
+    "id": "arc_crimson_mirage_full_q_light_def",
+    "name": "穿过胭红蜃景满：Q 后光伤穿防",
+    "providers": [{"kind": "arc", "id": "arc_2b6d5881ef"}],
+    "priority": 100,
+    "trigger": {"event": "action_start", "source": {"scope": "registrar", "action_types": ["Q"]}},
+    "target": {"scope": "registrar", "elements": ["光"]},
+    "duration": {"type": "time", "ticks": 200, "loop_carry": true},
+    "stacking": {"mode": "refresh", "max_stacks": 1},
+    "effects": {"element_dmg": 0.512, "def_ignore": 0.192}
+  },
+  {
+    "id": "arc_searched_eq_crit",
+    "name": "众人追寻之物：EQ 后暴伤",
+    "providers": [{"kind": "arc", "id": "arc_d7e0691c5f"}],
+    "priority": 100,
+    "trigger": {"event": "action_start", "source": {"scope": "registrar", "action_types": ["E", "Q"]}},
+    "target": {"scope": "registrar"},
+    "duration": {"type": "time", "ticks": 200, "loop_carry": true},
+    "stacking": {"mode": "refresh", "max_stacks": 1},
+    "effects": {"crit_dmg": 0.4}
+  },
+  {
+    "id": "arc_fierce_cotton_crit",
+    "name": "凶猛之棉：暴击后暴伤",
+    "providers": [{"kind": "arc", "id": "arc_1ddecc32f3"}],
+    "priority": 100,
+    "trigger": {"event": "action_hit", "source": {"scope": "registrar"}, "conditions": [{"type": "expected_critical_hit"}]},
+    "target": {"scope": "registrar"},
+    "duration": {"type": "time", "ticks": 100, "loop_carry": true},
+    "stacking": {"mode": "add_stack", "max_stacks": 10},
+    "effects": {"crit_dmg": 0.04}
+  },
+  {
+    "id": "arc_fierce_cotton_full_crit",
+    "name": "凶猛之棉·满精：暴击后暴伤",
+    "providers": [{"kind": "arc", "id": "arc_92353a7626"}],
+    "priority": 100,
+    "trigger": {"event": "action_hit", "source": {"scope": "registrar"}, "conditions": [{"type": "expected_critical_hit"}]},
+    "target": {"scope": "registrar"},
+    "duration": {"type": "time", "ticks": 100, "loop_carry": true},
+    "stacking": {"mode": "add_stack", "max_stacks": 10},
+    "effects": {"crit_dmg": 0.072}
+  },
+  {
+    "id": "arc_camellia_hp_loss_crit",
+    "name": "茶花会：扣血后暴伤",
+    "providers": [{"kind": "arc", "id": "arc_6e7753edf5"}],
+    "priority": 100,
+    "trigger": {"event": "action_hit", "source": {"scope": "registrar"}, "conditions": [{"type": "self_hp_loss"}]},
+    "target": {"scope": "registrar"},
+    "duration": {"type": "time", "ticks": 50, "loop_carry": true},
+    "stacking": {"mode": "add_stack", "max_stacks": 4},
+    "effects": {"crit_dmg": 0.12}
+  },
+  {
+    "id": "arc_waltz_q_mind",
+    "name": "永恒圆舞曲：Q 后潜意伤",
+    "providers": [{"kind": "arc", "id": "arc_9d9e593988"}],
+    "priority": 100,
+    "trigger": {"event": "action_start", "source": {"scope": "registrar", "action_types": ["Q"]}},
+    "target": {"scope": "registrar", "tags": ["心灵"]},
+    "duration": {"type": "time", "ticks": 100, "loop_carry": true},
+    "stacking": {"mode": "refresh", "max_stacks": 1},
+    "effects": {"mind_dmg": 0.1}
+  },
+  {
+    "id": "arc_unyielding_low_hp_bonus",
+    "name": "不屈之绵：半血下增伤提升",
+    "providers": [{"kind": "arc", "id": "arc_b22de80f07"}],
+    "priority": 100,
+    "trigger": {"event": "action_start", "source": {"scope": "registrar"}, "conditions": [{"type": "enemy_hp_below", "threshold": 0.5}]},
+    "target": {"scope": "registrar"},
+    "duration": {"type": "time", "ticks": 9999, "loop_carry": true},
+    "stacking": {"mode": "refresh", "max_stacks": 1},
+    "effects": {"all_dmg": 0.06}
+  },
+  {
+    "id": "arc_unyielding_full_low_hp_bonus",
+    "name": "不屈之绵·满精：半血下增伤提升",
+    "providers": [{"kind": "arc", "id": "arc_0a681d8e81"}],
+    "priority": 100,
+    "trigger": {"event": "action_start", "source": {"scope": "registrar"}, "conditions": [{"type": "enemy_hp_below", "threshold": 0.5}]},
+    "target": {"scope": "registrar"},
+    "duration": {"type": "time", "ticks": 9999, "loop_carry": true},
+    "stacking": {"mode": "refresh", "max_stacks": 1},
+    "effects": {"all_dmg": 0.14}
+  },
+  {
+    "id": "arc_spring_shield_atk",
+    "name": "愚者种春：护盾时攻击",
+    "providers": [{"kind": "arc", "id": "arc_5fdc5b1847"}],
+    "priority": 100,
+    "trigger": {"event": "action_start", "source": {"scope": "registrar"}, "conditions": [{"type": "shield_state"}]},
+    "target": {"scope": "registrar"},
+    "duration": {"type": "time", "ticks": 9999, "loop_carry": true},
+    "stacking": {"mode": "refresh", "max_stacks": 1},
+    "effects": {"atk_pct": 0.3}
+  },
+  {
+    "id": "arc_bitter_medicine_hit_def",
+    "name": "良药苦口：挨打后防御",
+    "providers": [{"kind": "arc", "id": "arc_63736d4ae2"}],
+    "priority": 100,
+    "trigger": {"event": "action_hit", "source": {"scope": "registrar"}, "conditions": [{"type": "take_damage"}]},
+    "target": {"scope": "registrar"},
+    "duration": {"type": "time", "ticks": 100, "loop_carry": false},
+    "stacking": {"mode": "refresh", "max_stacks": 1},
+    "effects": {"def_pct": 0.46}
+  },
+  {
+    "id": "arc_danger_game_stagger",
+    "name": "危险游戏：限时倾陷强度",
+    "providers": [{"kind": "arc", "id": "arc_18855bc4f1"}],
+    "priority": 100,
+    "trigger": {
+      "event": "action_start",
+      "source": {"scope": "registrar", "placements": ["foreground"]},
+      "cooldown_ticks": 200
+    },
+    "target": {"scope": "registrar"},
+    "duration": {"type": "time", "ticks": 100, "loop_carry": false},
+    "stacking": {"mode": "refresh", "max_stacks": 1},
+    "effects": {"stagger_strength": 60.0}
+  },
+  {
+    "id": "cartridge_lost_light_q_def_ignore",
+    "name": "失落光芒：Q 后穿防",
+    "providers": [{"kind": "cartridge", "id": "cartridge_f4282fad3f"}],
+    "priority": 100,
+    "trigger": {"event": "action_start", "source": {"scope": "registrar", "action_types": ["Q"]}},
+    "target": {"scope": "registrar"},
+    "duration": {"type": "time", "ticks": 200, "loop_carry": true},
+    "stacking": {"mode": "refresh", "max_stacks": 1},
+    "effects": {"def_ignore": 0.25}
+  },
+  {
+    "id": "character_sagiri_control_def_down",
+    "name": "早雾：浮空/压制后减防",
+    "providers": [{"kind": "character", "id": "char_1895e259be"}],
+    "priority": 100,
+    "trigger": {"event": "action_hit", "source": {"scope": "registrar"}, "conditions": [{"type": "unsupported", "reason": "missing_airborne_or_suppression_action_tag"}]},
+    "target": {"scope": "enemy"},
+    "duration": {"type": "time", "ticks": 200, "loop_carry": true},
+    "stacking": {"mode": "refresh", "max_stacks": 1},
+    "effects": {"def_down": 0.1}
+  },
+  {
+    "id": "cartridge_diabolos_dark_reaction",
+    "name": "迪亚波罗斯：暗反应抗性无视翻倍",
+    "providers": [{"kind": "cartridge", "id": "cartridge_2f40014b04"}],
+    "priority": 100,
+    "trigger": {"event": "action_hit", "source": {"scope": "registrar"}, "conditions": [{"type": "enemy_debuff_applied", "debuffs": ["黯星", "浊燃"]}]},
+    "target": {"scope": "registrar"},
+    "duration": {"type": "time", "ticks": 200, "loop_carry": true},
+    "stacking": {"mode": "refresh", "max_stacks": 1},
+    "effects": {"res_down_暗": 0.12}
+  },
+  {
+    "id": "cartridge_devils_blood_soul_reaction",
+    "name": "恶魔之血：魂反应增伤翻倍",
+    "providers": [{"kind": "cartridge", "id": "cartridge_bb71141f17"}],
+    "priority": 100,
+    "trigger": {"event": "action_start", "source": {"scope": "registrar"}, "conditions": [{"type": "enemy_debuff_active", "debuffs": ["黯星", "浸染"]}]},
+    "target": {"scope": "registrar"},
+    "duration": {"type": "time", "ticks": 1, "loop_carry": false},
+    "stacking": {"mode": "refresh", "max_stacks": 1},
+    "effects": {"all_dmg": 0.18}
+  },
+  {
+    "id": "cartridge_street_boxer_delay_reaction",
+    "name": "街头拳王：相反应暴击翻倍",
+    "providers": [{"kind": "cartridge", "id": "cartridge_9229a5376c"}, {"kind": "cartridge", "id": "cartridge_4aad5bf505"}],
+    "priority": 100,
+    "trigger": {"event": "action_hit", "source": {"scope": "team"}, "conditions": [{"type": "enemy_debuff_applied", "debuffs": ["延滞", "浸染"]}]},
+    "target": {"scope": "registrar"},
+    "duration": {"type": "time", "ticks": 200, "loop_carry": true},
+    "stacking": {"mode": "refresh", "max_stacks": 1},
+    "effects": {"crit_rate": 0.14}
+  },
+  {
+    "id": "cartridge_forest_firefly_crit_stack",
+    "name": "森林萤火之心：暴伤叠层",
+    "providers": [{"kind": "cartridge", "id": "cartridge_29793225a0"}, {"kind": "cartridge", "id": "cartridge_4b18287a72"}],
+    "priority": 100,
+    "trigger": {"event": "action_hit", "source": {"scope": "team", "elements": ["灵"]}},
+    "target": {"scope": "registrar"},
+    "duration": {"type": "time", "ticks": 100, "loop_carry": true},
+    "stacking": {"mode": "independent", "max_stacks": 7},
+    "effects": {"crit_dmg": 0.08}
+  },
+  {
+    "id": "cartridge_twin_butterfly_atk_stack",
+    "name": "真红：双生蝶：攻击叠层",
+    "providers": [{"kind": "cartridge", "id": "cartridge_505ea4a58f"}],
+    "priority": 100,
+    "trigger": {"event": "action_hit", "source": {"scope": "team", "elements": ["咒"]}},
+    "target": {"scope": "registrar"},
+    "duration": {"type": "time", "ticks": 100, "loop_carry": true},
+    "stacking": {"mode": "independent", "max_stacks": 6},
+    "effects": {"atk_pct": 0.06}
+  },
+  {
+    "id": "cartridge_sonic_q_team_atk",
+    "name": "音速蓝刺猬：Q 后全队攻击",
+    "providers": [{"kind": "cartridge", "id": "cartridge_823bb4c4eb"}],
+    "priority": 100,
+    "trigger": {"event": "action_start", "source": {"scope": "registrar", "action_types": ["Q"]}},
+    "target": {"scope": "team"},
+    "duration": {"type": "time", "ticks": 200, "loop_carry": true},
+    "stacking": {"mode": "refresh", "max_stacks": 1},
+    "calculation": {"team_unique_key": "cartridge_sonic_q_team_atk"},
+    "effects": {"atk_pct": 0.15}
+  },
+  {
+    "id": "cartridge_mountain_basic_mind_stack",
+    "name": "静谧山庄：普攻心灵伤叠层",
+    "providers": [{"kind": "cartridge", "id": "cartridge_1d257dca56"}],
+    "priority": 100,
+    "trigger": {"event": "action_hit", "source": {"scope": "registrar", "action_types": ["普攻"]}},
+    "target": {"scope": "registrar", "tags": ["心灵"]},
+    "duration": {"type": "time", "ticks": 60, "loop_carry": true},
+    "stacking": {"mode": "independent", "max_stacks": 3},
+    "effects": {"mind_dmg": 0.12}
+  },
+  {
+    "id": "cartridge_shadow_creed_e_atk",
+    "name": "影之信条：E 后攻击",
+    "providers": [{"kind": "cartridge", "id": "cartridge_097acfc8f6"}],
+    "priority": 100,
+    "trigger": {"event": "action_start", "source": {"scope": "registrar", "action_types": ["E"]}},
+    "target": {"scope": "registrar"},
+    "duration": {"type": "time", "ticks": 200, "loop_carry": true},
+    "stacking": {"mode": "refresh", "max_stacks": 1},
+    "effects": {"atk_pct": 0.25}
+  },
+  {
+    "id": "cartridge_little_adventure_hp_stack",
+    "name": "小小大冒险：降生命后生命上限",
+    "providers": [{"kind": "cartridge", "id": "cartridge_868dbc2c5c"}],
+    "priority": 100,
+    "trigger": {"event": "action_hit", "source": {"scope": "registrar"}, "conditions": [{"type": "self_hp_loss"}]},
+    "target": {"scope": "registrar"},
+    "duration": {"type": "time", "ticks": 100, "loop_carry": true},
+    "stacking": {"key": "cartridge_little_adventure_hp", "mode": "independent", "max_stacks": 10},
+    "effects": {"hp_pct": 0.04}
+  },
+  {
+    "id": "cartridge_little_adventure_q_full_stack",
+    "name": "小小大冒险：终结直接满层",
+    "providers": [{"kind": "cartridge", "id": "cartridge_868dbc2c5c"}],
+    "priority": 100,
+    "trigger": {"event": "action_start", "source": {"scope": "registrar", "action_types": ["Q"]}},
+    "target": {"scope": "registrar"},
+    "duration": {"type": "time", "ticks": 100, "loop_carry": true},
+    "stacking": {"key": "cartridge_little_adventure_hp", "mode": "independent", "max_stacks": 10, "stack_gain": 10},
+    "effects": {"hp_pct": 0.04}
+  },
+  {
+    "id": "character_protagonist_light_reaction_team_atk",
+    "name": "鉴定师：光相关环合后全队攻击",
+    "providers": [{"kind": "character", "id": "char_dd034941ef"}],
+    "priority": 100,
+    "trigger": {
+      "event": "reaction_trigger",
+      "source": {"scope": "team"},
+      "conditions": [
+        {"type": "reaction_owner_involved"},
+        {"type": "reaction_type", "reactions": ["创生", "延滞", "盈蓄"]}
+      ]
+    },
+    "target": {"scope": "team"},
+    "duration": {"type": "time", "ticks": 200, "loop_carry": true},
+    "stacking": {"mode": "refresh", "max_stacks": 1},
+    "effects": {"atk_pct": 0.12}
+  },
+  {
+    "id": "character_zhenhong_solitary_stack",
+    "name": "真红·独行",
+    "providers": [{"kind": "character", "id": "char_b52cc8f160"}],
+    "priority": 100,
+    "trigger": {
+      "event": "action_hit",
+      "source": {"scope": "registrar", "action_ids": ["action_5e62f427cb"]}
+    },
+    "target": {"scope": "registrar"},
+    "duration": {"type": "time", "ticks": 300, "loop_carry": true},
+    "stacking": {"mode": "add_stack", "max_stacks": 10},
+    "effects": {"atk_pct": 0.05}
+  },
+  {
+    "id": "character_xun_record_window",
+    "name": "浔：时停记录窗口",
+    "providers": [{"kind": "character", "id": "char_15f458f7ef"}],
+    "priority": 80,
+    "trigger": {"event": "action_start", "source": {"scope": "registrar", "action_types": ["E"]}},
+    "target": {"scope": "registrar"},
+    "duration": {"type": "time", "ticks": 50, "loop_carry": true},
+    "stacking": {"mode": "refresh", "max_stacks": 1, "key": "character_xun_record_window"},
+    "activation": {"clear_keys": ["character_xun_record_window"]},
+    "effects": {}
+  },
+  {
+    "id": "character_xun_record_stack",
+    "name": "浔：时停记录",
+    "providers": [{"kind": "character", "id": "char_15f458f7ef"}],
+    "priority": 100,
+    "trigger": {
+      "event": "action_start",
+      "source": {"scope": "non_registrar", "action_types": ["E", "援护"]},
+      "conditions": [{"type": "active_buff_key", "key": "character_xun_record_window"}]
+    },
+    "target": {"scope": "registrar"},
+    "duration": {"type": "time", "ticks": 9990, "loop_carry": true},
+    "stacking": {
+      "mode": "add_stack",
+      "max_stacks": 3,
+      "key": "character_xun_record_stack",
+      "unique_source_slots": true
+    },
+    "effects": {}
+  },
+  {
+    "id": "character_xun_q_record_damage",
+    "name": "浔：Q 消耗时停记录",
+    "providers": [{"kind": "character", "id": "char_15f458f7ef"}],
+    "priority": 120,
+    "trigger": {"event": "action_start", "source": {"scope": "registrar", "action_types": ["Q"]}},
+    "target": {"scope": "registrar", "action_types": ["Q"]},
+    "duration": {"type": "time", "ticks": 1, "loop_carry": false},
+    "stacking": {"mode": "refresh", "max_stacks": 1},
+    "activation": {
+      "clear_keys": ["character_xun_record_window", "character_xun_record_stack"],
+      "effects_from_stack": {
+        "key": "character_xun_record_stack",
+        "per_stack_from_effect": {"all_dmg": {"source": "record_damage", "factor": 1}}
+      }
+    },
+    "effects": {"all_dmg": 0.2, "def_ignore": 0.3, "record_damage": 0.12}
+  },
+  {
+    "id": "character_xiaozhi_light_res_down",
+    "name": "小吱：光属性抗性降低",
+    "providers": [{"kind": "character", "id": "char_4f917797cb"}],
+    "priority": 100,
+    "trigger": {"event": "action_hit", "source": {"scope": "registrar"}},
+    "target": {"scope": "team"},
+    "duration": {"type": "time", "ticks": 10, "loop_carry": true},
+    "stacking": {"mode": "refresh", "max_stacks": 1},
+    "effects": {"res_down_光": 0.1}
+  },
+  {
+    "id": "character_edgar_q_team_def",
+    "name": "埃德嘉：Q 领域全队防御",
+    "providers": [{"kind": "character", "id": "char_31c5130304"}],
+    "priority": 100,
+    "trigger": {"event": "action_start", "source": {"scope": "registrar", "action_types": ["Q"]}},
+    "target": {"scope": "team"},
+    "duration": {"type": "time", "ticks": 100, "loop_carry": true},
+    "stacking": {"mode": "refresh", "max_stacks": 1},
+    "effects": {"def_pct": 0.15}
+  },
+  {
+    "id": "character_mint_light_reaction_atk",
+    "name": "薄荷：创生或覆纹后攻击",
+    "providers": [{"kind": "character", "id": "char_dda9fae1ef"}],
+    "priority": 100,
+    "trigger": {
+      "event": "reaction_trigger",
+      "source": {"scope": "team"},
+      "conditions": [
+        {"type": "reaction_owner_involved"},
+        {"type": "reaction_type", "reactions": ["创生", "覆纹"]}
+      ]
+    },
+    "target": {"scope": "registrar"},
+    "duration": {"type": "time", "ticks": 150, "loop_carry": true},
+    "stacking": {"mode": "refresh", "max_stacks": 1},
+    "effects": {"atk_pct": 0.15}
+  },
+  {
+    "id": "character_fadia_enemy_slayer_crit",
+    "name": "法帝娅：敌神者追击暴击",
+    "providers": [{"kind": "character", "id": "char_caa6c2e5a8"}],
+    "priority": 100,
+    "trigger": {"event": "passive", "conditions": [{"type": "always"}]},
+    "target": {"scope": "registrar", "action_ids": ["action_441d3aa300"]},
+    "duration": {"type": "permanent"},
+    "stacking": {"mode": "refresh", "max_stacks": 1},
+    "effects": {"crit_rate": 0.5}
+  },
+  {
+    "id": "character_haiyue_huacai",
+    "name": "海月：华彩",
+    "providers": [{"kind": "character", "id": "char_699966e2e7"}],
+    "priority": 100,
+    "trigger": {"event": "action_start", "source": {"scope": "registrar", "action_types": ["Q"]}},
+    "target": {"scope": "registrar"},
+    "duration": {"type": "time", "ticks": 120, "loop_carry": true},
+    "stacking": {"mode": "refresh", "max_stacks": 1},
+    "effects": {"crit_rate": 0.15, "ultimate_dmg": 0.2}
+  },
+  {
+    "id": "character_haiyue_huacai_team_soul",
+    "name": "海月：进入华彩后全队魂伤",
+    "providers": [{"kind": "character", "id": "char_699966e2e7"}],
+    "priority": 110,
+    "trigger": {"event": "action_start", "source": {"scope": "registrar", "action_types": ["Q"]}},
+    "target": {"scope": "team", "elements": ["魂"]},
+    "duration": {"type": "time", "ticks": 150, "loop_carry": true},
+    "stacking": {"mode": "refresh", "max_stacks": 1},
+    "effects": {"element_dmg": 0.08}
+  },
+  {
+    "id": "character_haniya_ace",
+    "name": "哈尼娅：超异科王牌",
+    "providers": [{"kind": "character", "id": "char_e0a4292b4e"}],
+    "priority": 100,
+    "trigger": {"event": "action_start", "source": {"scope": "registrar", "action_types": ["Q"]}},
+    "target": {"scope": "registrar"},
+    "duration": {"type": "time", "ticks": 100, "loop_carry": true},
+    "stacking": {"mode": "refresh", "max_stacks": 1},
+    "effects": {"crit_rate": 0.2, "element_dmg": 0.3}
+  },
+  {
+    "id": "character_haniya_ace_team_crit_dmg",
+    "name": "哈尼娅6觉共鸣·王牌全队暴伤",
+    "providers": [{"kind": "character", "id": "char_e0a4292b4e"}],
+    "priority": 100,
+    "trigger": {"event": "action_start", "source": {"scope": "registrar", "action_types": ["Q"]}, "conditions": [{"type": "awakening_min", "min": 6}]},
+    "target": {"scope": "team"},
+    "duration": {"type": "time", "ticks": 100, "loop_carry": true},
+    "stacking": {"mode": "refresh", "max_stacks": 1},
+    "effects": {"crit_dmg": 0.12}
+  },
+  {
+    "id": "character_haniya_ace_ensemble_next_attack",
+    "name": "哈尼娅4觉·合奏后下次攻击强化",
+    "providers": [{"kind": "character", "id": "char_e0a4292b4e"}],
+    "priority": 110,
+    "trigger": {
+      "event": "action_hit",
+      "source": {"scope": "registrar", "action_ids": ["action_d44546c512", "action_8cadfa76a4"]},
+      "conditions": [{"type": "awakening_min", "min": 4}, {"type": "active_buff_key", "key": "character_haniya_ace"}]
+    },
+    "target": {"scope": "front"},
+    "duration": {"type": "time", "ticks": 30, "loop_carry": true},
+    "stacking": {"mode": "refresh", "max_stacks": 1},
+    "consume_on_apply": true,
+    "effects": {"final_dmg": 1.0}
+  },
+  {
+    "id": "character_hathor_emergency_delivery",
+    "name": "哈索尔·紧急派送",
+    "providers": [{"kind": "character", "id": "char_912dbfe17c"}],
+    "priority": 100,
+    "trigger": {"event": "action_start", "source": {"scope": "registrar", "action_ids": ["action_cc530277d3"]}},
+    "target": {"scope": "registrar"},
+    "duration": {"type": "time", "ticks": 50, "loop_carry": true},
+    "stacking": {"mode": "refresh", "max_stacks": 1},
+    "reset": {"owner_leaves_foreground": true},
+    "effects": {"crit_dmg": 0.3, "def_ignore": 0.1}
+  },
+  {
+    "id": "character_hathor_flash_force",
+    "name": "哈索尔·闪送之力",
+    "providers": [{"kind": "character", "id": "char_912dbfe17c"}],
+    "priority": 110,
+    "trigger": {
+      "event": "action_hit",
+      "source": {"scope": "registrar", "action_ids": ["action_61c61302f2"]},
+      "conditions": [{"type": "awakening_min", "min": 5}]
+    },
+    "target": {"scope": "registrar"},
+    "duration": {"type": "permanent"},
+    "stacking": {"mode": "add_stack", "max_stacks": 6, "stack_gain": 2},
+    "effects": {"all_dmg": 0.01}
+  },
+  {
+    "id": "character_hathor_next_e_crit",
+    "name": "哈索尔4觉·下一次轮转打击暴击",
+    "providers": [{"kind": "character", "id": "char_912dbfe17c"}],
+    "priority": 120,
+    "trigger": {
+      "event": "action_end",
+      "source": {"scope": "registrar", "action_ids": ["action_0dfd7dfab8", "action_85ee761950", "action_c9326f9e35"]},
+      "conditions": [{"type": "awakening_min", "min": 4}, {"type": "active_buff_key", "key": "character_hathor_emergency_delivery"}]
+    },
+    "target": {"scope": "registrar", "action_ids": ["action_0dfd7dfab8", "action_85ee761950", "action_c9326f9e35"]},
+    "duration": {"type": "time", "ticks": 50, "loop_carry": true},
+    "stacking": {"mode": "refresh", "max_stacks": 1},
+    "consume_on_apply": true,
+    "effects": {"crit_rate": 0.25}
+  },
+  {
+    "id": "character_chaos_pursuit_license",
+    "name": "卡厄斯：追缉许可",
+    "providers": [{"kind": "character", "id": "char_d38b672525"}],
+    "priority": 100,
+    "trigger": {"event": "action_hit", "source": {"scope": "registrar", "action_types": ["E", "Q"]}},
+    "target": {"scope": "registrar"},
+    "duration": {"type": "time", "ticks": 150, "loop_carry": true},
+    "stacking": {"mode": "refresh", "max_stacks": 1},
+    "effects": {"all_dmg": 0.2, "def_ignore": 0.2, "res_down_相": 0.1}
+  },
+  {
+    "id": "character_yi_single_locked_target",
+    "name": "翳：单一锁定目标",
+    "providers": [{"kind": "character", "id": "char_7578b18979"}],
+    "priority": 100,
+    "trigger": {"event": "passive", "conditions": [{"type": "always"}]},
+    "target": {"scope": "registrar"},
+    "duration": {"type": "permanent"},
+    "stacking": {"mode": "refresh", "max_stacks": 1},
+    "effects": {"all_dmg": 0.08, "res_down_相": 0.02}
+  },
+  {
+    "id": "character_adler_karma_1",
+    "name": "阿德勒·业",
+    "providers": [{"kind": "character", "id": "char_6f46705fd1"}],
+    "priority": 100,
+    "trigger": {"event": "action_start", "source": {"scope": "registrar", "action_ids": ["action_adler_karma_1"]}},
+    "target": {"scope": "registrar"},
+    "duration": {"type": "permanent"},
+    "stacking": {"key": "character_adler_karma", "mode": "add_stack", "max_stacks": 20, "stack_gain": 1},
+    "effects": {}
+  },
+  {
+    "id": "character_adler_karma_2",
+    "name": "阿德勒·业",
+    "providers": [{"kind": "character", "id": "char_6f46705fd1"}],
+    "priority": 100,
+    "trigger": {"event": "action_start", "source": {"scope": "registrar", "action_ids": ["action_adler_karma_2"]}},
+    "target": {"scope": "registrar"},
+    "duration": {"type": "permanent"},
+    "stacking": {"key": "character_adler_karma", "mode": "add_stack", "max_stacks": 20, "stack_gain": 2},
+    "effects": {}
+  },
+  {
+    "id": "character_adler_a1_q_karma",
+    "name": "阿德勒1觉·终结后满业",
+    "providers": [{"kind": "character", "id": "char_6f46705fd1"}],
+    "priority": 100,
+    "trigger": {"event": "action_hit", "source": {"scope": "registrar", "action_ids": ["action_95733904eb"]}, "conditions": [{"type": "awakening_min", "min": 1}]},
+    "target": {"scope": "registrar"},
+    "duration": {"type": "permanent"},
+    "stacking": {"key": "character_adler_karma", "mode": "add_stack", "max_stacks": 20, "stack_gain": 20},
+    "effects": {}
+  },
+  {
+    "id": "character_adler_e_consume_karma",
+    "name": "阿德勒·诛恶护持消耗业",
+    "providers": [{"kind": "character", "id": "char_6f46705fd1"}],
+    "priority": 120,
+    "trigger": {"event": "action_start", "source": {"scope": "registrar", "action_ids": ["action_25fea9f7cb"]}, "conditions": [{"type": "awakening_max", "max": 1}]},
+    "target": {"scope": "registrar", "action_ids": ["action_25fea9f7cb"]},
+    "duration": {"type": "time", "ticks": 1},
+    "stacking": {"mode": "refresh", "max_stacks": 1},
+    "activation": {
+      "clear_keys": ["character_adler_karma"],
+      "effects_from_stack": {
+        "key": "character_adler_karma",
+        "per_stack_from_effect": {"all_dmg": {"source": "karma_damage", "factor": 1}}
+      }
+    },
+    "effects": {"karma_damage": 0.02}
+  },
+  {
+    "id": "character_adler_a2_e_consume_karma",
+    "name": "阿德勒2觉·诛恶护持消耗业",
+    "providers": [{"kind": "character", "id": "char_6f46705fd1"}],
+    "priority": 120,
+    "trigger": {"event": "action_start", "source": {"scope": "registrar", "action_ids": ["action_25fea9f7cb"]}, "conditions": [{"type": "awakening_min", "min": 2}]},
+    "target": {"scope": "registrar", "action_ids": ["action_25fea9f7cb"]},
+    "duration": {"type": "time", "ticks": 1},
+    "stacking": {"mode": "refresh", "max_stacks": 1},
+    "activation": {
+      "clear_keys": ["character_adler_karma"],
+      "effects_from_stack": {
+        "key": "character_adler_karma",
+        "per_stack_from_effect": {"all_dmg": {"source": "karma_damage", "factor": 1}}
+      }
+    },
+    "effects": {"karma_damage": 0.03}
+  },
+  {
+    "id": "character_adler_murk_expected_debuff",
+    "name": "阿德勒·浊燃随机负面期望",
+    "providers": [{"kind": "character", "id": "char_6f46705fd1"}],
+    "priority": 130,
+    "trigger": {"event": "reaction_trigger", "source": {"scope": "team"}, "conditions": [{"type": "reaction_type", "reactions": ["浊燃"]}]},
+    "target": {"scope": "team"},
+    "duration": {"type": "time", "ticks": 150, "loop_carry": true},
+    "stacking": {"mode": "refresh", "max_stacks": 1},
+    "effects": {"res_down": 0.0333333333, "stagger_multiplier": 0.0333333333}
+  },
+  {
+    "id": "character_requiem_nightmare_stack",
+    "name": "安魂曲·噩梦",
+    "providers": [{"kind": "character", "id": "char_c78f7a08d5"}],
+    "priority": 100,
+    "trigger": {
+      "event": "action_hit",
+      "source": {
+        "scope": "registrar",
+        "action_ids": [
+          "action_2635f721a8", "action_00edea34a8", "action_9029121faa", "action_9dd4a360d0",
+          "action_82b936e67b", "action_a7443f657f", "action_39502832da", "action_de60da4553",
+          "action_ae46a26f6e", "action_6d2645f71e", "action_182423b934", "action_97ef5c83d2",
+          "action_24c60040ec", "action_907f25722f", "action_5e20c982d6", "action_4d428c72e8",
+          "action_2745f804a5", "action_7af75245df", "action_0b958faf88", "action_1104de864b"
+        ]
+      }
+    },
+    "target": {"scope": "registrar"},
+    "duration": {"type": "time", "ticks": 30, "loop_carry": true},
+    "stacking": {"key": "character_requiem_nightmare", "mode": "independent", "max_stacks": 10, "stack_gain_from": "hit_count"},
+    "periodic_damage": {"source": "噩梦", "interval_ticks": 10, "atk_multiplier": 0.15},
+    "effects": {}
+  },
+  {
+    "id": "character_requiem_a3_nightmare_settlement",
+    "name": "安魂曲3觉·五段普攻结算噩梦",
+    "providers": [{"kind": "character", "id": "char_c78f7a08d5"}],
+    "priority": 120,
+    "trigger": {
+      "event": "action_hit",
+      "source": {"scope": "registrar", "action_ids": ["action_a7443f657f", "action_24c60040ec"]},
+      "conditions": [{"type": "awakening_min", "min": 3}, {"type": "active_buff_key", "key": "character_requiem_nightmare"}]
+    },
+    "target": {"scope": "registrar"},
+    "duration": {"type": "time", "ticks": 1},
+    "stacking": {"mode": "refresh", "max_stacks": 1},
+    "activation": {
+      "settle_periodic_key": "character_requiem_nightmare",
+      "clear_keys": ["character_requiem_nightmare"]
+    },
+    "effects": {}
+  },
+  {
+    "id": "character_fadia_darkstar_hp_drain",
+    "name": "法帝娅·黯星结束生命汲取",
+    "providers": [{"kind": "character", "id": "char_caa6c2e5a8"}],
+    "priority": 100,
+    "trigger": {"event": "action_hit", "source": {"scope": "registrar", "action_ids": ["action_bdc49de5c5"]}},
+    "target": {"scope": "team"},
+    "duration": {"type": "permanent"},
+    "stacking": {"mode": "add_stack", "max_stacks": 5},
+    "effects": {"flat_hp": 1032.1}
+  },
+  {
+    "id": "character_jiuyuan_deadly_rose_mark",
+    "name": "九原·致命玫瑰标记",
+    "providers": [{"kind": "character", "id": "char_b2e3b2bf7a"}],
+    "priority": 100,
+    "trigger": {"event": "action_hit", "source": {"scope": "registrar", "action_ids": ["action_39d4605011", "action_4f1cc1b94f", "action_fbc91559f8", "action_4a803029af"]}},
+    "target": {"scope": "registrar"},
+    "duration": {"type": "time", "ticks": 50, "loop_carry": true},
+    "stacking": {"key": "character_jiuyuan_rose_mark", "mode": "refresh", "max_stacks": 1},
+    "effects": {}
+  },
+  {
+    "id": "character_jiuyuan_deadly_rose_settle_window",
+    "name": "九原·致命玫瑰可清算",
+    "providers": [{"kind": "character", "id": "char_b2e3b2bf7a"}],
+    "priority": 101,
+    "trigger": {"event": "action_hit", "source": {"scope": "registrar", "action_ids": ["action_39d4605011", "action_4f1cc1b94f", "action_fbc91559f8", "action_4a803029af"]}},
+    "target": {"scope": "registrar"},
+    "duration": {"type": "time", "ticks": 250, "delay_ticks": 50, "loop_carry": true},
+    "stacking": {"key": "character_jiuyuan_rose_settle", "mode": "refresh", "max_stacks": 1},
+    "effects": {}
+  },
+  {
+    "id": "character_jiuyuan_q_force_settle",
+    "name": "九原·枪与玫瑰强制清算窗口",
+    "providers": [{"kind": "character", "id": "char_b2e3b2bf7a"}],
+    "priority": 90,
+    "trigger": {"event": "action_start", "source": {"scope": "registrar", "action_ids": ["action_5501c87ce7"]}, "conditions": [{"type": "active_buff_any", "keys": ["character_jiuyuan_rose_mark", "character_jiuyuan_rose_settle"]}]},
+    "target": {"scope": "registrar"},
+    "duration": {"type": "time", "ticks": 250, "loop_carry": true},
+    "stacking": {"key": "character_jiuyuan_rose_settle", "mode": "refresh", "max_stacks": 1},
+    "activation": {"clear_keys": ["character_jiuyuan_rose_mark", "character_jiuyuan_rose_settle"]},
+    "effects": {}
+  },
+  {
+    "id": "character_jiuyuan_rose_a1_atk",
+    "name": "九原1觉·致命玫瑰攻击",
+    "providers": [{"kind": "character", "id": "char_b2e3b2bf7a"}],
+    "priority": 20,
+    "trigger": {"event": "passive", "conditions": [{"type": "awakening_min", "min": 1}]},
+    "target": {"scope": "registrar", "conditions": [{"type": "active_buff_any", "keys": ["character_jiuyuan_rose_mark", "character_jiuyuan_rose_settle"]}]},
+    "duration": {"type": "permanent"},
+    "effects": {"atk_pct": 0.05},
+    "display": {"line": false}
+  },
+  {
+    "id": "character_jiuyuan_rose_a2_mark_damage",
+    "name": "九原2觉·标记伤害",
+    "providers": [{"kind": "character", "id": "char_b2e3b2bf7a"}],
+    "priority": 20,
+    "trigger": {"event": "passive", "conditions": [{"type": "awakening_min", "min": 2}]},
+    "target": {"scope": "registrar", "action_ids": ["action_d8430d0b9e"], "conditions": [{"type": "active_buff_any", "keys": ["character_jiuyuan_rose_mark", "character_jiuyuan_rose_settle"]}]},
+    "duration": {"type": "permanent"},
+    "effects": {"all_dmg": 1.0},
+    "display": {"line": false}
+  },
+  {
+    "id": "character_jiuyuan_rose_a4_settlement",
+    "name": "九原4觉·主动清算增伤",
+    "providers": [{"kind": "character", "id": "char_b2e3b2bf7a"}],
+    "priority": 20,
+    "trigger": {"event": "passive", "conditions": [{"type": "awakening_min", "min": 4}]},
+    "target": {"scope": "registrar", "action_ids": ["action_4edb91866d", "action_7809042596"], "conditions": [{"type": "active_buff_key", "key": "character_jiuyuan_rose_settle"}]},
+    "duration": {"type": "permanent"},
+    "effects": {"all_dmg": 0.5},
+    "display": {"line": false}
+  },
+  {
+    "id": "character_jiuyuan_rose_a5_damage",
+    "name": "九原5觉·标记目标增伤",
+    "providers": [{"kind": "character", "id": "char_b2e3b2bf7a"}],
+    "priority": 20,
+    "trigger": {"event": "passive", "conditions": [{"type": "awakening_min", "min": 5}]},
+    "target": {"scope": "registrar", "conditions": [{"type": "active_buff_any", "keys": ["character_jiuyuan_rose_mark", "character_jiuyuan_rose_settle"]}]},
+    "duration": {"type": "permanent"},
+    "effects": {"all_dmg": 0.08},
+    "display": {"line": false}
+  },
+  {
+    "id": "character_jiuyuan_rose_a6_res",
+    "name": "九原6觉·标记目标灵抗降低",
+    "providers": [{"kind": "character", "id": "char_b2e3b2bf7a"}],
+    "priority": 20,
+    "trigger": {"event": "passive", "conditions": [{"type": "awakening_min", "min": 6}]},
+    "target": {"scope": "registrar", "conditions": [{"type": "active_buff_any", "keys": ["character_jiuyuan_rose_mark", "character_jiuyuan_rose_settle"]}]},
+    "duration": {"type": "permanent"},
+    "effects": {"res_down_灵": 0.1},
+    "display": {"line": false}
+  },
+  {
+    "id": "character_jiuyuan_rose_settlement_clear",
+    "name": "九原·致命玫瑰清算",
+    "providers": [{"kind": "character", "id": "char_b2e3b2bf7a"}],
+    "priority": 150,
+    "trigger": {"event": "action_end", "source": {"scope": "registrar", "action_ids": ["action_4edb91866d", "action_7809042596"]}},
+    "target": {"scope": "registrar"},
+    "duration": {"type": "time", "ticks": 1},
+    "stacking": {"mode": "refresh", "max_stacks": 1},
+    "activation": {"clear_keys": ["character_jiuyuan_rose_mark", "character_jiuyuan_rose_settle"]},
+    "effects": {},
+    "display": {"line": false}
+  },
+  {
+    "id": "character_baizang_word_support",
+    "name": "白藏·言灵",
+    "providers": [{"kind": "character", "id": "char_701295143d"}],
+    "priority": 100,
+    "trigger": {"event": "action_hit", "source": {"scope": "registrar", "action_ids": ["action_222f577087", "action_0ae4bd5b1a", "action_c234af7127", "action_9166cd44f2", "action_4ef736ae6c"]}},
+    "target": {"scope": "registrar"},
+    "duration": {"type": "time", "ticks": 9990, "loop_carry": true},
+    "stacking": {"key": "character_baizang_word", "mode": "add_stack", "max_stacks": 4},
+    "effects": {}
+  },
+  {
+    "id": "character_baizang_jin_word",
+    "name": "白藏·噤",
+    "providers": [{"kind": "character", "id": "char_701295143d"}],
+    "priority": 101,
+    "trigger": {"event": "action_hit", "source": {"scope": "registrar", "action_ids": ["action_222f577087", "action_c234af7127"]}},
+    "target": {"scope": "registrar"},
+    "duration": {"type": "time", "ticks": 9990, "loop_carry": true},
+    "stacking": {"key": "character_baizang_jin_word", "mode": "add_stack", "max_stacks": 4},
+    "effects": {},
+    "display": {"line": false}
+  },
+  {
+    "id": "character_baizang_a2_word_atk",
+    "name": "白藏2觉·言灵攻击",
+    "providers": [{"kind": "character", "id": "char_701295143d"}],
+    "priority": 20,
+    "trigger": {"event": "passive", "conditions": [{"type": "awakening_min", "min": 2}]},
+    "target": {"scope": "registrar"},
+    "duration": {"type": "permanent"},
+    "dynamic_effects": {"active_stack_count": {"key": "character_baizang_word", "effect_key": "atk_pct", "per_count": 0.06, "max_count": 4}},
+    "effects": {},
+    "display": {"line": false}
+  },
+  {
+    "id": "character_baizang_a1_next_skill",
+    "name": "白藏1觉·噤后下一技能增伤",
+    "providers": [{"kind": "character", "id": "char_701295143d"}],
+    "priority": 110,
+    "trigger": {"event": "action_end", "source": {"scope": "registrar", "action_ids": ["action_9307778f01"]}, "conditions": [{"type": "awakening_min", "min": 1}, {"type": "active_buff_key", "key": "character_baizang_jin_word"}]},
+    "target": {"scope": "registrar", "action_types": ["E"]},
+    "duration": {"type": "time", "ticks": 9990, "loop_carry": true},
+    "stacking": {"mode": "refresh", "max_stacks": 1},
+    "activation": {
+      "effects_from_stack": {
+        "key": "character_baizang_jin_word",
+        "per_stack_from_effect": {"all_dmg": {"source": "word_damage", "factor": 1}}
+      }
+    },
+    "consume_on_apply": true,
+    "effects": {"word_damage": 0.3}
+  },
+  {
+    "id": "character_baizang_q_consume_words",
+    "name": "白藏·判予秋消耗言灵",
+    "providers": [{"kind": "character", "id": "char_701295143d"}],
+    "priority": 120,
+    "trigger": {"event": "action_end", "source": {"scope": "registrar", "action_ids": ["action_9307778f01"]}},
+    "target": {"scope": "registrar"},
+    "duration": {"type": "time", "ticks": 1},
+    "stacking": {"mode": "refresh", "max_stacks": 1},
+    "activation": {"clear_keys": ["character_baizang_word", "character_baizang_jin_word"]},
+    "effects": {},
+    "display": {"line": false}
+  },
+  {
+    "id": "character_sagiri_baizang_dot_marker",
+    "name": "早雾·白藏咒伤计数",
+    "providers": [{"kind": "character", "id": "char_1895e259be"}],
+    "priority": 100,
+    "trigger": {"event": "action_hit", "source": {"scope": "team", "action_ids": ["action_10c15dd4d1"]}},
+    "target": {"scope": "registrar"},
+    "duration": {"type": "time", "ticks": 160, "loop_carry": true},
+    "stacking": {"key": "character_sagiri_baizang_dot", "mode": "refresh", "max_stacks": 1},
+    "effects": {},
+    "display": {"line": false}
+  },
+  {
+    "id": "character_sagiri_adler_dot_marker",
+    "name": "早雾·阿德勒持续伤害计数",
+    "providers": [{"kind": "character", "id": "char_1895e259be"}],
+    "priority": 100,
+    "trigger": {"event": "action_hit", "source": {"scope": "team", "action_ids": ["action_881b816d9f"]}},
+    "target": {"scope": "registrar"},
+    "duration": {"type": "time", "ticks": 150, "loop_carry": true},
+    "stacking": {"key": "character_sagiri_adler_dot", "mode": "refresh", "max_stacks": 1},
+    "effects": {},
+    "display": {"line": false}
+  },
+  {
+    "id": "character_sagiri_dot_amplification",
+    "name": "早雾·浊燃持续伤害增幅",
+    "providers": [{"kind": "character", "id": "char_1895e259be"}],
+    "priority": 20,
+    "trigger": {"event": "passive"},
+    "target": {"scope": "team", "tags": ["DOT"]},
+    "duration": {"type": "permanent"},
+    "dynamic_effects": {
+      "negative_effect_count": {
+        "enemy_debuffs": ["浊燃"],
+        "buff_keys": ["character_requiem_nightmare", "character_sagiri_baizang_dot", "character_sagiri_adler_dot"],
+        "effect_key": "all_dmg",
+        "per_count": 0.25,
+        "max_count": 4
+      }
+    },
+    "effects": {},
+    "display": {"line": false}
+  },
+  {
+    "id": "character_sagiri_a6_negative_damage",
+    "name": "早雾6觉·负面效果增伤",
+    "providers": [{"kind": "character", "id": "char_1895e259be"}],
+    "priority": 20,
+    "trigger": {"event": "passive", "conditions": [{"type": "awakening_min", "min": 6}]},
+    "target": {"scope": "registrar"},
+    "duration": {"type": "permanent"},
+    "dynamic_effects": {
+      "negative_effect_count": {
+        "enemy_debuffs": ["浊燃"],
+        "buff_keys": ["character_requiem_nightmare", "character_sagiri_baizang_dot", "character_sagiri_adler_dot"],
+        "effect_key": "all_dmg",
+        "per_count": 0.03,
+        "max_count": 4
+      }
+    },
+    "effects": {},
+    "display": {"line": false}
+  },
+  {
+    "id": "character_sagiri_q_team_flat_atk",
+    "name": "早雾4觉·理当如此",
+    "providers": [{"kind": "character", "id": "char_1895e259be"}],
+    "priority": 100,
+    "trigger": {"event": "action_start", "source": {"scope": "registrar", "action_ids": ["action_0db78d1f01"]}, "conditions": [{"type": "awakening_min", "min": 4}]},
+    "target": {"scope": "other_team"},
+    "duration": {"type": "time", "ticks": 200, "loop_carry": true},
+    "stacking": {"mode": "refresh", "max_stacks": 1},
+    "activation": {"effects_from_owner_base": {"stat": "atk", "factor": 0.3, "effect_key": "flat_atk"}},
+    "effects": {}
+  },
+  {
+    "id": "character_requiem_a6_free_support_window",
+    "name": "安魂曲6觉·E后自由援护",
+    "providers": [{"kind": "character", "id": "char_c78f7a08d5"}],
+    "priority": 100,
+    "trigger": {"event": "action_start", "source": {"scope": "registrar", "action_ids": ["action_2745f804a5", "action_7af75245df", "action_0b958faf88"]}, "conditions": [{"type": "awakening_min", "min": 6}]},
+    "target": {"scope": "registrar"},
+    "duration": {"type": "time", "ticks": 50, "loop_carry": true},
+    "stacking": {"mode": "refresh", "max_stacks": 1},
+    "effects": {}
+  },
+  {
+    "id": "character_daphne_insight",
+    "name": "达芙蒂尔·洞见",
+    "providers": [{"kind": "character", "id": "char_e8ad982185"}],
+    "priority": 100,
+    "trigger": {"event": "action_start", "source": {"scope": "registrar", "action_ids": ["action_f5e921e6d8"]}, "conditions": [{"type": "awakening_max", "max": 2}]},
+    "target": {"scope": "registrar"},
+    "duration": {"type": "time", "ticks": 300, "loop_carry": true},
+    "stacking": {"key": "character_daphne_insight", "mode": "refresh", "max_stacks": 1},
+    "effects": {}
+  },
+  {
+    "id": "character_daphne_a3_insight",
+    "name": "达芙蒂尔3觉·洞见",
+    "providers": [{"kind": "character", "id": "char_e8ad982185"}],
+    "priority": 100,
+    "trigger": {"event": "action_start", "source": {"scope": "registrar", "action_ids": ["action_f5e921e6d8"]}, "conditions": [{"type": "awakening_min", "min": 3}]},
+    "target": {"scope": "registrar"},
+    "duration": {"type": "time", "ticks": 300, "loop_carry": true},
+    "stacking": {"key": "character_daphne_insight", "mode": "add_stack", "max_stacks": 2},
+    "effects": {}
+  },
+  {
+    "id": "character_yi_a4_attachment_state",
+    "name": "翳4觉·兽牙附着强化",
+    "providers": [{"kind": "character", "id": "char_7578b18979"}],
+    "priority": 100,
+    "trigger": {"event": "action_start", "source": {"scope": "registrar", "action_ids": ["action_2e072f2b0b"]}, "conditions": [{"type": "awakening_min", "min": 4}]},
+    "target": {"scope": "registrar", "tags": ["附着"]},
+    "duration": {"type": "time", "ticks": 120, "loop_carry": true},
+    "stacking": {"mode": "refresh", "max_stacks": 1},
+    "dynamic_effects": {"elapsed_ticks": {"effect_key": "attach_dmg", "interval_ticks": 10, "per_interval": 0.02, "max_value": 0.4}},
+    "effects": {}
+  }
+]

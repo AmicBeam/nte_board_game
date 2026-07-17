@@ -121,7 +121,7 @@ python3 -m unittest tests.test_solo_room_flow
 
 - `scripts/duel_balance_eval.py` 支持 `--focus triad`、`--samples`、`--write-dashboard`，并在每回合样本中保留 action queue，用于统计出牌和异能者动作。
 - 新增卡牌、异能者、拖延素材破坏、热门套牌和互相对局的聚合指标。
-- 新增 `app/engine/application/analytics_service.py`、`/api/analytics/balance` 和 `/analytics` 页面。
+- 新增 `app/modules/card_game/engine/application/analytics_service.py`、`/api/analytics/balance` 和 `/analytics` 页面。
 - 新增数据看板样式与前端逻辑，支持表格、KPI、搜索、筛选、排序和视图切换。
 - 单测补充看板接口鉴权、缺数据提示和正常数据读取。
 
