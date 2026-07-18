@@ -1,0 +1,95 @@
+app/modules/shaft/domain/buffs.py
+  s_b36fd667d7fd54::t_aa278d75877d54 223-244,618,623,629-630
+app/modules/shaft/domain/catalog.py
+  s_31a7550988e0ab::t_0299e2ab719141 14-24,110-142,144-150
+app/modules/shaft/service.py
+  s_3b5186280fbf30::t_40a8547c466072 15,28,186-194,260-263,281,313-316,327,414,426-439,444,499-506,535-538,622
+app/modules/shaft/static/css/shaft-page.css
+  s_3b5186280fbf30::t_78fa3bc826c216 152,156,318-323,1113-1300,2060,2062,2174-2187,2716,2723,2729,2741,2745-2866,3204,3206-3208,3212,3247-3248,3260-3262,3267-3274
+app/modules/shaft/static/data/actions.json
+  s_3b5186280fbf30::t_25a1c6a08f6c95 963
+app/modules/shaft/static/data/buffs.json
+  s_b36fd667d7fd54::t_1afcddc72ea41c 227,267,1039,1118,1180
+app/modules/shaft/static/data/starter_axis.json
+  s_c95986d44aa113::t_26e355b21432d3 371-373
+app/modules/shaft/static/js/shaft.js
+  s_3b5186280fbf30::t_c01231b17f4359 54-56,140,390-397,932,936-962,1028-1031,1051-1058,1063-1064,1068-1071,1306,1324-1327,1338-1437,1703-1706,1915,2099,2293,2603-2785,2935-2938,2959-2961,3094-3095,3149,3152-3172,3199-3200,3216-3219,3252-3253,3514-3516,3519,3551,3554,3556,3609,3685-3691,3828-3834,3836-3837,3897-3898,3902,3906,4144,4159-4160,4164,4168,4180-4194,4224-4226,5053,5307-5314,5655,6003-6014,6016-6018
+app/modules/shaft/static/js/shaft_engine.js
+  s_3b5186280fbf30::t_e110235fc68dfe 52,88-116,528-577,628-629,642,712-727,809-810,882-888,902,1000-1013,1363,1368,1377-1378,1668,1670-1708,1711,1717,1741-1744,1758,1766,1792,1836-1839,1857,1905-1908,1910-1915,1921-1969,1998-2002,2012-2019,2392,2450-2462,2497-2499,2506-2510,2512-2521,2570,2622,2624,2627-2635,2646,2702-2739,2786-2802,2824,2826-2829,2840-2842,2861,2866-2870,2872
+app/modules/shaft/templates/shaft/index.html
+  s_3b5186280fbf30::t_05a961a1977bf5 3,148,154,280-320,323-325
+app/routes.py
+  s_cac27112fd0553::t_7327b2b60090f4 4,83-90,151-155
+docs/shaft-buff-configuration-review.md
+  s_5c79b3c5b95105::t_06aad5a4b5c345 29,33-34,69,72,76,84,86-87,161,207
+docs/shaft-character-actions.md
+  s_3b5186280fbf30::t_685c56c364a04a 51
+docs/shaft-module-design.md
+  s_3b5186280fbf30::t_3f4c5b9d58fd42 273,340-341,444,451-453
+scripts/import_shaft_xlsx.py
+  s_3b5186280fbf30::t_d3417a90a83e8e 403-404,649-659
+tests/test_shaft_arc_compatibility.py
+  s_c95986d44aa113::t_c2b7d179e000e7 110-111,115-132
+tests/test_shaft_frontend_layout.py
+  s_3b5186280fbf30::t_f62a3dfa74d662 30-31,34-53,143-144,147,173,176,178,224-243,246,249-256,335-339,363,412-419,422-424,481-482,492-498,530-541,583-589,600-603,696,699-707,741,811-812,815-816,878-879,881,897-902,1038
+tests/test_shaft_simulator.py
+  s_3b5186280fbf30::t_ab68423f1d86d3 74-228,250,254-269,340-431,520-523,527-564,1781,1987,1989,1998-1999,2012-2049,2053,2076-2096,2203-2313,2366-2390,3002-3003,3140-3161
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "0ea988c9a2c84b28643005c2d0fefeff71769020",
+  "prompts": {},
+  "sessions": {
+    "s_31a7550988e0ab": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f71b3-1cc3-7fe3-a66b-975d91de12e0",
+        "model": "unknown"
+      },
+      "human_author": "AmicBeam <1425257712@qq.com>"
+    },
+    "s_3b5186280fbf30": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f71ba-ad90-7e11-be2e-0ab7b24d3269",
+        "model": "unknown"
+      },
+      "human_author": "AmicBeam <1425257712@qq.com>"
+    },
+    "s_5c79b3c5b95105": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f71cb-1dc8-7ed1-9418-063fee31bd8e",
+        "model": "unknown"
+      },
+      "human_author": "AmicBeam <1425257712@qq.com>"
+    },
+    "s_b36fd667d7fd54": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f6bd9-9160-7142-b6d6-cf3c275a1e23",
+        "model": "unknown"
+      },
+      "human_author": "AmicBeam <1425257712@qq.com>"
+    },
+    "s_c95986d44aa113": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f71b7-500d-7832-a950-e98c5ab4bf2f",
+        "model": "unknown"
+      },
+      "human_author": "AmicBeam <1425257712@qq.com>"
+    },
+    "s_cac27112fd0553": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f6ab9-50a1-76b0-97f7-2c74baf5f239",
+        "model": "unknown"
+      },
+      "human_author": "AmicBeam <1425257712@qq.com>"
+    }
+  },
+  "attestation_metadata": {},
+  "remote_transcripts": {}
+}
