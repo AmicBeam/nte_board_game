@@ -11,6 +11,17 @@ from app.errors import AppError
 
 MODULE_ROOT = Path(__file__).resolve().parents[1]
 SHAFT_DATA_DIR = MODULE_ROOT / 'static' / 'data'
+LEGACY_ARC_SELECTIONS: dict[str, tuple[str, int]] = {
+    'arc_18c6a54ab6': ('arc_7d0ca08e3d', 1),
+    'arc_57b6c49b66': ('arc_1a476075cd', 5),
+    'arc_b3c0b59d01': ('arc_126824ee1', 5),
+    'arc_f36fcedbc8': ('arc_8b67b6e360', 5),
+    'arc_5fb06c9645': ('arc_112b3492d8', 5),
+    'arc_0a681d8e81': ('arc_b22de80f07', 5),
+    'arc_2b6d5881ef': ('arc_27dc4a7281', 5),
+    'arc_92353a7626': ('arc_1ddecc32f3', 5),
+    'arc_a01731d2ff': ('arc_6e7753edf5', 1),
+}
 
 
 def _load_json(filename: str) -> Any:
@@ -96,10 +107,47 @@ def _normalize_action(action: dict[str, Any]) -> dict[str, Any]:
 def load_shaft_catalog() -> dict[str, Any]:
     characters = _load_json('characters.json')
     actions = [_normalize_action(action) for action in _load_json('actions.json')]
-    arcs = _load_json('arcs.json')
-    arc_refinements = _load_json('arc_refinements.json')
+    energy_capacity_by_character: dict[str, float] = {}
+    for action in actions:
+        if str(action.get('action_type') or '') != 'Q' and str(action.get('damage_type') or '') != 'Q':
+            continue
+        character_id = str(action.get('character_id') or '')
+        energy_capacity_by_character[character_id] = max(
+            energy_capacity_by_character.get(character_id, 0),
+            _num(action.get('energy_cost')),
+        )
+    characters = [
+        {
+            **character,
+            'energy_capacity': max(
+                0,
+                _num(character.get('energy_capacity'), energy_capacity_by_character.get(str(character.get('id') or ''), 0)),
+            ),
+        }
+        for character in characters
+    ]
+    legacy_arc_ids = LEGACY_ARC_SELECTIONS.keys()
+    arcs = [
+        arc for arc in _load_json('arcs.json')
+        if str(arc.get('id') or '') not in legacy_arc_ids
+    ]
+    raw_arc_refinements = _load_json('arc_refinements.json')
+    arc_refinements = {
+        **raw_arc_refinements,
+        'arcs': {
+            arc_id: record
+            for arc_id, record in (raw_arc_refinements.get('arcs') or {}).items()
+            if arc_id not in legacy_arc_ids
+        },
+    }
     awakenings = _load_json('awakenings.json')
-    buffs = _load_json('buffs.json')
+    buffs = [
+        buff for buff in _load_json('buffs.json')
+        if not any(
+            provider.get('kind') == 'arc' and provider.get('id') in legacy_arc_ids
+            for provider in buff.get('providers') or []
+        )
+    ]
     cartridges = _load_json('cartridges.json')
     formula_constants = _load_json('formula_constants.json')
     source_meta = _load_json('source_meta.json')

@@ -1,6 +1,6 @@
 {% extends 'common/base.html' %}
 {% block title %}异环排轴计算{% endblock %}
-{% block head %}<link rel="stylesheet" href="{{ url_for('shaft_module.static', filename='css/shaft-page.css') }}">{% endblock %}
+{% block head %}<link rel="stylesheet" href="{{ url_for('shaft_module.static', filename='css/shaft-page.css', v=shaft_asset_version('css/shaft-page.css')) }}">{% endblock %}
 {% block body %}
 <main class="shaft-page" data-active-page="{{ active_shaft_page }}">
     <section class="glass-card panel-header shaft-header">
@@ -145,15 +145,13 @@
                     </div>
                     <div class="shaft-editor-actions">
                         <span id="shaft-unlined-buff-indicator" class="shaft-unlined-buff-warning" hidden aria-label=""></span>
-                        <label class="shaft-loop-toggle" title="开启后，轴尾仍在持续的增益会在下一轮轴开头继续生效">
-                            <input id="shaft-loop-enabled" type="checkbox">
-                            <span>循环轴</span>
-                        </label>
+                        <button class="secondary-btn shaft-loop-settings-btn" id="shaft-loop-settings-btn" type="button" aria-haspopup="dialog">循环轴</button>
                         <button class="secondary-btn" id="shaft-undo-btn" type="button">撤销</button>
                         <button class="secondary-btn" id="shaft-redo-btn" type="button">重做</button>
                         <button class="secondary-btn" id="shaft-copy-step-btn" type="button">复制</button>
                         <button class="secondary-btn" id="shaft-paste-step-btn" type="button">粘贴</button>
                         <button class="secondary-btn" id="shaft-delete-step-btn" type="button">删除</button>
+                        <button class="secondary-btn" id="shaft-preview-btn" type="button" aria-haspopup="dialog">预览</button>
                     </div>
                 </div>
                 <div class="shaft-timeline-shell">
@@ -279,9 +277,50 @@
             </div>
         </div>
     </dialog>
+    <dialog class="shaft-axis-preview-dialog" id="shaft-axis-preview-dialog" aria-labelledby="shaft-axis-preview-title">
+        <div class="shaft-axis-preview-modal">
+            <div class="section-title-row shaft-axis-preview-header">
+                <div>
+                    <span class="shaft-panel-kicker">只读视图</span>
+                    <h2 id="shaft-axis-preview-title">动作轴预览</h2>
+                </div>
+                <div class="shaft-axis-preview-actions">
+                    <span class="shaft-axis-preview-hint">滚轮缩放时间轴</span>
+                    <button class="secondary-btn" id="shaft-axis-preview-fit-btn" type="button">显示全部</button>
+                    <button class="secondary-btn shaft-dialog-close" data-close-axis-preview type="button" aria-label="关闭">×</button>
+                </div>
+            </div>
+            <div class="shaft-axis-preview-viewport" id="shaft-axis-preview-viewport">
+                <div class="shaft-axis-preview-canvas" id="shaft-axis-preview-canvas"></div>
+            </div>
+        </div>
+    </dialog>
+    <dialog class="shaft-loop-settings-dialog" id="shaft-loop-settings-dialog" aria-labelledby="shaft-loop-settings-title">
+        <div class="shaft-loop-settings-modal">
+            <div class="section-title-row">
+                <div>
+                    <span class="shaft-panel-kicker">循环配置</span>
+                    <h2 id="shaft-loop-settings-title">循环轴设置</h2>
+                </div>
+                <button class="secondary-btn shaft-dialog-close" data-close-loop-settings type="button" aria-label="关闭">×</button>
+            </div>
+            <label class="shaft-loop-enabled-row">
+                <input id="shaft-loop-enabled" type="checkbox">
+                <span>
+                    <strong>开启循环轴</strong>
+                    <small>轴尾仍在持续的增益会衔接到下一轮轴开头。</small>
+                </span>
+            </label>
+            <div class="shaft-loop-resource-list" id="shaft-loop-resource-list"></div>
+            <div class="shaft-loop-settings-actions">
+                <button class="secondary-btn" data-close-loop-settings type="button">取消</button>
+                <button class="primary-btn" id="shaft-loop-settings-confirm" type="button">确认</button>
+            </div>
+        </div>
+    </dialog>
 </main>
 <script src="{{ url_for('static', filename='common/js/common.js') }}"></script>
-<script src="{{ url_for('shaft_module.static', filename='js/shaft_engine.js') }}"></script>
-<script src="{{ url_for('shaft_module.static', filename='js/shaft_self_check.js') }}"></script>
-<script src="{{ url_for('shaft_module.static', filename='js/shaft.js') }}"></script>
+<script src="{{ url_for('shaft_module.static', filename='js/shaft_engine.js', v=shaft_asset_version('js/shaft_engine.js')) }}"></script>
+<script src="{{ url_for('shaft_module.static', filename='js/shaft_self_check.js', v=shaft_asset_version('js/shaft_self_check.js')) }}"></script>
+<script src="{{ url_for('shaft_module.static', filename='js/shaft.js', v=shaft_asset_version('js/shaft.js')) }}"></script>
 {% endblock %}

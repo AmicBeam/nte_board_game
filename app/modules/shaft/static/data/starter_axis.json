@@ -368,8 +368,9 @@
     "char_4f917797cb": {
       "character_id": "char_4f917797cb",
       "character_name": "小吱",
-      "arc_id": "arc_5fb06c9645",
-      "arc_name": "思考喵·满精",
+      "arc_id": "arc_112b3492d8",
+      "arc_name": "思考喵",
+      "arc_refinement": 5,
       "cartridge_id": "cartridge_f4282fad3f",
       "cartridge_name": "失落光芒",
       "awakening": 6,

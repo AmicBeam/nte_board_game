@@ -12,7 +12,7 @@ from typing import Any
 from app.db import atomic_transaction
 from app.errors import RuleValidationError
 from app.models import Player, ShaftAxis, ShaftAxisCharacter, ShaftAxisFavorite, ShaftAxisLike
-from app.modules.shaft.domain.catalog import get_record_map, load_shaft_catalog
+from app.modules.shaft.domain.catalog import LEGACY_ARC_SELECTIONS, get_record_map, load_shaft_catalog
 from app.utils.logger import get_logger
 
 
@@ -25,7 +25,7 @@ VISIBILITIES = frozenset({'private', 'public'})
 MARKET_SORTS = frozenset({'dps', 'likes', 'favorites', 'new'})
 DISABLED_CHARACTER_SELECTION_IDS = frozenset({'char_a01c39f576'})
 ELEMENTS = ('光', '灵', '咒', '暗', '魂', '相')
-ZERO_ACTION_VISUAL_TICKS = 2
+ZERO_ACTION_VISUAL_TICKS = 5
 SUBSTAT_KEYS = (
     'all_dmg',
     'crit_rate',
@@ -183,6 +183,15 @@ def _normalize_arc_refinement(raw: Any, arc_id: str, catalog: dict[str, Any]) ->
     return _default_arc_refinement(arc_id, catalog)
 
 
+def _normalize_arc_selection(raw_arc_id: Any, raw_refinement: Any) -> tuple[str, Any]:
+    arc_id = str(raw_arc_id or '')
+    replacement = LEGACY_ARC_SELECTIONS.get(arc_id)
+    if not replacement:
+        return arc_id, raw_refinement
+    canonical_arc_id, legacy_level = replacement
+    return canonical_arc_id, raw_refinement if 1 <= _int(raw_refinement) <= 5 else legacy_level
+
+
 def _default_build_options(character_id: str, catalog: dict[str, Any]) -> dict[str, Any]:
     constants = catalog.get('formula_constants') or {}
     defaults = constants.get('default_build_options') if isinstance(constants.get('default_build_options'), dict) else {}
@@ -248,7 +257,10 @@ def _normalize_team(raw: Any, catalog: dict[str, Any]) -> list[dict[str, Any]]:
         character_id = str(member.get('character_id') or '')
         if character_id not in characters:
             raise RuleValidationError('队伍中存在未知角色。')
-        arc_id = str(member.get('arc_id') or '')
+        arc_id, arc_refinement = _normalize_arc_selection(
+            member.get('arc_id'),
+            member.get('arc_refinement'),
+        )
         cartridge_id = str(member.get('cartridge_id') or '')
         if arc_id and arc_id not in arcs:
             raise RuleValidationError('队伍中存在未知弧盘。')
@@ -266,7 +278,7 @@ def _normalize_team(raw: Any, catalog: dict[str, Any]) -> list[dict[str, Any]]:
             'character_name': character.get('name') or '',
             'arc_id': arc_id,
             'arc_name': (arc or {}).get('name') or '',
-            'arc_refinement': _normalize_arc_refinement(member.get('arc_refinement'), arc_id, catalog),
+            'arc_refinement': _normalize_arc_refinement(arc_refinement, arc_id, catalog),
             'cartridge_id': cartridge_id,
             'cartridge_name': (cartridge or {}).get('name') or '',
             'awakening': len(awakening_nodes),
@@ -298,7 +310,10 @@ def _normalize_character_builds(raw: Any, team: list[dict[str, Any]], catalog: d
         if isinstance(raw_value, dict) and isinstance(raw_value.get('variants'), list):
             raw_value = raw_value['variants'][0] if raw_value['variants'] else {}
         build = raw_value if isinstance(raw_value, dict) else {}
-        arc_id = str(build.get('arc_id') or '')
+        arc_id, arc_refinement = _normalize_arc_selection(
+            build.get('arc_id'),
+            build.get('arc_refinement'),
+        )
         arc = arcs.get(arc_id)
         if arc and str(arc.get('adaptation') or '') != str(characters[character_id].get('adaptation') or ''):
             arc_id = ''
@@ -309,7 +324,7 @@ def _normalize_character_builds(raw: Any, team: list[dict[str, Any]], catalog: d
             'character_name': characters[character_id].get('name') or '',
             'arc_id': arc_id if arc_id in arcs else '',
             'arc_name': (arcs.get(arc_id) or {}).get('name') or '',
-            'arc_refinement': _normalize_arc_refinement(build.get('arc_refinement'), arc_id, catalog),
+            'arc_refinement': _normalize_arc_refinement(arc_refinement, arc_id, catalog),
             'cartridge_id': cartridge_id if cartridge_id in cartridges else '',
             'cartridge_name': (cartridges.get(cartridge_id) or {}).get('name') or '',
             'awakening': len(awakening_nodes),
@@ -396,7 +411,7 @@ def _axis_duration_ticks(steps: list[dict[str, Any]], catalog: dict[str, Any]) -
     return calculate_axis_duration_ticks(steps, actions)
 
 
-def _normalize_options(raw: Any, catalog: dict[str, Any]) -> dict[str, Any]:
+def _normalize_options(raw: Any, catalog: dict[str, Any], team: list[dict[str, Any]]) -> dict[str, Any]:
     options = raw if isinstance(raw, dict) else {}
     switch_gap_ticks = max(
         0,
@@ -408,10 +423,25 @@ def _normalize_options(raw: Any, catalog: dict[str, Any]) -> dict[str, Any]:
             ),
         ),
     )
+    raw_loop_resources = options.get('loop_initial_resources')
+    raw_loop_resources = raw_loop_resources if isinstance(raw_loop_resources, dict) else {}
+    characters = get_record_map(catalog['characters'])
+    loop_initial_resources: dict[str, dict[str, float]] = {}
+    for member in team:
+        character_id = str(member.get('character_id') or '')
+        configured = raw_loop_resources.get(character_id)
+        if not isinstance(configured, dict):
+            continue
+        energy_capacity = max(0, _num((characters.get(character_id) or {}).get('energy_capacity'), 100))
+        loop_initial_resources[character_id] = {
+            'energy': max(0, min(energy_capacity, _num(configured.get('energy')))),
+            'harmony': max(0, min(100, _num(configured.get('harmony')))),
+        }
     return {
         'switch_gap_ticks': switch_gap_ticks,
         'switch_loss_ticks': switch_gap_ticks,
         'loop_enabled': bool(options.get('loop_enabled')),
+        'loop_initial_resources': loop_initial_resources,
     }
 
 
@@ -466,6 +496,14 @@ def _is_basic_action(action: dict[str, Any]) -> bool:
     return str(action.get('action_type') or '') == '普攻' or str(action.get('damage_type') or '') == '普攻'
 
 
+def _is_support_action(action: dict[str, Any]) -> bool:
+    return str(action.get('action_type') or '') == '援护'
+
+
+def _is_instant_native_background_action(action: dict[str, Any]) -> bool:
+    return _is_background_action(action) and not _is_support_action(action) and not bool(action.get('pre_input_node'))
+
+
 def _can_background_override(action: dict[str, Any]) -> bool:
     return bool(action.get('can_background_override')) and _is_basic_action(action)
 
@@ -494,7 +532,10 @@ def calculate_axis_duration_ticks(steps: list[dict[str, Any]], actions_by_id: di
         action = actions_by_id.get(str(step.get('action_id') or '')) or {}
         start_tick = max(0, _int(step.get('start_tick')))
         duration_ticks = max(0, _int(action.get('duration_ticks')))
-        visual_duration_ticks = ZERO_ACTION_VISUAL_TICKS if _is_zero_foreground_q_step(step, action) else duration_ticks
+        if _is_zero_foreground_q_step(step, action) or _is_instant_native_background_action(action):
+            visual_duration_ticks = ZERO_ACTION_VISUAL_TICKS
+        else:
+            visual_duration_ticks = duration_ticks
         last_tick = max(last_tick, start_tick + visual_duration_ticks, start_tick)
     return max(0, last_tick)
 
@@ -578,7 +619,7 @@ def normalize_axis_payload(payload: dict[str, Any]) -> dict[str, Any]:
         'steps': steps,
         'enemy': _normalize_enemy(body.get('enemy'), catalog),
         'team_panel_bonus': _normalize_team_panel_bonus(body.get('team_panel_bonus'), catalog),
-        'options': _normalize_options(body.get('options'), catalog),
+        'options': _normalize_options(body.get('options'), catalog, team),
         'duration_ticks': _axis_duration_ticks(steps, catalog),
         'initial_energy': max(0, min(1000, _num(body.get('initial_energy'), 100))),
         'buff_rules': _normalize_buff_rules(body.get('buff_rules'), team, catalog),

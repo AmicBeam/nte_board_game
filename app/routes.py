@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import threading
+from pathlib import Path
 
 from flask import Blueprint, g, jsonify, redirect, render_template, request, url_for
 
@@ -79,6 +80,14 @@ def _request_int_arg(name: str, default: int) -> int:
         return default
 
 
+def _shaft_asset_version(filename: str) -> int:
+    asset_path = Path(__file__).resolve().parent / 'modules' / 'shaft' / 'static' / filename
+    try:
+        return int(asset_path.stat().st_mtime)
+    except OSError:
+        return 0
+
+
 def _acquire_kongmu_plan_lock(source_key: str) -> threading.Lock | None:
     with _kongmu_plan_locks_guard:
         lock = _kongmu_plan_locks.setdefault(source_key, threading.Lock())
@@ -139,7 +148,11 @@ def shaft_page(page: str = 'rotation'):
         page = 'plaza'
     if page not in {'build', 'rotation', 'plaza'}:
         page = 'rotation'
-    return render_template('shaft/index.html', active_shaft_page=page)
+    return render_template(
+        'shaft/index.html',
+        active_shaft_page=page,
+        shaft_asset_version=_shaft_asset_version,
+    )
 
 
 @main_bp.get('/table')

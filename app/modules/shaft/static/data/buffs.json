@@ -224,7 +224,7 @@
     "name": "阿德勒：明悟之慧佑咒伤",
     "providers": [{"kind": "character", "id": "char_6f46705fd1"}],
     "priority": 95,
-    "trigger": {"event": "action_start", "source": {"scope": "registrar", "action_types": ["E"]}},
+    "trigger": {"event": "action_start", "source": {"scope": "registrar", "action_types": ["E"]}, "conditions": [{"type": "awakening_count_min", "min": 6}]},
     "target": {"scope": "team", "elements": ["咒"]},
     "duration": {"type": "time", "ticks": 80, "loop_carry": true},
     "stacking": {"mode": "refresh", "max_stacks": 1},
@@ -264,7 +264,7 @@
   {
     "id": "character_fadia_team_hp", "name": "法帝娅·全队生命",
     "providers": [{"kind": "character", "id": "char_caa6c2e5a8"}], "priority": 20,
-    "trigger": {"event": "passive"}, "target": {"scope": "team"},
+    "trigger": {"event": "passive", "conditions": [{"type": "awakening_count_min", "min": 6}]}, "target": {"scope": "team"},
     "duration": {"type": "permanent"}, "effects": {"hp_pct": 0.1}, "display": {"line": false}
   },
   {
@@ -1036,6 +1036,7 @@
       "event": "reaction_trigger",
       "source": {"scope": "team"},
       "conditions": [
+        {"type": "awakening_count_min", "min": 6},
         {"type": "reaction_owner_involved"},
         {"type": "reaction_type", "reactions": ["创生", "延滞", "盈蓄"]}
       ]
@@ -1114,7 +1115,7 @@
     "name": "小吱：光属性抗性降低",
     "providers": [{"kind": "character", "id": "char_4f917797cb"}],
     "priority": 100,
-    "trigger": {"event": "action_hit", "source": {"scope": "registrar"}},
+    "trigger": {"event": "action_hit", "source": {"scope": "registrar"}, "conditions": [{"type": "awakening_count_min", "min": 6}]},
     "target": {"scope": "team"},
     "duration": {"type": "time", "ticks": 10, "loop_carry": true},
     "stacking": {"mode": "refresh", "max_stacks": 1},
@@ -1176,7 +1177,7 @@
     "name": "海月：进入华彩后全队魂伤",
     "providers": [{"kind": "character", "id": "char_699966e2e7"}],
     "priority": 110,
-    "trigger": {"event": "action_start", "source": {"scope": "registrar", "action_types": ["Q"]}},
+    "trigger": {"event": "action_start", "source": {"scope": "registrar", "action_types": ["Q"]}, "conditions": [{"type": "awakening_count_min", "min": 6}]},
     "target": {"scope": "team", "elements": ["魂"]},
     "duration": {"type": "time", "ticks": 150, "loop_carry": true},
     "stacking": {"mode": "refresh", "max_stacks": 1},

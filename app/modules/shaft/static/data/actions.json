@@ -960,7 +960,7 @@
       "res_down": 0
     },
     "cooldown_ticks": 10,
-    "energy_cost": 0,
+    "energy_cost": 12,
     "personal_resource_cost": {},
     "personal_resource_gain": {},
     "source_row": 17,

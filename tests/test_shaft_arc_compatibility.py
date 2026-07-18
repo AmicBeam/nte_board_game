@@ -107,11 +107,29 @@ class ShaftArcCompatibilityTestCase(unittest.TestCase):
         self.assertEqual(normalized['character_builds'][character_id]['arc_refinement'], expected)
 
     def test_existing_arc_values_define_refinement_defaults(self) -> None:
-        refinements = load_shaft_catalog()['arc_refinements']['arcs']
+        catalog = load_shaft_catalog()
+        refinements = catalog['arc_refinements']['arcs']
 
         self.assertEqual(refinements['arc_1a476075cd']['default_level'], 1)
-        self.assertEqual(refinements['arc_57b6c49b66']['default_level'], 5)
         self.assertEqual(refinements['arc_74578e2ec4']['default_level'], 5)
+        self.assertFalse(any(
+            arc['name'].endswith(('满', '满精', '白板'))
+            for arc in catalog['arcs']
+        ))
+
+    def test_legacy_arc_options_migrate_to_refinement_selection(self) -> None:
+        catalog = load_shaft_catalog()
+        axis = dict(catalog['starter_axis'])
+        axis.pop('character_builds', None)
+        axis['team'] = [dict(member) for member in catalog['starter_axis']['team']]
+        axis['team'][0]['arc_id'] = 'arc_2b6d5881ef'
+        axis['team'][0].pop('arc_refinement', None)
+
+        normalized = normalize_axis_payload(axis)
+
+        self.assertEqual(normalized['team'][0]['arc_id'], 'arc_27dc4a7281')
+        self.assertEqual(normalized['team'][0]['arc_name'], '穿过胭红蜃景')
+        self.assertEqual(normalized['team'][0]['arc_refinement'], 5)
 
 
 if __name__ == '__main__':

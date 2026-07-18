@@ -51,6 +51,9 @@
   const TIMELINE_END_PADDING_TICKS = 10;
   const TIMELINE_TICK_PX = 12;
   const TIMELINE_LABEL_PX = 128;
+  const PREVIEW_LABEL_PX = 116;
+  const PREVIEW_MAX_TICK_PX = 24;
+  const PREVIEW_MIN_BODY_PX = 1;
   const MIN_ACTION_CARD_PX = 60;
   const BUFF_DURATION_LABEL_LIMIT_TICKS = 9000;
   const MAX_VISUAL_LANES_PER_SLOT = 3;
@@ -134,6 +137,7 @@
       triggerSlot: 0,
       modifierKey: 'all_dmg',
     },
+    previewTickPx: 0,
   };
 
   function $(id) {
@@ -382,6 +386,14 @@
     if (type === 'awakening_max') {
       const nextLevel = Math.round(numberValue(condition.max, condition.value)) + 1;
       return !awakeningNodes.has(nextLevel);
+    }
+    if (type === 'awakening_count_min') {
+      const requiredCount = Math.round(numberValue(condition.min, condition.value));
+      return awakeningNodes.size >= requiredCount;
+    }
+    if (type === 'awakening_count_max') {
+      const maxCount = Math.round(numberValue(condition.max, condition.value));
+      return awakeningNodes.size <= maxCount;
     }
     if (type === 'owner_character_id') {
       return (condition.ids || []).map(String).includes(String(member?.character_id || ''));
@@ -917,14 +929,37 @@
     return (freshResult()?.details || []).find((detail) => detail.step_id === stepId) || null;
   }
 
-  function slotResourcesForAxis(slot) {
+  function slotResourcesAtCursor(slot) {
     const slotNumber = Number(slot);
     const result = timelineResult();
     const resource = (result?.resources_by_slot || []).find((item) => Number(item.slot) === slotNumber) || {};
-    const energy = Number(resource.energy ?? resource.initial_energy ?? state.axis?.initial_energy ?? 100);
-    const harmony = Number(resource.harmony ?? resource.initial_harmony ?? 0);
-    const personalResources = resource.personal_resources && typeof resource.personal_resources === 'object'
-      ? resource.personal_resources
+    const cursorTick = Number(state.cursorTick || 0);
+    const details = state.timelineDisplayDetails?.length ? state.timelineDisplayDetails : (result?.details || []);
+    const latestDetail = details.reduce((latest, detail) => {
+      const detailTick = Number(detail.display_start_tick ?? detail.visual_start_tick ?? detail.start_tick ?? 0);
+      if (detailTick > cursorTick) {
+        return latest;
+      }
+      if (!latest) {
+        return detail;
+      }
+      const latestTick = Number(latest.display_start_tick ?? latest.visual_start_tick ?? latest.start_tick ?? 0);
+      if (detailTick > latestTick) {
+        return detail;
+      }
+      if (detailTick === latestTick && Number(detail.resource_sequence ?? -1) > Number(latest.resource_sequence ?? -1)) {
+        return detail;
+      }
+      return latest;
+    }, null);
+    const snapshot = (latestDetail?.resources_after_by_slot || [])
+      .find((item) => Number(item.slot) === slotNumber) || {};
+    const energy = Number(snapshot.energy ?? resource.initial_energy ?? state.axis?.initial_energy ?? 100);
+    const harmony = Number(snapshot.harmony ?? resource.initial_harmony ?? 0);
+    const personalResources = snapshot.personal_resources && typeof snapshot.personal_resources === 'object'
+      ? snapshot.personal_resources
+      : resource.initial_personal_resources && typeof resource.initial_personal_resources === 'object'
+        ? resource.initial_personal_resources
       : {};
     return { energy, harmony, personalResources };
   }
@@ -990,6 +1025,10 @@
     return String(action?.action_type || '') === '援护';
   }
 
+  function isInstantNativeBackgroundAction(step, action = actionForStep(step)) {
+    return isBackgroundAction(action) && !isSupportAction(action) && !Boolean(action?.pre_input_node);
+  }
+
   function isQAction(action) {
     return String(action?.action_type || '') === 'Q' || String(action?.damage_type || '') === 'Q';
   }
@@ -1009,16 +1048,27 @@
     return Math.max(0, Number(action?.duration_ticks || 0));
   }
 
-  function actionEditorDurationTicks(action) {
+  function actionCalculationDurationTicks(action, step = null) {
+    return isInstantNativeBackgroundAction(step, action) ? 0 : actionDurationTicks(action);
+  }
+
+  function actionEditorDurationTicks(action, step = null) {
+    if (isInstantNativeBackgroundAction(step, action)) {
+      return ZERO_ACTION_VISUAL_TICKS;
+    }
     return Math.max(1, actionDurationTicks(action));
   }
 
   function qVisualDurationTicks(action) {
-    return Math.max(ZERO_ACTION_VISUAL_TICKS, actionDurationTicks(action));
+    const durationTicks = actionDurationTicks(action);
+    return durationTicks > 0 ? durationTicks : ZERO_ACTION_VISUAL_TICKS;
   }
 
   function actionVisualDurationTicks(action, step = null) {
-    return step && isZeroForegroundQStep(step, action) ? qVisualDurationTicks(action) : actionEditorDurationTicks(action);
+    if (step && isZeroForegroundQStep(step, action)) {
+      return qVisualDurationTicks(action);
+    }
+    return actionEditorDurationTicks(action, step);
   }
 
   function isZeroForegroundQStep(step, action = actionForStep(step)) {
@@ -1253,7 +1303,7 @@
     const deleteButton = $('shaft-delete-step-btn');
     const copyButton = $('shaft-copy-step-btn');
     const pasteButton = $('shaft-paste-step-btn');
-    const loopEnabled = $('shaft-loop-enabled');
+    const loopSettingsButton = $('shaft-loop-settings-btn');
     const unlinedIndicator = $('shaft-unlined-buff-indicator');
     const selectionCount = selectedStepIds().length;
     if (undoButton) {
@@ -1271,8 +1321,10 @@
     if (pasteButton) {
       pasteButton.disabled = !state.clipboardSteps.length;
     }
-    if (loopEnabled) {
-      loopEnabled.checked = Boolean(state.axis?.options?.loop_enabled);
+    if (loopSettingsButton) {
+      const enabled = Boolean(state.axis?.options?.loop_enabled);
+      loopSettingsButton.classList.toggle('active', enabled);
+      loopSettingsButton.textContent = enabled ? '循环轴：已开启' : '循环轴';
     }
     if (unlinedIndicator) {
       const tooltip = unlinedBuffToolbarTooltip();
@@ -1281,6 +1333,106 @@
       unlinedIndicator.setAttribute('data-tooltip', tooltip);
       unlinedIndicator.setAttribute('aria-label', tooltip);
     }
+  }
+
+  function loopInitialResourceForMember(member) {
+    const character = getCharacterMap().get(member?.character_id) || {};
+    const configured = state.axis?.options?.loop_initial_resources?.[member?.character_id];
+    const energyCapacity = Math.max(0, Number(character.energy_capacity || 0));
+    const fallbackEnergy = Math.max(0, Number(state.axis?.initial_energy ?? 100));
+    return {
+      energy: configured && typeof configured === 'object'
+        ? Math.max(0, Number(configured.energy || 0))
+        : (energyCapacity > 0 ? Math.min(fallbackEnergy, energyCapacity) : fallbackEnergy),
+      harmony: configured && typeof configured === 'object'
+        ? Math.max(0, Math.min(100, Number(configured.harmony || 0)))
+        : 0,
+      energyCapacity,
+    };
+  }
+
+  function renderLoopResourceRows() {
+    const list = $('shaft-loop-resource-list');
+    if (!list) {
+      return;
+    }
+    list.innerHTML = (state.axis?.team || []).map((member) => {
+      const character = getCharacterMap().get(member.character_id) || {};
+      const resources = loopInitialResourceForMember(member);
+      return `
+        <div class="shaft-loop-resource-row" data-loop-resource-character="${escapeHtml(member.character_id)}">
+          <span class="shaft-loop-resource-character">
+            <img src="${escapeHtml(character.avatar || member.character_avatar || '')}" alt="">
+            <strong>${escapeHtml(character.name || member.character_name || '未选择')}</strong>
+          </span>
+          <label>
+            <span>起始能量</span>
+            <input data-loop-initial-energy type="number" min="0" max="${resources.energyCapacity || 1000}" step="1" value="${resources.energy}">
+          </label>
+          <label>
+            <span>起始环合</span>
+            <input data-loop-initial-harmony type="number" min="0" max="100" step="1" value="${resources.harmony}">
+          </label>
+        </div>
+      `;
+    }).join('') || '<div class="shaft-empty">当前队伍没有可配置角色</div>';
+  }
+
+  function syncLoopResourceInputsDisabled() {
+    const enabled = Boolean($('shaft-loop-enabled')?.checked);
+    const list = $('shaft-loop-resource-list');
+    list?.classList.toggle('is-disabled', !enabled);
+    list?.querySelectorAll('input').forEach((input) => {
+      input.disabled = !enabled;
+    });
+  }
+
+  function openLoopSettings(trigger = null) {
+    const dialog = $('shaft-loop-settings-dialog');
+    if (!dialog || dialog.open) {
+      return;
+    }
+    dialog._returnFocus = trigger;
+    $('shaft-loop-enabled').checked = Boolean(state.axis?.options?.loop_enabled);
+    renderLoopResourceRows();
+    syncLoopResourceInputsDisabled();
+    dialog.showModal();
+  }
+
+  function closeLoopSettings() {
+    const dialog = $('shaft-loop-settings-dialog');
+    if (!dialog?.open) {
+      return;
+    }
+    const returnFocus = dialog._returnFocus;
+    dialog.close();
+    if (returnFocus?.isConnected) {
+      returnFocus.focus();
+    }
+  }
+
+  function confirmLoopSettings() {
+    const resources = {};
+    $('shaft-loop-resource-list')?.querySelectorAll('[data-loop-resource-character]').forEach((row) => {
+      const characterId = row.dataset.loopResourceCharacter;
+      const character = getCharacterMap().get(characterId) || {};
+      const energyCapacity = Math.max(0, Number(character.energy_capacity || 0));
+      const energy = Math.max(0, Number(row.querySelector('[data-loop-initial-energy]')?.value || 0));
+      const harmony = Math.max(0, Math.min(100, Number(row.querySelector('[data-loop-initial-harmony]')?.value || 0)));
+      resources[characterId] = {
+        energy: energyCapacity > 0 ? Math.min(energyCapacity, energy) : energy,
+        harmony,
+      };
+    });
+    pushUndoSnapshot();
+    state.axis.options.loop_enabled = Boolean($('shaft-loop-enabled')?.checked);
+    state.axis.options.loop_initial_resources = resources;
+    closeLoopSettings();
+    renderEditorActions();
+    markSimulationStale();
+    renderTimeline();
+    scheduleSimulation();
+    persistAxisDraft();
   }
 
   function actionLabel(action) {
@@ -1548,6 +1700,10 @@
     );
     state.axis.options.switch_loss_ticks = state.axis.options.switch_gap_ticks;
     state.axis.options.loop_enabled = Boolean(state.axis.options.loop_enabled);
+    state.axis.options.loop_initial_resources = state.axis.options.loop_initial_resources &&
+      typeof state.axis.options.loop_initial_resources === 'object'
+      ? state.axis.options.loop_initial_resources
+      : {};
     state.axis.team_panel_bonus = normalizeTeamPanelBonus(state.axis.team_panel_bonus);
     state.axis.initial_energy = Number(state.axis.initial_energy ?? 100);
     state.axis.buff_rules = Array.isArray(state.axis.buff_rules) ? state.axis.buff_rules : [];
@@ -1756,6 +1912,7 @@
             <img class="shaft-member-avatar" src="${escapeHtml(character.avatar || member.character_avatar || '')}" alt="">
             <strong>${escapeHtml(character.name || member.character_name || '未选择')}</strong>
             <small>角色80 · 弧盘80 · 精炼${arcRefinement}</small>
+            ${mechanismTooltip}
           </section>
           <section class="shaft-member-editor">
             <div class="shaft-loadout-grid">
@@ -1766,7 +1923,6 @@
                     ${optionHtml(characters, member.character_id)}
                   </select>
                 </label>
-                ${mechanismTooltip}
               </div>
               <label>
                 <span>弧盘</span>
@@ -1940,7 +2096,7 @@
             <span class="shaft-command-type">${escapeHtml(action.action_type || '动作')}</span>
             <strong class="shaft-command-name">${escapeHtml(action.name)}</strong>
           </div>
-          <span class="shaft-command-meta">${ticksToSeconds(action.duration_ticks)}s · ${formatNumber(action.hit_count || 0, 0)}段 · 回能 ${formatNumber(action.energy_gain || 0, 1)}${isBackgroundAction(action) ? ' · 后台' : ''}</span>
+          <span class="shaft-command-meta">${ticksToSeconds(actionCalculationDurationTicks(action))}s · ${formatNumber(action.hit_count || 0, 0)}段 · ${Number(action.energy_cost || 0) > 0 ? `耗能 ${formatNumber(action.energy_cost, 0)}` : `回能 ${formatNumber(action.energy_gain || 0, 1)}`}${isBackgroundAction(action) ? ' · 后台' : ''}</span>
         </div>
         <button class="secondary-btn" data-library-action="${escapeHtml(action.id)}" data-library-slot="${state.librarySlot}" type="button">加入</button>
       </article>
@@ -2134,7 +2290,7 @@
       return actions.map((action, index) => ({
         key: action.action_id || action.action_name || String(index),
         label: action.action_name || '未命名动作',
-        detail: action.damage_type || action.action_type || '其他',
+        detail: action.detail || action.damage_type || action.action_type || '其他',
         damage: Number(action.damage || 0),
         percent: Number(action.percent || 0),
         color: ACTION_CONTRIBUTION_COLORS[index % ACTION_CONTRIBUTION_COLORS.length],
@@ -2444,6 +2600,189 @@
     }
   }
 
+  function previewDetails() {
+    if (!state.timelineDisplayDetails.length) {
+      renderTimeline();
+    }
+    const stepById = new Map((state.axis?.steps || []).map((step) => [step.id, step]));
+    return state.timelineDisplayDetails
+      .filter((detail) => {
+        const step = stepById.get(detail.step_id) || { action_id: detail.action_id };
+        const action = actionForStep(step);
+        return !isBackgroundAction(action) || isBasicBackgroundOverride(step, action);
+      })
+      .map((detail) => {
+        const startTick = Math.max(0, Number(detail.display_start_tick ?? detail.start_tick ?? 0));
+        const durationTicks = Math.max(0, Number(detail.display_duration_ticks ?? detail.duration_ticks ?? 0));
+        const visualEndTick = Math.max(
+          startTick + (durationTicks > 0 ? durationTicks : ZERO_ACTION_VISUAL_TICKS),
+          Number(detail.display_visual_end_tick ?? detail.visual_end_tick ?? detail.end_tick ?? startTick),
+        );
+        return {
+          slot: Number(detail.slot || 0),
+          name: detail.action_name || actionForStep({ action_id: detail.action_id }).name || '',
+          startTick,
+          endTick: Math.max(startTick, startTick + durationTicks),
+          visualEndTick,
+          durationTicks,
+        };
+      });
+  }
+
+  function groupedPreviewActions(details, slot) {
+    const groups = [];
+    details
+      .filter((detail) => Number(detail.slot) === Number(slot))
+      .sort((left, right) => left.startTick - right.startTick || left.visualEndTick - right.visualEndTick)
+      .forEach((detail) => {
+        const previous = groups[groups.length - 1];
+        if (previous && detail.startTick <= previous.visualEndTick) {
+          previous.names.push(detail.name);
+          previous.endTick = Math.max(previous.endTick, detail.endTick);
+          previous.visualEndTick = Math.max(previous.visualEndTick, detail.visualEndTick);
+          previous.durationTicks += detail.durationTicks;
+          return;
+        }
+        groups.push({
+          names: [detail.name],
+          startTick: detail.startTick,
+          endTick: detail.endTick,
+          visualEndTick: detail.visualEndTick,
+          durationTicks: detail.durationTicks,
+        });
+      });
+    return groups;
+  }
+
+  function previewEndTick(details = previewDetails()) {
+    return Math.max(
+      1,
+      ...details.map((detail) => Math.max(detail.visualEndTick, detail.endTick)),
+    );
+  }
+
+  function previewMinimumTickPx(details = previewDetails()) {
+    const viewport = $('shaft-axis-preview-viewport');
+    const availableWidth = Math.max(PREVIEW_MIN_BODY_PX, Number(viewport?.clientWidth || 0) - PREVIEW_LABEL_PX - 20);
+    return Math.min(PREVIEW_MAX_TICK_PX, availableWidth / previewEndTick(details));
+  }
+
+  function renderAxisPreview() {
+    const canvas = $('shaft-axis-preview-canvas');
+    if (!canvas || !$('shaft-axis-preview-dialog')?.open) {
+      return;
+    }
+    const details = previewDetails();
+    const endTick = previewEndTick(details);
+    const minTickPx = previewMinimumTickPx(details);
+    state.previewTickPx = Math.max(minTickPx, Math.min(PREVIEW_MAX_TICK_PX, state.previewTickPx || minTickPx));
+    const tickPx = state.previewTickPx;
+    const bodyWidth = Math.max(1, endTick * tickPx);
+    const totalWidth = PREVIEW_LABEL_PX + bodyWidth;
+    const leftPx = (tick) => PREVIEW_LABEL_PX + Math.max(0, Number(tick || 0)) * tickPx;
+    const widthPx = (start, end) => Math.max(4, (Math.max(Number(end || start), Number(start || 0) + 0.1) - Number(start || 0)) * tickPx);
+    const rulerStepTicks = tickPx >= 8 ? 10 : (tickPx >= 3 ? 20 : 50);
+    const rulerMarks = [];
+    for (let tick = 0; tick <= endTick; tick += rulerStepTicks) {
+      rulerMarks.push(`
+        <span class="shaft-axis-preview-mark" style="left:${leftPx(tick)}px">
+          <span>${escapeHtml(ticksToSeconds(tick))}s</span>
+        </span>
+      `);
+    }
+    const tracks = (state.axis?.team || []).slice(0, 4).map((member) => {
+      const color = SLOT_COLORS[Number(member.slot) % SLOT_COLORS.length];
+      const bubbles = groupedPreviewActions(details, member.slot).map((group) => {
+        const joinedName = group.names.filter(Boolean).join('+');
+        const visibleEndTick = Math.max(group.visualEndTick, group.startTick + group.durationTicks);
+        const duration = group.durationTicks > 0 ? `<em>${escapeHtml(ticksToSeconds(group.durationTicks))}s</em>` : '';
+        return `
+          <span
+            class="shaft-axis-preview-bubble"
+            style="left:${leftPx(group.startTick)}px; width:${widthPx(group.startTick, visibleEndTick)}px; --slot-color:${color}"
+            title="${escapeHtml(joinedName)}${group.durationTicks > 0 ? ` · ${escapeHtml(ticksToSeconds(group.durationTicks))}s` : ''}"
+          >
+            <span>${escapeHtml(joinedName)}</span>
+            ${duration}
+          </span>
+        `;
+      }).join('');
+      return `
+        <div class="shaft-axis-preview-track" style="width:${totalWidth}px">
+          <span class="shaft-axis-preview-member">
+            <img src="${escapeHtml(member.character_avatar || '')}" alt="">
+            <span>${escapeHtml(member.character_name || '')}</span>
+          </span>
+          <span class="shaft-axis-preview-grid" style="background-size:${Math.max(1, tickPx * 10)}px 100%"></span>
+          ${bubbles}
+        </div>
+      `;
+    }).join('');
+    canvas.style.width = `${totalWidth}px`;
+    canvas.style.setProperty('--preview-label-width', `${PREVIEW_LABEL_PX}px`);
+    canvas.innerHTML = `
+      <div class="shaft-axis-preview-ruler" style="width:${totalWidth}px">
+        <span class="shaft-axis-preview-ruler-label">时间</span>
+        ${rulerMarks.join('')}
+      </div>
+      ${tracks || '<div class="shaft-empty">当前动作轴没有角色</div>'}
+    `;
+  }
+
+  function fitAxisPreview() {
+    state.previewTickPx = previewMinimumTickPx();
+    renderAxisPreview();
+    $('shaft-axis-preview-viewport').scrollLeft = 0;
+  }
+
+  function openAxisPreview(trigger = null) {
+    const dialog = $('shaft-axis-preview-dialog');
+    if (!dialog || dialog.open) {
+      return;
+    }
+    dialog._returnFocus = trigger;
+    dialog.showModal();
+    state.previewTickPx = 0;
+    requestAnimationFrame(fitAxisPreview);
+  }
+
+  function closeAxisPreview() {
+    const dialog = $('shaft-axis-preview-dialog');
+    if (!dialog?.open) {
+      return;
+    }
+    const returnFocus = dialog._returnFocus;
+    dialog.close();
+    if (returnFocus?.isConnected) {
+      returnFocus.focus();
+    }
+  }
+
+  function handleAxisPreviewWheel(event) {
+    const viewport = $('shaft-axis-preview-viewport');
+    if (!viewport || !$('shaft-axis-preview-dialog')?.open) {
+      return;
+    }
+    event.preventDefault();
+    const details = previewDetails();
+    const minTickPx = previewMinimumTickPx(details);
+    const previousTickPx = Math.max(minTickPx, state.previewTickPx || minTickPx);
+    const nextTickPx = Math.max(
+      minTickPx,
+      Math.min(PREVIEW_MAX_TICK_PX, previousTickPx * Math.exp(-event.deltaY * 0.0015)),
+    );
+    if (Math.abs(nextTickPx - previousTickPx) < 0.001) {
+      return;
+    }
+    const bounds = viewport.getBoundingClientRect();
+    const pointerX = Math.max(PREVIEW_LABEL_PX, event.clientX - bounds.left + viewport.scrollLeft);
+    const anchorTick = Math.max(0, (pointerX - PREVIEW_LABEL_PX) / previousTickPx);
+    const localPointerX = event.clientX - bounds.left;
+    state.previewTickPx = nextTickPx;
+    renderAxisPreview();
+    viewport.scrollLeft = Math.max(0, PREVIEW_LABEL_PX + anchorTick * nextTickPx - localPointerX);
+  }
+
   function handleContributionClick(event) {
     const button = event.target.closest('[data-action-contribution-slot]');
     if (button) {
@@ -2593,6 +2932,10 @@
     }
     const result = freshResult();
     const summary = result?.summary || {};
+    const workbenchDirectDamage = Math.max(
+      0,
+      Number(summary.direct_damage || 0) - Number(summary.harmony_damage || 0),
+    );
     const contribution = result?.damage_by_slot || [];
     const characterBars = contribution.map((item, index) => `
       <div class="shaft-mini-contribution">
@@ -2613,7 +2956,9 @@
         <div><span>总伤害</span><strong>${formatNumber(summary.total_damage || 0)}</strong></div>
         <div><span>总轴长</span><strong>${formatNumber(summary.duration_seconds || 0, 1)}s</strong></div>
         <div><span>DPS</span><strong>${formatNumber(summary.dps || 0)}</strong></div>
-        <div><span>直伤</span><strong>${formatNumber(summary.direct_damage || 0)}</strong></div>
+        <div><span>直伤</span><strong>${formatNumber(workbenchDirectDamage)}</strong></div>
+        <div><span>环合</span><strong>${formatNumber(summary.harmony_damage || 0)}</strong></div>
+        <div><span>倾陷</span><strong>${formatNumber(summary.stagger_damage || 0)}</strong></div>
       </div>
       <div class="shaft-mini-contribution-list">${characterBars}${sourceBars}</div>
     `;
@@ -2746,6 +3091,8 @@
           durationTicks: Math.max(1, Number(buff?.duration_ticks ?? endTick - startTick)),
           segments,
           stackCount: buff?.stack_count ?? 1,
+          stackingMode: String(buff?.stacking_mode || ''),
+          maxStacks: Math.max(1, Number(buff?.max_stacks || 1)),
         };
       })
       .filter((buff) => buff.name && Number.isFinite(buff.startTick) && Number.isFinite(buff.endTick) && buff.endTick > buff.startTick && buff.segments.length)
@@ -2799,9 +3146,30 @@
       .join('|');
   }
 
-  function latestBuffStates(buffs = []) {
+  function latestBuffStates(buffs = [], segmentEndTick = null) {
     const latestById = new Map();
     buffs.forEach((buff) => {
+      if (String(buff?.stackingMode || '') === 'independent') {
+        const current = latestById.get(buff.id);
+        if (!current) {
+          latestById.set(buff.id, {
+            ...buff,
+            endTick: Number.isFinite(Number(segmentEndTick)) ? Number(segmentEndTick) : buff.endTick,
+            stackCount: buffStackValue(buff.stackCount),
+          });
+          return;
+        }
+        current.stackCount = Math.min(
+          Math.max(1, Number(current.maxStacks || buff.maxStacks || 1)),
+          buffStackValue(current.stackCount) + buffStackValue(buff.stackCount),
+        );
+        current.startTick = Math.max(Number(current.startTick || 0), Number(buff.startTick || 0));
+        current.endTick = Number.isFinite(Number(segmentEndTick))
+          ? Number(segmentEndTick)
+          : Math.min(Number(current.endTick || 0), Number(buff.endTick || 0));
+        current.durationTicks = Math.max(1, Math.min(Number(current.durationTicks || 1), Number(buff.durationTicks || 1)));
+        return;
+      }
       const current = latestById.get(buff.id);
       const startsLater = Number(buff.startTick) > Number(current?.startTick ?? -1);
       const startsTogetherWithMoreStacks = Number(buff.startTick) === Number(current?.startTick) &&
@@ -2828,6 +3196,8 @@
               endTick: Number(segment.endTick || 0),
               durationTicks: Math.max(1, Number(buff.durationTicks || 1)),
               stackCount: buffStackValue(buff.stackCount),
+              stackingMode: String(buff.stackingMode || ''),
+              maxStacks: Math.max(1, Number(buff.maxStacks || 1)),
             });
           });
         });
@@ -2843,8 +3213,10 @@
       if (endTick <= startTick) {
         continue;
       }
-      const activeBuffs = latestBuffStates(entries
-        .filter((entry) => entry.startTick <= startTick && entry.endTick >= endTick))
+      const activeBuffs = latestBuffStates(
+        entries.filter((entry) => entry.startTick <= startTick && entry.endTick >= endTick),
+        endTick,
+      )
         .sort((a, b) => a.name.localeCompare(b.name, 'zh-Hans-CN') || a.id.localeCompare(b.id));
       if (!activeBuffs.length) {
         continue;
@@ -2877,6 +3249,8 @@
           endTick: buff.endTick,
           durationTicks: buff.durationTicks,
           stackCount: buff.stackCount,
+          stackingMode: buff.stackingMode,
+          maxStacks: buff.maxStacks,
         })),
         buffIds: activeBuffs.map((buff) => buff.id).join(' '),
       });
@@ -3137,11 +3511,12 @@
       if (!blocksTrack && !isZeroForegroundQ) {
         return;
       }
+      if (!isZeroForegroundQ) {
+        return;
+      }
       const displayEndTick = Math.max(
         tick + 1,
-        isZeroForegroundQ
-          ? Math.max(tick + ZERO_ACTION_VISUAL_TICKS, Number(detail.nominal_display_visual_end_tick ?? visualEndTick ?? tick + 1))
-          : Number(detail.nominal_display_visual_end_tick ?? visualEndTick ?? tick + 1),
+        Math.max(tick + ZERO_ACTION_VISUAL_TICKS, Number(detail.nominal_display_visual_end_tick ?? visualEndTick ?? tick + 1)),
       );
       const rawWidth = Math.max(1, displayEndTick - tick) * TIMELINE_TICK_PX;
       const extraPx = Math.max(0, MIN_ACTION_CARD_PX - rawWidth);
@@ -3173,12 +3548,12 @@
     state.timelineScale = { expansionBreaks, bodyPx: timelineBodyPx };
     const timelineTotalPx = TIMELINE_LABEL_PX + timelineBodyPx;
     const leftPx = (tick) => TIMELINE_LABEL_PX + visualOffsetPx(tick);
-    const widthPx = (start, end, visualEnd) => {
+    const widthPx = (start, end, visualEnd, minWidth = 1) => {
       const fixedEnd = visualEnd || end || (Number(start || 0) + ZERO_ACTION_VISUAL_TICKS);
       if (Number(fixedEnd || start) <= Number(start || 0)) {
-        return MIN_ACTION_CARD_PX;
+        return minWidth;
       }
-      return Math.max(MIN_ACTION_CARD_PX, visualOffsetPx(Math.max(fixedEnd, Number(start || 0) + 1)) - visualOffsetPx(start));
+      return Math.max(minWidth, visualOffsetPx(Math.max(fixedEnd, Number(start || 0) + 1)) - visualOffsetPx(start));
     };
     const bandWidthPx = (start, end) => Math.max(1, visualOffsetPx(Math.max(Number(end || start), Number(start || 0) + 1)) - visualOffsetPx(start));
     const rulerMarks = [];
@@ -3231,7 +3606,7 @@
     const actionTracks = (state.axis.team || []).map((member) => {
       const selectedIds = new Set(selectedStepIds());
       const color = SLOT_COLORS[Number(member.slot) % SLOT_COLORS.length];
-      const resources = slotResourcesForAxis(member.slot);
+      const resources = slotResourcesAtCursor(member.slot);
       const energyLabel = formatNumber(resources.energy || 0, 1);
       const harmonyLabel = formatNumber(resources.harmony || 0, 1);
       const personalResourceLabels = Object.entries(resources.personalResources || {})
@@ -3307,6 +3682,13 @@
               reaction: effect.reaction,
               buffIds: effect.id,
               tooltip: `${effect.reaction} · ${ticksToSeconds(effect.duration_ticks || 1)}s`,
+              tooltipItems: [{
+                id: effect.id,
+                name: effect.reaction,
+                endTick: segment.endTick,
+                durationTicks: effect.duration_ticks,
+                stackCount: 1,
+              }],
             });
           });
         });
@@ -3443,16 +3825,21 @@
       }).join('、');
       return `${buff?.name || '未命名增益'}${effectText ? `：${effectText}` : ''}`;
     };
+    const detailLines = (items) => {
+      const normalized = (items || []).map(String).filter(Boolean);
+      if (!normalized.length) {
+        return '<span>无</span>';
+      }
+      return normalized.map((item) => `<span>${escapeHtml(item)}</span>`).join('');
+    };
     const appliedBuffList = detail?.applied_buffs || [];
-    const appliedBuffs = appliedBuffList.map((buff) => buff.name).join('、') || '无';
-    const appliedBuffExplanations = appliedBuffList.map(describeBuff).join('；') || '无';
-    const triggeredBuffs = (detail?.triggered_buffs || []).map((buff) => buff.name).join('、') || '无';
+    const appliedBuffExplanations = appliedBuffList.map(describeBuff);
+    const triggeredBuffs = (detail?.triggered_buffs || []).map((buff) => buff.name);
     const warnings = (detail?.warnings || []).join('；') || '无';
     const specialStats = [];
     const nightmareStacks = detail?.nightmare_stacks ?? action.nightmare_stacks;
     const sinRecovery = detail?.sin_recovery ?? action.sin_recovery;
     const hitCount = detail?.hit_count ?? action.hit_count;
-    const expectedCriticalHits = detail?.expected_critical_hits;
     const appliedEnemyDebuffs = (detail?.applied_enemy_debuffs || []).join('、');
     const actionMultiplier = backgroundActionMultiplier(step, action);
     if (hitCount !== undefined && hitCount !== null) {
@@ -3461,9 +3848,6 @@
     const actionSelfAllDmg = Number(action.self_modifiers?.all_dmg || 0);
     if (actionSelfAllDmg) {
       specialStats.push(`<div class="shaft-detail-kv"><span>动作自增伤</span><strong>${formatNumber(actionSelfAllDmg * 100, 1)}%</strong></div>`);
-    }
-    if (expectedCriticalHits !== undefined && expectedCriticalHits !== null && Number(expectedCriticalHits) > 0) {
-      specialStats.push(`<div class="shaft-detail-kv"><span>期望暴击段</span><strong>${formatNumber(expectedCriticalHits, 2)}</strong></div>`);
     }
     if (appliedEnemyDebuffs) {
       specialStats.push(`<div class="shaft-detail-kv"><span>挂载状态</span><strong>${escapeHtml(appliedEnemyDebuffs)}</strong></div>`);
@@ -3510,18 +3894,16 @@
         <div class="shaft-detail-kv"><span>倾陷强度</span><strong>${formatNumber(panelStats.stagger_strength || 0)}</strong></div>
         <div class="shaft-detail-kv"><span>暴击</span><strong>${formatNumber((panelStats.crit_rate || 0) * 100, 1)}%</strong></div>
         <div class="shaft-detail-kv"><span>暴伤</span><strong>${formatNumber((panelStats.crit_dmg || 0) * 100, 1)}%</strong></div>
+        <div class="shaft-detail-kv"><span>通伤</span><strong>${formatNumber((panelStats.all_dmg || 0) * 100, 1)}%</strong></div>
+        <div class="shaft-detail-kv"><span>属伤</span><strong>${formatNumber((panelStats.element_dmg || 0) * 100, 1)}%</strong></div>
       </div>
       <div class="shaft-detail-hero">
         <span class="shaft-detail-muted">生效增益</span>
-        <strong>${escapeHtml(appliedBuffs)}</strong>
-      </div>
-      <div class="shaft-detail-hero">
-        <span class="shaft-detail-muted">增益解释</span>
-        <strong>${escapeHtml(appliedBuffExplanations)}</strong>
+        <strong class="shaft-detail-line-list">${detailLines(appliedBuffExplanations)}</strong>
       </div>
       <div class="shaft-detail-hero">
         <span class="shaft-detail-muted">触发增益</span>
-        <strong>${escapeHtml(triggeredBuffs)}</strong>
+        <strong class="shaft-detail-line-list">${detailLines(triggeredBuffs)}</strong>
       </div>
       <div class="shaft-detail-hero">
         <span class="shaft-detail-muted">校验</span>
@@ -3759,7 +4141,7 @@
         Number(originalStartTicks.get(a.id) ?? a.start_tick ?? 0) - Number(originalStartTicks.get(b.id) ?? b.start_tick ?? 0) ||
         Number(a.slot || 0) - Number(b.slot || 0)
       ));
-    let carriedShiftTicks = 0;
+    const carriedShiftBySlot = new Map();
     let groupStart = 0;
     while (groupStart < orderedSteps.length) {
       const currentOriginalTick = Math.max(0, Number(
@@ -3773,20 +4155,18 @@
         groupEnd += 1;
       }
       const groupSteps = orderedSteps.slice(groupStart, groupEnd);
-      if (groupSteps.some((step) => priorityIds.has(step.id))) {
-        carriedShiftTicks = 0;
-      }
-      let groupShiftTicks = carriedShiftTicks;
       groupSteps.forEach((step) => {
+        const slot = Number(step.slot || 0);
+        const carriedShiftTicks = Math.max(0, Number(carriedShiftBySlot.get(slot) || 0));
         const resolvedStartTick = Math.max(0, Number(step.start_tick || 0));
         if (priorityIds.has(step.id)) {
           step.start_tick = resolvedStartTick;
+          carriedShiftBySlot.set(slot, 0);
           return;
         }
         step.start_tick = Math.max(resolvedStartTick, currentOriginalTick + carriedShiftTicks);
-        groupShiftTicks = Math.max(groupShiftTicks, step.start_tick - currentOriginalTick);
+        carriedShiftBySlot.set(slot, Math.max(carriedShiftTicks, step.start_tick - currentOriginalTick));
       });
-      carriedShiftTicks = groupShiftTicks;
       groupStart = groupEnd;
     }
   }
@@ -3797,16 +4177,21 @@
       step.id,
       Math.max(0, Number(step.start_tick || 0)),
     ]));
-    if (priorityIds.size) {
-      resolveForegroundConflictsWithPriority(priorityIds);
-      preserveGapsAfterAutomaticShift(originalStartTicks, priorityIds);
-      resolveForegroundConflictsWithPriority(priorityIds);
-      preserveGapsAfterAutomaticShift(originalStartTicks, priorityIds);
-    } else {
-      resolveForegroundConflicts();
-      preserveGapsAfterAutomaticShift(originalStartTicks);
-      resolveForegroundConflicts();
-      preserveGapsAfterAutomaticShift(originalStartTicks);
+    const resolveOnce = priorityIds.size
+      ? () => resolveForegroundConflictsWithPriority(priorityIds)
+      : () => resolveForegroundConflicts();
+    const preserveOnce = priorityIds.size
+      ? () => preserveGapsAfterAutomaticShift(originalStartTicks, priorityIds)
+      : () => preserveGapsAfterAutomaticShift(originalStartTicks);
+    const maxPasses = Math.max(2, (state.axis?.steps || []).length + 1);
+    for (let pass = 0; pass < maxPasses; pass += 1) {
+      const before = (state.axis?.steps || []).map((step) => `${step.id}:${Number(step.start_tick || 0)}`).join('|');
+      resolveOnce();
+      preserveOnce();
+      const after = (state.axis?.steps || []).map((step) => `${step.id}:${Number(step.start_tick || 0)}`).join('|');
+      if (after === before) {
+        break;
+      }
     }
     sortSteps();
     updateAxisDuration();
@@ -3834,6 +4219,9 @@
     const target = Math.max(0, Number(tick || 0));
     const candidateStep = { action_id: action?.id || '' };
     if (isZeroForegroundQStep(candidateStep, action || {}) || tickHasForegroundQ(target)) {
+      return target;
+    }
+    if (!startsForeground(candidateStep, action || {}) && !blocksSlotOverlap(candidateStep, action || {})) {
       return target;
     }
     if (
@@ -4662,7 +5050,7 @@
           <button type="button" data-context-add-action="${escapeHtml(action.id)}" data-context-slot="${slot}" data-context-tick="${tick}">
             <b>${escapeHtml(action.action_type || '动作')}</b>
             <span>${escapeHtml(action.name)}</span>
-            <em>${ticksToSeconds(action.duration_ticks)}s</em>
+            <em>${ticksToSeconds(actionCalculationDurationTicks(action))}s</em>
           </button>
         `).join('') || '<div class="shaft-empty">没有动作</div>'}
       </div>
@@ -4916,6 +5304,14 @@
 
   function handleKeydown(event) {
     if (event.key === 'Escape') {
+      if ($('shaft-loop-settings-dialog')?.open) {
+        closeLoopSettings();
+        return;
+      }
+      if ($('shaft-axis-preview-dialog')?.open) {
+        closeAxisPreview();
+        return;
+      }
       if ($('shaft-shortcut-dialog')?.open) {
         closeShortcutHelp();
         return;
@@ -5256,6 +5652,7 @@
         duration_ticks: 0,
         duration_seconds: 0,
         direct_damage: 0,
+        harmony_damage: 0,
         stagger_damage: 0,
         total_damage: 0,
         dps: 0,
@@ -5603,11 +6000,22 @@
     $('shaft-copy-step-btn').addEventListener('click', copySelectedSteps);
     $('shaft-paste-step-btn').addEventListener('click', pasteStepsAtCursor);
     $('shaft-delete-step-btn').addEventListener('click', removeSelectedSteps);
-    $('shaft-loop-enabled').addEventListener('change', (event) => {
-      state.axis.options.loop_enabled = event.target.checked;
-      renderEditorActions();
-      scheduleSimulation();
+    $('shaft-preview-btn').addEventListener('click', (event) => openAxisPreview(event.currentTarget));
+    $('shaft-axis-preview-fit-btn').addEventListener('click', fitAxisPreview);
+    $('shaft-axis-preview-dialog').addEventListener('click', (event) => {
+      if (event.target === event.currentTarget || event.target.closest('[data-close-axis-preview]')) {
+        closeAxisPreview();
+      }
     });
+    $('shaft-loop-settings-btn').addEventListener('click', (event) => openLoopSettings(event.currentTarget));
+    $('shaft-loop-settings-dialog').addEventListener('click', (event) => {
+      if (event.target === event.currentTarget || event.target.closest('[data-close-loop-settings]')) {
+        closeLoopSettings();
+      }
+    });
+    $('shaft-loop-enabled').addEventListener('change', syncLoopResourceInputsDisabled);
+    $('shaft-loop-settings-confirm').addEventListener('click', confirmLoopSettings);
+    $('shaft-axis-preview-viewport').addEventListener('wheel', handleAxisPreviewWheel, { passive: false });
     $('shaft-library-slot').addEventListener('change', (event) => {
       state.librarySlot = Number(event.target.value || 0);
       renderTeamDock();

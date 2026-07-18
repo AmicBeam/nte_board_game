@@ -400,6 +400,8 @@ def extract_actions(wb_values: Any, characters: list[dict[str, Any]]) -> list[di
         if str(character_name) == '伊洛伊' and str(action_name) == 'q持续':
             background_damage = True
             resources['energy_cost'] = 0
+        if (str(character_name), str(action_name)) == ('真红', '龙e'):
+            resources['energy_cost'] = 12
         imported_extra_tag = '' if extra_tag == '0' else str(extra_tag)
         if passive_multiplier is not None:
             imported_extra_tag = '协攻' if (character_name, action_name) == ('伊洛伊', 'B觉') else '附着'
@@ -644,6 +646,17 @@ def main() -> int:
     arcs = extract_arcs(wb_values)
     cartridges = extract_cartridges(wb_values)
     actions = extract_actions(wb_values, characters)
+    energy_capacity_by_character: dict[str, float] = {}
+    for action in actions:
+        if action.get('action_type') != 'Q' and action.get('damage_type') != 'Q':
+            continue
+        character_id = str(action.get('character_id') or '')
+        energy_capacity_by_character[character_id] = max(
+            energy_capacity_by_character.get(character_id, 0.0),
+            number(action.get('energy_cost')),
+        )
+    for character in characters:
+        character['energy_capacity'] = energy_capacity_by_character.get(str(character.get('id') or ''), 0.0)
     starter_axis = extract_starter_axis(wb_values, characters, arcs, cartridges, actions)
 
     source_meta = {

@@ -220,6 +220,28 @@ def _conditions_match(conditions: Any, context: dict[str, Any]) -> bool:
             ):
                 return False
             continue
+        if condition_type == 'awakening_count_min':
+            required_count = _int(condition.get('min'), _int(condition.get('value')))
+            raw_nodes = context.get('owner_awakening_nodes')
+            active_count = (
+                len({_int(value) for value in raw_nodes if 1 <= _int(value) <= 6})
+                if isinstance(raw_nodes, list)
+                else _int(context.get('owner_awakening'))
+            )
+            if active_count < required_count:
+                return False
+            continue
+        if condition_type == 'awakening_count_max':
+            max_count = _int(condition.get('max'), _int(condition.get('value')))
+            raw_nodes = context.get('owner_awakening_nodes')
+            active_count = (
+                len({_int(value) for value in raw_nodes if 1 <= _int(value) <= 6})
+                if isinstance(raw_nodes, list)
+                else _int(context.get('owner_awakening'))
+            )
+            if active_count > max_count:
+                return False
+            continue
         if condition_type == 'expected_critical_hit':
             if _num(context.get('expected_critical_hits')) <= 0:
                 return False
@@ -593,16 +615,19 @@ def buff_displays_as_line(rule: dict[str, Any]) -> bool:
 
 def buff_summary(instance: dict[str, Any], context: dict[str, Any] | None = None) -> dict[str, Any]:
     rule = instance.get('rule') if isinstance(instance.get('rule'), dict) else {}
+    stacking = rule.get('stacking') if isinstance(rule.get('stacking'), dict) else {}
     stack_count = max(0.0, _num(instance.get('stack_count'), 1))
     display_as_line = buff_displays_as_line(rule)
     return {
         'rule_id': rule.get('id') or '',
-        'definition_id': str(instance.get('definition_id') or (rule.get('stacking') or {}).get('key') or rule.get('id') or ''),
+        'definition_id': str(instance.get('definition_id') or stacking.get('key') or rule.get('id') or ''),
         'name': rule.get('name') or '',
         'provider_name': rule.get('provider_name') or '',
         'owner_slot': _int(instance.get('owner_slot')),
         'start_tick': _int(instance.get('start_tick')),
         'end_tick': _int(instance.get('end_tick')),
+        'stacking_mode': str(stacking.get('mode') or 'refresh'),
+        'max_stacks': max(1, _int(stacking.get('max_stacks'), 1)),
         'stack_count': int(stack_count) if stack_count.is_integer() else stack_count,
         'effects': buff_effects(instance, context),
         'display_as_line': display_as_line,
