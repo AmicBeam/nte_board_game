@@ -1388,7 +1388,38 @@ class ShaftFrontendTimelineLayoutTestCase(unittest.TestCase):
         self.assertIn('shaft-axis-mode-badge', market_card)
         self.assertIn('<span>轴长 ${formatNumber(axis.duration_seconds || 0, 1)}s</span>', market_card)
         self.assertIn('<span>环合 ${formatNumber(axis.harmony_damage || 0)}</span>', market_card)
+        self.assertIn('data-like-axis="${axis.id}"', market_card)
+        self.assertIn('data-dislike-axis="${axis.id}"', market_card)
+        self.assertIn('踩 ${axis.dislike_count || 0}', market_card)
         self.assertNotIn('<span>倾陷 ', market_card)
+
+    def test_axis_save_submits_fresh_local_result_without_server_simulation(self) -> None:
+        source = SHAFT_JS.read_text(encoding='utf-8')
+
+        save_start = source.index("async function saveAxis(conflictAction = '')")
+        save_end = source.index('async function loadMarket', save_start)
+        save_body = source[save_start:save_end]
+        self.assertIn('if (!freshResult()) {', save_body)
+        self.assertIn('await runSimulation();', save_body)
+        self.assertIn('const result = freshResult();', save_body)
+        self.assertIn('result,', save_body)
+        self.assertLess(save_body.index('await runSimulation();'), save_body.index('const payload = {'))
+
+    def test_market_dislike_uses_authenticated_toggle_and_refreshes_market(self) -> None:
+        source = SHAFT_JS.read_text(encoding='utf-8')
+
+        self.assertIn('async function toggleDislike(axisId, active)', source)
+        self.assertIn('`/api/shaft/axes/${axisId}/dislike`', source)
+        self.assertIn("const dislikeButton = event.target.closest('[data-dislike-axis]');", source)
+        self.assertIn('await toggleDislike(', source)
+
+    def test_publish_button_is_restored_after_success_or_failure(self) -> None:
+        source = SHAFT_JS.read_text(encoding='utf-8')
+        publish = source[source.index('async function publishAxis'):source.index('async function toggleLike')]
+
+        self.assertIn('} finally {', publish)
+        self.assertIn('button.disabled = false;', publish)
+        self.assertIn('button.textContent = originalLabel;', publish)
 
     def test_same_name_save_offers_rename_overwrite_or_cancel(self) -> None:
         source = SHAFT_JS.read_text(encoding='utf-8')

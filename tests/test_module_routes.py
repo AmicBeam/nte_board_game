@@ -60,6 +60,12 @@ class ModuleRoutesTest(RoomFlowTestCase):
         self.assertEqual(catalog.status_code, 200)
         self.assertTrue(catalog.is_json)
         self._assert_asset('/static/shaft/js/shaft.js')
+        shaft_axis_columns = {
+            column.name
+            for column in self.db_module.db.get_columns('shaftaxis')
+        }
+        self.assertIn('dislike_count', shaft_axis_columns)
+        self.assertTrue(self.db_module.db.table_exists('shaftaxisdislike'))
 
     def test_module_owned_files_are_not_left_in_legacy_directories(self) -> None:
         for legacy_path in (

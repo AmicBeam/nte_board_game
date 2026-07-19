@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 import re
 import shutil
 import subprocess
@@ -11,7 +12,14 @@ from typing import Any
 
 from app.db import atomic_transaction
 from app.errors import RuleValidationError
-from app.models import Player, ShaftAxis, ShaftAxisCharacter, ShaftAxisFavorite, ShaftAxisLike
+from app.models import (
+    Player,
+    ShaftAxis,
+    ShaftAxisCharacter,
+    ShaftAxisDislike,
+    ShaftAxisFavorite,
+    ShaftAxisLike,
+)
 from app.modules.shaft.domain.catalog import LEGACY_ARC_SELECTIONS, get_record_map, load_shaft_catalog
 from app.utils.logger import get_logger
 
@@ -800,6 +808,15 @@ def _is_liked(axis: ShaftAxis, player: Player | None) -> bool:
     ).exists()
 
 
+def _is_disliked(axis: ShaftAxis, player: Player | None) -> bool:
+    if player is None:
+        return False
+    return ShaftAxisDislike.select().where(
+        (ShaftAxisDislike.axis == axis) &
+        (ShaftAxisDislike.player == player)
+    ).exists()
+
+
 def _favorite_query(axis: ShaftAxis, player: Player | None, visitor_key: str):
     if player is not None:
         return ShaftAxisFavorite.select().where(
@@ -892,8 +909,10 @@ def serialize_shaft_axis(
         'total_damage': axis.total_damage,
         'dps': axis.dps_x100 / 100,
         'like_count': axis.like_count,
+        'dislike_count': axis.dislike_count,
         'favorite_count': axis.favorite_count,
         'liked': _is_liked(axis, player),
+        'disliked': _is_disliked(axis, player),
         'favorited': _is_favorited(axis, player, visitor_key),
         'is_owner': player is not None and axis.owner_id == player.id,
         'dedupe_hash': axis.dedupe_hash,
@@ -940,6 +959,34 @@ def calculate_axis_hash(axis_payload: dict[str, Any]) -> str:
     return hashlib.sha256(payload.encode('utf-8')).hexdigest()
 
 
+def _submitted_axis_result(payload: dict[str, Any], axis_payload: dict[str, Any]) -> dict[str, Any]:
+    result = payload.get('result')
+    if not isinstance(result, dict):
+        raise RuleValidationError('缺少本地计算结果，请先完成计算后再保存。')
+    summary = result.get('summary')
+    if not isinstance(summary, dict):
+        raise RuleValidationError('本地计算结果缺少伤害汇总。')
+    required_summary_fields = (
+        'duration_ticks',
+        'direct_damage',
+        'stagger_damage',
+        'total_damage',
+        'dps',
+    )
+    if any(field not in summary for field in required_summary_fields):
+        raise RuleValidationError('本地计算结果不完整，请重新计算后再保存。')
+    for field in required_summary_fields:
+        value = _num(summary.get(field), -1)
+        if not math.isfinite(value) or value < 0:
+            raise RuleValidationError('本地计算结果包含无效数值，请重新计算后再保存。')
+    try:
+        normalized_result = json.loads(_json_dumps(result))
+    except (TypeError, ValueError):
+        raise RuleValidationError('本地计算结果无法保存，请重新计算后再试。') from None
+    normalized_result['enemy'] = axis_payload['enemy']
+    return normalized_result
+
+
 def save_shaft_axis(player: Player, payload: dict[str, Any], axis_id: int | None = None) -> dict[str, Any]:
     conflict_action = str(payload.get('conflict_action') or '').strip().lower()
     if conflict_action not in {'', 'overwrite'}:
@@ -950,8 +997,7 @@ def save_shaft_axis(player: Player, payload: dict[str, Any], axis_id: int | None
         for member in axis_payload.get('team') or []
     ):
         raise RuleValidationError('伊洛伊当前仅对测试账号开放。')
-    result = _simulate_axis_with_js(axis_payload)
-    axis_payload['enemy'] = result['enemy']
+    result = _submitted_axis_result(payload, axis_payload)
     axis_payload['duration_ticks'] = _int(result['summary'].get('duration_ticks'), axis_payload['duration_ticks'])
     dedupe_hash = calculate_axis_hash(axis_payload)
     now = datetime.utcnow()
@@ -1246,12 +1292,46 @@ def set_shaft_axis_like(player: Player, axis_id: int, liked: bool) -> dict[str, 
             (ShaftAxisLike.player == player)
         ).first()
         if liked and existing is None:
+            existing_dislike = ShaftAxisDislike.select().where(
+                (ShaftAxisDislike.axis == axis) &
+                (ShaftAxisDislike.player == player)
+            ).first()
+            if existing_dislike is not None:
+                existing_dislike.delete_instance()
+                axis.dislike_count = max(0, axis.dislike_count - 1)
             ShaftAxisLike.create(axis=axis, player=player)
             axis.like_count += 1
             axis.save()
         elif not liked and existing is not None:
             existing.delete_instance()
             axis.like_count = max(0, axis.like_count - 1)
+            axis.save()
+    return serialize_shaft_axis(axis, include_axis=False, player=player)
+
+
+def set_shaft_axis_dislike(player: Player, axis_id: int, disliked: bool) -> dict[str, Any]:
+    with atomic_transaction():
+        axis = _visible_axis(axis_id, player)
+        if axis.visibility != 'public':
+            raise RuleValidationError('只能踩公开排轴。')
+        existing = ShaftAxisDislike.select().where(
+            (ShaftAxisDislike.axis == axis) &
+            (ShaftAxisDislike.player == player)
+        ).first()
+        if disliked and existing is None:
+            existing_like = ShaftAxisLike.select().where(
+                (ShaftAxisLike.axis == axis) &
+                (ShaftAxisLike.player == player)
+            ).first()
+            if existing_like is not None:
+                existing_like.delete_instance()
+                axis.like_count = max(0, axis.like_count - 1)
+            ShaftAxisDislike.create(axis=axis, player=player)
+            axis.dislike_count += 1
+            axis.save()
+        elif not disliked and existing is not None:
+            existing.delete_instance()
+            axis.dislike_count = max(0, axis.dislike_count - 1)
             axis.save()
     return serialize_shaft_axis(axis, include_axis=False, player=player)
 
