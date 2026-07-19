@@ -4,13 +4,15 @@
 
 访问 `/` 可进入仓库级工具主页，再选择具体模块。各模块的产品目标、入口、代码边界和验证方式由各自的 README 维护；根 README 只说明仓库整体结构和公共约定。
 
+工具主页同时提供项目 GitHub、静默之光和异环攻略组的外部入口，并展示网站备案号。
+
 ## 模块
 
 | 模块 | 页面入口 | 说明文档 | 用途 |
 | --- | --- | --- | --- |
 | 异象对决 | `/card-game` | [模块 README](app/modules/card_game/README.md) | 网页卡牌牌桌、构筑、图鉴与对局数据 |
 | 空幕计算 | `/kongmu` | [模块 README](app/modules/kongmu/README.md) | 角色空幕与卡带搭配计算 |
-| 预配队 | `/preteam` | [模块 README](app/modules/preteam/README.md) | 主 C、队友和属性搭配预览 |
+| 预配队 | `/preteam` | [模块 README](app/modules/preteam/README.md) | 即将下线；由排轴模块取代，当前保留主 C、队友和属性搭配预览 |
 | 排轴计算 | `/shaft` | [模块 README](app/modules/shaft/README.md) | 配装、动作轴、伤害计算与方案广场 |
 
 新增或修改模块时，应优先更新对应模块 README；只有模块索引、共享设施或全仓库约定发生变化时才更新本文件。

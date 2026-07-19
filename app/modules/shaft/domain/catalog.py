@@ -53,7 +53,10 @@ def _formula_hit_count(source_formula: Any) -> int:
     if not formula:
         return 0
     total = 0
-    for match in re.finditer(r'\{\d+\}\s*%?\s*(?:\*\s*(\d+(?:\.\d+)?))?', formula):
+    for match in re.finditer(
+        r'\{\d+\}\s*%?\s*(?:攻击力|防御力|生命上限)?\s*(?:\*\s*(\d+(?:\.\d+)?))?',
+        formula,
+    ):
         total += max(1, int(round(_num(match.group(1), 1))))
     return total
 
@@ -92,10 +95,10 @@ def _normalize_action(action: dict[str, Any]) -> dict[str, Any]:
     formula_hits = _formula_hit_count(action.get('source_formula'))
     explicit_hit_count = _num(action.get('hit_count'), -1)
     nightmare_stacks = _num(action.get('nightmare_stacks'), -1)
-    if formula_hits > 0:
-        hit_count = formula_hits
-    elif explicit_hit_count >= 0:
+    if explicit_hit_count >= 0:
         hit_count = max(0, int(round(explicit_hit_count)))
+    elif formula_hits > 0:
+        hit_count = formula_hits
     elif nightmare_stacks >= 0:
         hit_count = max(0, int(round(nightmare_stacks)))
     elif _action_has_damage(action):
@@ -176,6 +179,7 @@ def load_shaft_catalog() -> dict[str, Any]:
         },
     }
     awakenings = _load_json('awakenings.json')
+    mechanisms = _load_json('mechanisms.json')
     buffs = [
         buff for buff in _load_json('buffs.json')
         if not any(
@@ -191,7 +195,11 @@ def load_shaft_catalog() -> dict[str, Any]:
     for action in actions:
         actions_by_character.setdefault(str(action.get('character_id') or ''), []).append(action)
     for items in actions_by_character.values():
-        items.sort(key=lambda item: (str(item.get('action_type') or ''), str(item.get('name') or '')))
+        items.sort(key=lambda item: (
+            str(item.get('action_type') or '') == '无',
+            str(item.get('action_type') or ''),
+            str(item.get('name') or ''),
+        ))
     return {
         'characters': characters,
         'actions': actions,
@@ -199,6 +207,7 @@ def load_shaft_catalog() -> dict[str, Any]:
         'arcs': arcs,
         'arc_refinements': arc_refinements,
         'awakenings': awakenings,
+        'mechanisms': mechanisms,
         'buffs': buffs,
         'cartridges': cartridges,
         'formula_constants': formula_constants,

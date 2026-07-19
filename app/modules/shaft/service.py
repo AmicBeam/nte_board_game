@@ -21,6 +21,7 @@ MAX_AXIS_TITLE_LENGTH = 80
 MAX_AXIS_DESCRIPTION_LENGTH = 800
 MAX_AXIS_STEPS = 240
 MAX_BUFF_RULES = 48
+MAX_BACKGROUND_ACTION_MULTIPLIER = 999
 VISIBILITIES = frozenset({'private', 'public'})
 MARKET_SORTS = frozenset({'dps', 'likes', 'favorites', 'new'})
 DISABLED_CHARACTER_SELECTION_IDS = frozenset({'char_a01c39f576'})
@@ -275,6 +276,11 @@ def _normalize_awakening_nodes(raw_nodes: Any, legacy_awakening: Any = 0) -> lis
     return list(range(1, legacy_level + 1))
 
 
+def _cartridge_matches_character(cartridge: dict[str, Any] | None, character: dict[str, Any] | None) -> bool:
+    required_element = str((cartridge or {}).get('required_element') or '')
+    return not required_element or required_element == str((character or {}).get('element') or '')
+
+
 def _normalize_team(raw: Any, catalog: dict[str, Any]) -> list[dict[str, Any]]:
     team = raw if isinstance(raw, list) and raw else catalog['starter_axis']['team']
     characters = get_record_map(catalog['characters'])
@@ -306,6 +312,8 @@ def _normalize_team(raw: Any, catalog: dict[str, Any]) -> list[dict[str, Any]]:
         if arc and str(arc.get('adaptation') or '') != str(character.get('adaptation') or ''):
             raise RuleValidationError('角色与弧盘的适配类型不一致。')
         cartridge = cartridges.get(cartridge_id)
+        if cartridge and not _cartridge_matches_character(cartridge, character):
+            raise RuleValidationError('角色属性与卡带的属伤加成不一致。')
         awakening_nodes = _normalize_awakening_nodes(member.get('awakening_nodes'), member.get('awakening'))
         normalized.append({
             'slot': slot,
@@ -353,6 +361,9 @@ def _normalize_character_builds(raw: Any, team: list[dict[str, Any]], catalog: d
         if arc and str(arc.get('adaptation') or '') != str(characters[character_id].get('adaptation') or ''):
             arc_id = ''
         cartridge_id = str(build.get('cartridge_id') or '')
+        cartridge = cartridges.get(cartridge_id)
+        if cartridge and not _cartridge_matches_character(cartridge, characters[character_id]):
+            cartridge_id = ''
         awakening_nodes = _normalize_awakening_nodes(build.get('awakening_nodes'), build.get('awakening'))
         normalized[character_id] = {
             'character_id': character_id,
@@ -424,7 +435,11 @@ def _normalize_steps(raw: Any, catalog: dict[str, Any]) -> list[dict[str, Any]]:
             raise RuleValidationError('轴中存在未知动作。')
         start_tick = max(0, _int(step.get('start_tick')))
         placement = _normalize_step_placement(step, action)
-        repeat = max(1, min(12, _int(step.get('repeat'), 1))) if _is_background_action(action) else 1
+        repeat = (
+            max(1, min(MAX_BACKGROUND_ACTION_MULTIPLIER, _int(step.get('repeat'), 1)))
+            if _is_background_action(action)
+            else 1
+        )
         normalized_step = {
             'id': str(step.get('id') or f'step_{index + 1:03d}')[:40],
             'slot': max(0, min(3, _int(step.get('slot')))),
@@ -687,6 +702,7 @@ def get_shaft_catalog_payload(player: Player | None = None) -> dict[str, Any]:
         'arcs': catalog['arcs'],
         'arc_refinements': catalog['arc_refinements'],
         'awakenings': catalog['awakenings'],
+        'mechanisms': catalog['mechanisms'],
         'buffs': catalog['buffs'],
         'cartridges': catalog['cartridges'],
         'formula_constants': catalog['formula_constants'],

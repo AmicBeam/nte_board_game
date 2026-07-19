@@ -8,6 +8,7 @@
     'E': '#62b7ff',
     'Q': '#b28cff',
     '援护': '#ffbf57',
+    '被动': '#ff5aa5',
     '无': '#b9c6d8',
     '闪反': '#77e36f',
     '下落': '#ff7a63',
@@ -51,7 +52,9 @@
   ];
   const ZERO_ACTION_VISUAL_TICKS = 5;
   const MIN_FOREGROUND_START_GAP_TICKS = 2;
+  const MAX_BACKGROUND_ACTION_MULTIPLIER = 999;
   const TIMELINE_END_PADDING_TICKS = 10;
+  const SUBSTAT_TOTAL_TOOLTIP = 'II / III / IV 型驱动上的每个副词条分别对应 2 / 3 / 4 个词条，卡带上的副词条对应 10 个词条。只支持金色卡带、驱动块。';
   const TIMELINE_TICK_PX = 12;
   const TIMELINE_LABEL_PX = 128;
   const PREVIEW_LABEL_PX = 116;
@@ -438,7 +441,7 @@
       harmony_strength: '环合强度',
       stagger_strength: '倾陷强度',
       basic_dmg: '普攻伤害',
-      dodge_counter_dmg: '闪避反击伤害',
+      dodge_counter_dmg: '闪反增伤',
       skill_dmg: '变轨技伤害',
       ultimate_dmg: '终结技伤害',
       follow_dmg: '追击伤害',
@@ -447,6 +450,7 @@
       element_dmg: '属性伤害',
       all_dmg: '伤害',
       final_dmg: '最终伤害',
+      base_multiplier_pct: '基础倍率',
     };
     return labels[key] || (String(key).startsWith('res_down_') ? `${String(key).slice('res_down_'.length)}属性抗性降低` : '');
   }
@@ -476,6 +480,7 @@
     if (trigger.event === 'action_hit') return actionLabel ? `${actionLabel}命中后` : '攻击命中后';
     if (trigger.event === 'action_end') return actionLabel ? `${actionLabel}结束后` : '动作结束后';
     if (trigger.event === 'action_start') return actionLabel ? `施放${actionLabel}时` : '满足动作条件时';
+    if (trigger.event === 'full_stack') return '叠满层时';
     return '';
   }
 
@@ -538,7 +543,24 @@
     };
     const awakeningNodes = new Set(normalizeAwakeningNodes(member?.awakening_nodes, member?.awakening));
     const rulesByKind = { character: [], arc: [], cartridge: [] };
+    const characterMechanisms = (state.catalog?.mechanisms || [])
+      .filter((mechanism) => String(mechanism?.character_id || '') === selectedProviders.character)
+      .filter((mechanism) => (mechanism?.conditions || []).every(
+        (condition) => mechanismConfigurationConditionMatches(condition, member, awakeningNodes)
+      ));
+    const replacedRuleIds = new Set(characterMechanisms.flatMap(
+      (mechanism) => mechanism?.replaces_rule_ids || []
+    ).map(String));
+    characterMechanisms.forEach((mechanism) => {
+      rulesByKind.character.push({
+        ...clone(mechanism),
+        name: `天赋${mechanism.talent === 1 ? '一' : '二'} · ${mechanism.name || '未命名'}`,
+      });
+    });
     (state.catalog?.buffs || []).forEach((rule) => {
+      if (replacedRuleIds.has(String(rule?.id || ''))) {
+        return;
+      }
       const provider = (rule?.providers || []).find((item) => {
         const kind = String(item?.kind || '');
         return Object.prototype.hasOwnProperty.call(selectedProviders, kind) &&
@@ -974,7 +996,14 @@
     }, null);
     const snapshot = (latestDetail?.resources_after_by_slot || [])
       .find((item) => Number(item.slot) === slotNumber) || {};
-    const energy = Number(snapshot.energy ?? resource.initial_energy ?? state.axis?.initial_energy ?? 1000);
+    const calculationCursorTick = calculationTickFromVisual(cursorTick);
+    const latestEnergyEvent = (result?.energy_events || []).reduce((latest, event) => {
+      if (Number(event.slot) !== slotNumber || Number(event.tick || 0) > calculationCursorTick) {
+        return latest;
+      }
+      return event;
+    }, null);
+    const energy = Number(latestEnergyEvent?.energy_after ?? resource.initial_energy ?? snapshot.energy ?? state.axis?.initial_energy ?? 1000);
     const harmony = Number(snapshot.harmony ?? resource.initial_harmony ?? 0);
     const personalResources = snapshot.personal_resources && typeof snapshot.personal_resources === 'object'
       ? snapshot.personal_resources
@@ -1023,7 +1052,9 @@
   }
 
   function backgroundActionMultiplier(step, action = actionForStep(step)) {
-    return isBackgroundAction(action) ? Math.max(1, Math.min(12, Math.round(Number(step?.repeat || 1)))) : 1;
+    return isBackgroundAction(action)
+      ? Math.max(1, Math.min(MAX_BACKGROUND_ACTION_MULTIPLIER, Math.round(Number(step?.repeat || 1))))
+      : 1;
   }
 
   function isBasicAction(action) {
@@ -1542,6 +1573,22 @@
     updateMemberNames(member);
   }
 
+  function cartridgesForCharacter(characterId) {
+    const element = String(getCharacterMap().get(characterId)?.element || '');
+    return (state.catalog?.cartridges || []).filter((cartridge) => {
+      const requiredElement = String(cartridge.required_element || '');
+      return !requiredElement || requiredElement === element;
+    });
+  }
+
+  function ensureMemberCompatibleCartridge(member) {
+    const compatibleCartridges = cartridgesForCharacter(member?.character_id);
+    if (!compatibleCartridges.some((cartridge) => cartridge.id === member?.cartridge_id)) {
+      member.cartridge_id = compatibleCartridges[0]?.id || '';
+    }
+    updateMemberNames(member);
+  }
+
   function slotOptions(selected) {
     return (state.axis?.team || []).map((member) => `
       <option value="${member.slot}" ${Number(member.slot) === Number(selected) ? 'selected' : ''}>
@@ -1630,6 +1677,10 @@
     }
     const legacyLevel = Math.max(0, Math.min(6, Math.round(Number(legacyAwakening || 0))));
     return Array.from({ length: legacyLevel }, (_, index) => index + 1);
+  }
+
+  function activeAwakeningCount(member) {
+    return normalizeAwakeningNodes(member?.awakening_nodes, member?.awakening).length;
   }
 
   function buildSnapshotFromMember(member) {
@@ -1809,6 +1860,7 @@
         applyBuildToMember(member, state.axis.character_builds[member.character_id]);
       }
       ensureMemberCompatibleArc(member);
+      ensureMemberCompatibleCartridge(member);
       rememberMemberBuild(member);
     });
     syncSelection(true);
@@ -1831,6 +1883,7 @@
       summary: clone(result.summary || {}),
       damage_by_slot: clone(result.damage_by_slot || []),
       damage_by_action_by_slot: clone(result.damage_by_action_by_slot || []),
+      harmony_contributions_by_slot: clone(result.harmony_contributions_by_slot || []),
     };
     renderResults();
     if ($('shaft-action-contribution-dialog')?.open) {
@@ -1878,12 +1931,6 @@
 
   function setSimulationBusy(busy) {
     state.simulationInFlight = Boolean(busy);
-    const button = $('shaft-run-btn');
-    if (!button) {
-      return;
-    }
-    button.disabled = state.simulationInFlight;
-    button.textContent = state.simulationInFlight ? '计算中' : '计算';
   }
 
   function setPage(page, push = true) {
@@ -1902,6 +1949,10 @@
     const shortcutHelpButton = $('shaft-shortcut-help-btn');
     if (shortcutHelpButton) {
       shortcutHelpButton.hidden = state.page !== 'rotation';
+    }
+    const buildInfoButton = $('shaft-build-info-btn');
+    if (buildInfoButton) {
+      buildInfoButton.hidden = state.page !== 'build';
     }
     if (push) {
       window.history.replaceState({}, '', `/shaft/${state.page}`);
@@ -1926,12 +1977,12 @@
   function renderTeam() {
     const container = $('shaft-team-slots');
     const characters = state.catalog.characters || [];
-    const cartridges = state.catalog.cartridges || [];
     const substatUnits = state.catalog.formula_constants.substat_units || {};
     const characterMap = getCharacterMap();
     container.innerHTML = (state.axis.team || []).map((member) => {
       const character = characterMap.get(member.character_id) || {};
       const compatibleArcs = arcsForCharacter(member.character_id);
+      const compatibleCartridges = cartridgesForCharacter(member.character_id);
       const arcRefinement = clampArcRefinement(member.arc_refinement, member.arc_id);
       const bondLabel = character.bond_bonus?.label || '满羁绊';
       const activeAwakeningNodes = new Set(normalizeAwakeningNodes(member.awakening_nodes, member.awakening));
@@ -2082,7 +2133,7 @@
               <label class="shaft-cartridge-select">
                 <span>卡带</span>
                 <select data-slot="${member.slot}" data-field="cartridge_id">
-                  ${optionHtml(cartridges, member.cartridge_id)}
+                  ${optionHtml(compatibleCartridges, member.cartridge_id)}
                 </select>
               </label>
               <label class="shaft-main-stat-select">
@@ -2103,7 +2154,14 @@
             <div class="shaft-substat-head">
               <div>
                 <span>副词条</span>
-                <strong>${formatNumber(substatUsed, 0)}/120</strong>
+                <span
+                  class="shaft-substat-total-tooltip"
+                  data-tooltip="${escapeHtml(SUBSTAT_TOTAL_TOOLTIP)}"
+                  tabindex="0"
+                  aria-label="副词条 ${formatNumber(substatUsed, 0)}/120。${escapeHtml(SUBSTAT_TOTAL_TOOLTIP)}"
+                >
+                  <strong>${formatNumber(substatUsed, 0)}/120</strong>
+                </span>
               </div>
               <em>单项 0-30 B</em>
             </div>
@@ -2156,10 +2214,11 @@
     dock.innerHTML = (state.axis.team || []).map((member) => {
       const selected = Number(member.slot) === Number(state.librarySlot) ? 'active' : '';
       const color = SLOT_COLORS[Number(member.slot) % SLOT_COLORS.length];
+      const awakeningCount = activeAwakeningCount(member);
       return `
-        <button class="shaft-operator-card ${selected}" data-dock-slot="${member.slot}" type="button" style="--slot-color:${color}" title="${Number(member.slot) + 1} · ${escapeHtml(member.character_name)}">
+        <button class="shaft-operator-card ${selected}" data-dock-slot="${member.slot}" type="button" style="--slot-color:${color}" title="${escapeHtml(member.character_name)} · 已激活 ${awakeningCount} 个觉醒">
           <img src="${escapeHtml(member.character_avatar || '')}" alt="">
-          <b>${Number(member.slot) + 1}</b>
+          <b aria-label="已激活 ${awakeningCount} 个觉醒">${awakeningCount}</b>
         </button>
       `;
     }).join('');
@@ -2328,7 +2387,8 @@
         </div>
       `;
     }
-    renderResultCard('shaft-direct-damage', '直伤', summary.direct_damage || 0, compareSummary?.direct_damage, summary.total_damage || 0);
+    renderResultCard('shaft-direct-damage', '角色伤害', summary.character_damage || 0, compareSummary?.character_damage, summary.total_damage || 0);
+    renderResultCard('shaft-harmony-damage', '环合伤害', summary.harmony_damage || 0, compareSummary?.harmony_damage, summary.total_damage || 0);
     renderResultCard('shaft-stagger-damage', '倾陷伤害', summary.stagger_damage || 0, compareSummary?.stagger_damage, summary.total_damage || 0);
     renderResultCard('shaft-total-damage', '总伤', summary.total_damage || 0, compareSummary?.total_damage, summary.total_damage || 0);
     renderResultCard('shaft-dps', 'DPS', summary.dps || 0, compareSummary?.dps, null);
@@ -2341,15 +2401,35 @@
         <button class="secondary-btn shaft-action-contribution-btn" data-action-contribution-slot="${Number(item.slot)}" type="button" ${Number(item.damage || 0) > 0 ? '' : 'disabled'}>分析详情</button>
       </div>
     `).join('');
-    const sourceRows = (result?.damage_by_source || []).map((item) => `
+    const independentRows = [
+      {
+        label: '环合伤害',
+        damage: Number(summary.harmony_damage || 0),
+        percent: Number(summary.total_damage || 0) > 0
+          ? Number(summary.harmony_damage || 0) / Number(summary.total_damage) * 100
+          : 0,
+        color: DAMAGE_SOURCE_COLORS['创生'],
+        trigger: 'data-open-harmony-analysis',
+      },
+      {
+        label: '倾陷伤害',
+        damage: Number(summary.stagger_damage || 0),
+        percent: Number(summary.total_damage || 0) > 0
+          ? Number(summary.stagger_damage || 0) / Number(summary.total_damage) * 100
+          : 0,
+        color: DAMAGE_SOURCE_COLORS['倾陷'],
+        trigger: 'data-open-stagger-analysis',
+      },
+    ].map((item) => `
       <div class="shaft-contribution-row shaft-contribution-source-row">
-        <span>${escapeHtml(item.source)}</span>
-        <div class="shaft-contribution-bar"><span style="width: ${Math.max(0, Math.min(100, Number(item.percent || 0)))}%; --contribution-color:${DAMAGE_SOURCE_COLORS[item.source] || '#b9c6d8'}"></span></div>
+        <span>${escapeHtml(item.label)}</span>
+        <div class="shaft-contribution-bar"><span style="width: ${Math.max(0, Math.min(100, item.percent))}%; --contribution-color:${item.color}"></span></div>
         <span>${formatNumber(item.percent || 0, 1)}%</span>
+        <button class="secondary-btn shaft-action-contribution-btn" ${item.trigger} type="button" aria-haspopup="dialog" ${item.damage > 0 ? '' : 'disabled'}>分析详情</button>
       </div>
     `).join('');
-    $('shaft-contribution-list').innerHTML = (characterRows || sourceRows)
-      ? `${characterRows}${sourceRows}`
+    $('shaft-contribution-list').innerHTML = (characterRows || independentRows)
+      ? `${characterRows}${independentRows}`
       : '<div class="shaft-empty">点击计算刷新结果</div>';
     renderBuildPanel();
     renderWorkbenchSummary();
@@ -2426,15 +2506,34 @@
       groups.set(label, current);
     });
     const total = Number(contribution?.total_damage || 0);
-    return Array.from(groups.values())
+    const sortedGroups = Array.from(groups.values())
       .filter((item) => item.damage > 0)
-      .sort((left, right) => right.damage - left.damage || left.label.localeCompare(right.label, 'zh-CN'))
-      .map((item, index) => ({
+      .sort((left, right) => right.damage - left.damage || left.label.localeCompare(right.label, 'zh-CN'));
+    const reservedColors = new Set(
+      sortedGroups
+        .map((item) => ACTION_TYPE_COLORS[item.label])
+        .filter(Boolean),
+    );
+    const fallbackColors = [
+      ...ACTION_CONTRIBUTION_COLORS.filter((color) => !reservedColors.has(color)),
+      ...ACTION_CONTRIBUTION_COLORS.filter((color) => reservedColors.has(color)),
+    ];
+    const assignedColors = new Set();
+    return sortedGroups.map((item) => {
+      let color = ACTION_TYPE_COLORS[item.label];
+      if (color && assignedColors.has(color)) color = '';
+      if (!color) {
+        color = fallbackColors.find((candidate) => !assignedColors.has(candidate));
+      }
+      color ||= ACTION_CONTRIBUTION_COLORS[assignedColors.size % ACTION_CONTRIBUTION_COLORS.length];
+      assignedColors.add(color);
+      return {
         ...item,
         detail: `${item.actionCount} 个动作`,
         percent: total > 0 ? item.damage / total * 100 : 0,
-        color: ACTION_TYPE_COLORS[item.label] || ACTION_CONTRIBUTION_COLORS[index % ACTION_CONTRIBUTION_COLORS.length],
-      }));
+        color,
+      };
+    });
   }
 
   function mergeActionAnalysisComparison(currentGroups, baselineGroups) {
@@ -2478,6 +2577,20 @@
     const numeric = Number(value || 0);
     if (Math.abs(numeric) < 0.005) return '';
     return numeric > 0 ? 'is-up' : 'is-down';
+  }
+
+  function actionAnalysisRelativePercent(current, baseline) {
+    const currentDamage = Number(current || 0);
+    const baselineDamage = Number(baseline || 0);
+    if (baselineDamage <= 0) return currentDamage > 0 ? null : 0;
+    return (currentDamage - baselineDamage) / baselineDamage * 100;
+  }
+
+  function actionAnalysisRelativePercentText(current, baseline) {
+    const relativePercent = actionAnalysisRelativePercent(current, baseline);
+    return relativePercent === null
+      ? '新增'
+      : actionAnalysisDeltaText(relativePercent, 1, '%');
   }
 
   function polarPoint(radius, angle) {
@@ -2606,7 +2719,10 @@
         <div class="shaft-action-analysis-snapshot">
           <div>
             <span>对比快照 · ${escapeHtml(snapshotTime)}</span>
-            <strong>${formatNumber(baselineContribution.total_damage || 0)} → ${formatNumber(contribution.total_damage || 0)}</strong>
+            <strong>
+              ${formatNumber(baselineContribution.total_damage || 0)} → ${formatNumber(contribution.total_damage || 0)}
+              <small class="shaft-action-analysis-relative ${actionAnalysisDeltaTone(totalDelta)}">${actionAnalysisRelativePercentText(contribution.total_damage, baselineContribution.total_damage)}</small>
+            </strong>
           </div>
           <b class="${actionAnalysisDeltaTone(totalDelta)}">${actionAnalysisDeltaText(totalDelta)}</b>
           <small>排行图中的竖线表示快照占比</small>
@@ -2641,7 +2757,10 @@
                 <b>${escapeHtml(group.label)}${group.isNew ? ' · 新增' : ''}${group.isRemoved ? ' · 已移除' : ''}</b>
                 <small>${escapeHtml(group.detail || '')}${hasComparison ? ` · 快照 ${formatNumber(group.baselineDamage || 0)}` : ''}</small>
               </span>
-              <strong>${formatNumber(group.damage || 0)}</strong>
+              <strong>
+                ${formatNumber(group.damage || 0)}
+                ${hasComparison ? `<small class="shaft-action-analysis-relative ${actionAnalysisDeltaTone(group.damageDelta)}">${actionAnalysisRelativePercentText(group.damage, group.baselineDamage)}</small>` : ''}
+              </strong>
               <em>
                 ${formatNumber(group.percent || 0, 1)}%
                 ${hasComparison ? `<small class="${actionAnalysisDeltaTone(group.percentDelta)}">${actionAnalysisDeltaText(group.percentDelta, 1, 'pp')}</small>` : ''}
@@ -2700,6 +2819,129 @@
     }
   }
 
+  function renderStaggerAnalysis() {
+    const content = $('shaft-stagger-analysis-content');
+    const result = freshResult();
+    if (!content || !result) {
+      return;
+    }
+    const summary = result.summary || {};
+    const contributions = (result.stagger_contributions_by_slot || [])
+      .slice()
+      .sort((left, right) => Number(right.damage || 0) - Number(left.damage || 0));
+    if (!contributions.length || Number(summary.stagger_damage || 0) <= 0) {
+      content.innerHTML = '<div class="shaft-empty">当前轴没有产生倾陷伤害</div>';
+      return;
+    }
+    content.innerHTML = `
+      <div class="shaft-stagger-analysis-note">倾陷伤害独立计入全队总伤和 DPS，不计入角色自身伤害占比或动作贡献。</div>
+      <div class="shaft-action-analysis-kpis shaft-stagger-analysis-kpis">
+        <div><span>倾陷总伤</span><strong>${formatNumber(summary.stagger_damage || 0)}</strong></div>
+        <div><span>单次倾陷</span><strong>${formatNumber(summary.stagger_damage_per_trigger || 0)}</strong></div>
+        <div><span>倾陷频率</span><strong>${formatNumber(summary.stagger_frequency || 0, 3)}</strong><small>本轴期望触发次数</small></div>
+        <div><span>恢复时间</span><strong>${formatNumber(summary.stagger_recovery_seconds || 0, 1)}s</strong><small>全轴倾陷 ${formatNumber(summary.total_stagger || 0, 1)}</small></div>
+      </div>
+      <div class="shaft-stagger-contribution-list">
+        ${contributions.map((item) => `
+          <article class="shaft-stagger-contribution-card" style="--stagger-color:${SLOT_COLORS[Number(item.slot) % SLOT_COLORS.length]}">
+            <div class="shaft-stagger-contribution-head">
+              <div>
+                <span>${escapeHtml(item.character_name || memberName(item.slot))}</span>
+                <strong>${formatNumber(item.damage || 0)}</strong>
+              </div>
+              <b>${formatNumber(item.percent || 0, 1)}%</b>
+            </div>
+            <div class="shaft-stagger-contribution-meter"><span style="width:${Math.max(0, Math.min(100, Number(item.percent || 0)))}%"></span></div>
+            <dl>
+              <div><dt>单次贡献</dt><dd>${formatNumber(item.damage_per_trigger || 0)}</dd></div>
+              <div><dt>平均倾陷强度</dt><dd>${formatNumber(item.average_stagger_strength || 0, 1)}</dd></div>
+              <div><dt>平均穿防</dt><dd>${formatNumber(Number(item.average_def_ignore || 0) * 100, 1)}%</dd></div>
+              <div><dt>平均减防 / 减抗</dt><dd>${formatNumber(Number(item.average_def_down || 0) * 100, 1)}% / ${formatNumber(Number(item.average_res_down || 0) * 100, 1)}%</dd></div>
+            </dl>
+          </article>
+        `).join('')}
+      </div>
+    `;
+  }
+
+  function renderHarmonyAnalysis() {
+    const content = $('shaft-harmony-analysis-content');
+    const result = freshResult();
+    if (!content || !result) return;
+    const summary = result.summary || {};
+    const contributions = (result.harmony_contributions_by_slot || [])
+      .filter((item) => Number(item.damage || 0) > 0)
+      .slice()
+      .sort((left, right) => Number(right.damage || 0) - Number(left.damage || 0));
+    if (!contributions.length || Number(summary.harmony_damage || 0) <= 0) {
+      content.innerHTML = '<div class="shaft-empty">当前轴没有产生环合伤害</div>';
+      return;
+    }
+    content.innerHTML = `
+      <div class="shaft-stagger-analysis-note">环合伤害独立计入全队总伤和 DPS，不计入角色自身伤害占比或动作贡献。</div>
+      <div class="shaft-action-analysis-kpis shaft-stagger-analysis-kpis">
+        <div><span>环合总伤</span><strong>${formatNumber(summary.harmony_damage || 0)}</strong></div>
+        <div><span>环合类型</span><strong>${new Set(contributions.flatMap((item) => (item.sources || []).map((source) => source.source))).size}</strong></div>
+        <div><span>贡献角色</span><strong>${contributions.length}</strong></div>
+        <div><span>占全队总伤</span><strong>${formatNumber(Number(summary.harmony_damage || 0) / Math.max(Number(summary.total_damage || 0), 1) * 100, 1)}%</strong></div>
+      </div>
+      <div class="shaft-stagger-contribution-list">
+        ${contributions.map((item) => `
+          <article class="shaft-stagger-contribution-card" style="--stagger-color:${SLOT_COLORS[Number(item.slot) % SLOT_COLORS.length]}">
+            <div class="shaft-stagger-contribution-head">
+              <div><span>${escapeHtml(item.character_name || memberName(item.slot))}</span><strong>${formatNumber(item.damage || 0)}</strong></div>
+              <b>${formatNumber(item.percent || 0, 1)}%</b>
+            </div>
+            <div class="shaft-stagger-contribution-meter"><span style="width:${Math.max(0, Math.min(100, Number(item.percent || 0)))}%"></span></div>
+            <dl class="shaft-harmony-source-list">
+              ${(item.sources || []).map((source) => `
+                <div><dt>${escapeHtml(source.source)}</dt><dd>${formatNumber(source.damage || 0)} · ${formatNumber(source.percent || 0, 1)}%</dd></div>
+              `).join('')}
+            </dl>
+          </article>
+        `).join('')}
+      </div>
+    `;
+  }
+
+  function openHarmonyAnalysis(trigger = null) {
+    const dialog = $('shaft-harmony-analysis-dialog');
+    if (!dialog || Number(freshResult()?.summary?.harmony_damage || 0) <= 0) return;
+    renderHarmonyAnalysis();
+    dialog._returnFocus = trigger;
+    dialog.showModal();
+  }
+
+  function closeHarmonyAnalysis() {
+    const dialog = $('shaft-harmony-analysis-dialog');
+    if (!dialog?.open) return;
+    const returnFocus = dialog._returnFocus;
+    dialog.close();
+    if (returnFocus?.isConnected) returnFocus.focus();
+  }
+
+  function openStaggerAnalysis(trigger = null) {
+    const dialog = $('shaft-stagger-analysis-dialog');
+    if (!dialog || Number(freshResult()?.summary?.stagger_damage || 0) <= 0) {
+      return;
+    }
+    renderStaggerAnalysis();
+    dialog._returnFocus = trigger;
+    dialog.showModal();
+  }
+
+  function closeStaggerAnalysis() {
+    const dialog = $('shaft-stagger-analysis-dialog');
+    if (!dialog?.open) {
+      return;
+    }
+    const returnFocus = dialog._returnFocus;
+    dialog.close();
+    if (returnFocus?.isConnected) {
+      returnFocus.focus();
+    }
+  }
+
   function openShortcutHelp() {
     const dialog = $('shaft-shortcut-dialog');
     if (dialog && !dialog.open) {
@@ -2712,6 +2954,21 @@
     if (dialog?.open) {
       dialog.close();
       $('shaft-shortcut-help-btn')?.focus();
+    }
+  }
+
+  function openBuildInfo() {
+    const dialog = $('shaft-build-info-dialog');
+    if (dialog && !dialog.open) {
+      dialog.showModal();
+    }
+  }
+
+  function closeBuildInfo() {
+    const dialog = $('shaft-build-info-dialog');
+    if (dialog?.open) {
+      dialog.close();
+      $('shaft-build-info-btn')?.focus();
     }
   }
 
@@ -2899,10 +3156,18 @@
   }
 
   function handleContributionClick(event) {
-    const button = event.target.closest('[data-action-contribution-slot]');
-    if (button) {
-      openActionContribution(Number(button.dataset.actionContributionSlot), button);
+    const actionButton = event.target.closest('[data-action-contribution-slot]');
+    if (actionButton) {
+      openActionContribution(Number(actionButton.dataset.actionContributionSlot), actionButton);
+      return;
     }
+    const harmonyButton = event.target.closest('[data-open-harmony-analysis]');
+    if (harmonyButton) {
+      openHarmonyAnalysis(harmonyButton);
+      return;
+    }
+    const staggerButton = event.target.closest('[data-open-stagger-analysis]');
+    if (staggerButton) openStaggerAnalysis(staggerButton);
   }
 
   function renderSelfCheck() {
@@ -2987,10 +3252,11 @@
     const avatarButtons = team.map((item) => {
       const active = Number(item.slot) === Number(state.buildPanelSlot) ? 'active' : '';
       const color = SLOT_COLORS[Number(item.slot) % SLOT_COLORS.length];
+      const awakeningCount = activeAwakeningCount(item);
       return `
-        <button class="shaft-panel-avatar ${active}" data-build-panel-slot="${item.slot}" type="button" style="--slot-color:${color}" title="${Number(item.slot) + 1} · ${escapeHtml(item.character_name)}">
+        <button class="shaft-panel-avatar ${active}" data-build-panel-slot="${item.slot}" type="button" style="--slot-color:${color}" title="${escapeHtml(item.character_name)} · 已激活 ${awakeningCount} 个觉醒">
           <img src="${escapeHtml(item.character_avatar || '')}" alt="">
-          <b>${Number(item.slot) + 1}</b>
+          <b aria-label="已激活 ${awakeningCount} 个觉醒">${awakeningCount}</b>
         </button>
       `;
     }).join('');
@@ -3123,7 +3389,7 @@
   }
 
   function shouldDrawBuffLine(buff) {
-    if (!buff || isUnlinedBuff(buff)) {
+    if (!buff || buff.cancelled || isUnlinedBuff(buff)) {
       return false;
     }
     return buff.display_as_line !== false;
@@ -3202,6 +3468,15 @@
           name,
           startTick,
           endTick,
+          calculationStartTick: Number(
+            buff?.start_tick ?? calculationTickFromVisual(startTick),
+          ),
+          calculationEndTick: Number(
+            buff?.end_tick ?? calculationTickFromVisual(endTick),
+          ),
+          loopDurationTicks: loopEnabled
+            ? Math.max(1, calculationTickFromVisual(Number(axisEndTick || 0)))
+            : 0,
           durationTicks: Math.max(1, Number(buff?.duration_ticks ?? endTick - startTick)),
           segments,
           stackCount: buff?.stack_count ?? 1,
@@ -3241,14 +3516,30 @@
     return value > 1 ? ` · ${formatNumber(value, Number.isInteger(value) ? 0 : 1)}层` : '';
   }
 
+  function buffRemainingTicksAtCalculationTick(buff, pointerCalculationTick) {
+    const calculationStartTick = Number(
+      buff?.calculationStartTick ?? calculationTickFromVisual(Number(buff?.startTick || 0)),
+    );
+    const calculationEndTick = Number(
+      buff?.calculationEndTick ?? calculationTickFromVisual(Number(buff?.endTick || 0)),
+    );
+    const loopDurationTicks = Math.max(0, Number(buff?.loopDurationTicks || 0));
+    let effectivePointerTick = Number(pointerCalculationTick || 0);
+    if (loopDurationTicks > 0 && effectivePointerTick < calculationStartTick) {
+      const cycles = Math.ceil((calculationStartTick - effectivePointerTick) / loopDurationTicks);
+      effectivePointerTick += cycles * loopDurationTicks;
+    }
+    return Math.max(0, calculationEndTick - effectivePointerTick);
+  }
+
   function buffTooltipText(buff, atVisualTick = buff.startTick) {
     const stackText = buffStackText(buff.stackCount);
     const durationTicks = Math.max(1, Number(buff.durationTicks || 1));
     const durationText = durationTicks > BUFF_DURATION_LABEL_LIMIT_TICKS
       ? ''
-      : ` · 剩余${ticksToSeconds(Math.max(
-        0,
-        calculationTickFromVisual(Number(buff.endTick || 0)) - calculationTickFromVisual(Number(atVisualTick || 0)),
+      : ` · 剩余${ticksToSeconds(buffRemainingTicksAtCalculationTick(
+        buff,
+        calculationTickFromVisual(Number(atVisualTick || 0)),
       ))}s`;
     return `${buff.name}${durationText}${stackText}`;
   }
@@ -3278,6 +3569,14 @@
         );
         current.startTick = Math.max(Number(current.startTick || 0), Number(buff.startTick || 0));
         current.endTick = Math.max(Number(current.endTick || 0), Number(buff.endTick || 0));
+        current.calculationStartTick = Math.max(
+          Number(current.calculationStartTick || 0),
+          Number(buff.calculationStartTick || 0),
+        );
+        current.calculationEndTick = Math.max(
+          Number(current.calculationEndTick || 0),
+          Number(buff.calculationEndTick || 0),
+        );
         current.durationTicks = Math.max(1, Math.max(Number(current.durationTicks || 1), Number(buff.durationTicks || 1)));
         return;
       }
@@ -3305,6 +3604,9 @@
               name: buff.name,
               startTick: Number(segment.startTick || 0),
               endTick: Number(segment.endTick || 0),
+              calculationStartTick: Number(buff.calculationStartTick || 0),
+              calculationEndTick: Number(buff.calculationEndTick || 0),
+              loopDurationTicks: Math.max(0, Number(buff.loopDurationTicks || 0)),
               durationTicks: Math.max(1, Number(buff.durationTicks || 1)),
               stackCount: buffStackValue(buff.stackCount),
               stackingMode: String(buff.stackingMode || ''),
@@ -3357,6 +3659,9 @@
           id: buff.id,
           name: buff.name,
           endTick: buff.endTick,
+          calculationStartTick: buff.calculationStartTick,
+          calculationEndTick: buff.calculationEndTick,
+          loopDurationTicks: buff.loopDurationTicks,
           durationTicks: buff.durationTicks,
           stackCount: buff.stackCount,
           stackingMode: buff.stackingMode,
@@ -3397,7 +3702,10 @@
       const colors = Array.from(new Set(active.map((segment) => String(segment.color || '')).filter(Boolean)));
       const tooltipItems = Array.from(new Map(active
         .flatMap((segment) => Array.isArray(segment.tooltipItems) ? segment.tooltipItems : [])
-        .map((item) => [`${item.id}:${item.endTick}:${buffStackKey(item.stackCount)}`, item]))
+        .map((item) => [
+          `${item.id}:${item.calculationStartTick}:${item.calculationEndTick}:${buffStackKey(item.stackCount)}`,
+          item,
+        ]))
         .values());
       const key = JSON.stringify({ buffIds: buffIds.slice().sort(), tooltipLines: tooltipLines.slice().sort(), colors: colors.slice().sort() });
       const previous = merged[merged.length - 1];
@@ -3507,6 +3815,9 @@
   }
 
   function damageMarkerTooltip(event) {
+    if (Array.isArray(event?.events)) {
+      return event.events.map((item) => damageMarkerTooltip(item)).join('\n');
+    }
     const formula = event?.formula_parts || {};
     const isPeriodicDamage = Boolean(event?.kind);
     const zones = [];
@@ -3526,6 +3837,9 @@
     } else {
       addZone('环合强度', formula.strength);
       if (Number(formula.damage_scale) !== 1) addZone('复制倍率', formula.damage_scale);
+      if (Number(formula.frequency_multiplier || 1) > 1) {
+        addZone('九原频率乘区', formula.frequency_multiplier);
+      }
       if (String(event?.reaction || '') !== '黯星') addZone('防御', formula.defense);
       if (String(event?.reaction || '') === '浊燃') addZone('暴击', formula.critical);
       addZone('抗性', formula.resistance);
@@ -3535,6 +3849,30 @@
     return zones.length ? `${heading}\n乘区　${zones.join('　')}` : heading;
   }
 
+  function groupedTimelineDamageEvents(events) {
+    const groups = new Map();
+    (events || []).forEach((event) => {
+      const tick = Number(event?.visual_tick ?? event?.tick ?? 0);
+      const key = `${Number(event?.contributor_slot)}:${tick}`;
+      const group = groups.get(key) || {
+        contributor_slot: Number(event?.contributor_slot),
+        tick: Number(event?.tick ?? 0),
+        visual_tick: tick,
+        events: [],
+      };
+      group.events.push(event);
+      groups.set(key, group);
+    });
+    return Array.from(groups.values()).map((group) => {
+      const primary = group.events.find((event) => !event?.kind) || group.events[0] || {};
+      return {
+        ...group,
+        reaction: primary.reaction,
+        kind: group.events.every((event) => Boolean(event?.kind)) ? 'periodic_group' : '',
+      };
+    });
+  }
+
   function renderTimeline() {
     const drag = state.dragState || null;
     const result = timelineResult();
@@ -3542,6 +3880,7 @@
     const periodicDamageEvents = result?.periodic_damage_events || [];
     const reactionDamageEvents = result?.reaction_damage_events || [];
     const timelineDamageEvents = [...reactionDamageEvents, ...periodicDamageEvents];
+    const groupedDamageEvents = groupedTimelineDamageEvents(timelineDamageEvents);
     const usesDragPreviewResult = Boolean(drag?.previewResult && result === drag.previewResult);
     const usesStaleResult = Boolean(state.isResultStale && state.result && result === state.result);
     const resultDetails = result?.details || [];
@@ -3645,7 +3984,7 @@
         ),
       }));
     state.timelineDisplayDetails = details;
-    const periodicBuffDetails = periodicDamageEvents
+    const damageTriggeredBuffDetails = [...reactionDamageEvents, ...periodicDamageEvents]
       .filter((event) => Number(event.visual_tick ?? event.tick ?? 0) <= displayCutoffTick)
       .filter((event) => Array.isArray(event?.triggered_buffs) && event.triggered_buffs.length)
       .map((event) => {
@@ -3658,7 +3997,7 @@
           triggered_buffs: event.triggered_buffs,
         };
       });
-    const buffTimelineDetails = [...details, ...periodicBuffDetails];
+    const buffTimelineDetails = [...details, ...damageTriggeredBuffDetails];
     const loopEnabled = Boolean(state.axis?.options?.loop_enabled);
     const actionAxisEndTick = foregroundAxisEndTick;
     const buffAxisEndTick = loopEnabled
@@ -3805,7 +4144,7 @@
         let laneIndex = 0;
         if (detail.is_background_damage) {
           const backgroundLaneLimit = Math.max(1, MAX_VISUAL_LANES_PER_SLOT - 1);
-          let backgroundLaneIndex = backgroundLaneEnds.findIndex((endPx) => startPx >= endPx + 6);
+          let backgroundLaneIndex = backgroundLaneEnds.findIndex((endPx) => startPx >= endPx);
           if (backgroundLaneIndex < 0) {
             if (backgroundLaneEnds.length < backgroundLaneLimit) {
               backgroundLaneIndex = backgroundLaneEnds.length;
@@ -3850,6 +4189,11 @@
                 id: effect.id,
                 name: effect.reaction,
                 endTick: segment.endTick,
+                calculationStartTick: Number(effect.start_tick || 0),
+                calculationEndTick: Number(effect.end_tick || 0),
+                loopDurationTicks: loopEnabled
+                  ? Math.max(1, calculationTickFromVisual(Number(buffAxisEndTick || 0)))
+                  : 0,
                 durationTicks: effect.duration_ticks,
                 stackCount: 1,
               }],
@@ -3882,7 +4226,7 @@
           ></span>
         `;
       }).join('');
-      const reactionDamageMarkers = timelineDamageEvents
+      const reactionDamageMarkers = groupedDamageEvents
         .filter((event) => (
           Number(event.contributor_slot) === Number(member.slot)
           && Number(event.visual_tick ?? event.tick ?? 0) <= displayCutoffTick
@@ -3948,6 +4292,35 @@
     });
   }
 
+  function actionPanelParticipation(action, detail, slot) {
+    const multipliers = action?.multipliers || {};
+    const usesAttack = Number(multipliers.atk || 0) !== 0;
+    const usesHp = Number(multipliers.hp || 0) !== 0;
+    const usesDefense = Number(multipliers.def || 0) !== 0;
+    const hasScalingBase = usesAttack
+      || usesHp
+      || usesDefense
+      || Number(multipliers.flat || 0) !== 0
+      || Number(detail?.formula_parts?.base || 0) !== 0;
+    const damageType = String(action?.damage_type || '');
+    const hasDirectDamage = !['', '无'].includes(damageType) && hasScalingBase;
+    const triggeredReaction = detail?.triggered_reaction;
+    const contributesToTriggeredReaction = Boolean(
+      triggeredReaction
+      && Number(triggeredReaction.contributor_slot) === Number(slot)
+    );
+    const usesReactionAmplification = Number(detail?.formula_parts?.reaction_amplification ?? 1) !== 1;
+    return {
+      atk: usesAttack,
+      hp: usesHp,
+      def: usesDefense,
+      harmony_strength: contributesToTriggeredReaction || usesReactionAmplification,
+      stagger_strength: action?.damage_uses_stagger_strength === true
+        || detail?.formula_parts?.uses_stagger_strength === true,
+      damage: hasDirectDamage,
+    };
+  }
+
   function renderStepDetail() {
     const selectionCount = selectedStepIds().length;
     const step = selectedStep();
@@ -3972,23 +4345,61 @@
     }
     badge.textContent = visualTickLabel(step.start_tick);
     const panelStats = detail?.panel || {};
+    const finalDamageBonus = Number(panelStats.final_dmg || 0);
+    const otherDamageBonus = Number(
+      panelStats.other_dmg
+      ?? (
+        Number(detail?.formula_parts?.dmg_bonus || 0)
+        - Number(panelStats.all_dmg || 0)
+        - Number(panelStats.element_dmg || 0)
+      )
+    );
+    const panelParticipation = actionPanelParticipation(action, detail, step.slot);
+    const realtimePanelRows = [];
+    if (panelParticipation.atk) {
+      realtimePanelRows.push(`<div class="shaft-detail-kv"><span>攻击</span><strong>${formatNumber(panelStats.atk || 0)}</strong></div>`);
+    }
+    if (panelParticipation.hp) {
+      realtimePanelRows.push(`<div class="shaft-detail-kv"><span>生命</span><strong>${formatNumber(panelStats.hp || 0)}</strong></div>`);
+    }
+    if (panelParticipation.def) {
+      realtimePanelRows.push(`<div class="shaft-detail-kv"><span>防御</span><strong>${formatNumber(panelStats.def || 0)}</strong></div>`);
+    }
+    if (panelParticipation.harmony_strength) {
+      realtimePanelRows.push(`<div class="shaft-detail-kv"><span>环合强度</span><strong>${formatNumber(panelStats.harmony_strength || 0)}</strong></div>`);
+    }
+    if (panelParticipation.stagger_strength) {
+      realtimePanelRows.push(`<div class="shaft-detail-kv"><span>倾陷强度</span><strong>${formatNumber(panelStats.stagger_strength || 0)}</strong></div>`);
+    }
+    if (panelParticipation.damage) {
+      realtimePanelRows.push(
+        `<div class="shaft-detail-kv"><span>暴击</span><strong>${formatNumber((panelStats.crit_rate || 0) * 100, 1)}%</strong></div>`,
+        `<div class="shaft-detail-kv"><span>暴伤</span><strong>${formatNumber((panelStats.crit_dmg || 0) * 100, 1)}%</strong></div>`,
+        `<div class="shaft-detail-kv"><span>通伤</span><strong>${formatNumber((panelStats.all_dmg || 0) * 100, 1)}%</strong></div>`,
+        `<div class="shaft-detail-kv"><span>属伤</span><strong>${formatNumber((panelStats.element_dmg || 0) * 100, 1)}%</strong></div>`,
+        `<div class="shaft-detail-kv"><span>其他增伤</span><strong>${formatNumber(otherDamageBonus * 100, 1)}%</strong></div>`,
+        ...(finalDamageBonus ? [`<div class="shaft-detail-kv"><span>最终伤害</span><strong>${formatNumber(finalDamageBonus * 100, 1)}%</strong></div>`] : []),
+        `<div class="shaft-detail-kv"><span>敌人结算属抗</span><strong>${formatNumber(Number(detail?.formula_parts?.settled_resistance || 0) * 100, 1)}%</strong></div>`,
+        `<div class="shaft-detail-kv"><span>敌人结算防御</span><strong>${formatNumber(detail?.formula_parts?.settled_defense || 0, 1)}</strong></div>`,
+      );
+    }
     const durationTicks = Number(detail?.duration_ticks ?? action.duration_ticks ?? 0);
     const durationSeconds = durationTicks / 10;
-    const dpsSeconds = Math.max(durationSeconds, 0.1);
-    const actionDamage = Number(detail?.direct_damage || 0) + Number(detail?.stagger_damage || 0);
-    const actionDps = actionDamage / dpsSeconds;
     const character = getCharacterMap().get(memberBySlot(step.slot)?.character_id) || {};
     const showsEnergy = character.uses_energy !== false;
-    const energyGain = Number(detail?.energy_gain ?? (Number(action.energy_gain || 0) + Number(action.energy_return || 0)));
+    const totalEnergyGain = Number(detail?.energy_gain ?? (Number(action.energy_gain || 0) + Number(action.energy_return || 0)));
+    const extraEnergyGain = Number(detail?.energy_return ?? action.energy_return ?? 0);
+    const energyGain = Number(detail?.base_energy_gain ?? Math.max(0, totalEnergyGain - extraEnergyGain));
     const harmonyGain = Number(detail?.harmony ?? action.harmony ?? 0);
     const buffEffectLabels = {
       atk_pct: '攻击', flat_atk: '固定攻击', hp_pct: '生命', flat_hp: '固定生命',
       def_pct: '防御', flat_def: '固定防御', crit_rate: '暴击', crit_dmg: '暴伤',
       def_ignore: '无视防御', res_down: '抗性降低', energy_recharge: '充能',
       harmony_strength: '环合强度', stagger_strength: '倾陷强度', basic_dmg: '普攻增伤',
+      dodge_counter_dmg: '闪反增伤',
       skill_dmg: '变轨增伤', ultimate_dmg: '终结增伤', follow_dmg: '追击增伤',
       mind_dmg: '心灵增伤', attach_dmg: '附着增伤', element_dmg: '属性增伤',
-      all_dmg: '全伤增伤', final_dmg: '最终增伤',
+      all_dmg: '全伤增伤', final_dmg: '最终增伤', base_multiplier_pct: '基础倍率提升',
     };
     const flatBuffEffects = new Set(['flat_atk', 'flat_hp', 'flat_def', 'harmony_strength', 'stagger_strength']);
     const describeBuff = (buff) => {
@@ -4010,8 +4421,32 @@
       !DETAIL_HIDDEN_APPLIED_BUFF_IDS.has(String(buff?.definition_id || '')) &&
       !DETAIL_HIDDEN_APPLIED_BUFF_IDS.has(String(buff?.rule_id || ''))
     ));
-    const appliedBuffExplanations = appliedBuffList.map(describeBuff);
-    const triggeredBuffs = (detail?.triggered_buffs || []).map((buff) => buff.name);
+    const mergedAppliedBuffs = Array.from(appliedBuffList.reduce((groups, buff) => {
+      const key = String(buff?.definition_id || buff?.rule_id || buff?.name || '');
+      const current = groups.get(key);
+      if (!current) {
+        groups.set(key, {
+          ...buff,
+          effects: { ...(buff?.effects || {}) },
+        });
+        return groups;
+      }
+      current.stack_count = Number(current.stack_count || 0) + Number(buff?.stack_count || 0);
+      Object.entries(buff?.effects || {}).forEach(([effectKey, value]) => {
+        current.effects[effectKey] = Number(current.effects[effectKey] || 0) + Number(value || 0);
+      });
+      return groups;
+    }, new Map()).values());
+    const appliedBuffExplanations = mergedAppliedBuffs.map((buff) => {
+      const stackCount = Number(buff?.stack_count || 0);
+      const stackSuffix = stackCount > 1 ? ` · ${formatNumber(stackCount, 0)}层` : '';
+      return `${describeBuff(buff)}${stackSuffix}`;
+    });
+    const triggeredBuffs = Array.from(new Set(
+      (detail?.triggered_buffs || [])
+        .map((buff) => String(buff?.name || ''))
+        .filter(Boolean),
+    ));
     const specialStats = [];
     const nightmareStacks = detail?.nightmare_stacks ?? action.nightmare_stacks;
     const sinRecovery = detail?.sin_recovery ?? action.sin_recovery;
@@ -4047,22 +4482,21 @@
         <span class="shaft-detail-muted">${escapeHtml(memberName(step.slot))} · ${escapeHtml(action.action_type || '动作')} · ${isStepBackground(step, action) ? (isBasicBackgroundOverride(step, action) ? '后台普攻' : '后台伤害') : '前台动作'}</span>
       </div>
       ${isBackgroundAction(action) ? `
-        <label class="shaft-detail-multiplier">
+        <div class="shaft-detail-multiplier">
           <span>动作倍数</span>
-          <input data-background-action-multiplier data-step-id="${escapeHtml(step.id)}" type="number" min="1" max="12" step="1" inputmode="numeric" value="${actionMultiplier}">
+          <button class="secondary-btn" data-open-background-multiplier data-step-id="${escapeHtml(step.id)}" type="button" aria-haspopup="dialog">设置</button>
           <small>等效为同一时刻重叠 ${actionMultiplier} 个该后台动作</small>
-        </label>
+        </div>
       ` : ''}
       <div class="shaft-detail-grid">
-        <div class="shaft-detail-kv"><span>显示开始</span><strong>${escapeHtml(visualTickLabel(detail?.display_start_tick ?? detail?.visual_start_tick ?? step.start_tick))}</strong></div>
-        <div class="shaft-detail-kv"><span>计算开始</span><strong>${ticksToSeconds(detail?.start_tick ?? calculationTickFromVisual(step.start_tick))}s</strong></div>
-        <div class="shaft-detail-kv"><span>计算结束</span><strong>${ticksToSeconds(detail?.end_tick ?? calculationTickFromVisual(step.start_tick))}s</strong></div>
+        <div class="shaft-detail-kv"><span>开始时间</span><strong>${ticksToSeconds(detail?.start_tick ?? calculationTickFromVisual(step.start_tick))}s</strong></div>
+        <div class="shaft-detail-kv"><span>结束时间</span><strong>${ticksToSeconds(detail?.end_tick ?? calculationTickFromVisual(step.start_tick))}s</strong></div>
         <div class="shaft-detail-kv"><span>直伤</span><strong>${formatNumber(detail?.direct_damage || 0)}</strong></div>
         <div class="shaft-detail-kv"><span>倾陷</span><strong>${formatNumber(detail?.stagger_amount || 0, 2)}</strong></div>
         <div class="shaft-detail-kv"><span>耗时</span><strong>${formatNumber(durationSeconds, 1)}s</strong></div>
         ${showsEnergy ? `<div class="shaft-detail-kv"><span>回能</span><strong>${formatNumber(energyGain, 1)}</strong></div>` : ''}
+        ${showsEnergy ? `<div class="shaft-detail-kv"><span>额外回能</span><strong>${formatNumber(extraEnergyGain, 1)}</strong></div>` : ''}
         <div class="shaft-detail-kv"><span>环合</span><strong>${formatNumber(harmonyGain, 1)}</strong></div>
-        <div class="shaft-detail-kv"><span>DPS</span><strong>${formatNumber(actionDps)}</strong></div>
         ${specialStats.join('')}
       </div>
       <div class="shaft-detail-hero">
@@ -4070,17 +4504,7 @@
         <strong>${escapeHtml(memberName(step.slot))}</strong>
       </div>
       <div class="shaft-detail-grid">
-        <div class="shaft-detail-kv"><span>攻击</span><strong>${formatNumber(panelStats.atk || 0)}</strong></div>
-        <div class="shaft-detail-kv"><span>生命</span><strong>${formatNumber(panelStats.hp || 0)}</strong></div>
-        <div class="shaft-detail-kv"><span>防御</span><strong>${formatNumber(panelStats.def || 0)}</strong></div>
-        <div class="shaft-detail-kv"><span>环合强度</span><strong>${formatNumber(panelStats.harmony_strength || 0)}</strong></div>
-        <div class="shaft-detail-kv"><span>倾陷强度</span><strong>${formatNumber(panelStats.stagger_strength || 0)}</strong></div>
-        <div class="shaft-detail-kv"><span>暴击</span><strong>${formatNumber((panelStats.crit_rate || 0) * 100, 1)}%</strong></div>
-        <div class="shaft-detail-kv"><span>暴伤</span><strong>${formatNumber((panelStats.crit_dmg || 0) * 100, 1)}%</strong></div>
-        <div class="shaft-detail-kv"><span>通伤</span><strong>${formatNumber((panelStats.all_dmg || 0) * 100, 1)}%</strong></div>
-        <div class="shaft-detail-kv"><span>属伤</span><strong>${formatNumber((panelStats.element_dmg || 0) * 100, 1)}%</strong></div>
-        <div class="shaft-detail-kv"><span>敌人结算属抗</span><strong>${formatNumber(Number(detail?.formula_parts?.settled_resistance || 0) * 100, 1)}%</strong></div>
-        <div class="shaft-detail-kv"><span>敌人结算防御</span><strong>${formatNumber(detail?.formula_parts?.settled_defense || 0, 1)}</strong></div>
+        ${realtimePanelRows.join('') || '<div class="shaft-empty">该动作不读取角色面板属性</div>'}
       </div>
       <div class="shaft-detail-hero">
         <span class="shaft-detail-muted">生效增益</span>
@@ -4709,6 +5133,12 @@
     if (!member || !characterId || member.character_id === characterId) {
       return false;
     }
+    if (
+      hasUnsavedAxisChanges() &&
+      !window.confirm('当前动作轴有未保存的修改，切换角色会清空该角色的动作，确定继续吗？')
+    ) {
+      return false;
+    }
     rememberMemberBuild(member);
     member.character_id = characterId;
     const storedBuild = state.axis.character_builds?.[member.character_id];
@@ -4718,6 +5148,7 @@
       updateMemberNames(member);
     }
     ensureMemberCompatibleArc(member);
+    ensureMemberCompatibleCartridge(member);
     rememberMemberBuild(member);
     removeInvalidStepsForSlot(member.slot);
     return true;
@@ -4758,14 +5189,10 @@
     setBuildCharacterPickerOpen(picker, Boolean(popover?.hidden));
   }
 
-  function handleSubstatInput(event) {
-    const input = event.target.closest('input[data-substat]');
-    if (!input) {
-      return;
-    }
+  function updateSubstatDraft(input) {
     const member = memberBySlot(Number(input.dataset.slot));
     if (!member) {
-      return;
+      return false;
     }
     const key = input.dataset.substat;
     const previous = clampSubstatCount(member.substat_counts?.[key]);
@@ -4787,9 +5214,38 @@
         small.textContent = substatBonusText(key, count);
       }
     }
-    renderTeam();
+    const total = input.closest('.shaft-member-card')?.querySelector('.shaft-substat-head strong');
+    if (total) total.textContent = `${formatNumber(substatTotal(member.substat_counts), 0)}/120`;
+    return true;
+  }
+
+  function handleSubstatInput(event) {
+    const input = event.target.closest('input[data-substat]');
+    if (!input || !updateSubstatDraft(input)) {
+      return;
+    }
+    window.clearTimeout(state.simulationTimer);
+    state.simulationTimer = 0;
+    markSimulationStale();
+    persistAxisDraft();
+    setStatus('编辑词条中，退出刷新', 'dirty');
+  }
+
+  function handleSubstatCommit(event) {
+    const input = event.target.closest('input[data-substat]');
+    if (!input || !updateSubstatDraft(input)) {
+      return;
+    }
     renderBuildPanel();
     scheduleSimulation();
+  }
+
+  function handleSubstatKeydown(event) {
+    const input = event.target.closest('input[data-substat]');
+    if (input && event.key === 'Enter') {
+      event.preventDefault();
+      input.blur();
+    }
   }
 
   function handleSkillLevelInput(event) {
@@ -4896,26 +5352,62 @@
     scheduleSimulation();
   }
 
-  function handleStepDetailChange(event) {
-    const input = event.target.closest('[data-background-action-multiplier]');
-    if (!input) {
-      return;
-    }
-    const step = state.axis.steps.find((item) => item.id === input.dataset.stepId);
+  function openBackgroundActionMultiplier(stepId, trigger = null) {
+    const dialog = $('shaft-background-multiplier-dialog');
+    const input = $('shaft-background-multiplier-input');
+    const step = state.axis.steps.find((item) => item.id === stepId);
     const action = step ? actionForStep(step) : null;
-    if (!step || !isBackgroundAction(action)) {
+    if (!dialog || !input || !step || !isBackgroundAction(action) || dialog.open) {
       return;
     }
-    const nextMultiplier = Math.max(1, Math.min(12, Math.round(Number(input.value || 1))));
+    const actionMultiplier = backgroundActionMultiplier(step, action);
+    dialog.dataset.stepId = step.id;
+    dialog._returnFocus = trigger;
+    input.value = String(actionMultiplier);
+    $('shaft-background-multiplier-hint').textContent = `等效为同一时刻重叠 ${actionMultiplier} 个“${action.name || '后台动作'}”。`;
+    dialog.showModal();
+    window.requestAnimationFrame(() => {
+      input.focus();
+      input.select();
+    });
+  }
+
+  function closeBackgroundActionMultiplier({ restoreFocus = true } = {}) {
+    const dialog = $('shaft-background-multiplier-dialog');
+    if (!dialog?.open) {
+      return;
+    }
+    const returnFocus = dialog._returnFocus;
+    dialog.close();
+    dialog.removeAttribute('data-step-id');
+    dialog._returnFocus = null;
+    if (restoreFocus && returnFocus?.isConnected) {
+      returnFocus.focus();
+    }
+  }
+
+  function confirmBackgroundActionMultiplier() {
+    const dialog = $('shaft-background-multiplier-dialog');
+    const input = $('shaft-background-multiplier-input');
+    const stepId = String(dialog?.dataset.stepId || '');
+    const step = state.axis.steps.find((item) => item.id === stepId);
+    const action = step ? actionForStep(step) : null;
+    if (!dialog?.open || !input || !step || !isBackgroundAction(action)) {
+      closeBackgroundActionMultiplier();
+      return;
+    }
+    const nextMultiplier = Math.max(
+      1,
+      Math.min(MAX_BACKGROUND_ACTION_MULTIPLIER, Math.round(Number(input.value || 1))),
+    );
     input.value = String(nextMultiplier);
     if (backgroundActionMultiplier(step, action) === nextMultiplier) {
+      closeBackgroundActionMultiplier();
       return;
     }
-    if (input.dataset.undoCaptured !== 'true') {
-      pushUndoSnapshot();
-      input.dataset.undoCaptured = 'true';
-    }
+    pushUndoSnapshot();
     step.repeat = nextMultiplier;
+    closeBackgroundActionMultiplier({ restoreFocus: false });
     renderTimeline();
     window.clearTimeout(state.simulationTimer);
     markSimulationStale();
@@ -4925,6 +5417,17 @@
     renderEditorActions();
     setStatus(`后台动作倍数已设为 ×${nextMultiplier}`, 'dirty');
     state.simulationTimer = window.setTimeout(runSimulation, SIMULATION_DEBOUNCE_MS);
+    window.requestAnimationFrame(() => {
+      document.querySelector(`[data-open-background-multiplier][data-step-id="${CSS.escape(stepId)}"]`)?.focus();
+    });
+  }
+
+  function handleStepDetailClick(event) {
+    const button = event.target.closest('[data-open-background-multiplier]');
+    if (!button) {
+      return;
+    }
+    openBackgroundActionMultiplier(button.dataset.stepId, button);
   }
 
   function handleStepClick(event) {
@@ -4949,6 +5452,19 @@
     scheduleSimulation();
   }
 
+  function scrollBuildMemberIntoView(slot) {
+    const card = document.querySelector(`#shaft-team-slots .shaft-member-card[data-slot="${Number(slot)}"]`);
+    if (!card) {
+      return;
+    }
+    const reduceMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+    card.scrollIntoView({
+      behavior: reduceMotion ? 'auto' : 'smooth',
+      block: 'start',
+      inline: 'nearest',
+    });
+  }
+
   function handleBuildPanelClick(event) {
     const button = event.target.closest('[data-build-panel-slot]');
     if (!button) {
@@ -4956,6 +5472,7 @@
     }
     state.buildPanelSlot = Number(button.dataset.buildPanelSlot || 0);
     renderBuildPanel();
+    window.requestAnimationFrame(() => scrollBuildMemberIntoView(state.buildPanelSlot));
   }
 
   function timelineVisualOffsetWithScale(tick, scale = state.timelineScale) {
@@ -5266,10 +5783,7 @@
       if (durationTicks > BUFF_DURATION_LABEL_LIMIT_TICKS) {
         return `${item.name}${stackText}`;
       }
-      const remainingTicks = Math.max(
-        0,
-        calculationTickFromVisual(Number(item.endTick || 0)) - pointerCalculationTick,
-      );
+      const remainingTicks = buffRemainingTicksAtCalculationTick(item, pointerCalculationTick);
       return `${item.name} · 剩余${ticksToSeconds(remainingTicks)}s${stackText}`;
     }).join('\n');
     buffLine.dataset.tooltip = tooltip;
@@ -5589,6 +6103,10 @@
         setBuildCharacterPickerOpen();
         return;
       }
+      if ($('shaft-background-multiplier-dialog')?.open) {
+        closeBackgroundActionMultiplier();
+        return;
+      }
       if ($('shaft-loop-settings-dialog')?.open) {
         closeLoopSettings();
         return;
@@ -5599,6 +6117,10 @@
       }
       if ($('shaft-shortcut-dialog')?.open) {
         closeShortcutHelp();
+        return;
+      }
+      if ($('shaft-build-info-dialog')?.open) {
+        closeBuildInfo();
         return;
       }
       if ($('shaft-action-contribution-dialog')?.open) {
@@ -6489,11 +7011,16 @@
         setPage(link.dataset.shaftPageLink);
       });
     });
-    $('shaft-run-btn').addEventListener('click', runSimulation);
     $('shaft-shortcut-help-btn').addEventListener('click', openShortcutHelp);
     $('shaft-shortcut-dialog').addEventListener('click', (event) => {
       if (event.target === event.currentTarget || event.target.closest('[data-close-shortcut-help]')) {
         closeShortcutHelp();
+      }
+    });
+    $('shaft-build-info-btn').addEventListener('click', openBuildInfo);
+    $('shaft-build-info-dialog').addEventListener('click', (event) => {
+      if (event.target === event.currentTarget || event.target.closest('[data-close-build-info]')) {
+        closeBuildInfo();
       }
     });
     $('shaft-new-btn').addEventListener('click', newAxis);
@@ -6510,6 +7037,18 @@
     $('shaft-axis-preview-dialog').addEventListener('click', (event) => {
       if (event.target === event.currentTarget || event.target.closest('[data-close-axis-preview]')) {
         closeAxisPreview();
+      }
+    });
+    $('shaft-background-multiplier-dialog').addEventListener('click', (event) => {
+      if (event.target === event.currentTarget || event.target.closest('[data-close-background-multiplier]')) {
+        closeBackgroundActionMultiplier();
+      }
+    });
+    $('shaft-background-multiplier-confirm').addEventListener('click', confirmBackgroundActionMultiplier);
+    $('shaft-background-multiplier-input').addEventListener('keydown', (event) => {
+      if (event.key === 'Enter') {
+        event.preventDefault();
+        confirmBackgroundActionMultiplier();
       }
     });
     $('shaft-loop-settings-btn').addEventListener('click', (event) => openLoopSettings(event.currentTarget));
@@ -6628,6 +7167,16 @@
     $('shaft-compare-controls').addEventListener('click', handleCompareControls);
     $('shaft-compare-controls').addEventListener('change', handleCompareControlChange);
     $('shaft-contribution-list').addEventListener('click', handleContributionClick);
+    $('shaft-stagger-analysis-dialog').addEventListener('click', (event) => {
+      if (event.target === event.currentTarget || event.target.closest('[data-close-stagger-analysis]')) {
+        closeStaggerAnalysis();
+      }
+    });
+    $('shaft-harmony-analysis-dialog').addEventListener('click', (event) => {
+      if (event.target === event.currentTarget || event.target.closest('[data-close-harmony-analysis]')) {
+        closeHarmonyAnalysis();
+      }
+    });
     $('shaft-action-contribution-dialog').addEventListener('click', (event) => {
       if (event.target === event.currentTarget || event.target.closest('[data-close-action-contribution]')) {
         closeActionContribution();
@@ -6670,7 +7219,9 @@
     $('shaft-team-slots').addEventListener('change', handleTeamChange);
     $('shaft-team-slots').addEventListener('click', handleTeamClick);
     $('shaft-team-slots').addEventListener('change', handleCurtainInput);
+    $('shaft-team-slots').addEventListener('focusout', handleSubstatCommit);
     $('shaft-team-slots').addEventListener('input', handleSubstatInput);
+    $('shaft-team-slots').addEventListener('keydown', handleSubstatKeydown);
     $('shaft-team-slots').addEventListener('input', handleSkillLevelInput);
     $('shaft-team-slots').addEventListener('input', handleCurtainInput);
     const buildPanel = $('shaft-build-panel');
@@ -6682,7 +7233,7 @@
       $('shaft-step-list').addEventListener('input', handleStepChange);
       $('shaft-step-list').addEventListener('click', handleStepClick);
     }
-    $('shaft-step-detail').addEventListener('input', handleStepDetailChange);
+    $('shaft-step-detail').addEventListener('click', handleStepDetailClick);
     $('shaft-timeline').addEventListener('click', handleTimelineClick);
     $('shaft-timeline').addEventListener('contextmenu', handleTimelineContextMenu);
     $('shaft-timeline').addEventListener('mousedown', handleTimelineMouseDown);
@@ -6733,7 +7284,9 @@
       if (!restoredDraft) {
         markAxisDocumentClean();
       }
-      $('shaft-data-version').textContent = displayText(state.catalog.source_meta.version_label || '');
+      const versionLabel = displayText(state.catalog.source_meta.version_label || '');
+      $('shaft-data-version').textContent = versionLabel;
+      $('shaft-build-info-version').textContent = versionLabel;
       renderAll();
       await runSimulation();
       await loadMarket(true);

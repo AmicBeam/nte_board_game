@@ -3,6 +3,7 @@
     "id": "cartridge_f4282fad3f",
     "name": "失落光芒",
     "detail": "10光伤；Q后20秒穿防25",
+    "required_element": "光",
     "modifiers": {
       "element_dmg": 0.1,
       "atk_pct": 0,
@@ -37,6 +38,7 @@
     "id": "cartridge_2f40014b04",
     "name": "迪亚波罗斯",
     "detail": "10暗伤；无视12抗性，触发暗反应后翻倍，20秒",
+    "required_element": "暗",
     "modifiers": {
       "element_dmg": 0.1,
       "atk_pct": 0,
@@ -72,6 +74,7 @@
     "id": "cartridge_bb71141f17",
     "name": "恶魔之血：诅咒",
     "detail": "10魂伤；18增伤，处于魂反应翻倍",
+    "required_element": "魂",
     "modifiers": {
       "element_dmg": 0.1,
       "atk_pct": 0,
@@ -106,6 +109,7 @@
     "id": "cartridge_9229a5376c",
     "name": "街头拳王",
     "detail": "10相伤；14暴击，相反应翻倍，20秒",
+    "required_element": "相",
     "modifiers": {
       "element_dmg": 0.1,
       "atk_pct": 0,
@@ -137,43 +141,10 @@
     "source_row": 6
   },
   {
-    "id": "cartridge_4aad5bf505",
-    "name": "【借】街头拳王",
-    "detail": "10相伤；14暴击，相反应翻倍，20秒",
-    "modifiers": {
-      "element_dmg": 0,
-      "atk_pct": 0,
-      "hp_pct": 0,
-      "def_pct": 0,
-      "energy_recharge": 0,
-      "harmony_strength": 0,
-      "stagger_strength": 0,
-      "mind_dmg": 0,
-      "def_ignore": 0,
-      "res_down": 0,
-      "crit_rate": 0.14,
-      "crit_dmg": 0,
-      "all_dmg": 0,
-      "basic_dmg": 0,
-      "skill_dmg": 0,
-      "ultimate_dmg": 0
-    },
-    "shape_counts": {
-      "type2": 1,
-      "type3": 2,
-      "type4": 1
-    },
-    "passive_counts": {
-      "type2": 5,
-      "type3": 4,
-      "type4": 3
-    },
-    "source_row": 7
-  },
-  {
     "id": "cartridge_29793225a0",
     "name": "森林萤火之心",
     "detail": "10灵伤；8暴伤*7，10秒",
+    "required_element": "灵",
     "modifiers": {
       "element_dmg": 0.1,
       "atk_pct": 0,
@@ -205,43 +176,10 @@
     "source_row": 8
   },
   {
-    "id": "cartridge_4b18287a72",
-    "name": "【借】森林萤火之心",
-    "detail": "8暴伤*7，10秒",
-    "modifiers": {
-      "element_dmg": 0,
-      "atk_pct": 0,
-      "hp_pct": 0,
-      "def_pct": 0,
-      "energy_recharge": 0,
-      "harmony_strength": 0,
-      "stagger_strength": 0,
-      "mind_dmg": 0,
-      "def_ignore": 0,
-      "res_down": 0,
-      "crit_rate": 0,
-      "crit_dmg": 0,
-      "all_dmg": 0,
-      "basic_dmg": 0,
-      "skill_dmg": 0,
-      "ultimate_dmg": 0
-    },
-    "shape_counts": {
-      "type2": 1,
-      "type3": 2,
-      "type4": 1
-    },
-    "passive_counts": {
-      "type2": 5,
-      "type3": 4,
-      "type4": 3
-    },
-    "source_row": 9
-  },
-  {
     "id": "cartridge_505ea4a58f",
     "name": "真红：双生蝶",
     "detail": "10咒伤；6攻击*6，10秒",
+    "required_element": "咒",
     "modifiers": {
       "element_dmg": 0.1,
       "atk_pct": 0,

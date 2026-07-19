@@ -3,6 +3,11 @@
 {% block body %}
 <main class="portal-page">
     <section class="glass-card panel-header portal-header">
+        <a class="icon-btn portal-github-link" href="https://github.com/AmicBeam/nte_board_game" target="_blank" rel="noopener noreferrer" aria-label="在 GitHub 查看 NTE Tools" title="GitHub">
+            <svg viewBox="0 0 16 16" aria-hidden="true">
+                <path fill="currentColor" d="M8 0C3.58 0 0 3.67 0 8.2c0 3.62 2.29 6.69 5.47 7.77.4.08.55-.18.55-.39 0-.19-.01-.84-.01-1.53-2.01.38-2.53-.5-2.69-.96-.09-.23-.48-.96-.82-1.15-.28-.16-.68-.55-.01-.56.63-.01 1.08.59 1.23.83.72 1.23 1.87.88 2.33.67.07-.53.28-.88.51-1.08-1.78-.21-3.64-.91-3.64-4.05 0-.89.31-1.63.82-2.2-.08-.21-.36-1.05.08-2.17 0 0 .67-.22 2.2.84A7.4 7.4 0 0 1 8 3.93a7.4 7.4 0 0 1 2 .28c1.53-1.06 2.2-.84 2.2-.84.44 1.12.16 1.96.08 2.17.51.57.82 1.3.82 2.2 0 3.15-1.87 3.84-3.65 4.05.29.25.54.74.54 1.51 0 1.09-.01 1.97-.01 2.24 0 .22.15.47.55.39A8.2 8.2 0 0 0 16 8.2C16 3.67 12.42 0 8 0Z"/>
+            </svg>
+        </a>
         <div class="portal-heading">
             <p class="eyebrow">NTE Tools</p>
             <h1>异环工具主页</h1>
@@ -29,7 +34,7 @@
         <a class="glass-card portal-module-card" href="{{ url_for('main.preteam_page') }}">
             <span class="portal-module-kicker">Preteam</span>
             <strong>预配队</strong>
-            <p>浏览主 C、队友和属性搭配，保存配队思路。</p>
+            <p>即将下线，并由排轴模块取代；当前仍可浏览主 C、队友和属性搭配。</p>
             <span class="portal-module-action">进入配队</span>
         </a>
         <a class="glass-card portal-module-card" href="{{ url_for('main.shaft_page', page='rotation') }}">
@@ -39,6 +44,22 @@
             <span class="portal-module-action">编辑排轴</span>
         </a>
     </section>
+
+    <section class="glass-card portal-community" aria-labelledby="portal-community-title">
+        <div class="portal-community-copy">
+            <p class="eyebrow">Bilibili</p>
+            <h2 id="portal-community-title">关注异环内容创作者</h2>
+            <p class="subtle">查看配队思路、角色攻略与更多异环相关内容。</p>
+        </div>
+        <nav class="header-actions" aria-label="B站相关链接">
+            <a class="secondary-btn" href="https://space.bilibili.com/9412490" target="_blank" rel="noopener noreferrer">静默之光 · B站</a>
+            <a class="secondary-btn" href="https://space.bilibili.com/3546651192986524" target="_blank" rel="noopener noreferrer">异环攻略组 · B站</a>
+        </nav>
+    </section>
+
+    <footer class="portal-legal">
+        <a href="https://beian.miit.gov.cn/" target="_blank" rel="noopener noreferrer">备案号：津ICP备2026003916号</a>
+    </footer>
 </main>
 <script src="{{ url_for('static', filename='common/js/common.js') }}"></script>
 <script src="{{ url_for('static', filename='common/js/portal.js') }}"></script>

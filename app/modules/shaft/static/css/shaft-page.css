@@ -267,6 +267,7 @@ body:has(.shaft-page) .shell {
     gap: 14px;
     min-height: 282px;
     padding: 12px;
+    scroll-margin-top: 14px;
     overflow: visible;
     border: 1px solid rgba(255,255,255,0.12);
     border-left: 4px solid var(--slot-color, var(--primary));
@@ -799,6 +800,49 @@ body:has(.shaft-page) .shell {
     color: var(--text);
     font-size: 15px;
     line-height: 1.1;
+}
+
+.shaft-substat-total-tooltip {
+    position: relative;
+    width: max-content;
+    cursor: help;
+    outline: none;
+}
+
+.shaft-substat-total-tooltip::after {
+    content: attr(data-tooltip);
+    position: absolute;
+    left: 0;
+    bottom: calc(100% + 8px);
+    z-index: 40;
+    width: max-content;
+    max-width: min(390px, 72vw);
+    padding: 9px 11px;
+    border: 1px solid rgba(255,255,255,0.16);
+    border-radius: 8px;
+    background: rgba(10, 16, 28, 0.98);
+    box-shadow: 0 12px 26px rgba(0,0,0,0.38);
+    color: rgba(255,255,255,0.94);
+    font-size: 12px;
+    font-weight: 850;
+    line-height: 1.45;
+    white-space: normal;
+    text-align: left;
+    opacity: 0;
+    transform: translateY(4px);
+    transition: opacity 120ms ease, transform 120ms ease;
+    pointer-events: none;
+}
+
+.shaft-substat-total-tooltip:hover::after,
+.shaft-substat-total-tooltip:focus::after {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+.shaft-substat-total-tooltip:focus-visible {
+    border-radius: 4px;
+    box-shadow: 0 0 0 2px rgba(88,216,210,0.34);
 }
 
 .shaft-substat-grid {
@@ -1425,6 +1469,23 @@ body:has(.shaft-page) .shell {
     line-height: 1.4;
 }
 
+.shaft-known-issues {
+    display: grid;
+    gap: 7px;
+    margin: 0;
+    padding-left: 24px;
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 800;
+    line-height: 1.5;
+}
+
+.shaft-known-issues li {
+    padding: 8px 10px;
+    border-radius: 8px;
+    background: rgba(255,255,255,0.04);
+}
+
 .shaft-action-contribution-modal {
     display: grid;
     gap: 18px;
@@ -1433,6 +1494,103 @@ body:has(.shaft-page) .shell {
     border-radius: inherit;
     background: linear-gradient(145deg, rgba(18, 30, 44, 0.98), rgba(6, 11, 18, 0.99));
     box-shadow: 0 24px 80px rgba(0,0,0,0.54);
+}
+
+.shaft-stagger-analysis-note {
+    padding: 10px 12px;
+    border: 1px solid rgba(238,244,255,0.16);
+    border-radius: var(--radius-sm);
+    background: rgba(238,244,255,0.06);
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 900;
+    line-height: 1.5;
+}
+
+.shaft-stagger-analysis-kpis {
+    margin-top: 14px;
+}
+
+.shaft-stagger-contribution-list {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+    margin-top: 14px;
+}
+
+.shaft-stagger-contribution-card {
+    display: grid;
+    gap: 10px;
+    padding: 14px;
+    border: 1px solid color-mix(in srgb, var(--stagger-color) 30%, rgba(255,255,255,0.1));
+    border-radius: var(--radius-md);
+    background: color-mix(in srgb, var(--stagger-color) 7%, rgba(7,12,20,0.72));
+}
+
+.shaft-stagger-contribution-head {
+    display: flex;
+    gap: 12px;
+    align-items: end;
+    justify-content: space-between;
+}
+
+.shaft-stagger-contribution-head > div {
+    display: grid;
+    gap: 4px;
+}
+
+.shaft-stagger-contribution-head span,
+.shaft-stagger-contribution-card dt {
+    color: var(--muted);
+    font-size: 11px;
+    font-weight: 900;
+}
+
+.shaft-stagger-contribution-head strong {
+    color: var(--text);
+    font-size: 22px;
+}
+
+.shaft-stagger-contribution-head b {
+    color: var(--stagger-color);
+    font-size: 18px;
+}
+
+.shaft-stagger-contribution-meter {
+    height: 8px;
+    overflow: hidden;
+    border-radius: 999px;
+    background: rgba(255,255,255,0.08);
+}
+
+.shaft-stagger-contribution-meter span {
+    display: block;
+    height: 100%;
+    border-radius: inherit;
+    background: var(--stagger-color);
+}
+
+.shaft-stagger-contribution-card dl {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+    margin: 0;
+}
+
+.shaft-stagger-contribution-card dl > div {
+    display: grid;
+    gap: 3px;
+}
+
+.shaft-stagger-contribution-card dd {
+    margin: 0;
+    color: var(--text);
+    font-size: 12px;
+    font-weight: 1000;
+}
+
+.shaft-harmony-source-list {
+    grid-template-columns: 1fr;
 }
 
 .shaft-action-analysis-toolbar {
@@ -1559,6 +1717,19 @@ body:has(.shaft-page) .shell {
     font-weight: 1000;
 }
 
+.shaft-action-analysis-snapshot strong,
+.shaft-action-contribution-item > strong {
+    display: inline-flex;
+    gap: 5px;
+    align-items: baseline;
+    white-space: nowrap;
+}
+
+.shaft-action-analysis-relative {
+    font-size: 10px;
+    font-weight: 900;
+}
+
 .shaft-action-analysis-snapshot > small {
     grid-column: 1;
 }
@@ -1650,6 +1821,8 @@ body:has(.shaft-page) .shell {
     display: grid;
     gap: 8px;
     max-height: min(420px, 60vh);
+    padding: 2px 4px 2px 2px;
+    overflow-x: hidden;
     overflow-y: auto;
 }
 
@@ -2243,10 +2416,12 @@ body.shaft-dragging .shaft-action-bar {
     font-weight: 950;
 }
 
-.shaft-detail-multiplier input {
-    width: 76px;
+.shaft-detail-multiplier button {
+    width: 100%;
+    min-width: 0;
     min-height: 38px;
-    text-align: center;
+    box-sizing: border-box;
+    padding-inline: 10px;
     font-weight: 950;
 }
 
@@ -2824,6 +2999,60 @@ body.shaft-dragging .shaft-action-bar {
     min-width: 82px;
 }
 
+.shaft-background-multiplier-dialog {
+    width: min(380px, calc(100vw - 32px));
+    max-width: none;
+    padding: 0;
+    border: 0;
+    border-radius: var(--radius-lg);
+    background: transparent;
+    color: var(--text);
+}
+
+.shaft-background-multiplier-dialog::backdrop {
+    background: rgba(2, 6, 12, 0.72);
+    backdrop-filter: blur(4px);
+}
+
+.shaft-background-multiplier-modal {
+    display: grid;
+    gap: 16px;
+    padding: 20px;
+    border: 1px solid rgba(255,255,255,0.14);
+    border-radius: inherit;
+    background: linear-gradient(145deg, rgba(18, 30, 44, 0.99), rgba(6, 11, 18, 0.99));
+    box-shadow: 0 20px 64px rgba(0,0,0,0.52);
+}
+
+.shaft-background-multiplier-field {
+    display: grid;
+    gap: 8px;
+}
+
+.shaft-background-multiplier-field span {
+    color: var(--text);
+    font-weight: 950;
+}
+
+.shaft-background-multiplier-field input {
+    width: 100%;
+    min-height: 44px;
+    text-align: center;
+    font-size: 18px;
+    font-weight: 950;
+}
+
+.shaft-background-multiplier-field small {
+    color: var(--muted);
+    line-height: 1.45;
+}
+
+.shaft-background-multiplier-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+}
+
 .shaft-loop-settings-dialog {
     width: min(680px, calc(100vw - 32px));
     max-width: none;
@@ -3246,6 +3475,7 @@ body.shaft-dragging .shaft-action-bar {
 .shaft-buff-trigger-line:hover,
 .shaft-buff-trigger-line:focus-visible,
 .shaft-buff-trigger-line.selected {
+    z-index: 40;
     filter: brightness(1.16);
 }
 
@@ -3313,7 +3543,7 @@ body.shaft-dragging .shaft-action-bar {
 
 .shaft-reaction-damage-marker:hover,
 .shaft-reaction-damage-marker:focus-visible {
-    z-index: 20;
+    z-index: 40;
 }
 
 .shaft-reaction-damage-marker:focus-visible {
@@ -3929,6 +4159,10 @@ body.shaft-dragging .shaft-action-bar {
 
     .shaft-action-contribution-modal {
         padding: 16px;
+    }
+
+    .shaft-stagger-contribution-list {
+        grid-template-columns: 1fr;
     }
 
     .shaft-action-contribution-body {

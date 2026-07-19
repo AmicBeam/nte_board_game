@@ -38,7 +38,7 @@
     "providers": [{"kind": "character", "id": "char_dd034941ef"}], "priority": 20,
     "trigger": {"event": "passive", "conditions": [{"type": "awakening_min", "min": 6}]},
     "target": {"scope": "registrar", "action_names": ["e额外"]},
-    "duration": {"type": "permanent"}, "effects": {"all_dmg": 0.5}, "display": {"line": false}
+    "duration": {"type": "permanent"}, "effects": {"base_multiplier_pct": 0.5}, "display": {"line": false}
   },
   {
     "id": "character_zhenhong_a1_def_ignore", "name": "真红1觉·无视防御",
@@ -58,7 +58,7 @@
     "providers": [{"kind": "character", "id": "char_b52cc8f160"}], "priority": 20,
     "trigger": {"event": "passive", "conditions": [{"type": "awakening_min", "min": 6}]},
     "target": {"scope": "registrar", "action_types": ["E", "Q"]},
-    "duration": {"type": "permanent"}, "effects": {"all_dmg": 0.3}, "display": {"line": false}
+    "duration": {"type": "permanent"}, "effects": {"base_multiplier_pct": 0.3}, "display": {"line": false}
   },
   {
     "id": "character_zhenhong_full_crit_def_ignore", "name": "真红满觉·赤红的英雄",
@@ -115,7 +115,7 @@
   {
     "id": "character_iloy_regressed_teammates", "name": "伊洛伊·退行（3名队友）",
     "providers": [{"kind": "character", "id": "char_a01c39f576"}], "priority": 19,
-    "trigger": {"event": "action_start", "source": {"scope": "registrar", "action_ids": ["action_afea1e6fb2"]}},
+    "trigger": {"event": "action_start", "source": {"scope": "registrar", "action_ids": ["action_iloy_long_e"]}},
     "target": {"scope": "registrar"},
     "duration": {"type": "time", "ticks": 9990, "loop_carry": true},
     "stacking": {"mode": "refresh", "max_stacks": 1},
@@ -126,7 +126,7 @@
     "providers": [{"kind": "character", "id": "char_a01c39f576"}], "priority": 20,
     "trigger": {
       "event": "action_start",
-      "source": {"scope": "registrar", "action_ids": ["action_afea1e6fb2"]},
+      "source": {"scope": "registrar", "action_ids": ["action_iloy_long_e"]},
       "conditions": [{"type": "awakening_count_min", "min": 6}]
     },
     "target": {"scope": "registrar"},
@@ -138,7 +138,7 @@
   {
     "id": "character_iloy_e_team_flat_atk", "name": "伊洛伊·自我认同延伸加攻",
     "providers": [{"kind": "character", "id": "char_a01c39f576"}], "priority": 100,
-    "trigger": {"event": "action_start", "source": {"scope": "registrar", "action_ids": ["action_afea1e6fb2"]}},
+    "trigger": {"event": "action_start", "source": {"scope": "registrar", "action_ids": ["action_afea1e6fb2", "action_iloy_long_e"]}},
     "target": {"scope": "team"},
     "duration": {"type": "time", "ticks": 200, "loop_carry": true},
     "stacking": {"mode": "refresh", "max_stacks": 1},
@@ -428,7 +428,7 @@
     "id": "character_yi_a1_beast_damage", "name": "翳1觉·兽牙强化",
     "providers": [{"kind": "character", "id": "char_7578b18979"}], "priority": 20,
     "trigger": {"event": "passive", "conditions": [{"type": "awakening_min", "min": 1}]}, "target": {"scope": "registrar", "action_names": ["兽牙"]},
-    "duration": {"type": "permanent"}, "effects": {"all_dmg": 0.6}, "display": {"line": false}
+    "duration": {"type": "permanent"}, "effects": {"base_multiplier_pct": 0.6}, "display": {"line": false}
   },
   {
     "id": "character_yi_a2_e_crit", "name": "翳2觉·变轨后暴击",
@@ -441,7 +441,7 @@
     "id": "character_yi_a6_extra_damage", "name": "翳6觉·兽牙额外强化",
     "providers": [{"kind": "character", "id": "char_7578b18979"}], "priority": 20,
     "trigger": {"event": "passive", "conditions": [{"type": "awakening_min", "min": 6}]}, "target": {"scope": "registrar", "action_names": ["兽牙额外"]},
-    "duration": {"type": "permanent"}, "effects": {"all_dmg": 0.2}, "display": {"line": false}
+    "duration": {"type": "permanent"}, "effects": {"base_multiplier_pct": 0.2}, "display": {"line": false}
   },
   {
     "id": "character_zhenhong_ascendant_red",
@@ -884,7 +884,19 @@
     "target": {"scope": "registrar", "action_types": ["普攻", "闪反"]},
     "duration": {"type": "time", "ticks": 150, "loop_carry": true},
     "stacking": {"mode": "add_stack", "max_stacks": 2},
+    "activation": {"full_stack_buff_id": "arc_ready_tally_boss_damage"},
     "effects": {"basic_dmg": 0.15, "dodge_counter_dmg": 0.15}
+  },
+  {
+    "id": "arc_ready_tally_boss_damage",
+    "name": "预备备：司令虎符对 Boss 增伤",
+    "providers": [{"kind": "arc", "id": "arc_ce53905d70"}],
+    "priority": 110,
+    "trigger": {"event": "full_stack"},
+    "target": {"scope": "registrar"},
+    "duration": {"type": "time", "ticks": 100, "loop_carry": true},
+    "stacking": {"mode": "refresh", "max_stacks": 1},
+    "effects": {"all_dmg": 0.1}
   },
   {
     "id": "arc_galaxy_soul_hit_crit",
@@ -1098,7 +1110,7 @@
   {
     "id": "cartridge_street_boxer_delay_reaction",
     "name": "街头拳王：相反应暴击翻倍",
-    "providers": [{"kind": "cartridge", "id": "cartridge_9229a5376c"}, {"kind": "cartridge", "id": "cartridge_4aad5bf505"}],
+    "providers": [{"kind": "cartridge", "id": "cartridge_9229a5376c"}],
     "priority": 100,
     "trigger": {"event": "action_hit", "source": {"scope": "team"}, "conditions": [{"type": "enemy_debuff_applied", "debuffs": ["延滞", "浸染"]}]},
     "target": {"scope": "registrar"},
@@ -1109,7 +1121,7 @@
   {
     "id": "cartridge_forest_firefly_crit_stack",
     "name": "森林萤火之心：暴伤叠层",
-    "providers": [{"kind": "cartridge", "id": "cartridge_29793225a0"}, {"kind": "cartridge", "id": "cartridge_4b18287a72"}],
+    "providers": [{"kind": "cartridge", "id": "cartridge_29793225a0"}],
     "priority": 100,
     "trigger": {"event": "action_hit", "source": {"scope": "team", "elements": ["灵"]}},
     "target": {"scope": "registrar"},
@@ -1720,7 +1732,7 @@
       "clear_keys": ["character_adler_karma"],
       "effects_from_stack": {
         "key": "character_adler_karma",
-        "per_stack_from_effect": {"all_dmg": {"source": "karma_damage", "factor": 1}}
+        "per_stack_from_effect": {"final_dmg": {"source": "karma_damage", "factor": 1}}
       }
     },
     "effects": {"karma_damage": 0.02}
@@ -1738,7 +1750,7 @@
       "clear_keys": ["character_adler_karma"],
       "effects_from_stack": {
         "key": "character_adler_karma",
-        "per_stack_from_effect": {"all_dmg": {"source": "karma_damage", "factor": 1}}
+        "per_stack_from_effect": {"final_dmg": {"source": "karma_damage", "factor": 1}}
       }
     },
     "effects": {"karma_damage": 0.03}
@@ -1835,10 +1847,14 @@
   },
   {
     "id": "character_jiuyuan_deadly_rose_mark",
-    "name": "九原·致命玫瑰标记",
+    "name": "九原·致命玫约",
     "providers": [{"kind": "character", "id": "char_b2e3b2bf7a"}],
     "priority": 100,
-    "trigger": {"event": "action_hit", "source": {"scope": "registrar", "action_ids": ["action_39d4605011", "action_4f1cc1b94f", "action_fbc91559f8", "action_4a803029af"]}},
+    "trigger": {
+      "event": "action_hit",
+      "source": {"scope": "registrar", "action_ids": ["action_39d4605011", "action_4f1cc1b94f", "action_fbc91559f8", "action_4a803029af"]},
+      "conditions": [{"type": "active_buff_none", "keys": ["character_jiuyuan_rose_mark", "character_jiuyuan_rose_settle"]}]
+    },
     "target": {"scope": "registrar"},
     "duration": {"type": "time", "ticks": 50, "loop_carry": true},
     "stacking": {"key": "character_jiuyuan_rose_mark", "mode": "refresh", "max_stacks": 1},
@@ -1846,18 +1862,76 @@
   },
   {
     "id": "character_jiuyuan_deadly_rose_settle_window",
-    "name": "九原·致命玫瑰可清算",
+    "name": "九原·致命玫约可清算",
     "providers": [{"kind": "character", "id": "char_b2e3b2bf7a"}],
     "priority": 101,
-    "trigger": {"event": "action_hit", "source": {"scope": "registrar", "action_ids": ["action_39d4605011", "action_4f1cc1b94f", "action_fbc91559f8", "action_4a803029af"]}},
+    "trigger": {
+      "event": "action_hit",
+      "source": {"scope": "registrar", "action_ids": ["action_39d4605011", "action_4f1cc1b94f", "action_fbc91559f8", "action_4a803029af"]},
+      "conditions": [
+        {"type": "active_buff_key", "key": "character_jiuyuan_rose_mark"},
+        {"type": "existing_buff_none", "keys": ["character_jiuyuan_rose_settle"]}
+      ]
+    },
     "target": {"scope": "registrar"},
     "duration": {"type": "time", "ticks": 250, "delay_ticks": 50, "loop_carry": true},
     "stacking": {"key": "character_jiuyuan_rose_settle", "mode": "refresh", "max_stacks": 1},
     "effects": {}
   },
   {
+    "id": "character_jiuyuan_genesis_deadly_rose_mark",
+    "name": "九原·致命玫约",
+    "providers": [{"kind": "character", "id": "char_b2e3b2bf7a"}],
+    "priority": 102,
+    "trigger": {
+      "event": "action_hit",
+      "periodic_damage": true,
+      "source": {"scope": "team", "action_names": ["创生", "创生复制体"]},
+      "conditions": [{"type": "active_buff_none", "keys": ["character_jiuyuan_rose_mark", "character_jiuyuan_rose_settle"]}]
+    },
+    "target": {"scope": "registrar"},
+    "duration": {"type": "time", "ticks": 50, "loop_carry": true},
+    "stacking": {"key": "character_jiuyuan_rose_mark", "mode": "refresh", "max_stacks": 1},
+    "effects": {}
+  },
+  {
+    "id": "character_jiuyuan_genesis_deadly_rose_settle_window",
+    "name": "九原·致命玫约可清算",
+    "providers": [{"kind": "character", "id": "char_b2e3b2bf7a"}],
+    "priority": 103,
+    "trigger": {
+      "event": "action_hit",
+      "periodic_damage": true,
+      "source": {"scope": "team", "action_names": ["创生", "创生复制体"]},
+      "conditions": [
+        {"type": "active_buff_key", "key": "character_jiuyuan_rose_mark"},
+        {"type": "existing_buff_none", "keys": ["character_jiuyuan_rose_settle"]}
+      ]
+    },
+    "target": {"scope": "registrar"},
+    "duration": {"type": "time", "ticks": 250, "delay_ticks": 50, "loop_carry": true},
+    "stacking": {"key": "character_jiuyuan_rose_settle", "mode": "refresh", "max_stacks": 1},
+    "effects": {}
+  },
+  {
+    "id": "character_jiuyuan_genesis_refresh_settle_window",
+    "name": "九原·致命玫约可清算",
+    "providers": [{"kind": "character", "id": "char_b2e3b2bf7a"}],
+    "priority": 104,
+    "trigger": {
+      "event": "action_hit",
+      "periodic_damage": true,
+      "source": {"scope": "team", "action_names": ["创生", "创生复制体"]},
+      "conditions": [{"type": "active_buff_key", "key": "character_jiuyuan_rose_settle"}]
+    },
+    "target": {"scope": "registrar"},
+    "duration": {"type": "time", "ticks": 250, "loop_carry": true},
+    "stacking": {"key": "character_jiuyuan_rose_settle", "mode": "refresh", "max_stacks": 1},
+    "effects": {}
+  },
+  {
     "id": "character_jiuyuan_q_force_settle",
-    "name": "九原·枪与玫瑰强制清算窗口",
+    "name": "九原·致命玫约可清算",
     "providers": [{"kind": "character", "id": "char_b2e3b2bf7a"}],
     "priority": 90,
     "trigger": {"event": "action_start", "source": {"scope": "registrar", "action_ids": ["action_5501c87ce7"]}, "conditions": [{"type": "active_buff_any", "keys": ["character_jiuyuan_rose_mark", "character_jiuyuan_rose_settle"]}]},
@@ -1869,7 +1943,7 @@
   },
   {
     "id": "character_jiuyuan_rose_a1_atk",
-    "name": "九原1觉·致命玫瑰攻击",
+    "name": "九原1觉·致命玫约攻击",
     "providers": [{"kind": "character", "id": "char_b2e3b2bf7a"}],
     "priority": 20,
     "trigger": {"event": "passive", "conditions": [{"type": "awakening_min", "min": 1}]},
@@ -1886,7 +1960,7 @@
     "trigger": {"event": "passive", "conditions": [{"type": "awakening_min", "min": 2}]},
     "target": {"scope": "registrar", "action_ids": ["action_d8430d0b9e"], "conditions": [{"type": "active_buff_any", "keys": ["character_jiuyuan_rose_mark", "character_jiuyuan_rose_settle"]}]},
     "duration": {"type": "permanent"},
-    "effects": {"all_dmg": 1.0},
+    "effects": {"base_multiplier_pct": 1.0},
     "display": {"line": false}
   },
   {
@@ -1897,7 +1971,7 @@
     "trigger": {"event": "passive", "conditions": [{"type": "awakening_min", "min": 4}]},
     "target": {"scope": "registrar", "action_ids": ["action_4edb91866d", "action_7809042596"], "conditions": [{"type": "active_buff_key", "key": "character_jiuyuan_rose_settle"}]},
     "duration": {"type": "permanent"},
-    "effects": {"all_dmg": 0.5},
+    "effects": {"base_multiplier_pct": 0.5},
     "display": {"line": false}
   },
   {
@@ -1908,7 +1982,7 @@
     "trigger": {"event": "passive", "conditions": [{"type": "awakening_min", "min": 5}]},
     "target": {"scope": "registrar", "conditions": [{"type": "active_buff_any", "keys": ["character_jiuyuan_rose_mark", "character_jiuyuan_rose_settle"]}]},
     "duration": {"type": "permanent"},
-    "effects": {"all_dmg": 0.08},
+    "effects": {"final_dmg": 0.08},
     "display": {"line": false}
   },
   {
@@ -1924,14 +1998,18 @@
   },
   {
     "id": "character_jiuyuan_rose_settlement_clear",
-    "name": "九原·致命玫瑰清算",
+    "name": "九原·致命玫约清算",
     "providers": [{"kind": "character", "id": "char_b2e3b2bf7a"}],
     "priority": 150,
-    "trigger": {"event": "action_end", "source": {"scope": "registrar", "action_ids": ["action_4edb91866d", "action_7809042596"]}},
+    "trigger": {
+      "event": "action_end",
+      "source": {"scope": "registrar", "action_ids": ["action_4edb91866d", "action_7809042596"]},
+      "conditions": [{"type": "active_buff_key", "key": "character_jiuyuan_rose_settle"}]
+    },
     "target": {"scope": "registrar"},
     "duration": {"type": "time", "ticks": 1},
     "stacking": {"mode": "refresh", "max_stacks": 1},
-    "activation": {"clear_keys": ["character_jiuyuan_rose_mark", "character_jiuyuan_rose_settle"]},
+    "activation": {"clear_keys": ["character_jiuyuan_rose_settle"]},
     "effects": {},
     "display": {"line": false}
   },

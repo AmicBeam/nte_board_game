@@ -23,6 +23,13 @@ def _js_number_constant(name: str) -> int:
 
 
 class ShaftBuffStatusUiTestCase(unittest.TestCase):
+    def test_rotation_header_has_no_manual_calculation_button(self) -> None:
+        template = SHAFT_TEMPLATE.read_text(encoding='utf-8')
+        source = SHAFT_JS.read_text(encoding='utf-8')
+
+        self.assertNotIn('id="shaft-run-btn"', template)
+        self.assertNotIn("$('shaft-run-btn')", source)
+
     def test_shaft_source_version_is_1_0_0(self) -> None:
         catalog = get_shaft_catalog_payload()
 
@@ -310,6 +317,12 @@ class ShaftFrontendTimelineLayoutTestCase(unittest.TestCase):
         self.assertIn('<strong class="shaft-detail-line-list">${detailLines(appliedBuffExplanations)}</strong>', source)
         self.assertIn('<div class="shaft-detail-kv"><span>通伤</span><strong>${formatNumber((panelStats.all_dmg || 0) * 100, 1)}%</strong></div>', source)
         self.assertIn('<div class="shaft-detail-kv"><span>属伤</span><strong>${formatNumber((panelStats.element_dmg || 0) * 100, 1)}%</strong></div>', source)
+        self.assertIn('const finalDamageBonus = Number(panelStats.final_dmg || 0);', source)
+        self.assertIn('...(finalDamageBonus ? [`<div class="shaft-detail-kv"><span>最终伤害</span><strong>${formatNumber(finalDamageBonus * 100, 1)}%</strong></div>`] : [])', source)
+        self.assertIn('panelStats.other_dmg', source)
+        self.assertIn('- Number(panelStats.all_dmg || 0)', source)
+        self.assertIn('- Number(panelStats.element_dmg || 0)', source)
+        self.assertIn('<div class="shaft-detail-kv"><span>其他增伤</span><strong>${formatNumber(otherDamageBonus * 100, 1)}%</strong></div>', source)
         self.assertIn('<span>敌人结算属抗</span>', source)
         self.assertIn('detail?.formula_parts?.settled_resistance', source)
         self.assertIn('<span>敌人结算防御</span>', source)
@@ -318,6 +331,25 @@ class ShaftFrontendTimelineLayoutTestCase(unittest.TestCase):
         self.assertNotIn('expectedCriticalHits', source)
         self.assertIn('.shaft-detail-hero .shaft-detail-line-list', css)
         self.assertIn("line_hidden_reason", (ROOT / 'app' / 'modules' / 'shaft' / 'static' / 'js' / 'shaft_engine.js').read_text(encoding='utf-8'))
+
+    def test_action_detail_only_shows_panel_stats_used_by_selected_action(self) -> None:
+        source = SHAFT_JS.read_text(encoding='utf-8')
+
+        self.assertIn('function actionPanelParticipation(action, detail, slot) {', source)
+        self.assertIn('const usesAttack = Number(multipliers.atk || 0) !== 0;', source)
+        self.assertIn('const usesHp = Number(multipliers.hp || 0) !== 0;', source)
+        self.assertIn('const usesDefense = Number(multipliers.def || 0) !== 0;', source)
+        self.assertIn('Number(triggeredReaction.contributor_slot) === Number(slot)', source)
+        self.assertIn('action?.damage_uses_stagger_strength === true', source)
+        self.assertIn('detail?.formula_parts?.uses_stagger_strength === true', source)
+        self.assertNotIn('Number(action?.stagger || 0) !== 0 || Number(detail?.stagger_amount || 0) !== 0', source)
+        self.assertIn('if (panelParticipation.atk) {', source)
+        self.assertIn('if (panelParticipation.hp) {', source)
+        self.assertIn('if (panelParticipation.def) {', source)
+        self.assertIn('if (panelParticipation.harmony_strength) {', source)
+        self.assertIn('if (panelParticipation.stagger_strength) {', source)
+        self.assertIn('if (panelParticipation.damage) {', source)
+        self.assertIn("${realtimePanelRows.join('') || '<div class=\"shaft-empty\">该动作不读取角色面板属性</div>'}", source)
 
     def test_action_detail_displays_resolved_action_multiplier(self) -> None:
         source = SHAFT_JS.read_text(encoding='utf-8')
@@ -338,6 +370,18 @@ class ShaftFrontendTimelineLayoutTestCase(unittest.TestCase):
             "!DETAIL_HIDDEN_APPLIED_BUFF_IDS.has(String(buff?.definition_id || ''))",
             source,
         )
+
+    def test_action_detail_merges_same_buff_layers_and_labels_dodge_counter_damage(self) -> None:
+        source = SHAFT_JS.read_text(encoding='utf-8')
+
+        self.assertIn("dodge_counter_dmg: '闪反增伤'", source)
+        self.assertNotIn("dodge_counter_dmg: '闪避反击伤害'", source)
+        self.assertIn("if (trigger.event === 'full_stack') return '叠满层时';", source)
+        self.assertIn('const mergedAppliedBuffs = Array.from(appliedBuffList.reduce((groups, buff) => {', source)
+        self.assertIn("const key = String(buff?.definition_id || buff?.rule_id || buff?.name || '');", source)
+        self.assertIn('current.stack_count = Number(current.stack_count || 0) + Number(buff?.stack_count || 0);', source)
+        self.assertIn('current.effects[effectKey] = Number(current.effects[effectKey] || 0) + Number(value || 0);', source)
+        self.assertIn("const stackSuffix = stackCount > 1 ? ` · ${formatNumber(stackCount, 0)}层` : '';", source)
         self.assertIn('if (Number(nightmareStacks) > 0) {', source)
         self.assertIn(
             "!DETAIL_HIDDEN_APPLIED_BUFF_IDS.has(String(buff?.rule_id || ''))",
@@ -370,6 +414,17 @@ class ShaftFrontendTimelineLayoutTestCase(unittest.TestCase):
         self.assertIn("resources.usesEnergy ? `<label>", source)
         self.assertIn("showsEnergy ? `<small>能量 ${energyLabel}</small>` : ''", source)
         self.assertIn("showsEnergy ? `<div class=\"shaft-detail-kv\"><span>回能</span>", source)
+        self.assertIn("showsEnergy ? `<div class=\"shaft-detail-kv\"><span>额外回能</span>", source)
+
+    def test_action_detail_uses_start_end_times_and_omits_dps(self) -> None:
+        source = SHAFT_JS.read_text(encoding='utf-8')
+
+        self.assertIn('<span>开始时间</span>', source)
+        self.assertIn('<span>结束时间</span>', source)
+        self.assertNotIn('<span>显示开始</span>', source)
+        self.assertNotIn('<span>计算开始</span>', source)
+        self.assertNotIn('<span>计算结束</span>', source)
+        self.assertNotIn('<div class="shaft-detail-kv"><span>DPS</span>', source)
 
     def test_build_page_uses_character_loadout_overview_three_column_order(self) -> None:
         template = (ROOT / 'app' / 'modules' / 'shaft' / 'templates' / 'shaft' / 'index.html').read_text(encoding='utf-8')
@@ -446,7 +501,10 @@ class ShaftFrontendTimelineLayoutTestCase(unittest.TestCase):
         self.assertIn('<div><span>倾陷</span><strong>${formatNumber(summary.stagger_damage || 0)}</strong></div>', source)
         self.assertIn("const HARMONY_DAMAGE_SOURCES = ['创生', '创生复制体', '浊燃', '黯星'];", engine)
         self.assertIn("const SPECIAL_DAMAGE_SOURCES = ['创生', '创生复制体', '浊燃', '黯星'];", engine)
+        self.assertIn("{ source: '创生', members: ['创生', '创生复制体'] }", engine)
         self.assertNotIn("const SPECIAL_DAMAGE_SOURCES = ['创生', '浊燃', '黯星', '噩梦'];", engine)
+        self.assertIn("return SPECIAL_DAMAGE_SOURCES.includes(explicitSource) ? explicitSource : '';", engine)
+        self.assertNotIn("actionName.includes(source)", engine)
         self.assertIn("{ source: '倾陷', damage: staggerDamage }", engine)
         self.assertIn('const sourceBars = (result?.damage_by_source || []).map', source)
 
@@ -470,9 +528,56 @@ class ShaftFrontendTimelineLayoutTestCase(unittest.TestCase):
 
         self.assertGreater(damage_by_source['黯星']['damage'], 0)
         self.assertAlmostEqual(result['summary']['harmony_damage'], damage_by_source['黯星']['damage'])
+        self.assertEqual(result['summary']['character_damage'], 0)
+        self.assertEqual(result['damage_by_slot'][0]['damage'], 0)
+        self.assertEqual(result['damage_by_action_by_slot'][0]['actions'], [])
+        self.assertAlmostEqual(
+            sum(item['damage'] for item in result['harmony_contributions_by_slot']),
+            result['summary']['harmony_damage'],
+        )
+        self.assertEqual(result['harmony_contributions_by_slot'][0]['sources'][0]['source'], '黯星')
         self.assertGreater(damage_by_source['黯星']['percent'], 0)
         self.assertNotIn('创生', damage_by_source)
         self.assertNotIn('浊燃', damage_by_source)
+
+        jiuyuan_extra = next(action for action in catalog['actions'] if action.get('name') == '创生追加')
+        haiyue_extra = next(action for action in catalog['actions'] if action.get('name') == '黯星追加')
+        attached_result = simulate_shaft_axis({
+            'team': [
+                {
+                    'slot': 0,
+                    'character_id': jiuyuan_extra['character_id'],
+                    'arc_id': '',
+                    'cartridge_id': '',
+                },
+                {
+                    'slot': 1,
+                    'character_id': haiyue_extra['character_id'],
+                    'arc_id': '',
+                    'cartridge_id': '',
+                },
+            ],
+            'steps': [
+                {
+                    'id': 'jiuyuan_extra',
+                    'slot': 0,
+                    'action_id': jiuyuan_extra['id'],
+                    'start_tick': 0,
+                },
+                {
+                    'id': 'haiyue_extra',
+                    'slot': 1,
+                    'action_id': haiyue_extra['id'],
+                    'start_tick': 0,
+                },
+            ],
+        })['result']
+        self.assertGreater(attached_result['summary']['character_damage'], 0)
+        self.assertEqual(attached_result['summary']['harmony_damage'], 0)
+        self.assertTrue(all(
+            contribution['damage'] == 0
+            for contribution in attached_result['harmony_contributions_by_slot']
+        ))
 
     def test_special_damage_sources_use_distinct_semantic_colors(self) -> None:
         source = SHAFT_JS.read_text(encoding='utf-8')
@@ -487,13 +592,18 @@ class ShaftFrontendTimelineLayoutTestCase(unittest.TestCase):
         self.assertIn("'浊燃': DAMAGE_SOURCE_COLORS['浊燃']", source)
         self.assertIn("'黯星': DAMAGE_SOURCE_COLORS['黯星']", source)
         render_results = source[source.index('function renderResults()'):source.index('function actionContributionForSlot')]
-        self.assertIn("const sourceRows = (result?.damage_by_source || []).map", render_results)
+        self.assertIn("const independentRows = [", render_results)
+        self.assertIn("label: '环合伤害'", render_results)
+        self.assertIn("label: '倾陷伤害'", render_results)
+        self.assertIn("color: DAMAGE_SOURCE_COLORS['创生']", render_results)
+        self.assertIn("color: DAMAGE_SOURCE_COLORS['倾陷']", render_results)
         self.assertIn('shaft-contribution-source-row', render_results)
-        self.assertIn("--contribution-color:${DAMAGE_SOURCE_COLORS[item.source] || '#b9c6d8'}", render_results)
+        self.assertIn('--contribution-color:${item.color}', render_results)
         self.assertIn('.shaft-contribution-source-row .shaft-contribution-bar span', css)
 
     def test_character_action_contribution_dialog_aggregates_repeated_actions(self) -> None:
         source = SHAFT_JS.read_text(encoding='utf-8')
+        css = (ROOT / 'app' / 'modules' / 'shaft' / 'static' / 'css' / 'shaft-page.css').read_text(encoding='utf-8')
         template = (ROOT / 'app' / 'modules' / 'shaft' / 'templates' / 'shaft' / 'index.html').read_text(encoding='utf-8')
         catalog = load_shaft_catalog()
         character = catalog['characters'][0]
@@ -518,19 +628,9 @@ class ShaftFrontendTimelineLayoutTestCase(unittest.TestCase):
             ],
         })['result']
         contribution = result['damage_by_action_by_slot'][0]
-        direct_actions = [
-            action for action in contribution['actions']
-            if action['action_type'] != '倾陷'
-        ]
-        stagger_action = next(
-            action for action in contribution['actions']
-            if action['action_type'] == '倾陷'
-        )
-
         self.assertEqual(contribution['character_id'], character['id'])
-        self.assertEqual(len(direct_actions), 2)
-        self.assertEqual(stagger_action['action_name'], '倾陷伤害')
-        self.assertIn('平均倾陷强度', stagger_action['detail'])
+        self.assertEqual(len(contribution['actions']), 2)
+        self.assertTrue(all(action['action_type'] != '倾陷' for action in contribution['actions']))
         self.assertAlmostEqual(sum(action['percent'] for action in contribution['actions']), 100, places=6)
         self.assertAlmostEqual(
             sum(action['damage'] for action in contribution['actions']),
@@ -546,8 +646,105 @@ class ShaftFrontendTimelineLayoutTestCase(unittest.TestCase):
         self.assertIn('damage_type: detail.damage_type', SHAFT_ENGINE_JS.read_text(encoding='utf-8'))
         self.assertIn('damage_by_action_by_slot: clone(result.damage_by_action_by_slot || [])', source)
         self.assertIn('function mergeActionAnalysisComparison(', source)
+        self.assertIn("'被动': '#ff5aa5'", source)
+        self.assertIn('const reservedColors = new Set(', source)
+        self.assertIn('const assignedColors = new Set();', source)
+        self.assertIn('if (color && assignedColors.has(color)) color = \'\';', source)
+        self.assertIn('color = fallbackColors.find((candidate) => !assignedColors.has(candidate));', source)
+        self.assertIn('function actionAnalysisRelativePercent(current, baseline)', source)
+        self.assertIn('function actionAnalysisRelativePercentText(current, baseline)', source)
+        self.assertIn('shaft-action-analysis-relative', source)
+        self.assertIn('actionAnalysisRelativePercentText(contribution.total_damage, baselineContribution.total_damage)', source)
+        self.assertIn('actionAnalysisRelativePercentText(group.damage, group.baselineDamage)', source)
         self.assertIn('对比快照', source)
         self.assertIn('排行图中的竖线表示快照占比', source)
+        contribution_legend = css[
+            css.index('.shaft-action-contribution-legend {'):
+            css.index('.shaft-action-contribution-item {')
+        ]
+        self.assertIn('padding: 2px 4px 2px 2px;', contribution_legend)
+        self.assertIn('overflow-x: hidden;', contribution_legend)
+        self.assertIn('overflow-y: auto;', contribution_legend)
+
+    def test_substat_input_defers_simulation_until_editing_finishes(self) -> None:
+        source = SHAFT_JS.read_text(encoding='utf-8')
+        input_handler = source[
+            source.index('function handleSubstatInput(event)'):
+            source.index('function handleSubstatCommit(event)')
+        ]
+        commit_handler = source[
+            source.index('function handleSubstatCommit(event)'):
+            source.index('function handleSubstatKeydown(event)')
+        ]
+
+        self.assertIn("setStatus('编辑词条中，退出刷新', 'dirty');", input_handler)
+        self.assertNotIn('renderTeam();', input_handler)
+        self.assertNotIn('renderBuildPanel();', input_handler)
+        self.assertNotIn('scheduleSimulation();', input_handler)
+        self.assertIn('renderBuildPanel();', commit_handler)
+        self.assertIn('scheduleSimulation();', commit_handler)
+        self.assertIn("addEventListener('focusout', handleSubstatCommit)", source)
+        self.assertIn("addEventListener('keydown', handleSubstatKeydown)", source)
+
+    def test_substat_total_explains_drive_and_cartridge_conversion(self) -> None:
+        source = SHAFT_JS.read_text(encoding='utf-8')
+        css = SHAFT_CSS.read_text(encoding='utf-8')
+
+        self.assertIn(
+            "const SUBSTAT_TOTAL_TOOLTIP = 'II / III / IV 型驱动上的每个副词条分别对应 2 / 3 / 4 个词条，卡带上的副词条对应 10 个词条。只支持金色卡带、驱动块。';",
+            source,
+        )
+        self.assertIn('class="shaft-substat-total-tooltip"', source)
+        self.assertIn('tabindex="0"', source)
+        self.assertIn('.shaft-substat-total-tooltip::after', css)
+        self.assertIn('.shaft-substat-total-tooltip:hover::after', css)
+        self.assertIn('.shaft-substat-total-tooltip:focus::after', css)
+
+    def test_build_panel_avatar_scrolls_matching_loadout_into_view(self) -> None:
+        source = SHAFT_JS.read_text(encoding='utf-8')
+        css = SHAFT_CSS.read_text(encoding='utf-8')
+        scroll_handler = source[
+            source.index('function scrollBuildMemberIntoView(slot)'):
+            source.index('function timelineVisualOffsetWithScale(')
+        ]
+
+        self.assertIn('.shaft-member-card[data-slot="${Number(slot)}"]', scroll_handler)
+        self.assertIn("behavior: reduceMotion ? 'auto' : 'smooth'", scroll_handler)
+        self.assertIn("block: 'start'", scroll_handler)
+        self.assertIn("inline: 'nearest'", scroll_handler)
+        self.assertIn('window.requestAnimationFrame(() => scrollBuildMemberIntoView(state.buildPanelSlot));', scroll_handler)
+        self.assertIn('scroll-margin-top: 14px;', css)
+
+    def test_build_page_has_separate_stagger_contribution_dialog(self) -> None:
+        source = SHAFT_JS.read_text(encoding='utf-8')
+        template = (ROOT / 'app' / 'modules' / 'shaft' / 'templates' / 'shaft' / 'index.html').read_text(encoding='utf-8')
+        css = (ROOT / 'app' / 'modules' / 'shaft' / 'static' / 'css' / 'shaft-page.css').read_text(encoding='utf-8')
+
+        self.assertNotIn('id="shaft-stagger-analysis-btn"', template)
+        self.assertIn('id="shaft-stagger-analysis-dialog"', template)
+        self.assertIn('id="shaft-stagger-analysis-content"', template)
+        self.assertIn('data-open-stagger-analysis', source)
+        self.assertIn('function renderStaggerAnalysis()', source)
+        self.assertIn('不计入角色自身伤害占比或动作贡献', source)
+        self.assertIn('result.stagger_contributions_by_slot', source)
+        self.assertIn('平均倾陷强度', source)
+        self.assertIn('.shaft-stagger-contribution-list', css)
+
+    def test_build_page_has_separate_harmony_contribution_dialog(self) -> None:
+        source = SHAFT_JS.read_text(encoding='utf-8')
+        template = (ROOT / 'app' / 'modules' / 'shaft' / 'templates' / 'shaft' / 'index.html').read_text(encoding='utf-8')
+
+        self.assertIn('id="shaft-harmony-damage"', template)
+        self.assertNotIn('id="shaft-harmony-analysis-btn"', template)
+        self.assertIn('id="shaft-harmony-analysis-dialog"', template)
+        self.assertIn('id="shaft-harmony-analysis-content"', template)
+        self.assertIn('data-open-harmony-analysis', source)
+        self.assertIn('class="shaft-contribution-row shaft-contribution-source-row"', source)
+        self.assertIn('function renderHarmonyAnalysis()', source)
+        self.assertIn('result.harmony_contributions_by_slot', source)
+        self.assertIn('环合伤害独立计入全队总伤和 DPS', source)
+        self.assertIn('不计入角色自身伤害占比或动作贡献', source)
+        self.assertIn("renderResultCard('shaft-direct-damage', '角色伤害', summary.character_damage", source)
 
     def test_rotation_header_exposes_shortcut_help_dialog(self) -> None:
         source = SHAFT_JS.read_text(encoding='utf-8')
@@ -562,6 +759,43 @@ class ShaftFrontendTimelineLayoutTestCase(unittest.TestCase):
         self.assertIn('时间光标前后移动 0.1 秒', template)
         self.assertIn('所选动作前后移动 0.1 秒', template)
 
+    def test_build_header_exposes_version_and_feedback_dialog(self) -> None:
+        source = SHAFT_JS.read_text(encoding='utf-8')
+        template = SHAFT_TEMPLATE.read_text(encoding='utf-8')
+
+        self.assertIn('id="shaft-build-info-btn"', template)
+        self.assertIn('id="shaft-build-info-dialog"', template)
+        self.assertIn('id="shaft-build-info-version"', template)
+        self.assertIn('新角色在游戏上线后需要 2–3 周才能上线网站', template)
+        self.assertIn('反馈问题请加群', template)
+        self.assertIn('class="shaft-known-issues"', template)
+        self.assertIn('多层独立计算CD的叠层buff', template)
+        self.assertIn('首次触发的那层的剩余时间，可能与预期不符', template)
+        self.assertIn('暂时不支持浔复现技能', template)
+        self.assertIn("config['SHAFT_SUPPORT_GROUP']", template)
+        self.assertIn("buildInfoButton.hidden = state.page !== 'build';", source)
+        self.assertIn("$('shaft-build-info-version').textContent = versionLabel;", source)
+        self.assertIn('function openBuildInfo()', source)
+
+    def test_timeline_tooltips_render_above_sticky_character_labels(self) -> None:
+        styles = SHAFT_CSS.read_text(encoding='utf-8')
+        buff_hover = re.search(
+            r'\.shaft-buff-trigger-line:hover,\s*'
+            r'\.shaft-buff-trigger-line:focus-visible,\s*'
+            r'\.shaft-buff-trigger-line\.selected\s*\{(?P<body>[^}]*)\}',
+            styles,
+        )
+        damage_hover = re.search(
+            r'\.shaft-reaction-damage-marker:hover,\s*'
+            r'\.shaft-reaction-damage-marker:focus-visible\s*\{(?P<body>[^}]*)\}',
+            styles,
+        )
+
+        self.assertIsNotNone(buff_hover)
+        self.assertIn('z-index: 40;', buff_hover.group('body'))
+        self.assertIsNotNone(damage_hover)
+        self.assertIn('z-index: 40;', damage_hover.group('body'))
+
     def test_six_awakening_nodes_are_selected_independently(self) -> None:
         source = SHAFT_JS.read_text(encoding='utf-8')
         css = (ROOT / 'app' / 'modules' / 'shaft' / 'static' / 'css' / 'shaft-page.css').read_text(encoding='utf-8')
@@ -575,12 +809,30 @@ class ShaftFrontendTimelineLayoutTestCase(unittest.TestCase):
         self.assertNotIn('aria-label="${escapeHtml(tooltip)}" tabindex="0"', source)
         self.assertNotIn('.shaft-awakening-dot[data-tooltip]:focus-visible::after', css)
 
-    def test_build_cards_show_only_buff_registered_active_mechanisms(self) -> None:
+    def test_build_and_rotation_avatar_badges_show_active_awakening_count(self) -> None:
+        source = SHAFT_JS.read_text(encoding='utf-8')
+
+        self.assertIn('function activeAwakeningCount(member) {', source)
+        self.assertIn('normalizeAwakeningNodes(member?.awakening_nodes, member?.awakening).length', source)
+        self.assertEqual(source.count('const awakeningCount = activeAwakeningCount('), 2)
+        self.assertEqual(
+            source.count('<b aria-label="已激活 ${awakeningCount} 个觉醒">${awakeningCount}</b>'),
+            2,
+        )
+        self.assertNotIn('<b>${Number(member.slot) + 1}</b>', source)
+        self.assertNotIn('<b>${Number(item.slot) + 1}</b>', source)
+
+    def test_build_cards_show_buff_and_implemented_talent_mechanisms(self) -> None:
         source = SHAFT_JS.read_text(encoding='utf-8')
         css = (ROOT / 'app' / 'modules' / 'shaft' / 'static' / 'css' / 'shaft-page.css').read_text(encoding='utf-8')
 
         self.assertIn('function activeMechanismGroups(member)', source)
         self.assertIn('(state.catalog?.buffs || []).forEach((rule) => {', source)
+        self.assertIn('(state.catalog?.mechanisms || [])', source)
+        self.assertIn("name: `天赋${mechanism.talent === 1 ? '一' : '二'}", source)
+        self.assertIn('replaces_rule_ids', source)
+        self.assertIn("base_multiplier_pct: '基础倍率'", source)
+        self.assertIn("base_multiplier_pct: '基础倍率提升'", source)
         self.assertIn("const selectedProviders = {", source)
         self.assertIn("character: String(member?.character_id || '')", source)
         self.assertIn("arc: String(member?.arc_id || '')", source)
@@ -606,6 +858,20 @@ class ShaftFrontendTimelineLayoutTestCase(unittest.TestCase):
         self.assertNotIn('${mechanismTooltip}', source[character_select_start:character_select_end])
         self.assertIn('.shaft-build-layout .shaft-member-identity .shaft-mechanism-tooltip', css)
 
+    def test_catalog_exposes_implemented_talents_for_active_mechanism_tooltips(self) -> None:
+        catalog = get_shaft_catalog_payload()
+        mechanisms = {mechanism['id']: mechanism for mechanism in catalog['mechanisms']}
+
+        self.assertIn('talent_1_nanali_genesis', mechanisms)
+        self.assertIn('talent_2_nanali_fair_duel', mechanisms)
+        self.assertIn('talent_1_iloy_mirror', mechanisms)
+        self.assertIn('talent_2_iloy_sympathetic_nervous_system', mechanisms)
+        descriptions = [mechanism['description'] for mechanism in mechanisms.values()]
+        self.assertFalse(any('已实装' in description for description in descriptions))
+        self.assertFalse(any('部分实装' in description for description in descriptions))
+        self.assertFalse(any('尚未实装' in description for description in descriptions))
+        self.assertIn('每2秒最多触发1次', mechanisms['talent_2_nanali_fair_duel']['description'])
+
     def test_build_character_picker_reuses_market_cards_as_single_select(self) -> None:
         source = SHAFT_JS.read_text(encoding='utf-8')
         css = (ROOT / 'app' / 'modules' / 'shaft' / 'static' / 'css' / 'shaft-page.css').read_text(encoding='utf-8')
@@ -619,6 +885,23 @@ class ShaftFrontendTimelineLayoutTestCase(unittest.TestCase):
         self.assertIn('setBuildCharacterPickerOpen(picker, Boolean(popover?.hidden));', source)
         self.assertIn("$('shaft-team-slots').addEventListener('click', handleTeamClick);", source)
         self.assertIn('.shaft-build-character-popover', css)
+
+    def test_character_switch_protects_unsaved_axis_before_mutating_or_clearing_steps(self) -> None:
+        source = SHAFT_JS.read_text(encoding='utf-8')
+
+        selection_start = source.index('function applyMemberCharacterSelection(member, characterId)')
+        selection_end = source.index('function setBuildCharacterPickerOpen', selection_start)
+        selection_body = source[selection_start:selection_end]
+        confirmation = (
+            "window.confirm('当前动作轴有未保存的修改，"
+            "切换角色会清空该角色的动作，确定继续吗？')"
+        )
+
+        self.assertIn('hasUnsavedAxisChanges()', selection_body)
+        self.assertIn(confirmation, selection_body)
+        self.assertLess(selection_body.index(confirmation), selection_body.index('rememberMemberBuild(member);'))
+        self.assertLess(selection_body.index(confirmation), selection_body.index('member.character_id = characterId;'))
+        self.assertLess(selection_body.index(confirmation), selection_body.index('removeInvalidStepsForSlot(member.slot);'))
 
     def test_history_paste_and_delete_reveal_the_affected_timeline_position(self) -> None:
         source = SHAFT_JS.read_text(encoding='utf-8')
@@ -640,14 +923,37 @@ class ShaftFrontendTimelineLayoutTestCase(unittest.TestCase):
         paste_body = source[paste_start:paste_end]
         self.assertIn('revealTimelineTick(state.cursorTick);', paste_body)
 
-    def test_native_background_action_multiplier_is_editable_and_visible_on_bar(self) -> None:
+    def test_native_background_action_multiplier_uses_confirmation_dialog_and_is_visible_on_bar(self) -> None:
         source = SHAFT_JS.read_text(encoding='utf-8')
+        engine = SHAFT_ENGINE_JS.read_text(encoding='utf-8')
+        template = (ROOT / 'app' / 'modules' / 'shaft' / 'templates' / 'shaft' / 'index.html').read_text(encoding='utf-8')
+        css = (ROOT / 'app' / 'modules' / 'shaft' / 'static' / 'css' / 'shaft-page.css').read_text(encoding='utf-8')
 
+        self.assertIn('const MAX_BACKGROUND_ACTION_MULTIPLIER = 999;', source)
+        self.assertIn('const MAX_BACKGROUND_ACTION_MULTIPLIER = 999;', engine)
         self.assertIn('function backgroundActionMultiplier(step, action = actionForStep(step)) {', source)
         self.assertIn('${isBackgroundAction(action) ? `', source)
-        self.assertIn('data-background-action-multiplier', source)
+        self.assertIn('data-open-background-multiplier', source)
+        self.assertIn('aria-haspopup="dialog">设置</button>', source)
+        self.assertNotIn('aria-haspopup="dialog">×${actionMultiplier} · 设置</button>', source)
+        self.assertNotIn('data-background-action-multiplier', source)
+        self.assertIn('function openBackgroundActionMultiplier(stepId, trigger = null) {', source)
+        self.assertIn('function confirmBackgroundActionMultiplier() {', source)
+        self.assertIn('pushUndoSnapshot();', source)
+        self.assertIn("step.repeat = nextMultiplier;", source)
+        self.assertIn("addEventListener('click', handleStepDetailClick);", source)
+        self.assertNotIn("addEventListener('input', handleStepDetailChange);", source)
+        self.assertIn('id="shaft-background-multiplier-dialog"', template)
+        self.assertIn('id="shaft-background-multiplier-input"', template)
+        self.assertIn('min="1" max="999"', template)
+        self.assertIn('id="shaft-background-multiplier-confirm"', template)
+        self.assertIn('.shaft-background-multiplier-dialog {', css)
+        self.assertIn('.shaft-background-multiplier-modal {', css)
+        self.assertIn('.shaft-detail-multiplier button {\n    width: 100%;\n    min-width: 0;', css)
+        self.assertNotIn('.shaft-detail-multiplier button {\n    width: 92px;', css)
+        self.assertNotIn('Math.min(12, Math.round(Number(step?.repeat || 1)))', source)
+        self.assertNotIn('Math.min(12, int(step?.repeat, 1))', engine)
         self.assertIn("actionMultiplier > 1 ? `×${actionMultiplier}` : ''", source)
-        self.assertIn("$('shaft-step-detail').addEventListener('input', handleStepDetailChange);", source)
         self.assertIn('step.repeat = backgroundActionMultiplier(step, action);', source)
 
     def test_native_background_actions_display_as_zero_seconds_with_five_tick_footprint(self) -> None:
@@ -687,9 +993,15 @@ class ShaftFrontendTimelineLayoutTestCase(unittest.TestCase):
         self.assertIn('return segments.filter((segment) => segment.startTick > 0);', source)
         self.assertIn('reactionBuffLineSegments(effect, buffAxisEndTick, loopEnabled).forEach((segment) => {', source)
         self.assertIn('const timelineDamageEvents = [...reactionDamageEvents, ...periodicDamageEvents];', source)
-        self.assertIn('const reactionDamageMarkers = timelineDamageEvents', source)
+        self.assertIn('function groupedTimelineDamageEvents(events) {', source)
+        self.assertIn('const groupedDamageEvents = groupedTimelineDamageEvents(timelineDamageEvents);', source)
+        self.assertIn('const reactionDamageMarkers = groupedDamageEvents', source)
+        self.assertIn("return event.events.map((item) => damageMarkerTooltip(item)).join('\\n');", source)
         self.assertIn('class="shaft-reaction-damage-marker ${isPeriodicDamage ?', source)
         self.assertIn('function damageMarkerTooltip(event) {', source)
+        self.assertIn("addZone('九原频率乘区', formula.frequency_multiplier);", source)
+        self.assertNotIn('const frequencyText = Number(effect.frequency_multiplier || 1) > 1', source)
+        self.assertIn('tooltip: `${effect.reaction} · ${ticksToSeconds(effect.duration_ticks || 1)}s`', source)
         self.assertNotIn("addZone('技能等级', formula.skill_multiplier);", source)
         self.assertIn("addZone('最终倍率区', formula.final_multiplier);", source)
         self.assertEqual(source.count("addZone('最终倍率区', formula.final_multiplier);"), 2)
@@ -701,7 +1013,6 @@ class ShaftFrontendTimelineLayoutTestCase(unittest.TestCase):
         self.assertIn("marker.style.setProperty('--damage-tooltip-shift-x'", source)
         self.assertIn("$('shaft-timeline').addEventListener('focusin', positionDamageMarkerTooltip);", source)
         self.assertIn('style="left:${leftPx(Number(event.visual_tick ?? event.tick ?? 0))}px;', source)
-        self.assertIn('tooltip: `${effect.reaction} · ${ticksToSeconds(effect.duration_ticks || 1)}s`', source)
         self.assertNotIn('`触发者 ${effect.trigger_character_name || memberName(effect.trigger_slot)}`', source)
         self.assertNotIn('`援护角色 ${effect.support_character_name || memberName(effect.support_slot)}`', source)
         marker_match = re.search(r'\.shaft-reaction-damage-marker\s*{(?P<body>.*?)\n}', css, re.S)
@@ -727,7 +1038,7 @@ class ShaftFrontendTimelineLayoutTestCase(unittest.TestCase):
             raise AssertionError('reaction damage marker tooltip style is missing.')
         self.assertIn('white-space: pre-line;', marker_tooltip_match.group('body'))
         self.assertIn('--damage-tooltip-shift-x', marker_tooltip_match.group('body'))
-        self.assertIn('.shaft-reaction-damage-marker:focus-visible {\n    z-index: 20;', css)
+        self.assertIn('.shaft-reaction-damage-marker:focus-visible {\n    z-index: 40;', css)
         periodic_marker_match = re.search(r'\.shaft-periodic-damage-marker\s*{(?P<body>.*?)\n}', css, re.S)
         if not periodic_marker_match:
             raise AssertionError('periodic damage marker style is missing.')
@@ -793,15 +1104,16 @@ class ShaftFrontendTimelineLayoutTestCase(unittest.TestCase):
             source,
         )
         self.assertIn('durationTicks > BUFF_DURATION_LABEL_LIMIT_TICKS', source)
-        self.assertIn('calculationTickFromVisual(Number(buff.endTick || 0)) - calculationTickFromVisual(Number(atVisualTick || 0))', source)
+        self.assertIn('buffRemainingTicksAtCalculationTick(', source)
 
-    def test_periodic_damage_refreshes_are_included_in_buff_timeline(self) -> None:
+    def test_damage_triggered_refreshes_are_included_in_buff_timeline(self) -> None:
         source = SHAFT_JS.read_text(encoding='utf-8')
 
         self.assertIn('const periodicDamageEvents = result?.periodic_damage_events || [];', source)
-        self.assertIn('const periodicBuffDetails = periodicDamageEvents', source)
+        self.assertIn('const damageTriggeredBuffDetails = [...reactionDamageEvents, ...periodicDamageEvents]', source)
         self.assertIn('.filter((event) => Array.isArray(event?.triggered_buffs) && event.triggered_buffs.length)', source)
-        self.assertIn('const buffTimelineDetails = [...details, ...periodicBuffDetails];', source)
+        self.assertIn('const buffTimelineDetails = [...details, ...damageTriggeredBuffDetails];', source)
+        self.assertIn('if (!buff || buff.cancelled || isUnlinedBuff(buff))', source)
         self.assertIn(
             'const buffSegments = mergedBuffLineSegments(buffTimelineDetails, buffAxisEndTick, loopEnabled, member.slot);',
             source,
@@ -812,6 +1124,20 @@ class ShaftFrontendTimelineLayoutTestCase(unittest.TestCase):
         css = (ROOT / 'app' / 'modules' / 'shaft' / 'static' / 'css' / 'shaft-page.css').read_text(encoding='utf-8')
 
         self.assertIn('function positionBuffLineTooltip(event)', source)
+        self.assertIn('function buffRemainingTicksAtCalculationTick(buff, pointerCalculationTick)', source)
+        self.assertIn(
+            'buff?.calculationEndTick ?? calculationTickFromVisual(Number(buff?.endTick || 0))',
+            source,
+        )
+        self.assertIn('const cycles = Math.ceil((calculationStartTick - effectivePointerTick) / loopDurationTicks);', source)
+        self.assertIn('buff?.end_tick ?? calculationTickFromVisual(endTick)', source)
+        self.assertIn('calculationEndTick: buff.calculationEndTick,', source)
+        self.assertIn('calculationEndTick: Number(effect.end_tick || 0),', source)
+        self.assertIn('buffRemainingTicksAtCalculationTick(item, pointerCalculationTick)', source)
+        self.assertNotIn(
+            'calculationTickFromVisual(Number(item.endTick || 0)) - pointerCalculationTick',
+            source,
+        )
         self.assertIn('`${item.name} · 剩余${ticksToSeconds(remainingTicks)}s${stackText}`', source)
         self.assertIn("buffLine.style.setProperty('--buff-tooltip-x', `${offsetX}px`);", source)
         self.assertIn("$('shaft-timeline').addEventListener('pointermove', positionBuffLineTooltip);", source)
@@ -840,6 +1166,13 @@ class ShaftFrontendTimelineLayoutTestCase(unittest.TestCase):
         self.assertIn('.map((buff) => `${buff.name}${buffStackText(buff.stackCount)}`);', source)
         self.assertNotIn('parts.push(buff.tooltip);', source)
         self.assertNotIn('tooltip: `${buffRuleDisplayName(buff)} · ${ticksToSeconds', source)
+
+    def test_action_detail_deduplicates_triggered_buff_names(self) -> None:
+        source = SHAFT_JS.read_text(encoding='utf-8')
+
+        self.assertIn('const triggeredBuffs = Array.from(new Set(', source)
+        self.assertIn(".map((buff) => String(buff?.name || ''))", source)
+        self.assertIn('.filter(Boolean),', source)
 
     def test_axis_edit_schedules_real_simulation_after_local_render(self) -> None:
         source = SHAFT_JS.read_text(encoding='utf-8')
@@ -879,7 +1212,10 @@ class ShaftFrontendTimelineLayoutTestCase(unittest.TestCase):
         self.assertIn('const cursorTick = Number(state.cursorTick || 0);', source)
         self.assertIn('detailTick > cursorTick', source)
         self.assertIn('latestDetail?.resources_after_by_slot', source)
-        self.assertIn('const energy = Number(snapshot.energy ?? resource.initial_energy ?? state.axis?.initial_energy ?? 1000);', source)
+        self.assertIn('const calculationCursorTick = calculationTickFromVisual(cursorTick);', source)
+        self.assertIn('(result?.energy_events || []).reduce', source)
+        self.assertIn('Number(event.tick || 0) > calculationCursorTick', source)
+        self.assertIn('latestEnergyEvent?.energy_after ?? resource.initial_energy ?? snapshot.energy', source)
         self.assertIn('if (state.axis.initial_energy === 100) {', source)
         self.assertNotIn('const energyCapacity = Number(resource.energy_capacity ?? 0);', source)
         self.assertIn('const energyLabel = formatNumber(resources.energy || 0, 1);', source)
@@ -1306,6 +1642,12 @@ class ShaftFrontendTimelineLayoutTestCase(unittest.TestCase):
         self.assertNotIn('const foregroundLaneEnds = [];', source)
         self.assertIn('let laneIndex = 0;\n        if (detail.is_background_damage)', source)
         self.assertIn('laneIndex = backgroundLaneIndex + 1;', source)
+
+    def test_background_actions_only_use_third_row_for_visual_overlap(self) -> None:
+        source = SHAFT_JS.read_text(encoding='utf-8')
+
+        self.assertIn('backgroundLaneEnds.findIndex((endPx) => startPx >= endPx)', source)
+        self.assertNotIn('backgroundLaneEnds.findIndex((endPx) => startPx >= endPx + 6)', source)
 
     def test_q_cover_expands_over_chain_without_overlapping_return_q(self) -> None:
         min_action_card_px = _js_number_constant('MIN_ACTION_CARD_PX')

@@ -12,6 +12,7 @@ SUPPORTED_TRIGGER_EVENTS = {
     'loop_start',
     'reaction_trigger',
     'periodic_damage',
+    'full_stack',
 }
 
 PERMANENT_BUFF_END_TICK = 1_000_000_000
@@ -321,6 +322,16 @@ def _conditions_match(conditions: Any, context: dict[str, Any]) -> bool:
             if not any(str(key) in active_keys for key in _as_list(condition.get('keys'))):
                 return False
             continue
+        if condition_type == 'active_buff_none':
+            active_keys = {str(item) for item in _as_list(context.get('active_buff_keys'))}
+            if any(str(key) in active_keys for key in _as_list(condition.get('keys'))):
+                return False
+            continue
+        if condition_type == 'existing_buff_none':
+            existing_keys = {str(item) for item in _as_list(context.get('existing_buff_keys'))}
+            if any(str(key) in existing_keys for key in _as_list(condition.get('keys'))):
+                return False
+            continue
         if condition_type == 'reaction_owner_involved':
             reaction = context.get('reaction') if isinstance(context.get('reaction'), dict) else {}
             owner_slot = _int(context.get('owner_slot'), -1)
@@ -435,6 +446,7 @@ def active_buff_resets_on_action_start(
     action: dict[str, Any],
     is_background: bool,
     tick: int = 0,
+    previous_foreground_slot: int | None = None,
 ) -> bool:
     rule = instance.get('rule') if isinstance(instance.get('rule'), dict) else {}
     reset = rule.get('reset') if isinstance(rule.get('reset'), dict) else {}
@@ -448,9 +460,8 @@ def active_buff_resets_on_action_start(
         return True
     if bool(reset.get('owner_leaves_foreground_after_start')) and step_slot != owner_slot:
         if tick < _int(instance.get('start_tick')):
-            instance['ignore_owner_leave_reset'] = True
             return False
-        return not bool(instance.get('ignore_owner_leave_reset'))
+        return _int(previous_foreground_slot, -1) == owner_slot
     action_ids = _str_set(reset.get('action_ids'))
     if action_ids and str(action.get('id') or '') in action_ids:
         return True

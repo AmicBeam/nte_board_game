@@ -929,7 +929,7 @@
     "source_row": 16,
     "pre_input_node": true,
     "can_background_override": false,
-    "hit_count": 1
+    "hit_count": 3
   },
   {
     "id": "action_7773821d79",
@@ -971,7 +971,7 @@
     "source_row": 17,
     "pre_input_node": true,
     "can_background_override": false,
-    "hit_count": 1
+    "hit_count": 2
   },
   {
     "id": "action_c32b4b9417",
@@ -1012,7 +1012,7 @@
     "personal_resource_gain": {},
     "source_row": 18,
     "can_background_override": false,
-    "hit_count": 1
+    "hit_count": 9
   },
   {
     "id": "action_a17ac7c5b7",
@@ -1054,7 +1054,7 @@
     "source_row": 19,
     "pre_input_node": true,
     "can_background_override": false,
-    "hit_count": 1
+    "hit_count": 4
   },
   {
     "id": "action_e3711f0cf5",
@@ -1095,7 +1095,7 @@
     "personal_resource_gain": {},
     "source_row": 20,
     "can_background_override": false,
-    "hit_count": 1
+    "hit_count": 11
   },
   {
     "id": "action_682c19cea4",
@@ -1218,7 +1218,7 @@
     "personal_resource_gain": {},
     "source_row": 23,
     "can_background_override": false,
-    "hit_count": 1
+    "hit_count": 7
   },
   {
     "id": "action_50de5ed4be",
@@ -1259,7 +1259,7 @@
     "personal_resource_gain": {},
     "source_row": 24,
     "can_background_override": false,
-    "hit_count": 1
+    "hit_count": 10
   },
   {
     "id": "action_346621dbef",
@@ -1561,7 +1561,7 @@
     "personal_resource_gain": {},
     "source_row": 27,
     "can_background_override": false,
-    "hit_count": 1
+    "hit_count": 2
   },
   {
     "id": "action_74c569be81",
@@ -1602,7 +1602,7 @@
     "personal_resource_gain": {},
     "source_row": 28,
     "can_background_override": false,
-    "hit_count": 1
+    "hit_count": 2
   },
   {
     "id": "action_d21b280f8e",
@@ -1643,7 +1643,7 @@
     "personal_resource_gain": {},
     "source_row": 29,
     "can_background_override": false,
-    "hit_count": 1
+    "hit_count": 2
   },
   {
     "id": "action_09ad16cdd4",
@@ -1684,7 +1684,7 @@
     "personal_resource_gain": {},
     "source_row": 30,
     "can_background_override": false,
-    "hit_count": 1
+    "hit_count": 2
   },
   {
     "id": "action_6d0d0f28a5",
@@ -1725,7 +1725,7 @@
     "personal_resource_gain": {},
     "source_row": 31,
     "can_background_override": false,
-    "hit_count": 1
+    "hit_count": 2
   },
   {
     "id": "action_9ce74dc556",
@@ -1766,7 +1766,7 @@
     "personal_resource_gain": {},
     "source_row": 32,
     "can_background_override": false,
-    "hit_count": 1
+    "hit_count": 4
   },
   {
     "id": "action_25559001a0",
@@ -2012,7 +2012,7 @@
     "personal_resource_gain": {},
     "source_row": 38,
     "can_background_override": false,
-    "hit_count": 1
+    "hit_count": 6
   },
   {
     "id": "action_f63e1b71a3",
@@ -2094,7 +2094,7 @@
     "personal_resource_gain": {},
     "source_row": 40,
     "can_background_override": false,
-    "hit_count": 1,
+    "hit_count": 7,
     "tags": ["heal", "治疗"]
   },
   {
@@ -2280,8 +2280,8 @@
     "damage_type": "普攻",
     "extra_tag": "",
     "is_background_damage": false,
-    "duration_seconds": 0,
-    "duration_ticks": 0,
+    "duration_seconds": 0.3,
+    "duration_ticks": 3,
     "multipliers": {
       "atk": 0.29600000000000004,
       "hp": 0,
@@ -2309,7 +2309,6 @@
     "personal_resource_cost": {},
     "personal_resource_gain": {},
     "source_row": 45,
-    "duration_pending": true,
     "source_formula": "{0}%",
     "can_background_override": false,
     "source_action_name": "5a",
@@ -2324,8 +2323,8 @@
     "damage_type": "普攻",
     "extra_tag": "",
     "is_background_damage": false,
-    "duration_seconds": 0,
-    "duration_ticks": 0,
+    "duration_seconds": 0.3,
+    "duration_ticks": 3,
     "multipliers": {
       "atk": 0.38799999999999996,
       "hp": 0,
@@ -2353,7 +2352,6 @@
     "personal_resource_cost": {},
     "personal_resource_gain": {},
     "source_row": 45,
-    "duration_pending": true,
     "source_formula": "{0}%",
     "can_background_override": true,
     "source_action_name": "5a",
@@ -2368,8 +2366,8 @@
     "damage_type": "普攻",
     "extra_tag": "",
     "is_background_damage": false,
-    "duration_seconds": 0,
-    "duration_ticks": 0,
+    "duration_seconds": 0.8,
+    "duration_ticks": 8,
     "multipliers": {
       "atk": 1.6019999999999999,
       "hp": 0,
@@ -2397,7 +2395,6 @@
     "personal_resource_cost": {},
     "personal_resource_gain": {},
     "source_row": 45,
-    "duration_pending": true,
     "source_formula": "{0}%+{1}%+{2}%",
     "can_background_override": true,
     "source_action_name": "5a",
@@ -2412,8 +2409,8 @@
     "damage_type": "普攻",
     "extra_tag": "",
     "is_background_damage": false,
-    "duration_seconds": 0,
-    "duration_ticks": 0,
+    "duration_seconds": 1,
+    "duration_ticks": 10,
     "multipliers": {
       "atk": 0.483,
       "hp": 0,
@@ -2441,7 +2438,6 @@
     "personal_resource_cost": {},
     "personal_resource_gain": {},
     "source_row": 45,
-    "duration_pending": true,
     "source_formula": "{0}%*7",
     "can_background_override": true,
     "source_action_name": "5a",
@@ -2456,8 +2452,8 @@
     "damage_type": "普攻",
     "extra_tag": "",
     "is_background_damage": false,
-    "duration_seconds": 0,
-    "duration_ticks": 0,
+    "duration_seconds": 1.3,
+    "duration_ticks": 13,
     "multipliers": {
       "atk": 1.544,
       "hp": 0,
@@ -2485,7 +2481,6 @@
     "personal_resource_cost": {},
     "personal_resource_gain": {},
     "source_row": 45,
-    "duration_pending": true,
     "source_formula": "{0}%+{1}%",
     "can_background_override": true,
     "source_action_name": "5a",
@@ -3086,8 +3081,8 @@
     "damage_type": "下落",
     "extra_tag": "",
     "is_background_damage": false,
-    "duration_seconds": 0.5,
-    "duration_ticks": 5,
+    "duration_seconds": 0.7,
+    "duration_ticks": 7,
     "multipliers": {
       "atk": 0.5,
       "hp": 0,
@@ -3202,7 +3197,7 @@
     "personal_resource_gain": {},
     "source_row": 53,
     "can_background_override": false,
-    "hit_count": 1
+    "hit_count": 5
   },
   {
     "id": "action_634a6398e3",
@@ -3288,7 +3283,7 @@
     "personal_resource_gain": {},
     "source_row": 55,
     "can_background_override": false,
-    "hit_count": 1
+    "hit_count": 7
   },
   {
     "id": "action_8a8000d4a4",
@@ -3370,7 +3365,7 @@
     "personal_resource_gain": {},
     "source_row": 57,
     "can_background_override": false,
-    "hit_count": 1
+    "hit_count": 11
   },
   {
     "id": "action_4f1cc1b94f",
@@ -3453,7 +3448,7 @@
     "source_row": 59,
     "source_formula": "{0}%",
     "can_background_override": false,
-    "hit_count": 1
+    "hit_count": 6
   },
   {
     "id": "action_d8430d0b9e",
@@ -3508,6 +3503,8 @@
     "action_type": "普攻",
     "damage_type": "普攻",
     "extra_tag": "附着",
+    "required_buff_key": "character_jiuyuan_rose_settle",
+    "required_buff_name": "致命玫约可清算",
     "is_background_damage": true,
     "duration_seconds": 0,
     "duration_ticks": 0,
@@ -3553,11 +3550,13 @@
     "action_type": "普攻",
     "damage_type": "普攻",
     "extra_tag": "附着",
+    "required_buff_key": "character_jiuyuan_rose_settle",
+    "required_buff_name": "致命玫约可清算",
     "is_background_damage": true,
     "duration_seconds": 0,
     "duration_ticks": 0,
     "multipliers": {
-      "atk": 1,
+      "atk": 4,
       "hp": 0,
       "def": 0,
       "flat": 0
@@ -3583,7 +3582,8 @@
     "personal_resource_cost": {},
     "personal_resource_gain": {},
     "source_row": 62,
-    "source_formula": "{0}%",
+    "source_formula": "普通清算倍率*4",
+    "source_note": "用户 2026-07-19 补充：Q清算为普通清算的4倍；Nanoka仅描述Q触发清算时伤害大幅提升，未提供精确倍数。",
     "can_background_override": false,
     "hit_count": 1,
     "tags": [
@@ -3671,7 +3671,7 @@
     "personal_resource_gain": {},
     "source_row": 64,
     "can_background_override": false,
-    "hit_count": 1
+    "hit_count": 6
   },
   {
     "id": "action_5501c87ce7",
@@ -3712,7 +3712,7 @@
     "personal_resource_gain": {},
     "source_row": 65,
     "can_background_override": false,
-    "hit_count": 1
+    "hit_count": 12
   },
   {
     "id": "action_094bfbdf0a",
@@ -4058,7 +4058,7 @@
     "personal_resource_gain": {},
     "source_row": 69,
     "can_background_override": false,
-    "hit_count": 1
+    "hit_count": 2
   },
   {
     "id": "action_9670752877",
@@ -4099,7 +4099,7 @@
     "personal_resource_gain": {},
     "source_row": 70,
     "can_background_override": false,
-    "hit_count": 1
+    "hit_count": 7
   },
   {
     "id": "action_222f577087",
@@ -4606,7 +4606,7 @@
     "personal_resource_gain": {},
     "source_row": 78,
     "can_background_override": false,
-    "hit_count": 1
+    "hit_count": 4
   },
   {
     "id": "action_d737daad2b",
@@ -4647,7 +4647,7 @@
     "personal_resource_gain": {},
     "source_row": 79,
     "can_background_override": false,
-    "hit_count": 1
+    "hit_count": 3
   },
   {
     "id": "action_9166cd44f2",
@@ -4901,7 +4901,7 @@
     "personal_resource_gain": {},
     "source_row": 85,
     "can_background_override": false,
-    "hit_count": 1
+    "hit_count": 10
   },
   {
     "id": "action_fc0889c388",
@@ -4942,7 +4942,7 @@
     "personal_resource_gain": {},
     "source_row": 86,
     "can_background_override": false,
-    "hit_count": 1
+    "hit_count": 2
   },
   {
     "id": "action_43a333a290",
@@ -4983,7 +4983,7 @@
     "personal_resource_gain": {},
     "source_row": 87,
     "can_background_override": false,
-    "hit_count": 1
+    "hit_count": 3
   },
   {
     "id": "action_0db78d1f01",
@@ -5024,7 +5024,7 @@
     "personal_resource_gain": {},
     "source_row": 88,
     "can_background_override": false,
-    "hit_count": 1
+    "hit_count": 6
   },
   {
     "id": "action_b646db1098",
@@ -5148,7 +5148,7 @@
     "personal_resource_gain": {},
     "source_row": 91,
     "can_background_override": false,
-    "hit_count": 1
+    "hit_count": 3
   },
   {
     "id": "action_881b816d9f",
@@ -6358,7 +6358,7 @@
     "personal_resource_gain": {},
     "source_row": 112,
     "can_background_override": false,
-    "hit_count": 1
+    "hit_count": 8
   },
   {
     "id": "action_5206179376",
@@ -6399,7 +6399,7 @@
     "personal_resource_gain": {},
     "source_row": 113,
     "can_background_override": false,
-    "hit_count": 1
+    "hit_count": 8
   },
   {
     "id": "action_351bba97e4",
@@ -6440,7 +6440,7 @@
     "personal_resource_gain": {},
     "source_row": 114,
     "can_background_override": false,
-    "hit_count": 1
+    "hit_count": 7
   },
   {
     "id": "action_f5e921e6d8",
@@ -6481,7 +6481,7 @@
     "personal_resource_gain": {},
     "source_row": 115,
     "can_background_override": false,
-    "hit_count": 1
+    "hit_count": 14
   },
   {
     "id": "action_b0e5fd6662",
@@ -6563,7 +6563,7 @@
     "personal_resource_gain": {},
     "source_row": 117,
     "can_background_override": false,
-    "hit_count": 1
+    "hit_count": 3
   },
   {
     "id": "action_bdc49de5c5",
@@ -6572,6 +6572,7 @@
     "name": "黯星扣血",
     "action_type": "真伤",
     "damage_type": "真伤",
+    "damage_source": "黯星",
     "extra_tag": "",
     "is_background_damage": true,
     "duration_seconds": 0,
@@ -6654,7 +6655,7 @@
     "personal_resource_gain": {},
     "source_row": 119,
     "can_background_override": false,
-    "hit_count": 1,
+    "hit_count": 6,
     "tags": [
       "心灵"
     ]
@@ -6698,7 +6699,7 @@
     "personal_resource_gain": {},
     "source_row": 120,
     "can_background_override": false,
-    "hit_count": 1,
+    "hit_count": 13,
     "tags": [
       "心灵"
     ]
@@ -6827,7 +6828,7 @@
     "personal_resource_gain": {},
     "source_row": 123,
     "can_background_override": false,
-    "hit_count": 1
+    "hit_count": 2
   },
   {
     "id": "action_d44546c512",
@@ -6909,7 +6910,7 @@
     "personal_resource_gain": {},
     "source_row": 125,
     "can_background_override": false,
-    "hit_count": 1
+    "hit_count": 4
   },
   {
     "id": "action_3529c3d915",
@@ -7155,7 +7156,7 @@
     "personal_resource_gain": {},
     "source_row": 131,
     "can_background_override": false,
-    "hit_count": 1
+    "hit_count": 4
   },
   {
     "id": "action_ccdf9fbe9e",
@@ -7284,7 +7285,7 @@
     "personal_resource_gain": {},
     "source_row": 134,
     "can_background_override": false,
-    "hit_count": 1
+    "hit_count": 6
   },
   {
     "id": "action_17efab5dbd",
@@ -7684,7 +7685,7 @@
     "personal_resource_gain": {},
     "source_row": 139,
     "can_background_override": false,
-    "hit_count": 1
+    "hit_count": 2
   },
   {
     "id": "action_b4b1388f15",
@@ -7725,7 +7726,7 @@
     "personal_resource_gain": {},
     "source_row": 140,
     "can_background_override": false,
-    "hit_count": 1
+    "hit_count": 2
   },
   {
     "id": "action_2d3f8642dd",
@@ -7769,7 +7770,7 @@
     "source_row": 141,
     "can_background_override": false,
     "sin_recovery": 100,
-    "hit_count": 1
+    "hit_count": 4
   },
   {
     "id": "action_dbd682321e",
@@ -7810,7 +7811,7 @@
     "personal_resource_gain": {},
     "source_row": 142,
     "can_background_override": false,
-    "hit_count": 1
+    "hit_count": 5
   },
   {
     "id": "action_be26cd6a7c",
@@ -7945,7 +7946,7 @@
     "personal_resource_gain": {},
     "source_row": 145,
     "can_background_override": false,
-    "hit_count": 1
+    "hit_count": 2
   },
   {
     "id": "action_61c61302f2",
@@ -7986,7 +7987,7 @@
     "personal_resource_gain": {},
     "source_row": 146,
     "can_background_override": false,
-    "hit_count": 1
+    "hit_count": 3
   },
   {
     "id": "action_e3ab099393",
@@ -8027,7 +8028,7 @@
     "personal_resource_gain": {},
     "source_row": 147,
     "can_background_override": false,
-    "hit_count": 1
+    "hit_count": 10
   },
   {
     "id": "action_6b6bace5c8",
@@ -8068,7 +8069,7 @@
     "personal_resource_gain": {},
     "source_row": 148,
     "can_background_override": false,
-    "hit_count": 1
+    "hit_count": 20
   },
   {
     "id": "action_cc530277d3",
@@ -8109,7 +8110,7 @@
     "personal_resource_gain": {},
     "source_row": 149,
     "can_background_override": false,
-    "hit_count": 1
+    "hit_count": 3
   },
   {
     "id": "action_0dfd7dfab8",
@@ -8150,7 +8151,7 @@
     "personal_resource_gain": {},
     "source_row": 150,
     "can_background_override": false,
-    "hit_count": 1
+    "hit_count": 7
   },
   {
     "id": "action_85ee761950",
@@ -8191,7 +8192,7 @@
     "personal_resource_gain": {},
     "source_row": 151,
     "can_background_override": false,
-    "hit_count": 1
+    "hit_count": 3
   },
   {
     "id": "action_c9326f9e35",
@@ -8232,7 +8233,7 @@
     "personal_resource_gain": {},
     "source_row": 152,
     "can_background_override": false,
-    "hit_count": 1
+    "hit_count": 2
   },
   {
     "id": "action_31c54a4e71",
@@ -8355,7 +8356,7 @@
     "personal_resource_gain": {},
     "source_row": 155,
     "can_background_override": false,
-    "hit_count": 1
+    "hit_count": 6
   },
   {
     "id": "action_ff4f07b530",
@@ -8485,7 +8486,7 @@
     "personal_resource_gain": {},
     "source_row": 158,
     "can_background_override": false,
-    "hit_count": 1
+    "hit_count": 4
   },
   {
     "id": "action_01209221c1",
@@ -8573,7 +8574,7 @@
     "id": "action_afea1e6fb2",
     "character_id": "char_a01c39f576",
     "character_name": "伊洛伊",
-    "name": "长E",
+    "name": "e",
     "action_type": "E",
     "damage_type": "E",
     "extra_tag": "",
@@ -8581,19 +8582,49 @@
     "duration_seconds": 1.5,
     "duration_ticks": 15,
     "multipliers": {"atk": 4.003, "hp": 0, "def": 0, "flat": 0},
-    "energy_gain": 0,
-    "harmony": 0,
-    "stagger": 0,
+    "energy_gain": 4.798,
+    "harmony": 7.998,
+    "stagger": 1.003,
     "energy_return": 0,
     "self_modifiers": {},
     "cooldown_ticks": 120,
     "energy_cost": 0,
     "personal_resource_cost": {},
     "personal_resource_gain": {"臆想": 16},
-    "source_row": 43,
+    "source_row": 454,
+    "source_formula": "{0}%+{1}%*7+{2}%",
+    "source_action_name": "未来自我连续性假设",
     "can_background_override": false,
-    "hit_count": 1,
+    "hit_count": 9,
     "tags": ["heal", "治疗"]
+  },
+  {
+    "id": "action_iloy_long_e",
+    "character_id": "char_a01c39f576",
+    "character_name": "伊洛伊",
+    "name": "长e",
+    "action_type": "E",
+    "damage_type": "E",
+    "extra_tag": "长按",
+    "is_background_damage": false,
+    "duration_seconds": 1.5,
+    "duration_ticks": 15,
+    "multipliers": {"atk": 4.003, "hp": 0, "def": 0, "flat": 0},
+    "energy_gain": 4.798,
+    "harmony": 7.998,
+    "stagger": 1.003,
+    "energy_return": 0,
+    "self_modifiers": {},
+    "cooldown_ticks": 120,
+    "energy_cost": 0,
+    "personal_resource_cost": {},
+    "personal_resource_gain": {"臆想": 16},
+    "source_row": 454,
+    "source_formula": "{0}%+{1}%*7+{2}%",
+    "source_action_name": "未来自我连续性假设（长按）",
+    "can_background_override": false,
+    "hit_count": 9,
+    "tags": ["heal", "治疗", "长按"]
   },
   {
     "id": "action_307ad00e8e",

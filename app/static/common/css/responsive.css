@@ -33,7 +33,11 @@
     .account-panel, .mode-panel { padding: 16px; }
     .panel-header, .table-topbar, .section-title-row { flex-direction: column; align-items: flex-start; }
     .portal-page {
-        align-content: start;
+        align-content: stretch;
+    }
+    .icon-btn.portal-github-link {
+        top: 14px;
+        right: 14px;
     }
     .portal-module-grid {
         grid-template-columns: 1fr;
@@ -43,6 +47,14 @@
     }
     .portal-module-card {
         min-height: 190px;
+    }
+    .portal-community {
+        padding: 16px;
+        flex-direction: column;
+        align-items: flex-start;
+    }
+    .portal-community .header-actions {
+        width: 100%;
     }
     .build-page:not(.profile-page) .build-command {
         min-height: 0;

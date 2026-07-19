@@ -14,10 +14,10 @@
             <a class="shaft-page-tab" data-shaft-page-link="plaza" href="{{ url_for('main.shaft_page', page='plaza') }}">广场</a>
         </nav>
         <div class="header-actions">
+            <button class="secondary-btn shaft-shortcut-help-btn" id="shaft-build-info-btn" type="button" aria-label="查看配装页说明" aria-haspopup="dialog" title="配装页说明" hidden>?</button>
             <button class="secondary-btn shaft-shortcut-help-btn" id="shaft-shortcut-help-btn" type="button" aria-label="查看快捷键说明" aria-haspopup="dialog" title="快捷键说明" hidden>?</button>
             <a class="secondary-btn" href="{{ url_for('main.default_page') }}">工具主页</a>
             <a class="secondary-btn" href="{{ url_for('main.login_page') }}" id="shaft-login-link">登录</a>
-            <button class="primary-btn" id="shaft-run-btn" type="button">计算</button>
         </div>
     </section>
 
@@ -99,8 +99,12 @@
                     <div class="shaft-compare-controls" id="shaft-compare-controls"></div>
                     <div class="shaft-result-grid">
                         <div class="shaft-stat-card">
-                            <span>直伤</span>
+                            <span>角色伤害</span>
                             <strong id="shaft-direct-damage">0</strong>
+                        </div>
+                        <div class="shaft-stat-card">
+                            <span>环合伤害</span>
+                            <strong id="shaft-harmony-damage">0</strong>
                         </div>
                         <div class="shaft-stat-card">
                             <span>倾陷伤害</span>
@@ -276,6 +280,30 @@
             <div id="shaft-action-contribution-content"></div>
         </div>
     </dialog>
+    <dialog class="shaft-action-contribution-dialog" id="shaft-stagger-analysis-dialog" aria-labelledby="shaft-stagger-analysis-title">
+        <div class="shaft-action-contribution-modal">
+            <div class="section-title-row">
+                <div>
+                    <span class="shaft-panel-kicker">独立伤害分析</span>
+                    <h2 id="shaft-stagger-analysis-title">倾陷贡献分析</h2>
+                </div>
+                <button class="secondary-btn shaft-dialog-close" data-close-stagger-analysis type="button" aria-label="关闭">×</button>
+            </div>
+            <div id="shaft-stagger-analysis-content"></div>
+        </div>
+    </dialog>
+    <dialog class="shaft-action-contribution-dialog" id="shaft-harmony-analysis-dialog" aria-labelledby="shaft-harmony-analysis-title">
+        <div class="shaft-action-contribution-modal">
+            <div class="section-title-row">
+                <div>
+                    <span class="shaft-panel-kicker">独立伤害分析</span>
+                    <h2 id="shaft-harmony-analysis-title">环合贡献分析</h2>
+                </div>
+                <button class="secondary-btn shaft-dialog-close" data-close-harmony-analysis type="button" aria-label="关闭">×</button>
+            </div>
+            <div id="shaft-harmony-analysis-content"></div>
+        </div>
+    </dialog>
     <dialog class="shaft-shortcut-dialog" id="shaft-shortcut-dialog" aria-labelledby="shaft-shortcut-dialog-title">
         <div class="shaft-shortcut-modal">
             <div class="section-title-row">
@@ -315,6 +343,44 @@
             </div>
         </div>
     </dialog>
+    <dialog class="shaft-shortcut-dialog" id="shaft-build-info-dialog" aria-labelledby="shaft-build-info-dialog-title">
+        <div class="shaft-shortcut-modal">
+            <div class="section-title-row">
+                <div>
+                    <span class="shaft-panel-kicker">配装工具说明</span>
+                    <h2 id="shaft-build-info-dialog-title">关于当前版本</h2>
+                </div>
+                <button class="secondary-btn shaft-dialog-close" data-close-build-info type="button" aria-label="关闭">×</button>
+            </div>
+            <div class="shaft-shortcut-groups">
+                <section class="shaft-shortcut-group">
+                    <h3>版本信息</h3>
+                    <dl>
+                        <div><dt>当前版本</dt><dd id="shaft-build-info-version">-</dd></div>
+                    </dl>
+                </section>
+                <section class="shaft-shortcut-group">
+                    <h3>角色更新</h3>
+                    <dl>
+                        <div><dt>预计周期</dt><dd>因开发工作，新角色在游戏上线后需要 2–3 周才能上线网站。</dd></div>
+                    </dl>
+                </section>
+                <section class="shaft-shortcut-group">
+                    <h3>问题反馈</h3>
+                    <dl>
+                        <div><dt>反馈问题请加群</dt><dd>{{ config['SHAFT_SUPPORT_GROUP'] }}</dd></div>
+                    </dl>
+                </section>
+                <section class="shaft-shortcut-group">
+                    <h3>已知问题</h3>
+                    <ol class="shaft-known-issues">
+                        <li>多层独立计算CD的叠层buff，悬浮tooltip会显示的是首次触发的那层的剩余时间，可能与预期不符。</li>
+                        <li>暂时不支持浔复现技能。</li>
+                    </ol>
+                </section>
+            </div>
+        </div>
+    </dialog>
     <dialog class="shaft-axis-preview-dialog" id="shaft-axis-preview-dialog" aria-labelledby="shaft-axis-preview-title">
         <div class="shaft-axis-preview-modal">
             <div class="section-title-row shaft-axis-preview-header">
@@ -330,6 +396,26 @@
             </div>
             <div class="shaft-axis-preview-viewport" id="shaft-axis-preview-viewport">
                 <div class="shaft-axis-preview-canvas" id="shaft-axis-preview-canvas"></div>
+            </div>
+        </div>
+    </dialog>
+    <dialog class="shaft-background-multiplier-dialog" id="shaft-background-multiplier-dialog" aria-labelledby="shaft-background-multiplier-title">
+        <div class="shaft-background-multiplier-modal">
+            <div class="section-title-row">
+                <div>
+                    <span class="shaft-panel-kicker">后台动作</span>
+                    <h2 id="shaft-background-multiplier-title">设置动作倍数</h2>
+                </div>
+                <button class="secondary-btn shaft-dialog-close" data-close-background-multiplier type="button" aria-label="关闭">×</button>
+            </div>
+            <label class="shaft-background-multiplier-field">
+                <span>动作倍数</span>
+                <input id="shaft-background-multiplier-input" type="number" min="1" max="999" step="1" inputmode="numeric">
+                <small id="shaft-background-multiplier-hint">等效为同一时刻重叠多个相同后台动作。</small>
+            </label>
+            <div class="shaft-background-multiplier-actions">
+                <button class="secondary-btn" data-close-background-multiplier type="button">取消</button>
+                <button class="primary-btn" id="shaft-background-multiplier-confirm" type="button">确认</button>
             </div>
         </div>
     </dialog>

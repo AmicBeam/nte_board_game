@@ -1,0 +1,168 @@
+[
+  {
+    "id": "talent_1_zhenhong_solitary",
+    "character_id": "char_b52cc8f160",
+    "talent": 1,
+    "name": "独行",
+    "description": "盈蓄动作按400%攻击力结算；命中后攻击力+5%，持续30秒，最多10层。",
+    "replaces_rule_ids": ["character_zhenhong_solitary_stack"]
+  },
+  {
+    "id": "talent_2_xun_all_treasures",
+    "character_id": "char_15f458f7ef",
+    "talent": 2,
+    "name": "天下万宝",
+    "description": "极轨终结伤害倍率提升100%。"
+  },
+  {
+    "id": "talent_2_xiaozhi_hoarding",
+    "character_id": "char_4f917797cb",
+    "talent": 2,
+    "name": "囤积癖",
+    "description": "小吱在前台时，自身充能效率提升20%。",
+    "replaces_rule_ids": ["character_xiaozhi_front_recharge"]
+  },
+  {
+    "id": "talent_1_iloy_mirror",
+    "character_id": "char_a01c39f576",
+    "talent": 1,
+    "name": "镜象",
+    "description": "原创生株生成3秒后生成复制体；复制体发射20朵创生花，每0.5秒1朵，每朵按原创生伤害的37.5%结算；队伍中有娜娜莉时改为25朵。"
+  },
+  {
+    "id": "talent_2_iloy_sympathetic_nervous_system",
+    "character_id": "char_a01c39f576",
+    "talent": 2,
+    "name": "交感性神经系统",
+    "description": "伊洛伊提供治疗后，全队获得无视防御效果。",
+    "replaces_rule_ids": ["character_iloy_heal_team_def_ignore"]
+  },
+  {
+    "id": "talent_1_nanali_genesis",
+    "character_id": "char_bdc43f82c6",
+    "talent": 1,
+    "name": "不止「一腔」的热血",
+    "description": "「创生」强化：创生花数量提升至10朵，发射间隔缩短至1秒。"
+  },
+  {
+    "id": "talent_2_nanali_fair_duel",
+    "character_id": "char_bdc43f82c6",
+    "talent": 2,
+    "name": "绝对「公正」的决斗",
+    "description": "在「一代目的权柄」期间，队伍造成异能环合伤害后可加入“天赋追击”，造成灵属性追加攻击；每2秒最多触发1次。"
+  },
+  {
+    "id": "talent_1_jiuyuan_momentum",
+    "character_id": "char_b2e3b2bf7a",
+    "talent": 1,
+    "name": "顺势而获",
+    "description": "「创生」强化：创生与创生复制体的伤害公式获得独立频率乘区×2；原结算次数与持续窗口不变。"
+  },
+  {
+    "id": "talent_2_jiuyuan_wind",
+    "character_id": "char_b2e3b2bf7a",
+    "talent": 2,
+    "name": "风声为我所用",
+    "description": "创生花命中后可加入“创生追加”，按15%攻击力结算；队伍中的创生命中会在无状态时缔结5秒「致命玫约」，随后进入25秒可清算状态，已可清算时刷新倒计时；Q会提交玫约并立即转为可清算。"
+  },
+  {
+    "id": "talent_2_mint_bingo",
+    "character_id": "char_dda9fae1ef",
+    "talent": 2,
+    "name": "收工！宾果时间！",
+    "description": "薄荷在前台时，自身防御力提升20%。",
+    "replaces_rule_ids": ["character_mint_front_def"]
+  },
+  {
+    "id": "talent_2_baizang_work",
+    "character_id": "char_701295143d",
+    "talent": 2,
+    "name": "适度上工",
+    "description": "白藏攻击力提升20%。",
+    "replaces_rule_ids": ["character_baizang_atk"]
+  },
+  {
+    "id": "talent_1_sagiri_food",
+    "character_id": "char_1895e259be",
+    "talent": 1,
+    "name": "可以吃吗？",
+    "description": "「浊燃」强化：目标每有一种持续伤害状态，受到的持续伤害提升25%，最多提升100%。",
+    "replaces_rule_ids": ["character_sagiri_dot_amplification"]
+  },
+  {
+    "id": "talent_1_adler_self_restraint",
+    "character_id": "char_6f46705fd1",
+    "talent": 1,
+    "name": "克己",
+    "description": "「浊燃」强化：随机负面效果按单敌期望结算，属性抗性降低与倾陷效率提升分别折算为3.33%。",
+    "replaces_rule_ids": ["character_adler_murk_expected_debuff"]
+  },
+  {
+    "id": "talent_2_adler_right_mind",
+    "character_id": "char_6f46705fd1",
+    "talent": 2,
+    "name": "正心",
+    "description": "阿德勒防御力提升20%。",
+    "replaces_rule_ids": ["character_adler_def"]
+  },
+  {
+    "id": "talent_1_requiem_ketchup_feast",
+    "character_id": "char_c78f7a08d5",
+    "talent": 1,
+    "name": "番茄酱盛宴",
+    "description": "「失谐」强化：目标处于倾陷状态时可加入“失谐强化”，按400%攻击力结算。"
+  },
+  {
+    "id": "talent_2_daphne_empty_cicada",
+    "character_id": "char_e8ad982185",
+    "talent": 2,
+    "name": "空蝉",
+    "description": "幻影移行与移行附加伤害提升80%。",
+    "replaces_rule_ids": ["character_daphne_shift_damage"]
+  },
+  {
+    "id": "talent_1_fadia_sin_furnace",
+    "character_id": "char_caa6c2e5a8",
+    "talent": 1,
+    "name": "罪感熔炉",
+    "description": "「黯星」结束后可加入“黯星扣血”，每次为全队增加法帝娅10%固有生命，最多累计5次。"
+  },
+  {
+    "id": "talent_1_haiyue_overtone",
+    "character_id": "char_699966e2e7",
+    "talent": 1,
+    "name": "泛音",
+    "description": "「黯星」强化：黯星结束后可加入“黯星追加”，按3次50%攻击力、合计150%结算。"
+  },
+  {
+    "id": "talent_2_haiyue_crescendo",
+    "character_id": "char_699966e2e7",
+    "talent": 2,
+    "name": "渐强",
+    "description": "水母弹命中后攻击力+1%，持续5秒，最多10层。",
+    "replaces_rule_ids": ["character_haiyue_jellyfish_atk"]
+  },
+  {
+    "id": "talent_1_chaos_justice",
+    "character_id": "char_d38b672525",
+    "talent": 1,
+    "name": "未迟到的正义",
+    "description": "「延滞」强化：延滞解除后可加入“延滞结算”，基础按800%攻击力结算。"
+  },
+  {
+    "id": "talent_1_hathor_delay_warning",
+    "character_id": "char_912dbfe17c",
+    "talent": 1,
+    "name": "延时预警",
+    "description": "攻击处于「延滞」状态的目标时，全队暴击率提升10%。",
+    "replaces_rule_ids": ["character_hathor_delay_crit"]
+  },
+  {
+    "id": "talent_2_yi_arrest",
+    "character_id": "char_7578b18979",
+    "talent": 2,
+    "name": "捉拿归案",
+    "description": "释放极轨终结后的15秒内，兽牙影刺伤害提升10%。",
+    "replaces_rule_ids": ["character_yi_q_beast_damage"]
+  }
+]
