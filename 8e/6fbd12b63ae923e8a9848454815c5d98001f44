@@ -1,0 +1,43 @@
+app/__init__.py
+  s_bed7d5623dc224::t_b6fd3687e1d26d 16,44
+app/db.py
+  s_bed7d5623dc224::t_7bb45bcd0429c9 26-27,29-30,35-39
+app/models.py
+  s_bed7d5623dc224::t_af4833022fcac0 114,153-164
+app/modules/shaft/README.md
+  s_bed7d5623dc224::t_c3287328d7953f 10,26,32-33
+app/modules/shaft/service.py
+  s_bed7d5623dc224::t_03a22f9f207523 5,15-22,811-819,912,915,962-989,1000,1295-1301,1312-1338
+app/modules/shaft/static/css/shaft-page.css
+  s_bed7d5623dc224::t_8d699820d92045 2713-2718
+app/modules/shaft/static/js/shaft.js
+  s_bed7d5623dc224::t_b02d7b6889ca88 4582,6704-6711,6716,6879,6910,6927-6935,7016-7026
+app/routes.py
+  s_bed7d5623dc224::t_00cf7b34559112 36,491-514
+docs/shaft-module-design.md
+  s_bed7d5623dc224::t_3b167d54acd21d 9,23,508,549-560,604,608,618,641,650,653,657,664,681
+tests/test_module_routes.py
+  s_bed7d5623dc224::t_f05a52ff8e054b 63-68
+tests/test_shaft_frontend_layout.py
+  s_bed7d5623dc224::t_b417305e94e1a4 1391-1393,1396-1423
+tests/test_solo_room_flow.py
+  s_bed7d5623dc224::t_ec04e04ca6edb4 137-154,202,209,262-263,265-277,318,323-347,355,380,390
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "8e6fbd12b63ae923e8a9848454815c5d98001f44",
+  "prompts": {},
+  "sessions": {
+    "s_bed7d5623dc224": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f79ab-ed0f-7cc1-96c4-33fccdc4ea2c",
+        "model": "unknown"
+      },
+      "human_author": "AmicBeam <1425257712@qq.com>"
+    }
+  },
+  "attestation_metadata": {},
+  "remote_transcripts": {}
+}
