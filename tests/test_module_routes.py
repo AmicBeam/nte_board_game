@@ -25,6 +25,13 @@ class ModuleRoutesTest(RoomFlowTestCase):
         catalog = self.client.get('/api/kongmu/catalog')
         self.assertEqual(catalog.status_code, 200)
         self.assertTrue(catalog.is_json)
+        zero = next(character for character in catalog.get_json()['characters'] if character['name'] == '「零」')
+        self.assertIn('player_009_256.webp', zero['avatar'])
+        frontend = (
+            ROOT / 'app' / 'modules' / 'kongmu' / 'static' / 'js' / 'kongmu.js'
+        ).read_text(encoding='utf-8')
+        self.assertNotIn('pickCharacterAvatar', frontend)
+        self.assertNotIn('avatarChoiceIndexes', frontend)
         self._assert_asset('/static/kongmu/js/kongmu.js')
 
     def test_preteam_module_page_and_asset(self) -> None:
