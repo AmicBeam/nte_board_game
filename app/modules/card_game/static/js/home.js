@@ -39,7 +39,6 @@ async function bootstrapHome() {
     apiRequest('/api/catalog'),
   ]);
   preloadHomeCharacterAssets(catalog.characters || []);
-  const logoutBtn = document.getElementById('logout-btn');
   const startModeBtn = document.getElementById('start-mode-btn');
   const modeGrid = document.getElementById('mode-grid');
   const trialConfigPanel = document.getElementById('trial-config-panel');
@@ -139,12 +138,6 @@ async function bootstrapHome() {
     window.location.href = '/table';
   }
 
-  function logout() {
-    clearToken();
-    window.location.href = '/login';
-  }
-
-  logoutBtn.addEventListener('click', logout);
   startModeBtn.addEventListener('click', startMode);
   renderProfile();
   renderModes();

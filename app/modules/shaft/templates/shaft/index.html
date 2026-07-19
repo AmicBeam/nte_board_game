@@ -1,6 +1,6 @@
 {% extends 'common/base.html' %}
 {% block title %}异环排轴计算{% endblock %}
-{% block head %}<link rel="stylesheet" href="{{ url_for('shaft_module.static', filename='css/shaft-page.css') }}">{% endblock %}
+{% block head %}<link rel="stylesheet" href="{{ url_for('shaft_module.static', filename='css/shaft-page.css', v=shaft_asset_version('css/shaft-page.css')) }}">{% endblock %}
 {% block body %}
 <main class="shaft-page" data-active-page="{{ active_shaft_page }}">
     <section class="glass-card panel-header shaft-header">
@@ -14,10 +14,27 @@
             <a class="shaft-page-tab" data-shaft-page-link="plaza" href="{{ url_for('main.shaft_page', page='plaza') }}">广场</a>
         </nav>
         <div class="header-actions">
+            <button class="secondary-btn shaft-shortcut-help-btn" id="shaft-build-info-btn" type="button" aria-label="查看配装页说明" aria-haspopup="dialog" title="配装页说明" hidden>?</button>
             <button class="secondary-btn shaft-shortcut-help-btn" id="shaft-shortcut-help-btn" type="button" aria-label="查看快捷键说明" aria-haspopup="dialog" title="快捷键说明" hidden>?</button>
             <a class="secondary-btn" href="{{ url_for('main.default_page') }}">工具主页</a>
             <a class="secondary-btn" href="{{ url_for('main.login_page') }}" id="shaft-login-link">登录</a>
-            <button class="primary-btn" id="shaft-run-btn" type="button">计算</button>
+        </div>
+    </section>
+
+    <section class="glass-card shaft-panel shaft-command-panel" data-shaft-axis-info {% if active_shaft_page == 'plaza' %}hidden{% endif %}>
+        <div class="shaft-title-fields">
+            <label>
+                <span>标题</span>
+                <input id="shaft-title-input" type="text" maxlength="80" value="未命名排轴">
+            </label>
+            <label>
+                <span>备注</span>
+                <input id="shaft-description-input" type="text" maxlength="800">
+            </label>
+        </div>
+        <div class="shaft-command-actions">
+            <button class="secondary-btn" id="shaft-new-btn" type="button">新建动作轴</button>
+            <button class="secondary-btn" id="shaft-save-btn" type="button">保存</button>
         </div>
     </section>
 
@@ -45,8 +62,12 @@
                     </div>
                     <p class="shaft-field-hint">弱点属性</p>
                     <div class="shaft-weakness-row" id="shaft-weakness-row"></div>
-                    <p class="shaft-field-hint">属性抗性</p>
-                    <div class="shaft-enemy-grid" id="shaft-resistance-grid"></div>
+                    <div class="shaft-enemy-grid shaft-initial-resistance-field">
+                        <label>
+                            <span>初始抗性</span>
+                            <input id="shaft-initial-resistance-input" type="number" min="-100" max="100" step="1" value="30">
+                        </label>
+                    </div>
                 </section>
             </aside>
 
@@ -78,8 +99,12 @@
                     <div class="shaft-compare-controls" id="shaft-compare-controls"></div>
                     <div class="shaft-result-grid">
                         <div class="shaft-stat-card">
-                            <span>直伤</span>
+                            <span>角色伤害</span>
                             <strong id="shaft-direct-damage">0</strong>
+                        </div>
+                        <div class="shaft-stat-card">
+                            <span>环合伤害</span>
+                            <strong id="shaft-harmony-damage">0</strong>
                         </div>
                         <div class="shaft-stat-card">
                             <span>倾陷伤害</span>
@@ -101,22 +126,6 @@
     </section>
 
     <section class="shaft-view" data-shaft-view="rotation">
-        <section class="glass-card shaft-panel shaft-command-panel">
-            <div class="shaft-title-fields">
-                <label>
-                    <span>标题</span>
-                    <input id="shaft-title-input" type="text" maxlength="80" value="未命名排轴">
-                </label>
-                <label>
-                    <span>备注</span>
-                    <input id="shaft-description-input" type="text" maxlength="800">
-                </label>
-            </div>
-            <div class="shaft-command-actions">
-                <button class="secondary-btn" id="shaft-new-btn" type="button">新建动作轴</button>
-                <button class="secondary-btn" id="shaft-save-btn" type="button">保存</button>
-            </div>
-        </section>
         <section class="shaft-rotation-layout">
             <aside class="glass-card shaft-panel shaft-command-library">
                 <div class="section-title-row">
@@ -145,15 +154,13 @@
                     </div>
                     <div class="shaft-editor-actions">
                         <span id="shaft-unlined-buff-indicator" class="shaft-unlined-buff-warning" hidden aria-label=""></span>
-                        <label class="shaft-loop-toggle" title="开启后，轴尾仍在持续的增益会在下一轮轴开头继续生效">
-                            <input id="shaft-loop-enabled" type="checkbox">
-                            <span>循环轴</span>
-                        </label>
+                        <button class="secondary-btn shaft-loop-settings-btn" id="shaft-loop-settings-btn" type="button" aria-haspopup="dialog">循环轴</button>
                         <button class="secondary-btn" id="shaft-undo-btn" type="button">撤销</button>
                         <button class="secondary-btn" id="shaft-redo-btn" type="button">重做</button>
                         <button class="secondary-btn" id="shaft-copy-step-btn" type="button">复制</button>
                         <button class="secondary-btn" id="shaft-paste-step-btn" type="button">粘贴</button>
                         <button class="secondary-btn" id="shaft-delete-step-btn" type="button">删除</button>
+                        <button class="secondary-btn" id="shaft-preview-btn" type="button" aria-haspopup="dialog">预览</button>
                     </div>
                 </div>
                 <div class="shaft-timeline-shell">
@@ -187,14 +194,29 @@
                         <span class="shaft-panel-kicker">个人收藏夹</span>
                         <h2>我的排轴</h2>
                     </div>
-                    <button class="primary-btn" id="shaft-publish-btn" type="button">上传当前排轴</button>
-                </div>
-                <div class="shaft-library-toolbar shaft-my-axis-toolbar" role="group" aria-label="我的排轴筛选">
-                    <div class="shaft-command-type-tabs">
-                        <button class="active" data-my-axis-filter="mine" type="button">我的</button>
-                        <button data-my-axis-filter="favorites" type="button">收藏的</button>
-                    </div>
                     <button class="secondary-btn" id="shaft-my-refresh-btn" type="button">刷新</button>
+                </div>
+                <div class="shaft-market-filters shaft-my-axis-filters" aria-label="我的排轴筛选">
+                    <select id="shaft-my-axis-scope" aria-label="排轴范围">
+                        <option value="mine">我的</option>
+                        <option value="favorites">收藏的</option>
+                    </select>
+                    <div class="shaft-character-filter" id="shaft-my-character-filter">
+                        <button class="shaft-character-filter-trigger" id="shaft-my-character-filter-trigger" type="button" aria-expanded="false">
+                            <span id="shaft-my-character-filter-summary">全部角色</span>
+                            <small>最多 4 名</small>
+                        </button>
+                        <div class="shaft-character-filter-popover" id="shaft-my-character-filter-popover" hidden>
+                            <div class="shaft-character-filter-grid" id="shaft-my-character-filter-grid"></div>
+                            <button class="secondary-btn shaft-character-filter-clear" id="shaft-my-character-filter-clear" type="button">清空选择</button>
+                        </div>
+                    </div>
+                    <select id="shaft-my-axis-sort" aria-label="我的排轴排序">
+                        <option value="new">最新</option>
+                        <option value="dps">DPS</option>
+                        <option value="likes">点赞</option>
+                        <option value="favorites">收藏</option>
+                    </select>
                 </div>
                 <div class="shaft-market-list compact" id="shaft-my-axis-list"></div>
             </aside>
@@ -228,6 +250,24 @@
         </section>
     </section>
     <div class="shaft-toast" id="shaft-toast" role="status" aria-live="polite" hidden></div>
+    <dialog class="shaft-shortcut-dialog shaft-name-conflict-dialog" id="shaft-name-conflict-dialog" aria-labelledby="shaft-name-conflict-title">
+        <form class="shaft-shortcut-modal shaft-name-conflict-modal" method="dialog">
+            <div>
+                <span class="shaft-panel-kicker">保存排轴</span>
+                <h2 id="shaft-name-conflict-title">存在同名排轴</h2>
+                <p id="shaft-name-conflict-message"></p>
+            </div>
+            <label>
+                <span>新名称</span>
+                <input id="shaft-name-conflict-input" type="text" maxlength="80" required>
+            </label>
+            <div class="shaft-name-conflict-actions">
+                <button class="secondary-btn" value="cancel" formnovalidate>取消</button>
+                <button class="secondary-btn danger-btn" value="overwrite" formnovalidate>覆盖</button>
+                <button class="primary-btn" value="rename">改名并保存</button>
+            </div>
+        </form>
+    </dialog>
     <dialog class="shaft-action-contribution-dialog" id="shaft-action-contribution-dialog" aria-labelledby="shaft-action-contribution-title">
         <div class="shaft-action-contribution-modal">
             <div class="section-title-row">
@@ -238,6 +278,30 @@
                 <button class="secondary-btn shaft-dialog-close" data-close-action-contribution type="button" aria-label="关闭">×</button>
             </div>
             <div id="shaft-action-contribution-content"></div>
+        </div>
+    </dialog>
+    <dialog class="shaft-action-contribution-dialog" id="shaft-stagger-analysis-dialog" aria-labelledby="shaft-stagger-analysis-title">
+        <div class="shaft-action-contribution-modal">
+            <div class="section-title-row">
+                <div>
+                    <span class="shaft-panel-kicker">独立伤害分析</span>
+                    <h2 id="shaft-stagger-analysis-title">倾陷贡献分析</h2>
+                </div>
+                <button class="secondary-btn shaft-dialog-close" data-close-stagger-analysis type="button" aria-label="关闭">×</button>
+            </div>
+            <div id="shaft-stagger-analysis-content"></div>
+        </div>
+    </dialog>
+    <dialog class="shaft-action-contribution-dialog" id="shaft-harmony-analysis-dialog" aria-labelledby="shaft-harmony-analysis-title">
+        <div class="shaft-action-contribution-modal">
+            <div class="section-title-row">
+                <div>
+                    <span class="shaft-panel-kicker">独立伤害分析</span>
+                    <h2 id="shaft-harmony-analysis-title">环合贡献分析</h2>
+                </div>
+                <button class="secondary-btn shaft-dialog-close" data-close-harmony-analysis type="button" aria-label="关闭">×</button>
+            </div>
+            <div id="shaft-harmony-analysis-content"></div>
         </div>
     </dialog>
     <dialog class="shaft-shortcut-dialog" id="shaft-shortcut-dialog" aria-labelledby="shaft-shortcut-dialog-title">
@@ -279,9 +343,108 @@
             </div>
         </div>
     </dialog>
+    <dialog class="shaft-shortcut-dialog" id="shaft-build-info-dialog" aria-labelledby="shaft-build-info-dialog-title">
+        <div class="shaft-shortcut-modal">
+            <div class="section-title-row">
+                <div>
+                    <span class="shaft-panel-kicker">配装工具说明</span>
+                    <h2 id="shaft-build-info-dialog-title">关于当前版本</h2>
+                </div>
+                <button class="secondary-btn shaft-dialog-close" data-close-build-info type="button" aria-label="关闭">×</button>
+            </div>
+            <div class="shaft-shortcut-groups">
+                <section class="shaft-shortcut-group">
+                    <h3>版本信息</h3>
+                    <dl>
+                        <div><dt>当前版本</dt><dd id="shaft-build-info-version">-</dd></div>
+                    </dl>
+                </section>
+                <section class="shaft-shortcut-group">
+                    <h3>角色更新</h3>
+                    <dl>
+                        <div><dt>预计周期</dt><dd>因开发工作，新角色在游戏上线后需要 2–3 周才能上线网站。</dd></div>
+                    </dl>
+                </section>
+                <section class="shaft-shortcut-group">
+                    <h3>问题反馈</h3>
+                    <dl>
+                        <div><dt>反馈问题请加群</dt><dd>{{ config['SHAFT_SUPPORT_GROUP'] }}</dd></div>
+                    </dl>
+                </section>
+                <section class="shaft-shortcut-group">
+                    <h3>已知问题</h3>
+                    <ol class="shaft-known-issues">
+                        <li>多层独立计算CD的叠层buff，悬浮tooltip会显示的是首次触发的那层的剩余时间，可能与预期不符。</li>
+                        <li>暂时不支持浔复现技能。</li>
+                    </ol>
+                </section>
+            </div>
+        </div>
+    </dialog>
+    <dialog class="shaft-axis-preview-dialog" id="shaft-axis-preview-dialog" aria-labelledby="shaft-axis-preview-title">
+        <div class="shaft-axis-preview-modal">
+            <div class="section-title-row shaft-axis-preview-header">
+                <div>
+                    <span class="shaft-panel-kicker">只读视图</span>
+                    <h2 id="shaft-axis-preview-title">动作轴预览</h2>
+                </div>
+                <div class="shaft-axis-preview-actions">
+                    <span class="shaft-axis-preview-hint">滚轮缩放时间轴</span>
+                    <button class="secondary-btn" id="shaft-axis-preview-fit-btn" type="button">显示全部</button>
+                    <button class="secondary-btn shaft-dialog-close" data-close-axis-preview type="button" aria-label="关闭">×</button>
+                </div>
+            </div>
+            <div class="shaft-axis-preview-viewport" id="shaft-axis-preview-viewport">
+                <div class="shaft-axis-preview-canvas" id="shaft-axis-preview-canvas"></div>
+            </div>
+        </div>
+    </dialog>
+    <dialog class="shaft-background-multiplier-dialog" id="shaft-background-multiplier-dialog" aria-labelledby="shaft-background-multiplier-title">
+        <div class="shaft-background-multiplier-modal">
+            <div class="section-title-row">
+                <div>
+                    <span class="shaft-panel-kicker">后台动作</span>
+                    <h2 id="shaft-background-multiplier-title">设置动作倍数</h2>
+                </div>
+                <button class="secondary-btn shaft-dialog-close" data-close-background-multiplier type="button" aria-label="关闭">×</button>
+            </div>
+            <label class="shaft-background-multiplier-field">
+                <span>动作倍数</span>
+                <input id="shaft-background-multiplier-input" type="number" min="1" max="999" step="1" inputmode="numeric">
+                <small id="shaft-background-multiplier-hint">等效为同一时刻重叠多个相同后台动作。</small>
+            </label>
+            <div class="shaft-background-multiplier-actions">
+                <button class="secondary-btn" data-close-background-multiplier type="button">取消</button>
+                <button class="primary-btn" id="shaft-background-multiplier-confirm" type="button">确认</button>
+            </div>
+        </div>
+    </dialog>
+    <dialog class="shaft-loop-settings-dialog" id="shaft-loop-settings-dialog" aria-labelledby="shaft-loop-settings-title">
+        <div class="shaft-loop-settings-modal">
+            <div class="section-title-row">
+                <div>
+                    <span class="shaft-panel-kicker">循环配置</span>
+                    <h2 id="shaft-loop-settings-title">循环轴设置</h2>
+                </div>
+                <button class="secondary-btn shaft-dialog-close" data-close-loop-settings type="button" aria-label="关闭">×</button>
+            </div>
+            <label class="shaft-loop-enabled-row">
+                <input id="shaft-loop-enabled" type="checkbox">
+                <span>
+                    <strong>开启循环轴</strong>
+                    <small>轴尾仍在持续的增益会衔接到下一轮轴开头。</small>
+                </span>
+            </label>
+            <div class="shaft-loop-resource-list" id="shaft-loop-resource-list"></div>
+            <div class="shaft-loop-settings-actions">
+                <button class="secondary-btn" data-close-loop-settings type="button">取消</button>
+                <button class="primary-btn" id="shaft-loop-settings-confirm" type="button">确认</button>
+            </div>
+        </div>
+    </dialog>
 </main>
 <script src="{{ url_for('static', filename='common/js/common.js') }}"></script>
-<script src="{{ url_for('shaft_module.static', filename='js/shaft_engine.js') }}"></script>
-<script src="{{ url_for('shaft_module.static', filename='js/shaft_self_check.js') }}"></script>
-<script src="{{ url_for('shaft_module.static', filename='js/shaft.js') }}"></script>
+<script src="{{ url_for('shaft_module.static', filename='js/shaft_engine.js', v=shaft_asset_version('js/shaft_engine.js')) }}"></script>
+<script src="{{ url_for('shaft_module.static', filename='js/shaft_self_check.js', v=shaft_asset_version('js/shaft_self_check.js')) }}"></script>
+<script src="{{ url_for('shaft_module.static', filename='js/shaft.js', v=shaft_asset_version('js/shaft.js')) }}"></script>
 {% endblock %}

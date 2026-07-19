@@ -11,6 +11,17 @@ from app.errors import AppError
 
 MODULE_ROOT = Path(__file__).resolve().parents[1]
 SHAFT_DATA_DIR = MODULE_ROOT / 'static' / 'data'
+LEGACY_ARC_SELECTIONS: dict[str, tuple[str, int]] = {
+    'arc_18c6a54ab6': ('arc_7d0ca08e3d', 1),
+    'arc_57b6c49b66': ('arc_1a476075cd', 5),
+    'arc_b3c0b59d01': ('arc_126824ee1', 5),
+    'arc_f36fcedbc8': ('arc_8b67b6e360', 5),
+    'arc_5fb06c9645': ('arc_112b3492d8', 5),
+    'arc_0a681d8e81': ('arc_b22de80f07', 5),
+    'arc_2b6d5881ef': ('arc_27dc4a7281', 5),
+    'arc_92353a7626': ('arc_1ddecc32f3', 5),
+    'arc_a01731d2ff': ('arc_6e7753edf5', 1),
+}
 
 
 def _load_json(filename: str) -> Any:
@@ -42,7 +53,10 @@ def _formula_hit_count(source_formula: Any) -> int:
     if not formula:
         return 0
     total = 0
-    for match in re.finditer(r'\{\d+\}\s*%?\s*(?:\*\s*(\d+(?:\.\d+)?))?', formula):
+    for match in re.finditer(
+        r'\{\d+\}\s*%?\s*(?:攻击力|防御力|生命上限)?\s*(?:\*\s*(\d+(?:\.\d+)?))?',
+        formula,
+    ):
         total += max(1, int(round(_num(match.group(1), 1))))
     return total
 
@@ -79,8 +93,11 @@ def _normalize_action(action: dict[str, Any]) -> dict[str, Any]:
     if tags:
         normalized['tags'] = tags
     formula_hits = _formula_hit_count(action.get('source_formula'))
+    explicit_hit_count = _num(action.get('hit_count'), -1)
     nightmare_stacks = _num(action.get('nightmare_stacks'), -1)
-    if formula_hits > 0:
+    if explicit_hit_count >= 0:
+        hit_count = max(0, int(round(explicit_hit_count)))
+    elif formula_hits > 0:
         hit_count = formula_hits
     elif nightmare_stacks >= 0:
         hit_count = max(0, int(round(nightmare_stacks)))
@@ -92,14 +109,84 @@ def _normalize_action(action: dict[str, Any]) -> dict[str, Any]:
     return normalized
 
 
+def _noop_action(character: dict[str, Any]) -> dict[str, Any]:
+    character_id = str(character.get('id') or '')
+    return {
+        'id': f'action_none_{character_id.removeprefix("char_")}',
+        'character_id': character_id,
+        'character_name': str(character.get('name') or ''),
+        'name': '无',
+        'action_type': '无',
+        'damage_type': '无',
+        'extra_tag': '切人',
+        'is_background_damage': False,
+        'duration_seconds': 0,
+        'duration_ticks': 0,
+        'multipliers': {'atk': 0, 'hp': 0, 'def': 0, 'flat': 0},
+        'energy_gain': 0,
+        'harmony': 0,
+        'stagger': 0,
+        'energy_return': 0,
+        'self_modifiers': {},
+        'cooldown_ticks': 0,
+        'energy_cost': 0,
+        'personal_resource_cost': {},
+        'personal_resource_gain': {},
+        'source_row': 0,
+        'can_background_override': False,
+        'hit_count': 0,
+        'is_instant_switch': True,
+        'tags': ['切人'],
+    }
+
+
 @lru_cache(maxsize=1)
 def load_shaft_catalog() -> dict[str, Any]:
     characters = _load_json('characters.json')
     actions = [_normalize_action(action) for action in _load_json('actions.json')]
-    arcs = _load_json('arcs.json')
-    arc_refinements = _load_json('arc_refinements.json')
+    actions.extend(_noop_action(character) for character in characters)
+    energy_capacity_by_character: dict[str, float] = {}
+    for action in actions:
+        if str(action.get('action_type') or '') != 'Q' and str(action.get('damage_type') or '') != 'Q':
+            continue
+        character_id = str(action.get('character_id') or '')
+        energy_capacity_by_character[character_id] = max(
+            energy_capacity_by_character.get(character_id, 0),
+            _num(action.get('energy_cost')),
+        )
+    characters = [
+        {
+            **character,
+            'energy_capacity': max(
+                0,
+                _num(character.get('energy_capacity'), energy_capacity_by_character.get(str(character.get('id') or ''), 0)),
+            ),
+        }
+        for character in characters
+    ]
+    legacy_arc_ids = LEGACY_ARC_SELECTIONS.keys()
+    arcs = [
+        arc for arc in _load_json('arcs.json')
+        if str(arc.get('id') or '') not in legacy_arc_ids
+    ]
+    raw_arc_refinements = _load_json('arc_refinements.json')
+    arc_refinements = {
+        **raw_arc_refinements,
+        'arcs': {
+            arc_id: record
+            for arc_id, record in (raw_arc_refinements.get('arcs') or {}).items()
+            if arc_id not in legacy_arc_ids
+        },
+    }
     awakenings = _load_json('awakenings.json')
-    buffs = _load_json('buffs.json')
+    mechanisms = _load_json('mechanisms.json')
+    buffs = [
+        buff for buff in _load_json('buffs.json')
+        if not any(
+            provider.get('kind') == 'arc' and provider.get('id') in legacy_arc_ids
+            for provider in buff.get('providers') or []
+        )
+    ]
     cartridges = _load_json('cartridges.json')
     formula_constants = _load_json('formula_constants.json')
     source_meta = _load_json('source_meta.json')
@@ -108,7 +195,11 @@ def load_shaft_catalog() -> dict[str, Any]:
     for action in actions:
         actions_by_character.setdefault(str(action.get('character_id') or ''), []).append(action)
     for items in actions_by_character.values():
-        items.sort(key=lambda item: (str(item.get('action_type') or ''), str(item.get('name') or '')))
+        items.sort(key=lambda item: (
+            str(item.get('action_type') or '') == '无',
+            str(item.get('action_type') or ''),
+            str(item.get('name') or ''),
+        ))
     return {
         'characters': characters,
         'actions': actions,
@@ -116,6 +207,7 @@ def load_shaft_catalog() -> dict[str, Any]:
         'arcs': arcs,
         'arc_refinements': arc_refinements,
         'awakenings': awakenings,
+        'mechanisms': mechanisms,
         'buffs': buffs,
         'cartridges': cartridges,
         'formula_constants': formula_constants,

@@ -25,13 +25,34 @@ class ModuleRoutesTest(RoomFlowTestCase):
         catalog = self.client.get('/api/kongmu/catalog')
         self.assertEqual(catalog.status_code, 200)
         self.assertTrue(catalog.is_json)
+        zero = next(character for character in catalog.get_json()['characters'] if character['name'] == '「零」')
+        self.assertIn('player_009_256.webp', zero['avatar'])
+        frontend = (
+            ROOT / 'app' / 'modules' / 'kongmu' / 'static' / 'js' / 'kongmu.js'
+        ).read_text(encoding='utf-8')
+        self.assertNotIn('pickCharacterAvatar', frontend)
+        self.assertNotIn('avatarChoiceIndexes', frontend)
         self._assert_asset('/static/kongmu/js/kongmu.js')
 
     def test_preteam_module_page_and_asset(self) -> None:
         page = self.client.get('/preteam')
         self.assertEqual(page.status_code, 200)
-        self.assertIn('异环预配队', page.get_data(as_text=True))
+        page_text = page.get_data(as_text=True)
+        self.assertIn('异环预配队', page_text)
+        self.assertIn('预配队即将下线', page_text)
+        self.assertIn('排轴模块', page_text)
         self._assert_asset('/static/preteam/单位.jpg')
+
+    def test_portal_shows_community_links_record_and_preteam_sunset(self) -> None:
+        page = self.client.get('/')
+        self.assertEqual(page.status_code, 200)
+        page_text = page.get_data(as_text=True)
+        self.assertIn('https://github.com/AmicBeam/nte_board_game', page_text)
+        self.assertIn('在 GitHub 查看 NTE Tools', page_text)
+        self.assertIn('https://space.bilibili.com/9412490', page_text)
+        self.assertIn('https://space.bilibili.com/3546651192986524', page_text)
+        self.assertIn('津ICP备2026003916号', page_text)
+        self.assertIn('即将下线，并由排轴模块取代', page_text)
 
     def test_shaft_module_page_catalog_and_asset(self) -> None:
         self.assertEqual(self.client.get('/shaft/rotation').status_code, 200)

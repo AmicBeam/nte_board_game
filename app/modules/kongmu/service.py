@@ -67,6 +67,11 @@ OWNER_TYPE_LABELS = {
     4: 'IV型',
 }
 
+FIXED_CHARACTER_AVATAR_SOURCE_ICONS = {
+    '1046': '/Game/UI/UI_Icon/AvatarImage/256/player_009_256',
+    '1051': '/Game/UI/UI_Icon/AvatarImage/256/player_009_256',
+}
+
 
 @dataclass(frozen=True)
 class Placement:
@@ -516,7 +521,10 @@ def compact_character(record: dict[str, Any], detail: dict[str, Any] | None = No
     label = element_label(record.get('element_id') or detail.get('element_id'), record.get('element') or detail.get('element'))
     equip_slots = detail.get('equip_slots') or {}
     character_name = record.get('name') or detail.get('name') or character_id
-    source_icon = record.get('icon') or detail.get('icon')
+    source_icon = FIXED_CHARACTER_AVATAR_SOURCE_ICONS.get(
+        character_id,
+        record.get('icon') or detail.get('icon'),
+    )
     local_avatar = character_avatar_path(character_id, character_name, source_icon)
     source_avatar = nanoka_icon_url(source_icon)
     return {

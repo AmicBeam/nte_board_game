@@ -29,6 +29,19 @@ CHARACTER_IMAGE_OVERRIDES = {
     },
 }
 
+DEFAULT_BUILD_OVERRIDES = {
+    '娜娜莉': {
+        'arc_name': '预备备',
+        'substat_counts': {'all_dmg': 20, 'crit_rate': 20, 'crit_dmg': 20, 'atk_pct': 20},
+    },
+    '九原': {
+        'cartridge_name': '森林萤火之心',
+        'substat_counts': {'all_dmg': 20, 'crit_rate': 20, 'crit_dmg': 20, 'atk_pct': 20},
+    },
+    '白藏': {'arc_name': '茶花会'},
+    '哈尼娅': {'arc_name': '引爆全场'},
+}
+
 SUBSTAT_UNITS = {
     'all_dmg': {'label': '通伤', 'unit_value': 0.01, 'kind': 'percent'},
     'crit_rate': {'label': '暴击', 'unit_value': 0.01, 'kind': 'percent'},
@@ -318,14 +331,21 @@ def extract_cartridges(wb_values: Any) -> list[dict[str, Any]]:
     records = []
     for row in range(3, ws.max_row + 1):
         name = normalize_value(ws.cell(row, 1).value)
-        if not name:
+        if not name or str(name).startswith('【借】'):
             continue
+        detail = web_text(ws.cell(row, 10).value)
+        element_damage = number(ws.cell(row, 2).value)
+        required_element = next(
+            (element for element in ELEMENTS if element_damage and f'{element}伤' in detail),
+            '',
+        )
         records.append({
             'id': stable_id('cartridge', str(name)),
             'name': name,
-            'detail': web_text(ws.cell(row, 10).value),
+            'detail': detail,
+            'required_element': required_element,
             'modifiers': {
-                'element_dmg': number(ws.cell(row, 2).value),
+                'element_dmg': element_damage,
                 'atk_pct': number(ws.cell(row, 3).value) + number(ws.cell(row, 15).value),
                 'hp_pct': number(ws.cell(row, 4).value) + number(ws.cell(row, 16).value),
                 'def_pct': number(ws.cell(row, 5).value),
@@ -400,6 +420,8 @@ def extract_actions(wb_values: Any, characters: list[dict[str, Any]]) -> list[di
         if str(character_name) == '伊洛伊' and str(action_name) == 'q持续':
             background_damage = True
             resources['energy_cost'] = 0
+        if (str(character_name), str(action_name)) == ('真红', '龙e'):
+            resources['energy_cost'] = 12
         imported_extra_tag = '' if extra_tag == '0' else str(extra_tag)
         if passive_multiplier is not None:
             imported_extra_tag = '协攻' if (character_name, action_name) == ('伊洛伊', 'B觉') else '附着'
@@ -519,8 +541,10 @@ def extract_character_builds(
             continue
         arc_name = normalize_value(build_ws.cell(row, 24).value) or ''
         cartridge_name = normalize_value(build_ws.cell(row, 26).value) or ''
+        if str(cartridge_name).startswith('【借】'):
+            cartridge_name = ''
         bond_full = bool(build_ws.cell(row, 56).value)
-        builds[character_id] = {
+        build = {
             'character_id': character_id,
             'character_name': character_name,
             'arc_id': arc_ids.get(str(arc_name), ''),
@@ -538,6 +562,16 @@ def extract_character_builds(
             },
             'substat_counts': substat_counts_by_character.get(str(character_name), {key: 0 for key in SUBSTAT_UNITS}),
         }
+        override = DEFAULT_BUILD_OVERRIDES.get(str(character_name), {})
+        if override.get('arc_name'):
+            build['arc_name'] = override['arc_name']
+            build['arc_id'] = arc_ids.get(str(override['arc_name']), '')
+        if override.get('cartridge_name'):
+            build['cartridge_name'] = override['cartridge_name']
+            build['cartridge_id'] = cartridge_ids.get(str(override['cartridge_name']), '')
+        for key, value in (override.get('substat_counts') or {}).items():
+            build['substat_counts'][key] = value
+        builds[character_id] = build
     return builds
 
 
@@ -644,13 +678,24 @@ def main() -> int:
     arcs = extract_arcs(wb_values)
     cartridges = extract_cartridges(wb_values)
     actions = extract_actions(wb_values, characters)
+    energy_capacity_by_character: dict[str, float] = {}
+    for action in actions:
+        if action.get('action_type') != 'Q' and action.get('damage_type') != 'Q':
+            continue
+        character_id = str(action.get('character_id') or '')
+        energy_capacity_by_character[character_id] = max(
+            energy_capacity_by_character.get(character_id, 0.0),
+            number(action.get('energy_cost')),
+        )
+    for character in characters:
+        character['energy_capacity'] = energy_capacity_by_character.get(str(character.get('id') or ''), 0.0)
     starter_axis = extract_starter_axis(wb_values, characters, arcs, cartridges, actions)
 
     source_meta = {
         'source_name': args.xlsx_path.name,
         'source_hash': source_hash,
         'imported_at': datetime.now(timezone.utc).isoformat(),
-        'version_label': '异环云配队 V0.2.7',
+        'version_label': '异环云配队 1.0.0',
         'sheets': {
             sheet_name: {
                 'rows': wb_values[sheet_name].max_row,

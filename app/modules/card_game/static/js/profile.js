@@ -8,6 +8,7 @@ async function bootstrapProfile() {
   const passwordInput = document.getElementById('password-input');
   const saveNicknameBtn = document.getElementById('save-nickname-btn');
   const savePasswordBtn = document.getElementById('save-password-btn');
+  const logoutBtn = document.getElementById('logout-btn');
   const accountFeedback = document.getElementById('account-feedback');
   const accountDisplayName = document.getElementById('account-display-name');
   const accountDisplayId = document.getElementById('account-display-id');
@@ -60,7 +61,13 @@ async function bootstrapProfile() {
     }
   }
 
+  function logout() {
+    clearToken();
+    window.location.href = '/login';
+  }
+
   saveNicknameBtn.addEventListener('click', saveNickname);
   savePasswordBtn.addEventListener('click', savePassword);
+  logoutBtn.addEventListener('click', logout);
   renderAccount();
 }

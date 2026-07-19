@@ -15,7 +15,9 @@ def main():
     setup_logging()
     logger = get_logger('nte.seed_mock_account')
     init_db([Player, LoginCode, AccessToken, DeckBuild, GameRun])
-    issue_mock_login('10001', 'Mock Runner', '654321')
+    player = issue_mock_login('10001', 'Mock Runner', '654321')
+    player.shaft_test_whitelisted = True
+    player.save(only=[Player.shaft_test_whitelisted])
     logger.info('Mock account seeded into shared database.')
     print('mock-account-seeded 10001 654321')
 

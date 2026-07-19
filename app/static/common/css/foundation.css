@@ -186,11 +186,29 @@ body:has(.build-page) .glass-card {
 
 .portal-page {
     min-height: calc(100vh - 56px);
-    align-content: center;
+    align-content: stretch;
+    grid-template-rows: auto auto auto minmax(40px, 1fr);
 }
 
 .portal-header {
     align-items: flex-end;
+}
+
+.icon-btn.portal-github-link {
+    position: absolute;
+    top: 18px;
+    right: 18px;
+    z-index: 2;
+    width: 36px;
+    min-width: 36px;
+    height: 36px;
+    min-height: 36px;
+    padding: 0;
+}
+
+.icon-btn.portal-github-link svg {
+    width: 18px;
+    height: 18px;
 }
 
 .portal-heading {
@@ -265,6 +283,34 @@ body:has(.build-page) .glass-card {
     color: var(--amber);
     letter-spacing: 0;
     text-transform: none;
+}
+
+.portal-community {
+    padding: 18px 22px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 18px;
+}
+
+.portal-community-copy {
+    display: grid;
+    gap: 6px;
+}
+
+.portal-community h2 {
+    font-size: 18px;
+}
+
+.portal-legal {
+    align-self: end;
+    text-align: center;
+    color: var(--muted);
+    font-size: 12px;
+}
+
+.portal-legal a:hover {
+    color: var(--text);
 }
 
 .combat-topbar,

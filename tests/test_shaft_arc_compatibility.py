@@ -64,6 +64,79 @@ class ShaftArcCompatibilityTestCase(unittest.TestCase):
             if arc:
                 self.assertEqual(characters[character_id]['adaptation'], arc['adaptation'])
 
+    def test_cartridge_element_restrictions_and_starter_builds_match(self) -> None:
+        catalog = load_shaft_catalog()
+        characters = get_record_map(catalog['characters'])
+        cartridges = get_record_map(catalog['cartridges'])
+        expected_elements = {
+            '失落光芒': '光',
+            '森林萤火之心': '灵',
+            '真红：双生蝶': '咒',
+            '迪亚波罗斯': '暗',
+            '恶魔之血：诅咒': '魂',
+            '街头拳王': '相',
+        }
+
+        self.assertFalse(any(cartridge['name'].startswith('【借】') for cartridge in catalog['cartridges']))
+        self.assertEqual(
+            {
+                cartridge['name']: cartridge.get('required_element')
+                for cartridge in catalog['cartridges']
+                if cartridge.get('required_element')
+            },
+            expected_elements,
+        )
+        for character_id, raw_build in catalog['starter_axis']['character_builds'].items():
+            build = raw_build[0] if isinstance(raw_build, list) else raw_build
+            cartridge = cartridges.get(str(build.get('cartridge_id') or ''))
+            if cartridge and cartridge.get('required_element'):
+                self.assertEqual(
+                    characters[character_id]['element'],
+                    cartridge['required_element'],
+                    msg=f"{characters[character_id]['name']} 默认卡带属性不匹配",
+                )
+
+    def test_backend_rejects_active_cartridge_element_mismatch(self) -> None:
+        with self.assertRaisesRegex(RuleValidationError, '角色属性与卡带的属伤加成不一致'):
+            normalize_axis_payload({
+                'team': [{
+                    'slot': 0,
+                    'character_id': 'char_b52cc8f160',
+                    'arc_id': '',
+                    'cartridge_id': 'cartridge_29793225a0',
+                }],
+            })
+
+    def test_backend_clears_inactive_build_cartridge_element_mismatch(self) -> None:
+        normalized = normalize_axis_payload({
+            'team': [{
+                'slot': 0,
+                'character_id': 'char_b52cc8f160',
+                'arc_id': '',
+                'cartridge_id': '',
+            }],
+            'steps': [],
+            'character_builds': {
+                'char_b2e3b2bf7a': {
+                    'character_id': 'char_b2e3b2bf7a',
+                    'arc_id': '',
+                    'cartridge_id': 'cartridge_f4282fad3f',
+                },
+            },
+        })
+
+        self.assertEqual(normalized['character_builds']['char_b2e3b2bf7a']['cartridge_id'], '')
+
+    def test_frontend_filters_and_repairs_cartridge_options_by_element(self) -> None:
+        source = SHAFT_JS.read_text(encoding='utf-8')
+
+        self.assertIn('function cartridgesForCharacter(characterId)', source)
+        self.assertIn("const requiredElement = String(cartridge.required_element || '');", source)
+        self.assertIn('requiredElement === element', source)
+        self.assertIn('function ensureMemberCompatibleCartridge(member)', source)
+        self.assertIn('optionHtml(compatibleCartridges, member.cartridge_id)', source)
+        self.assertGreaterEqual(source.count('ensureMemberCompatibleCartridge(member);'), 2)
+
     def test_backend_rejects_active_incompatible_arc(self) -> None:
         catalog = load_shaft_catalog()
         axis = dict(catalog['starter_axis'])
@@ -107,11 +180,29 @@ class ShaftArcCompatibilityTestCase(unittest.TestCase):
         self.assertEqual(normalized['character_builds'][character_id]['arc_refinement'], expected)
 
     def test_existing_arc_values_define_refinement_defaults(self) -> None:
-        refinements = load_shaft_catalog()['arc_refinements']['arcs']
+        catalog = load_shaft_catalog()
+        refinements = catalog['arc_refinements']['arcs']
 
         self.assertEqual(refinements['arc_1a476075cd']['default_level'], 1)
-        self.assertEqual(refinements['arc_57b6c49b66']['default_level'], 5)
         self.assertEqual(refinements['arc_74578e2ec4']['default_level'], 5)
+        self.assertFalse(any(
+            arc['name'].endswith(('满', '满精', '白板'))
+            for arc in catalog['arcs']
+        ))
+
+    def test_legacy_arc_options_migrate_to_refinement_selection(self) -> None:
+        catalog = load_shaft_catalog()
+        axis = dict(catalog['starter_axis'])
+        axis.pop('character_builds', None)
+        axis['team'] = [dict(member) for member in catalog['starter_axis']['team']]
+        axis['team'][0]['arc_id'] = 'arc_2b6d5881ef'
+        axis['team'][0].pop('arc_refinement', None)
+
+        normalized = normalize_axis_payload(axis)
+
+        self.assertEqual(normalized['team'][0]['arc_id'], 'arc_27dc4a7281')
+        self.assertEqual(normalized['team'][0]['arc_name'], '穿过胭红蜃景')
+        self.assertEqual(normalized['team'][0]['arc_refinement'], 5)
 
 
 if __name__ == '__main__':

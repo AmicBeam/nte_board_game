@@ -199,6 +199,22 @@
             font-weight: 700;
             text-decoration: none;
         }
+        .sunset-notice {
+            margin-top: 18px;
+            padding: 14px 16px;
+            border: 1px solid rgba(255, 216, 127, 0.36);
+            border-radius: 14px;
+            background: rgba(255, 216, 127, 0.1);
+            color: #ffe8ad;
+            font-size: 14px;
+            font-weight: 700;
+            line-height: 1.6;
+        }
+        .sunset-notice a {
+            color: #ffffff;
+            text-decoration: underline;
+            text-underline-offset: 3px;
+        }
         .section {
             margin-top: 20px;
             padding: 24px;
@@ -496,6 +512,9 @@
                 <div class="eyebrow">PRETEAM 1.0</div>
                 <h1>异环预配队 1.0.7 版本</h1>
                 <p class="hero-copy">先选对单还是对群，再确定主C与三名队友。页面会按新的环合体系自动寻找更优配装，并输出 4 人的默认面板建议。</p>
+                <div class="sunset-notice" role="status">
+                    预配队即将下线，并由<a href="{{ url_for('main.shaft_page', page='rotation') }}">排轴模块</a>取代。现有功能在下线前仍可继续使用。
+                </div>
                 <div class="hero-notes">
                     <div>角色默认 80 级、天赋 10 级；敌人为 90 级、30 全抗、无红圈会攻击的站桩目标。</div>
                     <div>S 级默认 0 觉，A级默认满觉，小吱默认 1 觉。</div>

@@ -2864,6 +2864,9 @@
             "arc_ready_eq_basic_dodge": {
               "basic_dmg": 0.15,
               "dodge_counter_dmg": 0.15
+            },
+            "arc_ready_tally_boss_damage": {
+              "all_dmg": 0.1
             }
           }
         },
@@ -2885,6 +2888,9 @@
             "arc_ready_eq_basic_dodge": {
               "basic_dmg": 0.1875,
               "dodge_counter_dmg": 0.1875
+            },
+            "arc_ready_tally_boss_damage": {
+              "all_dmg": 0.125
             }
           }
         },
@@ -2906,6 +2912,9 @@
             "arc_ready_eq_basic_dodge": {
               "basic_dmg": 0.225,
               "dodge_counter_dmg": 0.225
+            },
+            "arc_ready_tally_boss_damage": {
+              "all_dmg": 0.15
             }
           }
         },
@@ -2927,6 +2936,9 @@
             "arc_ready_eq_basic_dodge": {
               "basic_dmg": 0.2625,
               "dodge_counter_dmg": 0.2625
+            },
+            "arc_ready_tally_boss_damage": {
+              "all_dmg": 0.175
             }
           }
         },
@@ -2948,6 +2960,9 @@
             "arc_ready_eq_basic_dodge": {
               "basic_dmg": 0.3,
               "dodge_counter_dmg": 0.3
+            },
+            "arc_ready_tally_boss_damage": {
+              "all_dmg": 0.2
             }
           }
         }

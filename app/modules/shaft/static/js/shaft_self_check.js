@@ -22,15 +22,6 @@
     return match ? Number(match[1]) : null;
   }
 
-  function isRequiemNightmare(action) {
-    if (String(action?.character_name || '') !== '安魂曲') {
-      return false;
-    }
-    const name = String(action?.name || '').trim().toLowerCase();
-    const extraTag = String(action?.extra_tag || '').trim().toLowerCase();
-    return name === '噩梦' || name === 'dot' || extraTag === 'dot';
-  }
-
   function inspectAxis(axis, catalog) {
     const actions = new Map((catalog?.actions || []).map((action) => [String(action.id || ''), action]));
     const orderedSteps = (axis?.steps || [])
@@ -63,17 +54,8 @@
       }
     }
 
-    const requiemActions = orderedSteps
-      .map((item) => item.action)
-      .filter((action) => String(action?.character_name || '') === '安魂曲');
-    const requiemTypes = new Set(requiemActions.map((action) => String(action?.action_type || '')));
-    const hasRequiemCoreActions = requiemTypes.has('普攻') && requiemTypes.has('E') && requiemTypes.has('Q');
-    if (hasRequiemCoreActions && !requiemActions.some(isRequiemNightmare)) {
-      warnings.push('安魂曲未配置噩梦');
-    }
-
     return warnings;
   }
 
-  return { basicAttackStage, inspectAxis, isRequiemNightmare };
+  return { basicAttackStage, inspectAxis };
 }));

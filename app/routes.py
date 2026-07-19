@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import threading
+from pathlib import Path
 
 from flask import Blueprint, g, jsonify, redirect, render_template, request, url_for
 
@@ -21,6 +22,8 @@ from app.modules.kongmu.service import get_kongmu_catalog_payload, plan_kongmu_l
 from app.modules.preteam.catalog import MAIN_CANDIDATES as PRETEAM_MAIN_CANDIDATES
 from app.modules.preteam.catalog import TEAMMATES as PRETEAM_TEAMMATES
 from app.modules.shaft.service import (
+    ShaftAxisNameConflictError,
+    backup_shaft_axis,
     delete_shaft_axis,
     get_shaft_axis,
     get_shaft_catalog_payload,
@@ -28,6 +31,7 @@ from app.modules.shaft.service import (
     list_my_shaft_axes,
     list_shaft_market,
     optional_player_from_token,
+    publish_shaft_axis_snapshot,
     save_shaft_axis,
     set_shaft_axis_favorite,
     set_shaft_axis_like,
@@ -77,6 +81,14 @@ def _request_int_arg(name: str, default: int) -> int:
         return int(request.args.get(name, str(default)) or default)
     except (TypeError, ValueError):
         return default
+
+
+def _shaft_asset_version(filename: str) -> int:
+    asset_path = Path(__file__).resolve().parent / 'modules' / 'shaft' / 'static' / filename
+    try:
+        return int(asset_path.stat().st_mtime)
+    except OSError:
+        return 0
 
 
 def _acquire_kongmu_plan_lock(source_key: str) -> threading.Lock | None:
@@ -139,7 +151,11 @@ def shaft_page(page: str = 'rotation'):
         page = 'plaza'
     if page not in {'build', 'rotation', 'plaza'}:
         page = 'rotation'
-    return render_template('shaft/index.html', active_shaft_page=page)
+    return render_template(
+        'shaft/index.html',
+        active_shaft_page=page,
+        shaft_asset_version=_shaft_asset_version,
+    )
 
 
 @main_bp.get('/table')
@@ -298,7 +314,7 @@ def api_kongmu_plan():
 @main_bp.get('/api/shaft/catalog')
 def api_shaft_catalog():
     try:
-        return jsonify(get_shaft_catalog_payload())
+        return jsonify(get_shaft_catalog_payload(player=_optional_current_player()))
     except AppError as exc:
         return jsonify({'error': str(exc)}), 400
     except Exception:
@@ -345,6 +361,13 @@ def api_shaft_save_axis():
     payload = request.get_json(silent=True) or {}
     try:
         return jsonify(save_shaft_axis(g.current_player, payload))
+    except ShaftAxisNameConflictError as exc:
+        return jsonify({
+            'error': str(exc),
+            'code': 'axis_name_conflict',
+            'title': exc.title,
+            'existing_axis_id': exc.axis_id,
+        }), 409
     except AppError as exc:
         return jsonify({'error': str(exc)}), 400
     except Exception:
@@ -358,11 +381,42 @@ def api_shaft_update_axis(axis_id: int):
     payload = request.get_json(silent=True) or {}
     try:
         return jsonify(save_shaft_axis(g.current_player, payload, axis_id=axis_id))
+    except ShaftAxisNameConflictError as exc:
+        return jsonify({
+            'error': str(exc),
+            'code': 'axis_name_conflict',
+            'title': exc.title,
+            'existing_axis_id': exc.axis_id,
+        }), 409
     except AppError as exc:
         return jsonify({'error': str(exc)}), 400
     except Exception:
         logger.exception('api_shaft_update_axis failed axis_id=%s', axis_id)
         return jsonify({'error': '更新排轴时发生异常，请稍后重试。'}), 500
+
+
+@main_bp.post('/api/shaft/axes/<int:axis_id>/publish')
+@token_required
+def api_shaft_publish_axis(axis_id: int):
+    try:
+        return jsonify(publish_shaft_axis_snapshot(g.current_player, axis_id))
+    except AppError as exc:
+        return jsonify({'error': str(exc)}), 400
+    except Exception:
+        logger.exception('api_shaft_publish_axis failed axis_id=%s', axis_id)
+        return jsonify({'error': '上传排轴快照时发生异常，请稍后重试。'}), 500
+
+
+@main_bp.post('/api/shaft/axes/<int:axis_id>/backup')
+@token_required
+def api_shaft_backup_axis(axis_id: int):
+    try:
+        return jsonify(backup_shaft_axis(g.current_player, axis_id))
+    except AppError as exc:
+        return jsonify({'error': str(exc)}), 400
+    except Exception:
+        logger.exception('api_shaft_backup_axis failed axis_id=%s', axis_id)
+        return jsonify({'error': '备份排轴时发生异常，请稍后重试。'}), 500
 
 
 @main_bp.delete('/api/shaft/axes/<int:axis_id>')
@@ -381,7 +435,11 @@ def api_shaft_delete_axis(axis_id: int):
 @token_required
 def api_shaft_my_axes():
     try:
-        return jsonify(list_my_shaft_axes(g.current_player))
+        return jsonify(list_my_shaft_axes(
+            g.current_player,
+            character_ids=[value.strip() for value in request.args.getlist('character_id') if value.strip()][:4],
+            sort=str(request.args.get('sort', 'new')).strip(),
+        ))
     except AppError as exc:
         return jsonify({'error': str(exc)}), 400
     except Exception:
@@ -393,7 +451,11 @@ def api_shaft_my_axes():
 @token_required
 def api_shaft_my_favorites():
     try:
-        return jsonify(list_favorite_shaft_axes(g.current_player))
+        return jsonify(list_favorite_shaft_axes(
+            g.current_player,
+            character_ids=[value.strip() for value in request.args.getlist('character_id') if value.strip()][:4],
+            sort=str(request.args.get('sort', 'new')).strip(),
+        ))
     except AppError as exc:
         return jsonify({'error': str(exc)}), 400
     except Exception:
