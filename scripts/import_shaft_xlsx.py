@@ -663,7 +663,7 @@ def main() -> int:
         'source_name': args.xlsx_path.name,
         'source_hash': source_hash,
         'imported_at': datetime.now(timezone.utc).isoformat(),
-        'version_label': '异环云配队 V0.2.7',
+        'version_label': '异环云配队 1.0.0',
         'sheets': {
             sheet_name: {
                 'rows': wb_values[sheet_name].max_row,

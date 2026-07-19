@@ -26,6 +26,7 @@
   const PERSONAL_RESOURCE_CAPS = {
     char_701295143d: { '言灵字': 4 },
     char_912dbfe17c: { '闪送之力': 6 },
+    char_a01c39f576: { '臆想': 100 },
   };
   const SKILL_LEVEL_DEFAULTS = {
     basic: 10,
@@ -47,10 +48,10 @@
     flat_def: 'flat_def',
   };
   const CURTAIN_PASSIVE_TYPES = ['type2', 'type3', 'type4'];
-  const SUPPORTED_TRIGGER_EVENTS = new Set(['passive', 'action_start', 'action_hit', 'action_end', 'loop_start', 'reaction_trigger']);
+  const SUPPORTED_TRIGGER_EVENTS = new Set(['passive', 'action_start', 'action_hit', 'action_end', 'loop_start', 'reaction_trigger', 'periodic_damage']);
   const PERMANENT_BUFF_END_TICK = 1000000000;
-  const HARMONY_DAMAGE_SOURCES = ['创生', '浊燃', '黯星'];
-  const SPECIAL_DAMAGE_SOURCES = ['创生', '浊燃', '黯星', '噩梦'];
+  const HARMONY_DAMAGE_SOURCES = ['创生', '创生复制体', '浊燃', '黯星'];
+  const SPECIAL_DAMAGE_SOURCES = ['创生', '创生复制体', '浊燃', '黯星'];
   const REACTION_BY_ELEMENT_PAIR = new Map([
     ['光|灵', '创生'],
     ['光|相', '延滞'],
@@ -107,6 +108,7 @@
   const STAGGER_RECOVERY_SECONDS = 10;
   const LAST_ROSE_ARC_ID = 'arc_dcd5900afc';
   const LAST_ROSE_STAGGER_EXTENSION_SECONDS = 3;
+  const ILOY_CHARACTER_ID = 'char_a01c39f576';
   const NANALI_CHARACTER_ID = 'char_bdc43f82c6';
   const ZHENHONG_CHARACTER_ID = 'char_b52cc8f160';
   const ZHENHONG_ASCENDANT_ENTRY_ACTION_ID = 'action_c32b4b9417';
@@ -137,6 +139,47 @@
 
   function hasAwakeningNode(source, level) {
     return awakeningNodes(source).has(int(level));
+  }
+
+  function ruleHasAwakeningNode(rule, level) {
+    if (Array.isArray(rule?.owner_awakening_nodes)) {
+      return rule.owner_awakening_nodes.map(int).includes(int(level));
+    }
+    return int(rule?.owner_awakening) >= int(level);
+  }
+
+  function durationTicksForRule(rule) {
+    const duration = rule?.duration && typeof rule.duration === 'object' ? rule.duration : {};
+    let ticks = Math.max(0, int(duration.ticks));
+    Object.entries(duration.ticks_by_awakening_node || {}).forEach(([level, value]) => {
+      if (ruleHasAwakeningNode(rule, level)) ticks = Math.max(0, int(value));
+    });
+    return ticks;
+  }
+
+  function periodicAtkMultiplier(periodic, rule) {
+    let multiplier = num(periodic?.atk_multiplier);
+    Object.entries(periodic?.awakening_node_multipliers || {}).forEach(([level, factor]) => {
+      if (ruleHasAwakeningNode(rule, level)) multiplier *= num(factor, 1);
+    });
+    return multiplier;
+  }
+
+  function maxStacksForRule(rule) {
+    const stacking = rule?.stacking && typeof rule.stacking === 'object' ? rule.stacking : {};
+    let maxStacks = Math.max(1, num(stacking.max_stacks, 1));
+    Object.entries(stacking.max_stacks_by_awakening_node || {}).forEach(([level, value]) => {
+      if (ruleHasAwakeningNode(rule, level)) maxStacks = Math.max(1, num(value, maxStacks));
+    });
+    return maxStacks;
+  }
+
+  function actionValueForAwakeningNodes(action, snapshot, baseKey, nodeMapKey) {
+    let value = num(action?.[baseKey]);
+    Object.entries(action?.[nodeMapKey] || {}).forEach(([level, nodeValue]) => {
+      if (hasAwakeningNode(snapshot, level)) value = num(nodeValue, value);
+    });
+    return value;
   }
 
   function asList(value) {
@@ -505,23 +548,33 @@
     };
   }
 
-  function resistanceMultiplier(character, enemy, panelMods) {
+  function settledResistance(character, enemy, panelMods) {
     const element = String(character?.element || '');
     const damageElement = element || '心灵';
     const baseRes = num(enemy.resistances?.[damageElement], 0.3);
     const weaknessDown = new Set(enemy.weakness_elements || []).has(element) ? 0.2 : 0;
     const elementResDown = num(panelMods[`res_down_${damageElement}`]);
-    const value = 1 - baseRes + weaknessDown + panelMods.res_down + elementResDown;
+    return baseRes - weaknessDown - num(panelMods.res_down) - elementResDown;
+  }
+
+  function resistanceMultiplier(character, enemy, panelMods) {
+    const value = 1 - settledResistance(character, enemy, panelMods);
     if (value < 1) {
       return Math.max(0.05, value);
     }
     return Math.max(0.05, 2 - 1 / Math.max(value, 0.01));
   }
 
+  function settledDefense(enemy, panelMods) {
+    const enemyFactor = 6 * int(enemy.level, 90) + 600 - (enemy.track_outside ? 60 : 0);
+    return enemyFactor
+      * Math.max(0, 1 - Math.min(1, panelMods.def_ignore))
+      * Math.max(0, 1 - Math.min(1, panelMods.def_down));
+  }
+
   function defenseMultiplier(enemy, panelMods) {
     const actorLevelFactor = 6 * 80 + 600;
-    const enemyFactor = 6 * int(enemy.level, 90) + 600 - (enemy.track_outside ? 60 : 0);
-    const defenseLeft = enemyFactor * Math.max(0, 1 - Math.min(1, panelMods.def_ignore)) * Math.max(0, 1 - Math.min(1, panelMods.def_down));
+    const defenseLeft = settledDefense(enemy, panelMods);
     return actorLevelFactor / Math.max(actorLevelFactor + defenseLeft, 1);
   }
 
@@ -609,6 +662,8 @@
     const dmgBonus = actionTypeBonus(action, panelMods) + panelMods.element_dmg;
     const crit = critMultiplier(action, panelMods);
     const resistanceCharacter = actionTags(action).has('心灵') ? { element: '' } : snapshot.character;
+    const effectiveResistance = settledResistance(resistanceCharacter, enemy, panelMods);
+    const effectiveDefense = settledDefense(enemy, panelMods);
     const resistance = resistanceMultiplier(resistanceCharacter, enemy, panelMods);
     const defense = defenseMultiplier(enemy, panelMods);
     const direct = Math.max(0, base * (1 + dmgBonus) * crit * resistance * defense * (1 + panelMods.final_dmg));
@@ -636,6 +691,8 @@
         skill_level_multiplier: skillMult,
         dmg_bonus: dmgBonus,
         crit,
+        settled_resistance: effectiveResistance,
+        settled_defense: effectiveDefense,
         resistance,
         defense,
       },
@@ -729,6 +786,10 @@
     return String(action?.action_type || '') === 'Q' || String(action?.damage_type || '') === 'Q';
   }
 
+  function isInstantSwitchAction(action) {
+    return Boolean(action?.is_instant_switch);
+  }
+
   function locksForegroundSwitch(step, action) {
     return startsForeground(step, action) && (
       isSupportAction(action) ||
@@ -742,6 +803,8 @@
       if (startDelta) return startDelta;
       const aAction = actionsById.get(String(a.action_id || '')) || {};
       const bAction = actionsById.get(String(b.action_id || '')) || {};
+      const instantSwitchDelta = Number(isInstantSwitchAction(bAction)) - Number(isInstantSwitchAction(aAction));
+      if (instantSwitchDelta) return instantSwitchDelta;
       const lockDelta = Number(locksForegroundSwitch(b, bAction)) - Number(locksForegroundSwitch(a, aAction));
       return lockDelta || int(a.slot) - int(b.slot);
     });
@@ -779,7 +842,8 @@
         !isBackground &&
         previousForegroundSlot !== null &&
         previousForegroundSlot !== int(step.slot) &&
-        previousForegroundStartTick !== null
+        previousForegroundStartTick !== null &&
+        !isInstantSwitchAction(action)
       ) {
         const earliestStartTick = previousForegroundStartTick + Math.max(0, int(switchGapTicks));
         if (visualStartTick < earliestStartTick) {
@@ -938,7 +1002,7 @@
     const hitCount = actionHitCount(action);
     if (hitCount <= 0) return 0;
     const panel = calc.panel || {};
-    const rate = String(action.extra_tag || '') === 'DOT' ? 0.5 : Math.min(1, Math.max(0, num(panel.crit_rate)));
+    const rate = actionTags(action).has('DOT') ? 0.5 : Math.min(1, Math.max(0, num(panel.crit_rate)));
     return hitCount * rate;
   }
 
@@ -1038,6 +1102,9 @@
         const active = new Set(asList(context.active_buff_keys).map(String));
         return asList(condition.keys).map(String).some((key) => active.has(key));
       }
+      if (type === 'personal_resource_min') {
+        return num(context.personal_resources?.[String(condition.resource || '')]) >= num(condition.min, condition.value);
+      }
       if (type === 'reaction_owner_involved') {
         const ownerSlot = int(context.owner_slot, -1);
         return ownerSlot === int(context.reaction?.previous_slot, -2) || ownerSlot === int(context.reaction?.support_slot, -2);
@@ -1136,7 +1203,8 @@
 
   function eventMatchesRule(rule, event, step, action, snapshot, isBackground, context = {}) {
     const trigger = rule.trigger && typeof rule.trigger === 'object' ? rule.trigger : {};
-    if (String(trigger.event || '') !== event || !SUPPORTED_TRIGGER_EVENTS.has(event)) return false;
+    const matchesPeriodicDamage = event === 'periodic_damage' && trigger.periodic_damage === true;
+    if ((String(trigger.event || '') !== event && !matchesPeriodicDamage) || !SUPPORTED_TRIGGER_EVENTS.has(event)) return false;
     const source = trigger.source && typeof trigger.source === 'object' ? trigger.source : {};
     if (!sourceMatches(source, rule, step, action, snapshot, isBackground)) return false;
     const eventContext = Object.assign({}, context, {
@@ -1220,13 +1288,25 @@
   function activateBuff(activeBuffs, rule, triggerTick, stackGain = 1, context = {}) {
     const duration = rule.duration && typeof rule.duration === 'object' ? rule.duration : {};
     const isPermanent = String(duration.type || '') === 'permanent';
-    const durationTicks = isPermanent ? PERMANENT_BUFF_END_TICK : Math.max(0, int(duration.ticks));
+    const durationTicks = isPermanent ? PERMANENT_BUFF_END_TICK : durationTicksForRule(rule);
     if (durationTicks <= 0) return null;
     const startTick = triggerTick + Math.max(0, int(duration.delay_ticks));
-    const endTick = startTick + durationTicks;
+    let endTick = startTick + durationTicks;
+    const pauseWhileBuffKey = String(duration.pause_while_buff_key || '');
+    if (pauseWhileBuffKey) {
+      const pauseUntilTick = activeBuffs
+        .filter((instance) => (
+          int(instance.owner_slot) === int(rule.owner_slot)
+          && String(instance.definition_id || '') === pauseWhileBuffKey
+          && startTick >= int(instance.start_tick)
+          && startTick < int(instance.end_tick)
+        ))
+        .reduce((latest, instance) => Math.max(latest, int(instance.end_tick)), startTick);
+      endTick += Math.max(0, pauseUntilTick - startTick);
+    }
     const stacking = rule.stacking && typeof rule.stacking === 'object' ? rule.stacking : {};
     const mode = String(stacking.mode || 'refresh');
-    const maxStacks = Math.max(1, num(stacking.max_stacks, 1));
+    const maxStacks = maxStacksForRule(rule);
     const gain = Math.max(0, stackGain);
     if (gain <= 0) return null;
     const definitionId = String(stacking.key || rule.id || '');
@@ -1254,6 +1334,10 @@
       }
       if (mode === 'extend') {
         instance.end_tick = Math.max(int(instance.end_tick), endTick);
+        return instance;
+      }
+      if (mode === 'extend_duration') {
+        instance.end_tick = Math.max(int(instance.end_tick), triggerTick) + durationTicks;
         return instance;
       }
       instance.start_tick = startTick;
@@ -1317,11 +1401,17 @@
     if (negative.effect_key) {
       const enemyDebuffs = new Set(Object.keys(context.enemy_debuffs || {}));
       const activeKeys = new Set(asList(context.active_buff_keys).map(String));
-      const count = Math.min(
-        Math.max(0, int(negative.max_count, 1)),
-        asList(negative.enemy_debuffs).filter((key) => enemyDebuffs.has(String(key))).length
-          + asList(negative.buff_keys).filter((key) => activeKeys.has(String(key))).length,
-      );
+      const activePeriodicActionIds = new Set(asList(context.active_periodic_action_ids).map(String));
+      const requiredEnemyDebuffs = asList(negative.requires_enemy_debuffs).map(String);
+      const enabled = requiredEnemyDebuffs.every((key) => enemyDebuffs.has(key));
+      const count = enabled
+        ? Math.min(
+          Math.max(0, int(negative.max_count, 1)),
+          asList(negative.enemy_debuffs).filter((key) => enemyDebuffs.has(String(key))).length
+            + asList(negative.buff_keys).filter((key) => activeKeys.has(String(key))).length
+            + asList(negative.periodic_action_ids).filter((key) => activePeriodicActionIds.has(String(key))).length,
+        )
+        : 0;
       resolved[String(negative.effect_key)] = num(resolved[String(negative.effect_key)]) + count * num(negative.per_count);
     }
     const activeStack = dynamic.active_stack_count && typeof dynamic.active_stack_count === 'object'
@@ -1373,9 +1463,9 @@
       end_tick: int(instance.end_tick),
       duration_ticks: String(rule.duration?.type || '') === 'permanent'
         ? PERMANENT_BUFF_END_TICK
-        : Math.max(0, int(rule.duration?.ticks)),
+        : Math.max(0, int(instance.end_tick) - int(instance.start_tick)),
       stacking_mode: String(stacking.mode || 'refresh'),
-      max_stacks: Math.max(1, int(stacking.max_stacks, 1)),
+      max_stacks: maxStacksForRule(rule),
       stack_count: Number.isInteger(stackCount) ? Math.trunc(stackCount) : stackCount,
       effects: buffEffects(instance, context),
       display_as_line: displayAsLine,
@@ -1571,6 +1661,9 @@
     const ordered = scheduledSteps.slice().sort((left, right) => {
       const startDelta = int(left.visual_start_tick) - int(right.visual_start_tick);
       if (startDelta) return startDelta;
+      const instantSwitchDelta = Number(isInstantSwitchAction(right.action || {})) -
+        Number(isInstantSwitchAction(left.action || {}));
+      if (instantSwitchDelta) return instantSwitchDelta;
       const lockDelta = Number(locksForegroundSwitch(right.step || {}, right.action || {})) -
         Number(locksForegroundSwitch(left.step || {}, left.action || {}));
       return lockDelta || int(left.slot) - int(right.slot);
@@ -1604,7 +1697,8 @@
       if (
         previousForegroundSlot !== null &&
         previousForegroundSlot !== int(scheduled.slot) &&
-        previousForegroundStartTick !== null
+        previousForegroundStartTick !== null &&
+        !isInstantSwitchAction(scheduled.action || {})
       ) {
         visualStartTick = Math.max(
           visualStartTick,
@@ -1667,11 +1761,12 @@
     let totalStagger = 0;
     const staggerProfileSamplesBySlot = new Map(Array.from(snapshots.keys()).map((slot) => [slot, []]));
     const specialDamageBySource = new Map(SPECIAL_DAMAGE_SOURCES.map((source) => [source, 0]));
-    const requestedInitialEnergy = Math.max(0, num(axisPayload?.initial_energy, 100));
+    const requestedInitialEnergy = Math.max(0, num(axisPayload?.initial_energy, 1000));
     const loopInitialResources = options.loop_enabled && options.loop_initial_resources && typeof options.loop_initial_resources === 'object'
       ? options.loop_initial_resources
       : {};
     const energyCapacityBySlot = new Map(Array.from(snapshots.entries()).map(([slot, snapshot]) => {
+      if (snapshot.character?.uses_energy === false) return [slot, 0];
       const configuredCapacity = num(snapshot.character?.energy_capacity);
       const inferredCapacity = Math.max(0, ...Array.from(actionsById.values())
         .filter((action) => String(action?.character_id || '') === String(snapshot.character?.id || '') && isQAction(action))
@@ -1679,6 +1774,7 @@
       return [slot, Math.max(0, configuredCapacity || inferredCapacity)];
     }));
     const initialEnergyBySlot = new Map(Array.from(snapshots.entries()).map(([slot, snapshot]) => {
+      if (snapshot.character?.uses_energy === false) return [slot, 0];
       const capacity = energyCapacityBySlot.get(slot) || 0;
       const characterResources = loopInitialResources[String(snapshot.character?.id || '')];
       const configuredEnergy = characterResources && typeof characterResources === 'object'
@@ -1738,7 +1834,7 @@
       const action = actionsById.get(String(step.action_id || ''));
       const visualStartTick = scheduledVisualStartTick;
       const isBackground = isStepBackground(step, action);
-      const calculationAtStartOnly = isInstantNativeBackgroundAction(step, action);
+      const calculationAtStartOnly = isInstantNativeBackgroundAction(step, action) || isInstantSwitchAction(action);
       const configuredDurationTicks = actionCalculationDurationTicks(step, action);
       const visualDurationTicks = actionVisualDurationTicks(step, action);
       const visualEndTick = visualStartTick + visualDurationTicks;
@@ -1789,7 +1885,6 @@
     const scheduledLastTick = Math.max(0, ...scheduledSteps.map((item) => Math.max(int(item.end_tick), int(item.start_tick))));
     const loopDurationTicks = Math.max(scheduledLastTick, 1);
     const loopPrimedReactionStepIds = new Set();
-    const loopCarryHarmonyBySlot = new Map(Array.from(snapshots.keys()).map((slot) => [slot, 0]));
 
     function supportBypassesHarmony(scheduled) {
       return Boolean(
@@ -1826,47 +1921,81 @@
     }
 
     if (options.loop_enabled) {
-      const warmHarmony = new Map(Array.from(snapshots.keys()).map((slot) => [slot, 0]));
-      for (let warmLoopIndex = 0; warmLoopIndex < 3; warmLoopIndex += 1) {
-        const iterationReactionStepIds = new Set();
-        scheduledSteps.forEach((scheduled) => {
-          const slot = int(scheduled.slot);
-          warmHarmony.set(
-            slot,
-            Math.min(
-              HARMONY_CAPACITY,
-              (warmHarmony.get(slot) || 0) + num(scheduled.action?.harmony) * backgroundActionMultiplier(scheduled.step, scheduled.action),
-            ),
-          );
-          if (!isSupportAction(scheduled.action)) return;
-          const previousSnapshot = snapshots.get(reactionPreviousSlot(scheduled));
-          const supportSnapshot = snapshots.get(slot);
-          if (!previousSnapshot || !supportSnapshot || previousSnapshot.slot === supportSnapshot.slot) return;
-          if (!reactionForElements(previousSnapshot.character?.element, supportSnapshot.character?.element)) return;
-          const previousHarmony = warmHarmony.get(previousSnapshot.slot) || 0;
-          if (previousHarmony < 100 && !supportBypassesHarmony(scheduled)) return;
-          iterationReactionStepIds.add(String(scheduled.step?.id || ''));
-          if (!scheduled.action?.preserve_harmony && !scheduled.step?.preserve_harmony) {
-            warmHarmony.set(previousSnapshot.slot, Math.max(0, previousHarmony - 100));
-          }
-        });
-        if (warmLoopIndex === 2) {
-          iterationReactionStepIds.forEach((stepId) => loopPrimedReactionStepIds.add(stepId));
+      const warmHarmony = new Map(initialHarmonyBySlot);
+      scheduledSteps.forEach((scheduled) => {
+        const slot = int(scheduled.slot);
+        warmHarmony.set(
+          slot,
+          Math.min(
+            HARMONY_CAPACITY,
+            (warmHarmony.get(slot) || 0) + num(scheduled.action?.harmony) * backgroundActionMultiplier(scheduled.step, scheduled.action),
+          ),
+        );
+        if (!isSupportAction(scheduled.action)) return;
+        const previousSnapshot = snapshots.get(reactionPreviousSlot(scheduled));
+        const supportSnapshot = snapshots.get(slot);
+        if (!previousSnapshot || !supportSnapshot || previousSnapshot.slot === supportSnapshot.slot) return;
+        if (!reactionForElements(previousSnapshot.character?.element, supportSnapshot.character?.element)) return;
+        const previousHarmony = warmHarmony.get(previousSnapshot.slot) || 0;
+        if (previousHarmony < 100 && !supportBypassesHarmony(scheduled)) return;
+        loopPrimedReactionStepIds.add(String(scheduled.step?.id || ''));
+        if (!scheduled.action?.preserve_harmony && !scheduled.step?.preserve_harmony) {
+          warmHarmony.set(previousSnapshot.slot, Math.max(0, previousHarmony - 100));
         }
-      }
-      warmHarmony.forEach((value, slot) => loopCarryHarmonyBySlot.set(slot, value));
+      });
     }
     let activeBuffs = [];
     const buffTriggerCooldowns = new Map();
     const reactionEffects = [];
     const reactionDamageEvents = [];
+    const sharedPeriodicDamageStates = new Map();
+    let nextSharedPeriodicDamageGeneration = 1;
     const reactionDamageBySlot = new Map(Array.from(snapshots.keys()).map((slot) => [slot, 0]));
+    const periodicDamageWindows = [];
     let nextReactionEffectId = 1;
 
-    function effectiveReactionPanel(snapshot, tick) {
+    scheduledSteps.forEach((scheduled) => {
+      const periodic = scheduled.action?.periodic_damage && typeof scheduled.action.periodic_damage === 'object'
+        ? scheduled.action.periodic_damage
+        : {};
+      const intervalTicks = Math.max(1, int(periodic.interval_ticks));
+      const tickCount = Math.max(0, int(periodic.tick_count));
+      if (!tickCount || !Object.keys(periodic.multipliers || {}).length) return;
+      const startTick = int(scheduled.start_tick);
+      const endTick = startTick + intervalTicks * tickCount;
+      periodicDamageWindows.push({
+        action_id: String(scheduled.action.id || ''),
+        start_tick: startTick,
+        end_tick: endTick,
+      });
+      for (let index = 0; index < tickCount; index += 1) {
+        reactionDamageEvents.push({
+          kind: 'action_periodic',
+          reaction: String(scheduled.action.name || '持续伤害'),
+          tick: startTick + intervalTicks * (index + 1),
+          sequence: index + 1,
+          contributor_slot: int(scheduled.slot),
+          contributor_character_id: String(scheduled.action.character_id || ''),
+          contributor_character_name: String(scheduled.action.character_name || ''),
+          action_id: String(scheduled.action.id || ''),
+          action_type: String(scheduled.action.action_type || '周期伤害'),
+          damage_type: String(scheduled.action.damage_type || scheduled.action.action_type || '周期伤害'),
+          multipliers: clone(periodic.multipliers || {}),
+          damage: null,
+        });
+      }
+    });
+
+    function activePeriodicActionIds(tick) {
+      return periodicDamageWindows
+        .filter((window) => tick >= int(window.start_tick) && tick <= int(window.end_tick))
+        .map((window) => String(window.action_id || ''));
+    }
+
+    function effectiveReactionPanel(snapshot, tick, damageAction = null) {
       const panelMods = clone(snapshot.mods);
       const syntheticStep = { slot: snapshot.slot };
-      const syntheticAction = {
+      const syntheticAction = damageAction || {
         name: '异能环合',
         action_type: '环合',
         damage_type: '环合',
@@ -1879,6 +2008,7 @@
         enemy_debuffs: activeEnemyDebuffs(enemyDebuffs, tick),
         active_buffs: activeAtTick,
         active_buff_keys: activeAtTick.map((candidate) => String(candidate.definition_id || '')),
+        active_periodic_action_ids: activePeriodicActionIds(tick),
       };
       applicableBuffContributions(activeBuffs, syntheticStep, syntheticAction, snapshot, false, context)
         .forEach((contribution) => mergeMods(panelMods, contribution.effects));
@@ -1904,6 +2034,12 @@
 
     function teamHasNanali() {
       return Array.from(snapshots.values()).some((snapshot) => String(snapshot?.character?.id || '') === NANALI_CHARACTER_ID);
+    }
+
+    function iloySnapshot() {
+      return Array.from(snapshots.values()).find(
+        (snapshot) => String(snapshot?.character?.id || '') === ILOY_CHARACTER_ID,
+      ) || null;
     }
 
     function reactionDamageTicks(reaction, startTick) {
@@ -1953,6 +2089,7 @@
     function distributeActionEnergy({ actorSlot, baseActionEnergy, actorEnergyGain, extraEnergyReturn, tick, currentFrontSlot }) {
       const receivedBySlot = new Map();
       snapshots.forEach((recipientSnapshot, recipientSlot) => {
+        if (recipientSnapshot.character?.uses_energy === false) return;
         if (!canReceiveEnergy(recipientSnapshot, currentFrontSlot)) return;
         const amount = int(recipientSlot) === int(actorSlot)
           ? actorEnergyGain + extraEnergyReturn
@@ -1996,10 +2133,7 @@
         return { effect: null, warning: '' };
       }
       const previousCurrentHarmony = harmonyBySlot.get(previousSnapshot.slot) || 0;
-      const previousCarryHarmony = options.loop_enabled && !primeLoop
-        ? loopCarryHarmonyBySlot.get(previousSnapshot.slot) || 0
-        : 0;
-      const previousHarmony = Math.min(HARMONY_CAPACITY, previousCurrentHarmony + previousCarryHarmony);
+      const previousHarmony = Math.min(HARMONY_CAPACITY, previousCurrentHarmony);
       if (!primeLoop && previousHarmony < 100 && !supportBypassesHarmony(scheduled)) {
         return {
           effect: null,
@@ -2011,12 +2145,6 @@
       if (!primeLoop && !scheduled.action?.preserve_harmony && !scheduled.step?.preserve_harmony) {
         const currentConsumption = Math.min(previousCurrentHarmony, 100);
         harmonyBySlot.set(previousSnapshot.slot, Math.max(0, previousCurrentHarmony - currentConsumption));
-        if (options.loop_enabled) {
-          loopCarryHarmonyBySlot.set(
-            previousSnapshot.slot,
-            Math.max(0, previousCarryHarmony - (100 - currentConsumption)),
-          );
-        }
       }
       const durationTicks = int(REACTION_DURATIONS[reaction]);
       const effect = {
@@ -2042,7 +2170,9 @@
       };
       nextReactionEffectId += 1;
       reactionEffects.push(effect);
+      enemyDebuffs[reaction] = Math.max(int(enemyDebuffs[reaction]), int(effect.end_tick) + 1);
       effect.damage_ticks.forEach((damageTick, index) => {
+        const isDot = reaction === '浊燃';
         reactionDamageEvents.push({
           effect_id: effect.id,
           reaction,
@@ -2052,38 +2182,169 @@
           contributor_slot: effect.contributor_slot,
           contributor_character_id: effect.contributor_character_id,
           contributor_character_name: effect.contributor_character_name,
+          extra_tag: isDot ? 'DOT' : '',
+          tags: isDot ? ['DOT'] : [],
           loop_primed: primeLoop,
           damage: null,
         });
       });
+      if (reaction === '创生') {
+        const iloy = iloySnapshot();
+        if (iloy) {
+          const flowerCount = teamHasNanali() ? 25 : 20;
+          const cloneDamageTicks = Array.from(
+            { length: flowerCount },
+            (_, index) => tick + 30 + (index + 1) * 5,
+          );
+          const cloneEffect = {
+            id: `reaction_${nextReactionEffectId}`,
+            reaction: '创生复制体',
+            support_slot: effect.support_slot,
+            support_character_id: effect.support_character_id,
+            support_character_name: effect.support_character_name,
+            previous_slot: effect.previous_slot,
+            previous_character_id: effect.previous_character_id,
+            previous_character_name: effect.previous_character_name,
+            trigger_slot: effect.trigger_slot,
+            trigger_character_id: effect.trigger_character_id,
+            trigger_character_name: effect.trigger_character_name,
+            contributor_slot: effect.contributor_slot,
+            contributor_character_id: effect.contributor_character_id,
+            contributor_character_name: effect.contributor_character_name,
+            source_reaction: '创生',
+            damage_scale: 0.375,
+            flower_count: flowerCount,
+            interval_ticks: 5,
+            generation_delay_ticks: 30,
+            start_tick: tick + 30,
+            end_tick: cloneDamageTicks.at(-1) || tick,
+            duration_ticks: flowerCount * 5,
+            damage_ticks: cloneDamageTicks,
+            loop_primed: primeLoop,
+          };
+          nextReactionEffectId += 1;
+          reactionEffects.push(cloneEffect);
+          cloneDamageTicks.forEach((damageTick, index) => {
+            reactionDamageEvents.push({
+              effect_id: cloneEffect.id,
+              reaction: cloneEffect.reaction,
+              source_reaction: cloneEffect.source_reaction,
+              tick: damageTick,
+              sequence: index + 1,
+              trigger_slot: cloneEffect.trigger_slot,
+              contributor_slot: cloneEffect.contributor_slot,
+              contributor_character_id: cloneEffect.contributor_character_id,
+              contributor_character_name: cloneEffect.contributor_character_name,
+              damage_scale: cloneEffect.damage_scale,
+              extra_tag: '',
+              tags: [],
+              loop_primed: primeLoop,
+              damage: null,
+            });
+          });
+        }
+      }
       return { effect, warning: '' };
     }
 
     function reactionDamageAtTick(event) {
       const snapshot = snapshots.get(int(event.contributor_slot));
       if (!snapshot) return 0;
-      if (event.kind === 'buff_periodic' || event.kind === 'buff_periodic_settlement') {
-        if (event.kind === 'buff_periodic' && event._buff_instance && !activeBuffs.includes(event._buff_instance)) return 0;
-        const panelMods = effectiveReactionPanel(snapshot, int(event.tick));
-        const atk = num(snapshot.base_stats?.atk) * (1 + panelMods.atk_pct) + panelMods.flat_atk;
-        const base = atk * num(event.atk_multiplier);
-        const damageBonus = panelMods.all_dmg + panelMods.element_dmg;
-        const critical = 1 + 0.5 * Math.max(0, num(panelMods.crit_dmg));
+      if (event.kind === 'buff_periodic' || event.kind === 'buff_periodic_settlement' || event.kind === 'action_periodic') {
+        if (event.kind === 'buff_periodic') {
+          if (event._buff_instance && !activeBuffs.includes(event._buff_instance)) return 0;
+          if (event._shared_buff_definition_id) {
+            const sharedKey = `${int(event._shared_owner_slot)}:${String(event._shared_buff_definition_id)}`;
+            const sharedState = sharedPeriodicDamageStates.get(sharedKey);
+            if (!sharedState || int(sharedState.generation) !== int(event._shared_generation)) return 0;
+            const activeLayers = activeBuffs.filter((instance) => (
+              int(instance.owner_slot) === int(event._shared_owner_slot)
+              && String(instance.definition_id || '') === String(event._shared_buff_definition_id)
+              && int(event.tick) >= int(instance.start_tick)
+              && int(event.tick) <= int(instance.end_tick)
+            ));
+            if (!activeLayers.length) return 0;
+            event.stack_count = activeLayers.length;
+            event.periodic_scale = activeLayers.length;
+          }
+        }
+        const periodicAction = {
+          id: String(event.action_id || `periodic:${String(event.reaction || '')}`),
+          name: String(event.reaction || '周期伤害'),
+          action_type: String(event.action_type || '周期伤害'),
+          damage_type: String(event.damage_type || event.action_type || '周期伤害'),
+          extra_tag: 'DOT',
+          tags: ['DOT'],
+        };
+        const panelMods = effectiveReactionPanel(snapshot, int(event.tick), periodicAction);
+        const baseStats = snapshot.base_stats || {};
+        const atk = num(baseStats.atk) * (1 + panelMods.atk_pct) + panelMods.flat_atk;
+        const hp = num(baseStats.hp) * (1 + panelMods.hp_pct) + panelMods.flat_hp;
+        const def = num(baseStats.def) * (1 + panelMods.def_pct) + panelMods.flat_def;
+        const multipliers = event.multipliers && typeof event.multipliers === 'object'
+          ? event.multipliers
+          : {atk: num(event.atk_multiplier), hp: 0, def: 0, flat: 0};
+        const skill = skillLevelMultiplier(snapshot, periodicAction);
+        const unscaledBase = (
+          atk * num(multipliers.atk)
+          + hp * num(multipliers.hp)
+          + def * num(multipliers.def)
+        ) * skill.multiplier + num(multipliers.flat);
+        const periodicScale = event.periodic_scale == null ? 1 : Math.max(0, num(event.periodic_scale));
+        const base = unscaledBase * periodicScale;
+        const damageBonus = actionTypeBonus(periodicAction, panelMods) + panelMods.element_dmg;
+        const critRate = 0.5;
+        const critical = 1 + critRate * Math.max(0, num(panelMods.crit_dmg));
         const defense = defenseMultiplier(enemy, panelMods);
         const resistance = resistanceMultiplier(snapshot.character, enemy, panelMods);
         const finalMultiplier = 1 + panelMods.final_dmg;
-        event.formula_parts = { base, damage_bonus: damageBonus, critical, defense, resistance, final_multiplier: finalMultiplier };
+        event.formula_parts = {
+          base,
+          unscaled_base: unscaledBase,
+          periodic_scale: periodicScale,
+          skill_category: skill.category,
+          skill_level: skill.level,
+          skill_multiplier: skill.multiplier,
+          damage_bonus: damageBonus,
+          crit_rate: critRate,
+          critical,
+          defense,
+          resistance,
+          final_multiplier: finalMultiplier,
+        };
         return Math.max(0, base * (1 + damageBonus) * critical * defense * resistance * finalMultiplier);
       }
-      const panelMods = effectiveReactionPanel(snapshot, int(event.tick));
-      const base = reactionBaseDamage(snapshot.character?.level, event.reaction);
+      const sourceReaction = String(event.source_reaction || event.reaction || '');
+      const reactionAction = sourceReaction === '浊燃'
+        ? {
+          name: '浊燃',
+          action_type: '环合',
+          damage_type: '环合',
+          extra_tag: 'DOT',
+          tags: ['DOT'],
+        }
+        : null;
+      const panelMods = effectiveReactionPanel(snapshot, int(event.tick), reactionAction);
+      const base = reactionBaseDamage(snapshot.character?.level, sourceReaction);
       const strength = reactionStrengthMultiplier(panelMods.harmony_strength);
-      const defense = event.reaction === '黯星' ? 1 : defenseMultiplier(enemy, panelMods);
-      const resistanceCharacter = event.reaction === '黯星' ? { element: '' } : snapshot.character;
+      const defense = sourceReaction === '黯星' ? 1 : defenseMultiplier(enemy, panelMods);
+      const resistanceCharacter = sourceReaction === '黯星' ? { element: '' } : snapshot.character;
       const resistance = resistanceMultiplier(resistanceCharacter, enemy, panelMods);
-      const critical = event.reaction === '浊燃' ? 1 + 0.5 * Math.max(0, num(panelMods.crit_dmg)) : 1;
-      event.formula_parts = { base, strength, defense, critical, resistance };
-      return Math.max(0, base * strength * defense * critical * resistance);
+      const critRate = sourceReaction === '浊燃' ? 0.5 : 0;
+      const critical = 1 + critRate * Math.max(0, num(panelMods.crit_dmg));
+      const finalMultiplier = 1 + panelMods.final_dmg;
+      const damageScale = event.damage_scale == null ? 1 : Math.max(0, num(event.damage_scale));
+      event.formula_parts = {
+        base,
+        strength,
+        defense,
+        crit_rate: critRate,
+        critical,
+        resistance,
+        final_multiplier: finalMultiplier,
+        damage_scale: damageScale,
+      };
+      return Math.max(0, base * strength * defense * critical * resistance * finalMultiplier * damageScale);
     }
 
     function settleReactionDamage(untilTick) {
@@ -2098,6 +2359,30 @@
             int(event.contributor_slot),
             (reactionDamageBySlot.get(int(event.contributor_slot)) || 0) + event.damage,
           );
+          const isDotDamage = Boolean(event.kind) || String(event.reaction || '') === '浊燃';
+          if (isDotDamage && event.damage > 0) {
+            const contributorSlot = int(event.contributor_slot);
+            const snapshot = snapshots.get(contributorSlot);
+            if (snapshot) {
+              const periodicAction = {
+                id: `periodic:${String(event.reaction || '')}`,
+                name: String(event.reaction || '周期伤害'),
+                action_type: String(event.action_type || '周期伤害'),
+                damage_type: String(event.damage_type || event.action_type || '周期伤害'),
+                extra_tag: 'DOT',
+                tags: ['DOT'],
+                hit_count: 1,
+              };
+              event.triggered_buffs = triggerBuffsForEvent(
+                'periodic_damage',
+                int(event.tick),
+                {id: periodicAction.id, slot: contributorSlot},
+                periodicAction,
+                snapshot,
+                true,
+              );
+            }
+          }
         });
     }
 
@@ -2106,10 +2391,66 @@
       const intervalTicks = Math.max(1, int(periodic.interval_ticks));
       const source = String(periodic.source || rule.name || '周期伤害');
       if (!periodic.atk_multiplier || !intervalTicks) return;
+      if (periodic.shared_cadence === true) {
+        const definitionId = String(instance.definition_id || rule.stacking?.key || rule.id || '');
+        const ownerSlot = int(instance.owner_slot);
+        const sharedKey = `${ownerSlot}:${definitionId}`;
+        const startTick = int(instance.start_tick);
+        const activeEndTick = Math.max(
+          int(instance.end_tick),
+          ...activeBuffs
+            .filter((candidate) => (
+              int(candidate.owner_slot) === ownerSlot
+              && String(candidate.definition_id || '') === definitionId
+              && int(candidate.start_tick) <= startTick
+              && int(candidate.end_tick) > startTick
+            ))
+            .map((candidate) => int(candidate.end_tick)),
+        );
+        let state = sharedPeriodicDamageStates.get(sharedKey);
+        if (!state || startTick >= int(state.coverage_end_tick)) {
+          state = {
+            generation: nextSharedPeriodicDamageGeneration,
+            last_scheduled_tick: startTick,
+            coverage_end_tick: activeEndTick,
+          };
+          nextSharedPeriodicDamageGeneration += 1;
+          sharedPeriodicDamageStates.set(sharedKey, state);
+        } else {
+          state.coverage_end_tick = Math.max(int(state.coverage_end_tick), activeEndTick);
+        }
+        let sequence = 1;
+        for (
+          let damageTick = int(state.last_scheduled_tick) + intervalTicks;
+          damageTick <= int(state.coverage_end_tick);
+          damageTick += intervalTicks
+        ) {
+          reactionDamageEvents.push({
+            kind: 'buff_periodic',
+            reaction: source,
+            tick: damageTick,
+            sequence,
+            contributor_slot: ownerSlot,
+            contributor_character_id: String(rule.owner_character_id || ''),
+            contributor_character_name: String(rule.owner_character_name || ''),
+            atk_multiplier: periodicAtkMultiplier(periodic, rule),
+            action_type: String(periodic.action_type || '周期伤害'),
+            damage_type: String(periodic.damage_type || periodic.action_type || '周期伤害'),
+            _shared_buff_definition_id: definitionId,
+            _shared_owner_slot: ownerSlot,
+            _shared_generation: int(state.generation),
+            damage: null,
+          });
+          state.last_scheduled_tick = damageTick;
+          sequence += 1;
+        }
+        return;
+      }
+      const immediate = periodic.immediate === true;
       let sequence = 1;
       for (
-        let damageTick = int(instance.start_tick) + intervalTicks;
-        damageTick <= int(instance.end_tick);
+        let damageTick = int(instance.start_tick) + (immediate ? 0 : intervalTicks);
+        immediate ? damageTick < int(instance.end_tick) : damageTick <= int(instance.end_tick);
         damageTick += intervalTicks
       ) {
         reactionDamageEvents.push({
@@ -2120,7 +2461,9 @@
           contributor_slot: int(instance.owner_slot),
           contributor_character_id: String(rule.owner_character_id || ''),
           contributor_character_name: String(rule.owner_character_name || ''),
-          atk_multiplier: num(periodic.atk_multiplier),
+          atk_multiplier: periodicAtkMultiplier(periodic, rule),
+          action_type: String(periodic.action_type || '周期伤害'),
+          damage_type: String(periodic.damage_type || periodic.action_type || '周期伤害'),
           _buff_instance: instance,
           damage: null,
         });
@@ -2177,6 +2520,7 @@
         fons_full: fonsFull,
       }, extraContext);
       buffRules.forEach((rule) => {
+        if (extraContext.loop_prime_only && !rule.duration?.loop_carry) return;
         const ownerSlot = int(rule.owner_slot);
         const ownerBuffs = activeBuffs.filter((instance) => (
           int(instance.owner_slot) === ownerSlot
@@ -2186,6 +2530,7 @@
         const context = Object.assign({}, baseContext, {
           owner_slot: ownerSlot,
           owner_character_id: String(rule.owner_character_id || ''),
+          personal_resources: personalResources.get(ownerSlot) || {},
           active_buff_keys: ownerBuffs.map((instance) => String(instance.definition_id || '')),
           shield_active: activeBuffs.some((instance) => (
             asList(instance.rule?.tags).map(String).includes('护盾')
@@ -2203,6 +2548,17 @@
         if (cooldownTicks > 0 && triggerTick < (buffTriggerCooldowns.get(cooldownKey) || 0)) return;
         const activation = rule.activation && typeof rule.activation === 'object' ? rule.activation : {};
         const runtimeRule = clone(rule);
+        const resourceDuration = activation.duration_from_personal_resource
+          && typeof activation.duration_from_personal_resource === 'object'
+          ? activation.duration_from_personal_resource
+          : {};
+        if (resourceDuration.resource && num(resourceDuration.per_second) > 0) {
+          const resourceAmount = num(personalResources.get(ownerSlot)?.[String(resourceDuration.resource)]);
+          runtimeRule.duration = Object.assign({}, runtimeRule.duration, {
+            type: 'time',
+            ticks: Math.max(0, Math.round(resourceAmount / num(resourceDuration.per_second) * 10)),
+          });
+        }
         const stackSourceKey = String(activation.effects_from_stack?.key || '');
         const stackSource = ownerBuffs.find((instance) => String(instance.definition_id || '') === stackSourceKey);
         if (stackSourceKey) {
@@ -2238,36 +2594,54 @@
         }
         const settlementKey = String(activation.settle_periodic_key || '');
         if (settlementKey) {
-          ownerBuffs
-            .filter((instance) => String(instance.definition_id || '') === settlementKey)
-            .forEach((instance, index) => {
-              const periodic = instance.rule?.periodic_damage && typeof instance.rule.periodic_damage === 'object'
-                ? instance.rule.periodic_damage
-                : {};
-              reactionDamageEvents.push({
-                kind: 'buff_periodic_settlement',
-                reaction: String(periodic.source || instance.name || '周期伤害'),
-                tick: triggerTick,
-                sequence: index + 1,
-                contributor_slot: ownerSlot,
-                contributor_character_id: String(rule.owner_character_id || ''),
-                contributor_character_name: String(rule.owner_character_name || ''),
-                atk_multiplier: num(periodic.atk_multiplier),
-                damage: null,
-              });
+          const settlementLayers = ownerBuffs
+            .filter((instance) => String(instance.definition_id || '') === settlementKey);
+          const remainingSeconds = settlementLayers.reduce(
+            (sum, instance) => sum + Math.max(0, int(instance.end_tick) - triggerTick) / 10,
+            0,
+          );
+          const firstLayer = settlementLayers[0];
+          if (firstLayer && remainingSeconds > 0) {
+            const periodic = firstLayer.rule?.periodic_damage && typeof firstLayer.rule.periodic_damage === 'object'
+              ? firstLayer.rule.periodic_damage
+              : {};
+            reactionDamageEvents.push({
+              kind: 'buff_periodic_settlement',
+              reaction: String(periodic.source || firstLayer.name || '周期伤害'),
+              tick: triggerTick,
+              sequence: 1,
+              contributor_slot: ownerSlot,
+              contributor_character_id: String(rule.owner_character_id || ''),
+              contributor_character_name: String(rule.owner_character_name || ''),
+              atk_multiplier: periodicAtkMultiplier(periodic, firstLayer.rule),
+              action_type: String(periodic.action_type || '周期伤害'),
+              damage_type: String(periodic.damage_type || periodic.action_type || '周期伤害'),
+              stack_count: settlementLayers.length,
+              remaining_seconds: remainingSeconds,
+              periodic_scale: remainingSeconds,
+              damage: null,
             });
+          }
         }
         asList(activation.clear_keys).map(String).forEach((key) => {
           activeBuffs = activeBuffs.filter((instance) => int(instance.owner_slot) !== ownerSlot || String(instance.definition_id || '') !== key);
+          sharedPeriodicDamageStates.delete(`${ownerSlot}:${key}`);
         });
         const previousInstances = new Set(activeBuffs);
-        const instance = activateBuff(activeBuffs, runtimeRule, triggerTick, stackGainForRule(runtimeRule, context), context);
+        const stackGain = stackGainForRule(runtimeRule, context);
+        const instance = activateBuff(activeBuffs, runtimeRule, triggerTick, stackGain, context);
         if (!instance) return;
         activeBuffs
           .filter((candidate) => !previousInstances.has(candidate) && candidate.rule?.periodic_damage)
           .forEach((candidate) => schedulePeriodicBuffDamage(candidate, candidate.rule));
         if (cooldownTicks > 0) buffTriggerCooldowns.set(cooldownKey, triggerTick + cooldownTicks);
         const summary = buffSummary(instance);
+        if (String(runtimeRule.stacking?.mode || '') === 'independent') {
+          summary.stack_count = Math.min(
+            Math.max(1, num(runtimeRule.stacking?.max_stacks, 1)),
+            Math.max(1, Math.floor(stackGain)),
+          );
+        }
         summary.trigger_event = event;
         summary.trigger_tick = triggerTick;
         const visualTriggerTick = int(extraContext.visual_trigger_tick, visualTickFromCalculationTick(triggerTick, qVirtualIntervals));
@@ -2319,17 +2693,84 @@
       });
       scheduledSteps.forEach((scheduled) => {
         const reactionTick = calculationTickFromVisualIntervals(reactionTriggerTick(scheduled), qVirtualIntervals);
-        triggerReaction(
+        const previousInstances = new Set(activeBuffs);
+        const reactionTrigger = triggerReaction(
           scheduled,
           reactionTick - loopDurationTicks,
           { primeLoop: true },
         );
+        if (!reactionTrigger.effect) return;
+        const snapshot = snapshots.get(int(scheduled.slot));
+        if (!snapshot) return;
+        triggerBuffsForEvent(
+          'reaction_trigger',
+          reactionTick - loopDurationTicks,
+          scheduled.step,
+          scheduled.action,
+          snapshot,
+          scheduled.is_background,
+          {
+            reaction: reactionTrigger.effect,
+            visual_trigger_tick: reactionTriggerTick(scheduled),
+            loop_prime_only: true,
+          },
+        );
+        activeBuffs
+          .filter((instance) => !previousInstances.has(instance))
+          .forEach((instance) => {
+            instance.start_tick = Math.max(0, int(instance.start_tick));
+            instance.looped = true;
+          });
       });
     }
 
-    let lastTick = 0;
     let runtimeFrontSlot = options.loop_enabled ? loopOpeningFrontSlot : null;
     let runtimeFrontSinceTick = 0;
+    const personalResourceDrains = new Map();
+
+    function settlePersonalResourceDrains(tick) {
+      personalResourceDrains.forEach((drain, key) => {
+        const settleTick = Math.min(int(tick), int(drain.end_tick));
+        const elapsedTicks = Math.max(0, settleTick - int(drain.last_tick));
+        if (elapsedTicks > 0) {
+          const resources = personalResources.get(int(drain.slot)) || {};
+          const resource = String(drain.resource || '');
+          resources[resource] = Math.max(0, num(resources[resource]) - elapsedTicks / 10 * num(drain.per_second));
+          drain.last_tick = settleTick;
+        }
+        if (int(tick) >= int(drain.end_tick)) personalResourceDrains.delete(key);
+      });
+    }
+
+    function registerPersonalResourceDrain(rule, instance, triggerTick) {
+      const config = rule?.activation?.duration_from_personal_resource;
+      if (!config || typeof config !== 'object' || config.drain === false || !config.resource || num(config.per_second) <= 0 || !instance) return;
+      const slot = int(instance.owner_slot);
+      const resource = String(config.resource);
+      personalResourceDrains.set(`${slot}:${resource}`, {
+        slot,
+        resource,
+        per_second: num(config.per_second),
+        last_tick: int(triggerTick),
+        end_tick: int(instance.end_tick),
+      });
+    }
+
+    function activeResourceEffectConfigs(activeBuffsAtTick, slot, tick, kind, resource, step, action, snapshot, isBackground) {
+      return activeBuffsAtTick.filter((buff) => {
+        if (int(buff.owner_slot) !== int(slot) || tick < int(buff.start_tick) || tick >= int(buff.end_tick)) return false;
+        const config = buff.rule?.resource_effects?.[kind];
+        if (!config || typeof config !== 'object' || !Object.prototype.hasOwnProperty.call(config, resource)) return false;
+        const requirement = config[resource];
+        if (requirement === true) return true;
+        if (!requirement || typeof requirement !== 'object') return false;
+        const tags = strSet(requirement.tags);
+        if (tags.size && !Array.from(actionTags(action)).some((tag) => tags.has(tag))) return false;
+        const actionIds = strSet(requirement.action_ids);
+        if (actionIds.size && !actionIds.has(String(action.id || ''))) return false;
+        return activeBuffApplies(buff, step, action, snapshot, isBackground, { tick });
+      });
+    }
 
     function syncFrontTimeBuffs(tick) {
       buffRules
@@ -2382,13 +2823,15 @@
       const visualEndTick = int(scheduled.visual_end_tick);
       const cooldownKey = `${slot}:${String(action.id || '')}`;
       const availableTick = cooldownUntil.get(cooldownKey) || 0;
+      const usesCooldowns = snapshot.character?.uses_cooldowns !== false;
+      const usesEnergy = snapshot.character?.uses_energy !== false;
       const warnings = [];
       if (int(action.required_awakening) > 0 && !hasAwakeningNode(snapshot, action.required_awakening)) {
         const awakeningLabel = 'ABCDEF'[int(action.required_awakening) - 1] || String(int(action.required_awakening));
         warnings.push(`动作需要 ${awakeningLabel} 觉醒节点。`);
       }
-      if (startTick < availableTick) warnings.push(`动作 CD 尚未结束，需等到 ${(availableTick / 10).toFixed(1)}s。`);
-      const energyCost = num(action.energy_cost) * actionMultiplier;
+      if (usesCooldowns && startTick < availableTick) warnings.push(`动作 CD 尚未结束，需等到 ${(availableTick / 10).toFixed(1)}s。`);
+      const energyCost = usesEnergy ? num(action.energy_cost) * actionMultiplier : 0;
       let slotEnergy = energyBySlot.get(slot) ?? initialEnergyBySlot.get(slot) ?? 0;
       if (energyCost > slotEnergy) warnings.push('终结技能量不足。');
       const buffTick = startTick;
@@ -2396,6 +2839,7 @@
         runtimeFrontSlot = slot;
         runtimeFrontSinceTick = buffTick;
       }
+      settlePersonalResourceDrains(buffTick);
       settleReactionDamage(buffTick);
       enemyDebuffs = activeEnemyDebuffs(enemyDebuffs, buffTick);
       activeBuffs = activeBuffs.filter((buff) => buffTick < int(buff.end_tick) && !activeBuffResetsOnActionStart(buff, step, action, isBackground, buffTick));
@@ -2430,6 +2874,7 @@
         enemy_debuffs: activeEnemyDebuffs(enemyDebuffs, buffTick),
         active_buffs: activeAtTick,
         active_buff_keys: activeAtTick.map((buff) => String(buff.definition_id || '')),
+        active_periodic_action_ids: activePeriodicActionIds(buffTick),
       };
       applicableBuffContributions(activeBuffs, step, action, snapshot, isBackground, buffContext)
         .forEach(({ buff, effects }) => {
@@ -2437,14 +2882,35 @@
           appliedBuffs.push(buffSummary(buff, buffContext));
         });
       const slotResources = personalResources.get(slot) || {};
+      Object.entries(resourceMap(action.personal_resource_threshold)).forEach(([key, threshold]) => {
+        if ((slotResources[key] || 0) < threshold && action.personal_resource_threshold_warning === true) {
+          warnings.push(`个人资源 ${key} 未达到 ${threshold} 点阈值。`);
+        }
+      });
       Object.entries(resourceMap(action.personal_resource_cost)).forEach(([key, cost]) => {
         const totalCost = cost * actionMultiplier;
+        if (activeResourceEffectConfigs(activeBuffs, slot, buffTick, 'ignore_cost', key, step, action, snapshot, isBackground).length) {
+          return;
+        }
         if ((slotResources[key] || 0) < totalCost) warnings.push(`个人资源 ${key} 不足。`);
         slotResources[key] = Math.max(0, (slotResources[key] || 0) - totalCost);
       });
       Object.entries(resourceMap(action.personal_resource_gain)).forEach(([key, gain]) => {
+        if (activeResourceEffectConfigs(activeBuffs, slot, buffTick, 'block_gain', key, step, action, snapshot, isBackground).length) {
+          warnings.push(`${key} 正在持续消耗，期间无法积攒。`);
+          return;
+        }
         const cap = num(PERSONAL_RESOURCE_CAPS[String(snapshot.character?.id || '')]?.[key], Number.POSITIVE_INFINITY);
         slotResources[key] = Math.min(cap, (slotResources[key] || 0) + gain * actionMultiplier);
+      });
+      triggeredBuffs.forEach((summary) => {
+        const instance = activeBuffs.find((buff) => (
+          int(buff.owner_slot) === int(summary.owner_slot)
+          && String(buff.definition_id || '') === String(summary.definition_id || '')
+          && int(buff.start_tick) === int(summary.start_tick)
+          && int(buff.end_tick) === int(summary.end_tick)
+        ));
+        if (instance) registerPersonalResourceDrain(instance.rule, instance, startTick);
       });
       slotEnergy = Math.max(0, slotEnergy - energyCost);
       if (
@@ -2482,21 +2948,35 @@
       const criticalHitsPerAction = expectedCriticalHits(action, calc);
       const criticalHits = criticalHitsPerAction * actionMultiplier;
       const appliedEnemyDebuffs = applyEnemyDebuffs(enemyDebuffs, action, buffTick);
-      for (let copyIndex = 0; copyIndex < actionMultiplier; copyIndex += 1) {
-        triggeredBuffs.push(...triggerBuffsForEvent('action_hit', startTick, step, action, snapshot, isBackground, {
-          visual_trigger_tick: visualStartTick,
-          expected_critical_hits: criticalHitsPerAction,
-          applied_enemy_debuffs: appliedEnemyDebuffs,
-          enemy_debuffs: activeEnemyDebuffs(enemyDebuffs, buffTick),
-        }));
+      if (!action.periodic_damage) {
+        for (let copyIndex = 0; copyIndex < actionMultiplier; copyIndex += 1) {
+          triggeredBuffs.push(...triggerBuffsForEvent('action_hit', startTick, step, action, snapshot, isBackground, {
+            visual_trigger_tick: visualStartTick,
+            expected_critical_hits: criticalHitsPerAction,
+            applied_enemy_debuffs: appliedEnemyDebuffs,
+            enemy_debuffs: activeEnemyDebuffs(enemyDebuffs, buffTick),
+          }));
+        }
       }
       const reactionAmplification = reactionAmplificationMultiplier(snapshot, calc.panel, buffTick);
       const multipliedDirectDamage = calc.direct_damage * actionMultiplier * reactionAmplification;
       const multipliedStagger = calc.stagger_amount * actionMultiplier;
-      const multipliedHarmony = calc.harmony * actionMultiplier;
+      const baseActionHarmony = num(action.harmony);
+      const awakeningActionHarmony = actionValueForAwakeningNodes(
+        action,
+        snapshot,
+        'harmony',
+        'harmony_by_awakening_node',
+      );
+      const actionHarmonyScale = baseActionHarmony !== 0 ? calc.harmony / baseActionHarmony : 1;
+      const multipliedHarmony = awakeningActionHarmony * actionHarmonyScale * actionMultiplier;
       const baseActionEnergyGain = num(action.energy_gain) * actionMultiplier;
       const actorActionEnergyGain = calc.energy_gain * actionMultiplier;
-      const actionEnergyReturn = num(action.energy_return) * actionMultiplier;
+      let actionEnergyReturnPerAction = num(action.energy_return);
+      Object.entries(action.energy_return_by_awakening_node || {}).forEach(([level, value]) => {
+        if (hasAwakeningNode(snapshot, level)) actionEnergyReturnPerAction += num(value);
+      });
+      const actionEnergyReturn = actionEnergyReturnPerAction * actionMultiplier;
       directDamage += multipliedDirectDamage;
       const damageSource = specialDamageSource(action);
       if (damageSource) {
@@ -2519,10 +2999,16 @@
       });
       slotEnergy = energyBySlot.get(slot) ?? slotEnergy;
       const displayedEnergyGain = receivedEnergy.get(slot) || 0;
-      if (durationTicks > 0) {
-        cooldownUntil.set(cooldownKey, Math.max(cooldownUntil.get(cooldownKey) || 0, startTick + Math.max(durationTicks, int(action.cooldown_ticks))));
-      } else if (int(action.cooldown_ticks) > 0) {
-        cooldownUntil.set(cooldownKey, Math.max(cooldownUntil.get(cooldownKey) || 0, startTick + int(action.cooldown_ticks)));
+      const actionCooldownTicks = Math.max(0, int(actionValueForAwakeningNodes(
+        action,
+        snapshot,
+        'cooldown_ticks',
+        'cooldown_ticks_by_awakening_node',
+      )));
+      if (usesCooldowns && durationTicks > 0) {
+        cooldownUntil.set(cooldownKey, Math.max(cooldownUntil.get(cooldownKey) || 0, startTick + Math.max(durationTicks, actionCooldownTicks)));
+      } else if (usesCooldowns && actionCooldownTicks > 0) {
+        cooldownUntil.set(cooldownKey, Math.max(cooldownUntil.get(cooldownKey) || 0, startTick + actionCooldownTicks));
       }
       if (!isBackground) {
         frontEvents.push({
@@ -2565,7 +3051,6 @@
           { visual_trigger_tick: visualEndTick },
         ));
       }
-      lastTick = Math.max(lastTick, endTick, startTick);
       details.push({
         resource_sequence: details.length,
         step_id: step.id || '',
@@ -2656,14 +3141,6 @@
     reactionDamageEvents.forEach((event) => {
       event.visual_tick = visualTickFromCalculationTick(int(event.tick), qVirtualIntervals);
     });
-    if (!options.loop_enabled) {
-      lastTick = Math.max(
-        lastTick,
-        ...reactionEffects.map((effect) => int(effect.end_tick)),
-        ...reactionDamageEvents.map((event) => int(event.tick)),
-      );
-    }
-
     frontEvents.sort((a, b) => int(a.visual_start_tick, int(a.start_tick)) - int(b.visual_start_tick, int(b.start_tick)) || int(a.order) - int(b.order));
     const dedupedFrontEvents = [];
     frontEvents.forEach((event) => {
@@ -2690,10 +3167,18 @@
       frontWindows.push({ slot: int(event.slot), start_tick: startTick, end_tick: endTick, visual_end_tick: endTick });
     });
 
-    const durationTicks = Math.max(lastTick, 0);
+    const durationTicks = Math.max(
+      0,
+      ...scheduledSteps
+        .filter((scheduled) => !scheduled.is_background)
+        .map((scheduled) => Math.max(int(scheduled.end_tick), int(scheduled.start_tick))),
+    );
+    settlePersonalResourceDrains(durationTicks);
     const timelineTicks = Math.max(
       0,
-      ...scheduledSteps.map((scheduled) => int(scheduled.visual_end_tick, int(scheduled.visual_start_tick))),
+      ...scheduledSteps
+        .filter((scheduled) => !scheduled.is_background)
+        .map((scheduled) => Math.max(int(scheduled.visual_end_tick), int(scheduled.visual_start_tick))),
     );
     const frozenTicks = qVirtualIntervals.reduce(
       (sum, interval) => sum + Math.max(0, int(interval.end_tick) - int(interval.start_tick)),
@@ -2769,14 +3254,19 @@
       reactionDamageEvents
         .filter((event) => int(event.contributor_slot) === int(slot) && num(event.damage) > 0)
         .forEach((event) => {
-          const actionKey = `reaction:${event.reaction}`;
+          const isPeriodicBuffDamage = Boolean(event.kind);
+          const periodicActionType = String(event.action_type || '周期伤害');
+          const periodicDamageType = String(event.damage_type || periodicActionType);
+          const actionKey = isPeriodicBuffDamage
+            ? `periodic:${event.reaction}`
+            : `reaction:${event.reaction}`;
           const actionDamage = damageByActionBySlot.get(slot);
           const current = actionDamage.get(actionKey) || {
             action_id: actionKey,
             action_name: event.reaction,
-            action_type: '环合',
-            damage_type: '环合',
-            damage_element: '',
+            action_type: isPeriodicBuffDamage ? periodicActionType : '环合',
+            damage_type: isPeriodicBuffDamage ? periodicDamageType : '环合',
+            damage_element: isPeriodicBuffDamage ? snapshots.get(slot).character.element || '' : '',
             damage: 0,
           };
           current.damage += num(event.damage);
@@ -2883,10 +3373,10 @@
       reaction_effects: reactionEffects,
       reaction_damage_events: reactionDamageEvents
         .filter((event) => event.damage != null && !event.kind)
-        .map((event) => Object.fromEntries(Object.entries(event).filter(([key]) => key !== '_buff_instance'))),
+        .map((event) => Object.fromEntries(Object.entries(event).filter(([key]) => !key.startsWith('_')))),
       periodic_damage_events: reactionDamageEvents
         .filter((event) => num(event.damage) > 0 && Boolean(event.kind))
-        .map((event) => Object.fromEntries(Object.entries(event).filter(([key]) => key !== '_buff_instance'))),
+        .map((event) => Object.fromEntries(Object.entries(event).filter(([key]) => !key.startsWith('_')))),
       front_windows: frontWindows,
       enemy,
     };

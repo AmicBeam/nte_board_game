@@ -84,6 +84,31 @@ SKILL_LEVEL_DEFAULTS = {
 CURTAIN_PASSIVE_TYPES = ('type2', 'type3', 'type4')
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
 SHAFT_COMPUTE_SCRIPT = PROJECT_ROOT / 'scripts' / 'shaft_compute.js'
+SHAFT_SOURCE_VERSION = '异环云配队 1.0.0'
+
+
+class ShaftAxisNameConflictError(RuleValidationError):
+    def __init__(self, title: str, axis_id: int):
+        super().__init__(f'已存在名为「{title}」的排轴。')
+        self.title = title
+        self.axis_id = axis_id
+
+
+def migrate_shaft_source_versions() -> int:
+    with atomic_transaction():
+        updated = (
+            ShaftAxis
+            .update(source_version=SHAFT_SOURCE_VERSION)
+            .where(ShaftAxis.source_version != SHAFT_SOURCE_VERSION)
+            .execute()
+        )
+    if updated:
+        logger.info(
+            'migrate_shaft_source_versions version=%s updated=%s',
+            SHAFT_SOURCE_VERSION,
+            updated,
+        )
+    return updated
 
 
 def _json_dumps(payload: Any) -> str:
@@ -130,6 +155,11 @@ def _normalize_enemy(raw: Any, catalog: dict[str, Any]) -> dict[str, Any]:
         weakness = defaults.get('weakness_elements') or []
     debuffs = enemy.get('debuffs') if isinstance(enemy.get('debuffs'), dict) else {}
     resistances = enemy.get('resistances') if isinstance(enemy.get('resistances'), dict) else {}
+    initial_resistance_raw = enemy.get('initial_resistance')
+    initial_resistance = max(
+        -1.0,
+        min(1.0, _num(initial_resistance_raw, _num(resistances.get('光'), 0.3))),
+    )
     hp_ratio = enemy.get('hp_ratio')
     if hp_ratio is None and enemy.get('hp_percent') is not None:
         hp_ratio = _num(enemy.get('hp_percent'), 100) / 100
@@ -143,8 +173,13 @@ def _normalize_enemy(raw: Any, catalog: dict[str, Any]) -> dict[str, Any]:
             if str(name) in {'延滞', '黯星', '浸染', '覆纹', '浊燃'}
         },
         'hp_ratio': max(0.0, min(1.0, _num(hp_ratio, 1.0))),
+        'initial_resistance': initial_resistance,
         'resistances': {
-            element: max(-1.0, min(1.0, _num(resistances.get(element), 0.3)))
+            element: (
+                initial_resistance
+                if initial_resistance_raw is not None
+                else max(-1.0, min(1.0, _num(resistances.get(element), 0.3)))
+            )
             for element in [*ELEMENTS, '心灵']
         },
     }
@@ -530,9 +565,11 @@ def calculate_axis_duration_ticks(steps: list[dict[str, Any]], actions_by_id: di
     last_tick = 0
     for step in steps:
         action = actions_by_id.get(str(step.get('action_id') or '')) or {}
+        if _normalize_step_placement(step, action) == 'background':
+            continue
         start_tick = max(0, _int(step.get('start_tick')))
         duration_ticks = max(0, _int(action.get('duration_ticks')))
-        if _is_zero_foreground_q_step(step, action) or _is_instant_native_background_action(action):
+        if _is_zero_foreground_q_step(step, action):
             visual_duration_ticks = ZERO_ACTION_VISUAL_TICKS
         else:
             visual_duration_ticks = duration_ticks
@@ -621,19 +658,27 @@ def normalize_axis_payload(payload: dict[str, Any]) -> dict[str, Any]:
         'team_panel_bonus': _normalize_team_panel_bonus(body.get('team_panel_bonus'), catalog),
         'options': _normalize_options(body.get('options'), catalog, team),
         'duration_ticks': _axis_duration_ticks(steps, catalog),
-        'initial_energy': max(0, min(1000, _num(body.get('initial_energy'), 100))),
+        'initial_energy': max(0, min(1000, _num(body.get('initial_energy'), 1000))),
         'buff_rules': _normalize_buff_rules(body.get('buff_rules'), team, catalog),
     }
     return axis_payload
 
 
-def get_shaft_catalog_payload() -> dict[str, Any]:
+def _is_shaft_test_player(player: Player | None) -> bool:
+    return bool(player and getattr(player, 'shaft_test_whitelisted', False))
+
+
+def get_shaft_catalog_payload(player: Player | None = None) -> dict[str, Any]:
     catalog = load_shaft_catalog()
+    can_select_test_characters = _is_shaft_test_player(player)
     return {
         'characters': [
             {
                 **character,
-                'selection_disabled': str(character.get('id') or '') in DISABLED_CHARACTER_SELECTION_IDS,
+                'selection_disabled': (
+                    str(character.get('id') or '') in DISABLED_CHARACTER_SELECTION_IDS
+                    and not can_select_test_characters
+                ),
             }
             for character in catalog['characters']
         ],
@@ -713,6 +758,14 @@ def _axis_query_for_player(axis_id: int, player: Player) -> ShaftAxis | None:
     ).first()
 
 
+def _private_axis_query_for_player(axis_id: int, player: Player) -> ShaftAxis | None:
+    return ShaftAxis.select().where(
+        (ShaftAxis.id == axis_id) &
+        (ShaftAxis.owner == player) &
+        (ShaftAxis.visibility == 'private')
+    ).first()
+
+
 def _visible_axis(axis_id: int, player: Player | None = None) -> ShaftAxis:
     axis = ShaftAxis.select(ShaftAxis, Player).join(Player).where(ShaftAxis.id == axis_id).first()
     if axis is None:
@@ -784,7 +837,20 @@ def serialize_shaft_axis(
     visitor_key: str = '',
 ) -> dict[str, Any]:
     team = _safe_json_loads(axis.team_json, [])
+    axis_payload = _safe_json_loads(axis.axis_json, {})
     result = _safe_json_loads(axis.result_json, {})
+    summary = result.get('summary') if isinstance(result, dict) and isinstance(result.get('summary'), dict) else {}
+    harmony_damage = summary.get('harmony_damage')
+    if harmony_damage is None:
+        harmony_sources = {'创生', '创生复制体', '浊燃', '黯星'}
+        harmony_damage = sum(
+            _num(item.get('damage'))
+            for item in (result.get('damage_by_source') or [])
+            if isinstance(item, dict) and str(item.get('source') or '') in harmony_sources
+        ) if isinstance(result, dict) else 0
+    duration_seconds = summary.get('duration_seconds')
+    if duration_seconds is None:
+        duration_seconds = axis.duration_ticks / 10
     payload = {
         'id': axis.id,
         'title': axis.title,
@@ -796,9 +862,16 @@ def serialize_shaft_axis(
         },
         'team': _enrich_team(team if isinstance(team, list) else []),
         'enemy': _safe_json_loads(axis.enemy_json, {}),
-        'summary': result.get('summary') if isinstance(result, dict) else {},
+        'summary': summary,
         'duration_ticks': axis.duration_ticks,
+        'duration_seconds': _num(duration_seconds),
+        'loop_enabled': bool(
+            isinstance(axis_payload, dict)
+            and isinstance(axis_payload.get('options'), dict)
+            and axis_payload['options'].get('loop_enabled')
+        ),
         'direct_damage': axis.direct_damage,
+        'harmony_damage': _int(harmony_damage),
         'stagger_damage': axis.stagger_damage,
         'total_damage': axis.total_damage,
         'dps': axis.dps_x100 / 100,
@@ -814,7 +887,7 @@ def serialize_shaft_axis(
         'published_at': axis.published_at.isoformat() if axis.published_at else '',
     }
     if include_axis:
-        payload['axis'] = _safe_json_loads(axis.axis_json, {})
+        payload['axis'] = axis_payload
         payload['result'] = result
     return payload
 
@@ -852,16 +925,20 @@ def calculate_axis_hash(axis_payload: dict[str, Any]) -> str:
 
 
 def save_shaft_axis(player: Player, payload: dict[str, Any], axis_id: int | None = None) -> dict[str, Any]:
-    visibility = str(payload.get('visibility') or ('public' if payload.get('publish') else 'private')).strip().lower()
-    if visibility not in VISIBILITIES:
-        raise RuleValidationError('未知的发布状态。')
+    conflict_action = str(payload.get('conflict_action') or '').strip().lower()
+    if conflict_action not in {'', 'overwrite'}:
+        raise RuleValidationError('未知的同名排轴处理方式。')
     axis_payload = normalize_axis_payload(payload)
+    if not _is_shaft_test_player(player) and any(
+        str(member.get('character_id') or '') in DISABLED_CHARACTER_SELECTION_IDS
+        for member in axis_payload.get('team') or []
+    ):
+        raise RuleValidationError('伊洛伊当前仅对测试账号开放。')
     result = _simulate_axis_with_js(axis_payload)
     axis_payload['enemy'] = result['enemy']
     axis_payload['duration_ticks'] = _int(result['summary'].get('duration_ticks'), axis_payload['duration_ticks'])
     dedupe_hash = calculate_axis_hash(axis_payload)
     now = datetime.utcnow()
-    source_meta = load_shaft_catalog()['source_meta']
     summary = result['summary']
     title = _clean_text(payload.get('title') or '未命名排轴', MAX_AXIS_TITLE_LENGTH) or '未命名排轴'
     description = _clean_text(payload.get('description'), MAX_AXIS_DESCRIPTION_LENGTH)
@@ -869,24 +946,30 @@ def save_shaft_axis(player: Player, payload: dict[str, Any], axis_id: int | None
     with atomic_transaction():
         record: ShaftAxis | None = None
         if axis_id is not None:
-            record = _axis_query_for_player(axis_id, player)
+            record = _private_axis_query_for_player(axis_id, player)
             if record is None:
                 raise RuleValidationError('没有保存这个排轴的权限。')
-        if visibility == 'public':
-            duplicate_query = ShaftAxis.select().where(
-                (ShaftAxis.visibility == 'public') &
-                (ShaftAxis.dedupe_hash == dedupe_hash)
-            )
-            if record is not None:
-                duplicate_query = duplicate_query.where(ShaftAxis.id != record.id)
-            if duplicate_query.exists():
-                raise RuleValidationError('市场中已经存在相同角色、弧盘、卡带与动作轴的排轴。')
+        duplicate_title_query = ShaftAxis.select().where(
+            (ShaftAxis.owner == player) &
+            (ShaftAxis.visibility == 'private') &
+            (ShaftAxis.title == title)
+        )
+        if record is not None:
+            duplicate_title_query = duplicate_title_query.where(ShaftAxis.id != record.id)
+        duplicate_title = duplicate_title_query.first()
+        if duplicate_title is not None:
+            if conflict_action != 'overwrite':
+                raise ShaftAxisNameConflictError(title, duplicate_title.id)
+            if record is None:
+                record = duplicate_title
+            else:
+                duplicate_title.delete_instance(recursive=True)
         if record is None:
             record = ShaftAxis.create(owner=player, created_at=now)
         record.title = title
         record.description = description
-        record.visibility = visibility
-        record.source_version = str(source_meta.get('version_label') or source_meta.get('source_hash') or '')
+        record.visibility = 'private'
+        record.source_version = SHAFT_SOURCE_VERSION
         record.team_json = _json_dumps(axis_payload['team'])
         record.axis_json = _json_dumps(axis_payload)
         record.enemy_json = _json_dumps(axis_payload['enemy'])
@@ -898,17 +981,108 @@ def save_shaft_axis(player: Player, payload: dict[str, Any], axis_id: int | None
         record.dps_x100 = _int(_num(summary.get('dps')) * 100)
         record.dedupe_hash = dedupe_hash
         record.updated_at = now
-        record.published_at = now if visibility == 'public' else None
+        record.published_at = None
         record.save()
         _refresh_axis_character_index(record, axis_payload['team'])
 
-    logger.info('save_shaft_axis player_uid=%s axis_id=%s visibility=%s', player.player_uid, record.id, visibility)
+    logger.info('save_shaft_axis player_uid=%s axis_id=%s visibility=private', player.player_uid, record.id)
     return serialize_shaft_axis(record, include_axis=True, player=player)
 
 
 def get_shaft_axis(axis_id: int, player: Player | None = None, visitor_key: str = '') -> dict[str, Any]:
     axis = _visible_axis(axis_id, player)
     return serialize_shaft_axis(axis, include_axis=True, player=player, visitor_key=visitor_key)
+
+
+def backup_shaft_axis(player: Player, axis_id: int) -> dict[str, Any]:
+    now = datetime.utcnow()
+    with atomic_transaction():
+        source = _private_axis_query_for_player(axis_id, player)
+        if source is None:
+            raise RuleValidationError('没有备份这个排轴的权限。')
+        source_title = _clean_text(source.title or '未命名排轴', MAX_AXIS_TITLE_LENGTH) or '未命名排轴'
+        copy_number = 1
+        while True:
+            suffix = '-副本' if copy_number == 1 else f'-副本 ({copy_number})'
+            title = f'{source_title[:MAX_AXIS_TITLE_LENGTH - len(suffix)]}{suffix}'
+            if not ShaftAxis.select().where(
+                (ShaftAxis.owner == player) &
+                (ShaftAxis.visibility == 'private') &
+                (ShaftAxis.title == title)
+            ).exists():
+                break
+            copy_number += 1
+        backup = ShaftAxis.create(
+            owner=player,
+            title=title,
+            description=source.description,
+            visibility='private',
+            source_version=source.source_version,
+            team_json=source.team_json,
+            axis_json=source.axis_json,
+            enemy_json=source.enemy_json,
+            result_json=source.result_json,
+            duration_ticks=source.duration_ticks,
+            direct_damage=source.direct_damage,
+            stagger_damage=source.stagger_damage,
+            total_damage=source.total_damage,
+            dps_x100=source.dps_x100,
+            dedupe_hash=source.dedupe_hash,
+            created_at=now,
+            updated_at=now,
+        )
+        team = _safe_json_loads(source.team_json, [])
+        _refresh_axis_character_index(backup, team if isinstance(team, list) else [])
+    logger.info(
+        'backup_shaft_axis player_uid=%s source_axis_id=%s backup_axis_id=%s',
+        player.player_uid,
+        axis_id,
+        backup.id,
+    )
+    return serialize_shaft_axis(backup, include_axis=True, player=player)
+
+
+def publish_shaft_axis_snapshot(player: Player, axis_id: int) -> dict[str, Any]:
+    now = datetime.utcnow()
+    with atomic_transaction():
+        source = _private_axis_query_for_player(axis_id, player)
+        if source is None:
+            raise RuleValidationError('没有上传这个排轴的权限。')
+        duplicate = ShaftAxis.select().where(
+            (ShaftAxis.visibility == 'public') &
+            (ShaftAxis.dedupe_hash == source.dedupe_hash)
+        ).first()
+        if duplicate is not None:
+            raise RuleValidationError('广场中已经存在相同角色、弧盘、卡带与动作轴的快照。')
+        snapshot = ShaftAxis.create(
+            owner=player,
+            title=source.title,
+            description=source.description,
+            visibility='public',
+            source_version=source.source_version,
+            team_json=source.team_json,
+            axis_json=source.axis_json,
+            enemy_json=source.enemy_json,
+            result_json=source.result_json,
+            duration_ticks=source.duration_ticks,
+            direct_damage=source.direct_damage,
+            stagger_damage=source.stagger_damage,
+            total_damage=source.total_damage,
+            dps_x100=source.dps_x100,
+            dedupe_hash=source.dedupe_hash,
+            created_at=now,
+            updated_at=now,
+            published_at=now,
+        )
+        team = _safe_json_loads(source.team_json, [])
+        _refresh_axis_character_index(snapshot, team if isinstance(team, list) else [])
+    logger.info(
+        'publish_shaft_axis_snapshot player_uid=%s source_axis_id=%s snapshot_axis_id=%s',
+        player.player_uid,
+        axis_id,
+        snapshot.id,
+    )
+    return serialize_shaft_axis(snapshot, include_axis=True, player=player)
 
 
 def delete_shaft_axis(player: Player, axis_id: int) -> dict[str, Any]:
@@ -965,38 +1139,85 @@ def list_shaft_market(
     }
 
 
-def list_my_shaft_axes(player: Player) -> dict[str, Any]:
-    axes = list(
-        ShaftAxis
-        .select(ShaftAxis, Player)
-        .join(Player)
-        .where(ShaftAxis.owner == player)
-        .order_by(ShaftAxis.updated_at.desc())
-        .limit(100)
+def list_my_shaft_axes(
+    player: Player,
+    *,
+    character_ids: list[str] | None = None,
+    sort: str = 'new',
+) -> dict[str, Any]:
+    return list_filtered_shaft_axes(
+        player=player,
+        scope='mine',
+        character_ids=character_ids,
+        sort=sort,
     )
-    return {
-        'items': [serialize_shaft_axis(axis, include_axis=False, player=player) for axis in axes],
-    }
 
 
-def list_favorite_shaft_axes(player: Player) -> dict[str, Any]:
-    favorite_axis_ids = ShaftAxisFavorite.select(ShaftAxisFavorite.axis).where(
-        ShaftAxisFavorite.player == player
-    )
-    axes = list(
-        ShaftAxis
-        .select(ShaftAxis, Player)
-        .join(Player)
-        .where(
+def _filter_axis_query_by_characters(query, character_ids: list[str] | None):
+    selected_character_ids = list(dict.fromkeys(
+        str(character_id).strip()
+        for character_id in (character_ids or [])
+        if str(character_id).strip()
+    ))[:4]
+    for character_id in selected_character_ids:
+        subquery = ShaftAxisCharacter.select(ShaftAxisCharacter.axis).where(
+            ShaftAxisCharacter.character_id == character_id
+        )
+        query = query.where(ShaftAxis.id.in_(subquery))
+    return query
+
+
+def _order_axis_query(query, sort: str):
+    if sort == 'likes':
+        return query.order_by(ShaftAxis.like_count.desc(), ShaftAxis.dps_x100.desc(), ShaftAxis.updated_at.desc())
+    if sort == 'favorites':
+        return query.order_by(ShaftAxis.favorite_count.desc(), ShaftAxis.dps_x100.desc(), ShaftAxis.updated_at.desc())
+    if sort == 'dps':
+        return query.order_by(ShaftAxis.dps_x100.desc(), ShaftAxis.updated_at.desc())
+    return query.order_by(ShaftAxis.updated_at.desc())
+
+
+def list_filtered_shaft_axes(
+    *,
+    player: Player,
+    scope: str,
+    character_ids: list[str] | None = None,
+    sort: str = 'new',
+) -> dict[str, Any]:
+    sort = sort if sort in MARKET_SORTS else 'new'
+    query = ShaftAxis.select(ShaftAxis, Player).join(Player)
+    if scope == 'favorites':
+        favorite_axis_ids = ShaftAxisFavorite.select(ShaftAxisFavorite.axis).where(
+            ShaftAxisFavorite.player == player
+        )
+        query = query.where(
             (ShaftAxis.visibility == 'public') &
             (ShaftAxis.id.in_(favorite_axis_ids))
         )
-        .order_by(ShaftAxis.updated_at.desc())
-        .limit(100)
-    )
+    else:
+        query = query.where(
+            (ShaftAxis.owner == player) &
+            (ShaftAxis.visibility == 'private')
+        )
+    query = _filter_axis_query_by_characters(query, character_ids)
+    axes = list(_order_axis_query(query, sort).limit(100))
     return {
         'items': [serialize_shaft_axis(axis, include_axis=False, player=player) for axis in axes],
     }
+
+
+def list_favorite_shaft_axes(
+    player: Player,
+    *,
+    character_ids: list[str] | None = None,
+    sort: str = 'new',
+) -> dict[str, Any]:
+    return list_filtered_shaft_axes(
+        player=player,
+        scope='favorites',
+        character_ids=character_ids,
+        sort=sort,
+    )
 
 
 def set_shaft_axis_like(player: Player, axis_id: int, liked: bool) -> dict[str, Any]:

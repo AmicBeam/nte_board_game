@@ -21,6 +21,23 @@
         </div>
     </section>
 
+    <section class="glass-card shaft-panel shaft-command-panel" data-shaft-axis-info {% if active_shaft_page == 'plaza' %}hidden{% endif %}>
+        <div class="shaft-title-fields">
+            <label>
+                <span>标题</span>
+                <input id="shaft-title-input" type="text" maxlength="80" value="未命名排轴">
+            </label>
+            <label>
+                <span>备注</span>
+                <input id="shaft-description-input" type="text" maxlength="800">
+            </label>
+        </div>
+        <div class="shaft-command-actions">
+            <button class="secondary-btn" id="shaft-new-btn" type="button">新建动作轴</button>
+            <button class="secondary-btn" id="shaft-save-btn" type="button">保存</button>
+        </div>
+    </section>
+
     <section class="shaft-view" data-shaft-view="build">
         <section class="shaft-build-layout">
             <aside class="glass-card shaft-panel shaft-build-summary">
@@ -45,8 +62,12 @@
                     </div>
                     <p class="shaft-field-hint">弱点属性</p>
                     <div class="shaft-weakness-row" id="shaft-weakness-row"></div>
-                    <p class="shaft-field-hint">属性抗性</p>
-                    <div class="shaft-enemy-grid" id="shaft-resistance-grid"></div>
+                    <div class="shaft-enemy-grid shaft-initial-resistance-field">
+                        <label>
+                            <span>初始抗性</span>
+                            <input id="shaft-initial-resistance-input" type="number" min="-100" max="100" step="1" value="30">
+                        </label>
+                    </div>
                 </section>
             </aside>
 
@@ -101,22 +122,6 @@
     </section>
 
     <section class="shaft-view" data-shaft-view="rotation">
-        <section class="glass-card shaft-panel shaft-command-panel">
-            <div class="shaft-title-fields">
-                <label>
-                    <span>标题</span>
-                    <input id="shaft-title-input" type="text" maxlength="80" value="未命名排轴">
-                </label>
-                <label>
-                    <span>备注</span>
-                    <input id="shaft-description-input" type="text" maxlength="800">
-                </label>
-            </div>
-            <div class="shaft-command-actions">
-                <button class="secondary-btn" id="shaft-new-btn" type="button">新建动作轴</button>
-                <button class="secondary-btn" id="shaft-save-btn" type="button">保存</button>
-            </div>
-        </section>
         <section class="shaft-rotation-layout">
             <aside class="glass-card shaft-panel shaft-command-library">
                 <div class="section-title-row">
@@ -185,14 +190,29 @@
                         <span class="shaft-panel-kicker">个人收藏夹</span>
                         <h2>我的排轴</h2>
                     </div>
-                    <button class="primary-btn" id="shaft-publish-btn" type="button">上传当前排轴</button>
-                </div>
-                <div class="shaft-library-toolbar shaft-my-axis-toolbar" role="group" aria-label="我的排轴筛选">
-                    <div class="shaft-command-type-tabs">
-                        <button class="active" data-my-axis-filter="mine" type="button">我的</button>
-                        <button data-my-axis-filter="favorites" type="button">收藏的</button>
-                    </div>
                     <button class="secondary-btn" id="shaft-my-refresh-btn" type="button">刷新</button>
+                </div>
+                <div class="shaft-market-filters shaft-my-axis-filters" aria-label="我的排轴筛选">
+                    <select id="shaft-my-axis-scope" aria-label="排轴范围">
+                        <option value="mine">我的</option>
+                        <option value="favorites">收藏的</option>
+                    </select>
+                    <div class="shaft-character-filter" id="shaft-my-character-filter">
+                        <button class="shaft-character-filter-trigger" id="shaft-my-character-filter-trigger" type="button" aria-expanded="false">
+                            <span id="shaft-my-character-filter-summary">全部角色</span>
+                            <small>最多 4 名</small>
+                        </button>
+                        <div class="shaft-character-filter-popover" id="shaft-my-character-filter-popover" hidden>
+                            <div class="shaft-character-filter-grid" id="shaft-my-character-filter-grid"></div>
+                            <button class="secondary-btn shaft-character-filter-clear" id="shaft-my-character-filter-clear" type="button">清空选择</button>
+                        </div>
+                    </div>
+                    <select id="shaft-my-axis-sort" aria-label="我的排轴排序">
+                        <option value="new">最新</option>
+                        <option value="dps">DPS</option>
+                        <option value="likes">点赞</option>
+                        <option value="favorites">收藏</option>
+                    </select>
                 </div>
                 <div class="shaft-market-list compact" id="shaft-my-axis-list"></div>
             </aside>
@@ -226,6 +246,24 @@
         </section>
     </section>
     <div class="shaft-toast" id="shaft-toast" role="status" aria-live="polite" hidden></div>
+    <dialog class="shaft-shortcut-dialog shaft-name-conflict-dialog" id="shaft-name-conflict-dialog" aria-labelledby="shaft-name-conflict-title">
+        <form class="shaft-shortcut-modal shaft-name-conflict-modal" method="dialog">
+            <div>
+                <span class="shaft-panel-kicker">保存排轴</span>
+                <h2 id="shaft-name-conflict-title">存在同名排轴</h2>
+                <p id="shaft-name-conflict-message"></p>
+            </div>
+            <label>
+                <span>新名称</span>
+                <input id="shaft-name-conflict-input" type="text" maxlength="80" required>
+            </label>
+            <div class="shaft-name-conflict-actions">
+                <button class="secondary-btn" value="cancel" formnovalidate>取消</button>
+                <button class="secondary-btn danger-btn" value="overwrite" formnovalidate>覆盖</button>
+                <button class="primary-btn" value="rename">改名并保存</button>
+            </div>
+        </form>
+    </dialog>
     <dialog class="shaft-action-contribution-dialog" id="shaft-action-contribution-dialog" aria-labelledby="shaft-action-contribution-title">
         <div class="shaft-action-contribution-modal">
             <div class="section-title-row">

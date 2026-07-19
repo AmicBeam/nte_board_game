@@ -42,6 +42,8 @@ def create_app() -> Flask:
         ShaftAxisLike,
         ShaftAxisFavorite,
     ])
+    from app.modules.shaft.service import migrate_shaft_source_versions
+    migrate_shaft_source_versions()
 
     @app.before_request
     def attach_log_id():

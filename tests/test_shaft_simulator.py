@@ -16,6 +16,212 @@ class ShaftSimulatorValidationTestCase(unittest.TestCase):
         'small_flat_hp': 0,
     }
 
+    def test_every_character_has_zero_second_noop_switch_action(self) -> None:
+        catalog = load_shaft_catalog()
+        actions_by_character = catalog['actions_by_character']
+
+        for character in catalog['characters']:
+            with self.subTest(character=character['name']):
+                noop = next(
+                    action
+                    for action in actions_by_character[character['id']]
+                    if action['name'] == '无'
+                )
+                self.assertEqual(noop['action_type'], '无')
+                self.assertEqual(noop['damage_type'], '无')
+                self.assertEqual(noop['duration_ticks'], 0)
+                self.assertEqual(noop['hit_count'], 0)
+                self.assertTrue(noop['is_instant_switch'])
+                self.assertNotIn('triggers_reaction_on_switch', noop)
+
+    def test_noop_only_switches_front_without_triggering_reaction_or_q_cover(self) -> None:
+        catalog = load_shaft_catalog()
+        protagonist_noop = next(
+            action for action in catalog['actions_by_character']['char_dd034941ef']
+            if action['name'] == '无'
+        )
+        payload = {
+            'team': [
+                {'slot': 0, 'character_id': 'char_dd034941ef', 'arc_id': '', 'cartridge_id': ''},
+                {'slot': 1, 'character_id': 'char_bdc43f82c6', 'arc_id': '', 'cartridge_id': ''},
+            ],
+            'steps': [
+                {'id': 'gain', 'slot': 0, 'action_id': 'action_982c67944f', 'start_tick': 0},
+                {'id': 'away', 'slot': 1, 'action_id': 'action_5870d8ba67', 'start_tick': 15},
+                {'id': 'noop', 'slot': 0, 'action_id': protagonist_noop['id'], 'start_tick': 30},
+                {'id': 'support', 'slot': 1, 'action_id': 'action_482b5d9df7', 'start_tick': 30},
+            ],
+            'options': {'switch_gap_ticks': 2},
+            'initial_energy': 200,
+        }
+
+        result = simulate_shaft_axis(payload)['result']
+        details = {detail['step_id']: detail for detail in result['details']}
+
+        self.assertEqual(details['noop']['switch_gap_ticks'], 0)
+        self.assertEqual(details['noop']['duration_ticks'], 0)
+        self.assertIsNone(details['noop']['triggered_reaction'])
+        self.assertFalse(details['noop']['q_instant_release'])
+        self.assertEqual(details['noop']['q_cover_target_step_ids'], [])
+        self.assertEqual(details['noop']['raw_start_tick'], 30)
+        self.assertEqual(details['noop']['visual_start_tick'], 30)
+        self.assertEqual(details['support']['triggered_reaction']['reaction'], '创生')
+        self.assertEqual(details['support']['triggered_reaction']['previous_slot'], 0)
+
+    def test_character_awakening_effects_are_gated_by_their_nodes(self) -> None:
+        catalog = load_shaft_catalog()
+        rules = {rule['id']: rule for rule in catalog['buffs']}
+        exact_nodes = {
+            'character_edgar_q_team_def': 6,
+            'character_mint_light_reaction_atk': 3,
+            'character_fadia_enemy_slayer_crit': 5,
+            'character_nanali_offhand_damage': 4,
+            'character_haiyue_a1_huacai_crit': 1,
+            'character_haiyue_a3_huacai_q_damage': 3,
+            'character_haniya_a3_ace_crit': 3,
+            'character_haniya_a5_ace_soul_damage': 5,
+            'character_hathor_a6_emergency_crit_dmg': 6,
+            'character_chaos_a2_license_def_ignore': 2,
+            'character_chaos_a5_license_damage': 5,
+            'character_yi_a3_single_locked_target_damage': 3,
+            'character_zhenhong_a5_ascendant_def': 5,
+        }
+        for rule_id, node in exact_nodes.items():
+            with self.subTest(rule_id=rule_id):
+                self.assertIn(
+                    {'type': 'awakening_min', 'min': node},
+                    rules[rule_id]['trigger']['conditions'],
+                )
+
+        full_awakening_rules = {
+            'character_zhenhong_full_crit_def_ignore',
+            'character_xun_a6_team_atk',
+            'character_iloy_a6_team_crit_dmg',
+            'character_nanali_a6_damage',
+            'character_baizang_a6_team_atk',
+            'character_haniya_ace_team_crit_dmg',
+            'character_hathor_full_emergency_def_ignore',
+            'character_daphne_full_dark_res_down',
+            'character_chaos_full_license_res_down',
+            'character_yi_full_locked_target_res_down',
+            'character_jiuyuan_rose_a6_res',
+            'character_sagiri_a6_negative_damage',
+        }
+        for rule_id in full_awakening_rules:
+            with self.subTest(rule_id=rule_id):
+                self.assertIn(
+                    {'type': 'awakening_count_min', 'min': 6},
+                    rules[rule_id]['trigger']['conditions'],
+                )
+
+        protagonist_e = next(action for action in catalog['actions'] if action['id'] == 'action_982c67944f')
+        protagonist_extra = next(action for action in catalog['actions'] if action['id'] == 'action_4e1fab68e7')
+        self.assertEqual(protagonist_e['energy_return'], 0)
+        self.assertEqual(protagonist_e['energy_return_by_awakening_node'], {'2': 8})
+        self.assertEqual(protagonist_extra['required_awakening'], 1)
+
+    def test_simple_awakening_action_values_only_apply_with_their_nodes(self) -> None:
+        def result_for(character_id: str, action_id: str, awakening_nodes: list[int]) -> dict:
+            return simulate_shaft_axis({
+                'team': [{
+                    'slot': 0,
+                    'character_id': character_id,
+                    'arc_id': '',
+                    'cartridge_id': '',
+                    'awakening_nodes': awakening_nodes,
+                }],
+                'steps': [{'id': 'action', 'slot': 0, 'action_id': action_id, 'start_tick': 0}],
+                'team_panel_bonus': self.ZERO_TEAM_PANEL_BONUS,
+                'initial_energy': 200,
+            })['result']
+
+        adler_base = result_for('char_6f46705fd1', 'action_95733904eb', [])
+        adler_a5 = result_for('char_6f46705fd1', 'action_95733904eb', [5])
+        self.assertEqual(adler_base['resources_by_slot'][0]['energy'], 0)
+        self.assertEqual(adler_a5['resources_by_slot'][0]['energy'], 20)
+
+        mint_base = result_for('char_dda9fae1ef', 'action_6b96f24d8c', [])
+        mint_full = result_for('char_dda9fae1ef', 'action_6b96f24d8c', [1, 2, 3, 4, 5, 6])
+        self.assertAlmostEqual(mint_base['resources_by_slot'][0]['harmony'], 10.2)
+        self.assertAlmostEqual(mint_full['resources_by_slot'][0]['harmony'], 12.2)
+
+        catalog = load_shaft_catalog()
+        actions = {action['id']: action for action in catalog['actions']}
+        self.assertEqual(actions['action_28759c6e0b']['required_awakening'], 4)
+        self.assertEqual(actions['action_85906994df']['required_awakening'], 3)
+        self.assertEqual(actions['action_b646db1098']['required_awakening'], 2)
+        self.assertEqual(actions['action_db30565b20']['cooldown_ticks_by_awakening_node'], {'6': 80})
+
+        def haniya_second_e_warnings(awakening_nodes: list[int]) -> list[str]:
+            result = simulate_shaft_axis({
+                'team': [{
+                    'slot': 0,
+                    'character_id': 'char_e0a4292b4e',
+                    'arc_id': '',
+                    'cartridge_id': '',
+                    'awakening_nodes': awakening_nodes,
+                }],
+                'steps': [
+                    {'id': 'first', 'slot': 0, 'action_id': 'action_db30565b20', 'start_tick': 0},
+                    {'id': 'second', 'slot': 0, 'action_id': 'action_db30565b20', 'start_tick': 80},
+                ],
+                'team_panel_bonus': self.ZERO_TEAM_PANEL_BONUS,
+                'initial_energy': 200,
+            })['result']
+            return next(detail for detail in result['details'] if detail['step_id'] == 'second')['warnings']
+
+        self.assertTrue(any('CD 尚未结束' in warning for warning in haniya_second_e_warnings([])))
+        self.assertFalse(any('CD 尚未结束' in warning for warning in haniya_second_e_warnings([6])))
+
+    def test_simple_awakening_durations_and_stack_caps_follow_nodes(self) -> None:
+        catalog = load_shaft_catalog()
+        rules = {rule['id']: rule for rule in catalog['buffs']}
+
+        self.assertEqual(
+            rules['character_adler_e_shield']['duration']['ticks_by_awakening_node'],
+            {'6': 120},
+        )
+        self.assertEqual(
+            rules['character_nanali_authority']['duration']['ticks_by_awakening_node'],
+            {'6': 150},
+        )
+        self.assertEqual(
+            rules['character_baizang_word_support']['stacking'],
+            {
+                'key': 'character_baizang_word',
+                'mode': 'add_stack',
+                'max_stacks': 3,
+                'max_stacks_by_awakening_node': {'3': 4},
+            },
+        )
+        self.assertEqual(
+            rules['character_baizang_a6_q_crit']['duration']['ticks_by_awakening_node'],
+            {'5': 160},
+        )
+
+    def test_initial_resistance_applies_to_every_damage_element(self) -> None:
+        normalized = normalize_axis_payload({
+            'enemy': {'initial_resistance': 0.42},
+        })
+
+        self.assertEqual(normalized['enemy']['initial_resistance'], 0.42)
+        self.assertEqual(
+            normalized['enemy']['resistances'],
+            {element: 0.42 for element in ('光', '灵', '咒', '暗', '魂', '相', '心灵')},
+        )
+
+    def test_starter_build_substats_match_zhenhong_and_requiem_defaults(self) -> None:
+        starter = load_shaft_catalog()['starter_axis']
+        builds = starter['character_builds']
+
+        zhenhong = builds['char_b52cc8f160']['substat_counts']
+        self.assertEqual(
+            [zhenhong[key] for key in ('all_dmg', 'crit_rate', 'crit_dmg', 'atk_pct')],
+            [20, 20, 20, 20],
+        )
+        requiem = builds['char_c78f7a08d5']['substat_counts']
+        self.assertEqual(requiem['harmony_strength'], 1)
+
     def test_character_sheet_modifiers_are_removed_and_base_crit_is_fixed(self) -> None:
         catalog = load_shaft_catalog()
         for character in catalog['characters']:
@@ -71,10 +277,154 @@ class ShaftSimulatorValidationTestCase(unittest.TestCase):
         }
         self.assertEqual(applied['character_protagonist_a5_support_atk']['effects'], {'atk_pct': 0.1})
 
+    def test_iloy_e_grants_team_twenty_percent_of_her_base_atk_on_start(self) -> None:
+        result = simulate_shaft_axis({
+            'team': [
+                {'slot': 0, 'character_id': 'char_a01c39f576', 'arc_id': '', 'cartridge_id': ''},
+                {'slot': 1, 'character_id': 'char_701295143d', 'arc_id': '', 'cartridge_id': ''},
+            ],
+            'steps': [
+                {'id': 'iloy_e', 'slot': 0, 'action_id': 'action_afea1e6fb2', 'start_tick': 0},
+                {'id': 'teammate_action', 'slot': 1, 'action_id': 'action_c234af7127', 'start_tick': 20},
+            ],
+            'team_panel_bonus': self.ZERO_TEAM_PANEL_BONUS,
+            'initial_energy': 200,
+        })['result']
+        details = {detail['step_id']: detail for detail in result['details']}
+        expected_flat_atk = 596.0 * 0.2
+
+        triggered = {buff['rule_id']: buff for buff in details['iloy_e']['triggered_buffs']}
+        self.assertEqual(
+            triggered['character_iloy_e_team_flat_atk']['name'],
+            '伊洛伊·自我认同延伸加攻',
+        )
+        self.assertAlmostEqual(
+            triggered['character_iloy_e_team_flat_atk']['effects']['flat_atk'],
+            expected_flat_atk,
+        )
+
+        for step_id in ('iloy_e', 'teammate_action'):
+            applied = {buff['rule_id']: buff for buff in details[step_id]['applied_buffs']}
+            self.assertAlmostEqual(
+                applied['character_iloy_e_team_flat_atk']['effects']['flat_atk'],
+                expected_flat_atk,
+            )
+
+    def test_iloy_a5_healing_grants_team_twelve_point_five_percent_base_atk(self) -> None:
+        result = simulate_shaft_axis({
+            'team': [
+                {
+                    'slot': 0,
+                    'character_id': 'char_a01c39f576',
+                    'arc_id': '',
+                    'cartridge_id': '',
+                    'awakening_nodes': [5],
+                },
+                {'slot': 1, 'character_id': 'char_701295143d', 'arc_id': '', 'cartridge_id': ''},
+            ],
+            'steps': [
+                {'id': 'iloy_e', 'slot': 0, 'action_id': 'action_afea1e6fb2', 'start_tick': 0},
+                {'id': 'teammate_action', 'slot': 1, 'action_id': 'action_c234af7127', 'start_tick': 20},
+            ],
+            'team_panel_bonus': self.ZERO_TEAM_PANEL_BONUS,
+            'initial_energy': 200,
+        })['result']
+        details = {detail['step_id']: detail for detail in result['details']}
+        expected_flat_atk = 596.0 * 0.125
+        triggered = {buff['rule_id']: buff for buff in details['iloy_e']['triggered_buffs']}
+        applied = {buff['rule_id']: buff for buff in details['teammate_action']['applied_buffs']}
+
+        self.assertAlmostEqual(
+            triggered['character_iloy_a5_heal_team_flat_atk']['effects']['flat_atk'],
+            expected_flat_atk,
+        )
+        self.assertAlmostEqual(
+            applied['character_iloy_a5_heal_team_flat_atk']['effects']['flat_atk'],
+            expected_flat_atk,
+        )
+
+    def test_iloy_long_e_marks_three_regressed_teammates_for_full_awakening_damage(self) -> None:
+        result = simulate_shaft_axis({
+            'team': [
+                {
+                    'slot': 0,
+                    'character_id': 'char_a01c39f576',
+                    'arc_id': '',
+                    'cartridge_id': '',
+                    'awakening_nodes': [1, 2, 3, 4, 5, 6],
+                },
+                {'slot': 1, 'character_id': 'char_701295143d', 'arc_id': '', 'cartridge_id': ''},
+                {'slot': 2, 'character_id': 'char_bdc43f82c6', 'arc_id': '', 'cartridge_id': ''},
+                {'slot': 3, 'character_id': 'char_7578b18979', 'arc_id': '', 'cartridge_id': ''},
+            ],
+            'steps': [
+                {'id': 'long_e', 'slot': 0, 'action_id': 'action_afea1e6fb2', 'start_tick': 0},
+                {'id': 'after', 'slot': 0, 'action_id': 'action_iloy_z1', 'start_tick': 20},
+            ],
+            'team_panel_bonus': self.ZERO_TEAM_PANEL_BONUS,
+            'initial_energy': 200,
+        })['result']
+        details = {detail['step_id']: detail for detail in result['details']}
+        triggered = {buff['rule_id']: buff for buff in details['long_e']['triggered_buffs']}
+        applied = {buff['rule_id']: buff for buff in details['after']['applied_buffs']}
+
+        regression = triggered['character_iloy_regressed_teammates']
+        self.assertEqual(regression['name'], '伊洛伊·退行（3名队友）')
+        self.assertEqual(regression['duration_ticks'], 9990)
+        self.assertTrue(regression['display_as_line'])
+        self.assertEqual(
+            applied['character_iloy_full_regressed_teammate_damage']['effects'],
+            {'all_dmg': 0.45},
+        )
+        self.assertEqual(
+            applied['character_iloy_a6_team_crit_dmg']['effects'],
+            {'crit_dmg': 0.25},
+        )
+        self.assertEqual(details['after']['formula_parts']['skill_level'], 11)
+
+    def test_iloy_healing_actions_grant_visible_team_def_ignore_line(self) -> None:
+        healing_actions = (
+            'action_01209221c1',
+            'action_afea1e6fb2',
+            'action_307ad00e8e',
+        )
+        for action_id in healing_actions:
+            with self.subTest(action_id=action_id):
+                result = simulate_shaft_axis({
+                    'team': [
+                        {'slot': 0, 'character_id': 'char_a01c39f576', 'arc_id': '', 'cartridge_id': ''},
+                        {'slot': 1, 'character_id': 'char_701295143d', 'arc_id': '', 'cartridge_id': ''},
+                    ],
+                    'steps': [
+                        {'id': 'healing_action', 'slot': 0, 'action_id': action_id, 'start_tick': 0},
+                        {'id': 'teammate_action', 'slot': 1, 'action_id': 'action_c234af7127', 'start_tick': 20},
+                    ],
+                    'team_panel_bonus': self.ZERO_TEAM_PANEL_BONUS,
+                    'initial_energy': 200,
+                })['result']
+                details = {detail['step_id']: detail for detail in result['details']}
+                triggered = {
+                    buff['rule_id']: buff
+                    for buff in details['healing_action']['triggered_buffs']
+                }
+                applied = {
+                    buff['rule_id']: buff
+                    for buff in details['teammate_action']['applied_buffs']
+                }
+
+                buff = triggered['character_iloy_heal_team_def_ignore']
+                self.assertEqual(buff['effects'], {'def_ignore': 0.05})
+                self.assertEqual(buff['duration_ticks'], 200)
+                self.assertTrue(buff['display_as_line'])
+                self.assertEqual(
+                    applied['character_iloy_heal_team_def_ignore']['effects'],
+                    {'def_ignore': 0.05},
+                )
+
     def test_action_energy_is_shared_to_teammates_but_return_energy_is_not(self) -> None:
         result = simulate_shaft_axis({
             'team': [
-                {'slot': 0, 'character_id': 'char_dd034941ef', 'arc_id': '', 'cartridge_id': ''},
+                {'slot': 0, 'character_id': 'char_dd034941ef', 'arc_id': '', 'cartridge_id': '', 'awakening_nodes': [2]},
                 {'slot': 1, 'character_id': 'char_bdc43f82c6', 'arc_id': '', 'cartridge_id': ''},
             ],
             'steps': [
@@ -93,7 +443,7 @@ class ShaftSimulatorValidationTestCase(unittest.TestCase):
     def test_action_resource_snapshots_include_teammate_energy_and_reaction_consumption(self) -> None:
         result = simulate_shaft_axis({
             'team': [
-                {'slot': 0, 'character_id': 'char_dd034941ef', 'arc_id': '', 'cartridge_id': ''},
+                {'slot': 0, 'character_id': 'char_dd034941ef', 'arc_id': '', 'cartridge_id': '', 'awakening_nodes': [2]},
                 {'slot': 1, 'character_id': 'char_bdc43f82c6', 'arc_id': '', 'cartridge_id': ''},
             ],
             'steps': [
@@ -156,6 +506,28 @@ class ShaftSimulatorValidationTestCase(unittest.TestCase):
         self.assertEqual(result['details'][0]['energy_after'], 60)
         self.assertEqual(resources['energy'], 60)
 
+    def test_default_initial_energy_fills_each_character_to_capacity(self) -> None:
+        payload = {
+            'team': [
+                {'slot': 0, 'character_id': 'char_701295143d', 'arc_id': '', 'cartridge_id': ''},
+                {'slot': 1, 'character_id': 'char_dd034941ef', 'arc_id': '', 'cartridge_id': ''},
+            ],
+            'steps': [],
+            'team_panel_bonus': self.ZERO_TEAM_PANEL_BONUS,
+        }
+
+        normalized = normalize_axis_payload(payload)
+        self.assertEqual(normalized['initial_energy'], 1000)
+
+        resources = {
+            item['character_id']: item
+            for item in simulate_shaft_axis(payload)['result']['resources_by_slot']
+        }
+        self.assertEqual(resources['char_701295143d']['energy_capacity'], 120)
+        self.assertEqual(resources['char_701295143d']['initial_energy'], 120)
+        self.assertEqual(resources['char_dd034941ef']['energy_capacity'], 100)
+        self.assertEqual(resources['char_dd034941ef']['initial_energy'], 100)
+
     def test_zhenhong_ascendant_energy_cap_dragon_e_cost_and_exit_clear(self) -> None:
         result = simulate_shaft_axis({
             'team': [
@@ -190,7 +562,7 @@ class ShaftSimulatorValidationTestCase(unittest.TestCase):
     def test_zhenhong_non_front_does_not_receive_energy_or_shared_energy(self) -> None:
         result = simulate_shaft_axis({
             'team': [
-                {'slot': 0, 'character_id': 'char_dd034941ef', 'arc_id': '', 'cartridge_id': ''},
+                {'slot': 0, 'character_id': 'char_dd034941ef', 'arc_id': '', 'cartridge_id': '', 'awakening_nodes': [2]},
                 {'slot': 1, 'character_id': 'char_b52cc8f160', 'arc_id': '', 'cartridge_id': ''},
             ],
             'steps': [
@@ -249,7 +621,7 @@ class ShaftSimulatorValidationTestCase(unittest.TestCase):
         self.assertEqual(result['resources_by_slot'][0]['harmony'], 0)
         self.assertEqual([event['tick'] for event in result['reaction_damage_events']], [41, 51, 61, 71, 81, 91, 101, 111, 121, 131])
         self.assertTrue(all(event['damage'] > 0 for event in result['reaction_damage_events']))
-        self.assertEqual(result['summary']['duration_ticks'], 131)
+        self.assertEqual(result['summary']['duration_ticks'], 33)
 
     def test_genesis_without_nanali_keeps_five_two_second_flowers(self) -> None:
         result = simulate_shaft_axis({
@@ -265,7 +637,98 @@ class ShaftSimulatorValidationTestCase(unittest.TestCase):
         })['result']
 
         self.assertEqual(result['details'][-1]['triggered_reaction']['reaction'], '创生')
-        self.assertEqual([event['tick'] for event in result['reaction_damage_events']], [53, 73, 93, 113, 133])
+        genesis_events = [
+            event for event in result['reaction_damage_events']
+            if event['reaction'] == '创生'
+        ]
+        clone_events = [
+            event for event in result['reaction_damage_events']
+            if event['reaction'] == '创生复制体'
+        ]
+        self.assertEqual([event['tick'] for event in genesis_events], [53, 73, 93, 113, 133])
+        self.assertEqual(len(clone_events), 20)
+        self.assertEqual([event['tick'] for event in clone_events], list(range(68, 168, 5)))
+        self.assertTrue(all(
+            event['contributor_character_name'] == genesis_events[0]['contributor_character_name']
+            for event in clone_events
+        ))
+        self.assertAlmostEqual(clone_events[0]['damage'], genesis_events[0]['damage'] * 0.375)
+        clone_effect = next(
+            effect for effect in result['reaction_effects']
+            if effect['reaction'] == '创生复制体'
+        )
+        genesis_effect = result['details'][-1]['triggered_reaction']
+        self.assertEqual(clone_effect['start_tick'], genesis_effect['start_tick'] + 30)
+        self.assertEqual(clone_effect['contributor_slot'], genesis_effect['contributor_slot'])
+
+    def test_iloy_genesis_clone_uses_twenty_five_half_second_flowers_with_nanali(self) -> None:
+        result = simulate_shaft_axis({
+            'team': [
+                {'slot': 0, 'character_id': 'char_dd034941ef', 'arc_id': '', 'cartridge_id': ''},
+                {'slot': 1, 'character_id': 'char_a01c39f576', 'arc_id': '', 'cartridge_id': ''},
+                {'slot': 2, 'character_id': 'char_bdc43f82c6', 'arc_id': '', 'cartridge_id': ''},
+            ],
+            'steps': [
+                {'id': 'gain', 'slot': 0, 'action_id': 'action_982c67944f', 'start_tick': 0},
+                {'id': 'support', 'slot': 1, 'action_id': 'action_01209221c1', 'start_tick': 20},
+            ],
+            'team_panel_bonus': self.ZERO_TEAM_PANEL_BONUS,
+        })['result']
+
+        genesis_events = [
+            event for event in result['reaction_damage_events']
+            if event['reaction'] == '创生'
+        ]
+        clone_events = [
+            event for event in result['reaction_damage_events']
+            if event['reaction'] == '创生复制体'
+        ]
+        self.assertEqual(len(genesis_events), 10)
+        self.assertEqual(len(clone_events), 25)
+        self.assertEqual(
+            [event['tick'] for event in clone_events],
+            list(range(clone_events[0]['tick'], clone_events[0]['tick'] + 125, 5)),
+        )
+        clone_effect = next(
+            effect for effect in result['reaction_effects']
+            if effect['reaction'] == '创生复制体'
+        )
+        self.assertEqual(clone_effect['generation_delay_ticks'], 30)
+        self.assertEqual(clone_events[0]['tick'], clone_effect['start_tick'] + 5)
+        self.assertTrue(all(event['formula_parts']['damage_scale'] == 0.375 for event in clone_events))
+        self.assertAlmostEqual(clone_events[0]['damage'], genesis_events[0]['damage'] * 0.375)
+
+    def test_axis_duration_ignores_background_actions_after_foreground_end(self) -> None:
+        payload = {
+            'team': [{
+                'slot': 0,
+                'character_id': 'char_b52cc8f160',
+                'arc_id': '',
+                'cartridge_id': '',
+            }],
+            'steps': [
+                {'id': 'front', 'slot': 0, 'action_id': 'action_a01a545590', 'start_tick': 0},
+                {
+                    'id': 'background',
+                    'slot': 0,
+                    'action_id': 'action_c6ff824434',
+                    'start_tick': 50,
+                    'placement': 'background',
+                },
+            ],
+            'team_panel_bonus': self.ZERO_TEAM_PANEL_BONUS,
+        }
+
+        normalized = normalize_axis_payload(payload)
+        result = simulate_shaft_axis(payload)['result']
+        details = {detail['step_id']: detail for detail in result['details']}
+
+        self.assertEqual(normalized['duration_ticks'], 5)
+        self.assertEqual(result['summary']['duration_ticks'], 5)
+        self.assertEqual(result['summary']['timeline_ticks'], 5)
+        self.assertFalse(details['front']['is_background_damage'])
+        self.assertTrue(details['background']['is_background_damage'])
+        self.assertEqual(details['background']['visual_end_tick'], 60)
 
     def test_invalid_or_underfunded_support_is_reported_without_reaction(self) -> None:
         underfunded = simulate_shaft_axis({
@@ -410,7 +873,7 @@ class ShaftSimulatorValidationTestCase(unittest.TestCase):
         self.assertEqual(result['resources_by_slot'][0]['harmony'], 100)
         self.assertEqual(result['summary']['total_harmony'], 100)
 
-    def test_loop_axis_opening_support_consumes_tail_harmony_without_display_leak(self) -> None:
+    def test_loop_axis_opening_support_uses_configured_initial_harmony(self) -> None:
         result = simulate_shaft_axis({
             'team': [
                 {'slot': 0, 'character_id': 'char_dd034941ef', 'arc_id': '', 'cartridge_id': ''},
@@ -420,15 +883,50 @@ class ShaftSimulatorValidationTestCase(unittest.TestCase):
                 {'id': 'support', 'slot': 1, 'action_id': 'action_482b5d9df7', 'start_tick': 0},
                 {'id': 'gain', 'slot': 0, 'action_id': 'action_982c67944f', 'start_tick': 20},
             ],
-            'options': {'loop_enabled': True},
+            'options': {
+                'loop_enabled': True,
+                'loop_initial_resources': {
+                    'char_dd034941ef': {'energy': 0, 'harmony': 0},
+                    'char_bdc43f82c6': {'energy': 0, 'harmony': 0},
+                },
+            },
             'team_panel_bonus': self.ZERO_TEAM_PANEL_BONUS,
         })['result']
 
         details = {detail['step_id']: detail for detail in result['details']}
-        self.assertEqual(details['support']['warnings'], [])
-        self.assertEqual(details['support']['triggered_reaction']['reaction'], '创生')
-        self.assertFalse(details['support']['triggered_reaction']['loop_primed'])
+        self.assertEqual(
+            details['support']['warnings'],
+            ['主角环合值不足：需要 100，当前 0.0。'],
+        )
+        self.assertIsNone(details['support']['triggered_reaction'])
         self.assertEqual(result['resources_by_slot'][0]['harmony'], 100)
+
+    def test_zhenhong_to_yi_support_warns_when_loop_initial_harmony_is_zero(self) -> None:
+        result = simulate_shaft_axis({
+            'team': [
+                {'slot': 0, 'character_id': 'char_b52cc8f160', 'arc_id': '', 'cartridge_id': ''},
+                {'slot': 3, 'character_id': 'char_7578b18979', 'arc_id': '', 'cartridge_id': ''},
+            ],
+            'steps': [
+                {'id': 'zhenhong_q2', 'slot': 0, 'action_id': 'action_e3711f0cf5', 'start_tick': 0},
+                {'id': 'yi_support', 'slot': 3, 'action_id': 'action_31c54a4e71', 'start_tick': 5},
+            ],
+            'options': {
+                'loop_enabled': True,
+                'loop_initial_resources': {
+                    'char_b52cc8f160': {'energy': 60, 'harmony': 0},
+                    'char_7578b18979': {'energy': 100, 'harmony': 0},
+                },
+            },
+            'team_panel_bonus': self.ZERO_TEAM_PANEL_BONUS,
+        })['result']
+
+        support = next(detail for detail in result['details'] if detail['step_id'] == 'yi_support')
+        self.assertEqual(
+            support['warnings'],
+            ['真红环合值不足：需要 100，当前 0.0。'],
+        )
+        self.assertIsNone(support['triggered_reaction'])
 
     def test_passive_damage_actions_do_not_scale_with_skill_level(self) -> None:
         payload = {
@@ -459,7 +957,8 @@ class ShaftSimulatorValidationTestCase(unittest.TestCase):
             if action['character_id'] == 'char_a01c39f576'
         }
         self.assertEqual(iloy_actions['援护']['duration_ticks'], 15)
-        self.assertEqual(iloy_actions['e']['duration_ticks'], 15)
+        self.assertEqual(iloy_actions['z1']['duration_ticks'], 15)
+        self.assertEqual(iloy_actions['长E']['duration_ticks'], 15)
         self.assertEqual(iloy_actions['q']['duration_ticks'], 0)
         self.assertEqual(iloy_actions['B觉']['multipliers']['atk'], 1.5)
         self.assertEqual(iloy_actions['B觉']['action_type'], '被动')
@@ -483,6 +982,242 @@ class ShaftSimulatorValidationTestCase(unittest.TestCase):
         base_payload['team'][0]['awakening_nodes'] = [1]
         wrong_node = simulate_shaft_axis(base_payload)['result']['details'][0]
         self.assertIn('动作需要 B 觉醒节点。', wrong_node['warnings'])
+
+    def test_iloy_z1_uses_three_hits_and_consumes_twenty_reverie(self) -> None:
+        catalog = load_shaft_catalog()
+        action = next(
+            action
+            for action in catalog['actions']
+            if action['character_id'] == 'char_a01c39f576' and action['name'] == 'z1'
+        )
+
+        self.assertEqual(action['action_type'], '普攻')
+        self.assertEqual(action['duration_ticks'], 15)
+        self.assertEqual(action['hit_count'], 3)
+        self.assertAlmostEqual(action['multipliers']['atk'], 1.104)
+        self.assertAlmostEqual(action['energy_gain'], 1.599)
+        self.assertAlmostEqual(action['stagger'], 0.3)
+        self.assertAlmostEqual(action['harmony'], 2.7)
+        self.assertEqual(action['personal_resource_cost'], {'臆想': 20})
+        self.assertEqual(action['personal_resource_gain'], {})
+
+        detail = simulate_shaft_axis({
+            'team': [{
+                'slot': 0,
+                'character_id': 'char_a01c39f576',
+                'arc_id': '',
+                'cartridge_id': '',
+            }],
+            'steps': [{
+                'id': 'z1',
+                'slot': 0,
+                'action_id': 'action_iloy_z1',
+                'start_tick': 0,
+            }],
+            'team_panel_bonus': self.ZERO_TEAM_PANEL_BONUS,
+        })['result']['details'][0]
+
+        self.assertEqual(detail['hit_count'], 3)
+        self.assertIn('个人资源 臆想 不足。', detail['warnings'])
+        self.assertEqual(detail['resources_after_by_slot'][0]['personal_resources']['臆想'], 0)
+
+    def test_iloy_lucid_dream_uses_thirty_five_hits_and_consumes_ten_reverie(self) -> None:
+        catalog = load_shaft_catalog()
+        action = next(
+            action
+            for action in catalog['actions']
+            if action['id'] == 'action_iloy_lucid_dream'
+        )
+
+        self.assertEqual(action['name'], '清明梦')
+        self.assertEqual(action['action_type'], '普攻')
+        self.assertEqual(action['duration_ticks'], 70)
+        self.assertEqual(action['hit_count'], 35)
+        self.assertAlmostEqual(action['multipliers']['atk'], 0.237 * 35)
+        self.assertAlmostEqual(action['energy_gain'], 0.766 * 35)
+        self.assertAlmostEqual(action['harmony'], 1.275 * 35)
+        self.assertAlmostEqual(action['stagger'], 0.186 * 35)
+        self.assertEqual(action['personal_resource_cost'], {'臆想': 10})
+        self.assertEqual(action['personal_resource_gain'], {})
+        self.assertEqual(action['tags'], ['蓄力', '蓄力重击', '重击'])
+
+        result = simulate_shaft_axis({
+            'team': [{
+                'slot': 0,
+                'character_id': 'char_a01c39f576',
+                'arc_id': '',
+                'cartridge_id': '',
+            }],
+            'steps': [
+                {'id': 'e', 'slot': 0, 'action_id': 'action_afea1e6fb2', 'start_tick': 0},
+                {'id': 'lucid_dream', 'slot': 0, 'action_id': 'action_iloy_lucid_dream', 'start_tick': 20},
+            ],
+            'team_panel_bonus': self.ZERO_TEAM_PANEL_BONUS,
+        })['result']
+        details = {detail['step_id']: detail for detail in result['details']}
+
+        self.assertNotIn('个人资源 臆想 不足。', details['lucid_dream']['warnings'])
+        self.assertEqual(details['lucid_dream']['personal_resources_after']['臆想'], 6)
+
+    def test_iloy_e_builds_reverie_and_q_dream_waives_heavy_attack_cost(self) -> None:
+        catalog = load_shaft_catalog()
+        iloy_actions = {
+            action['name']: action
+            for action in catalog['actions']
+            if action['character_id'] == 'char_a01c39f576'
+        }
+        self.assertEqual(iloy_actions['长E']['personal_resource_gain'], {'臆想': 16})
+        self.assertEqual(iloy_actions['q']['personal_resource_threshold'], {'臆想': 30})
+        self.assertEqual(iloy_actions['q持续']['required_buff_key'], 'character_iloy_q_ivory_dream')
+
+        result = simulate_shaft_axis({
+            'team': [{
+                'slot': 0,
+                'character_id': 'char_a01c39f576',
+                'arc_id': '',
+                'cartridge_id': '',
+            }],
+            'steps': [
+                {'id': 'e1', 'slot': 0, 'action_id': 'action_afea1e6fb2', 'start_tick': 0},
+                {'id': 'e2', 'slot': 0, 'action_id': 'action_afea1e6fb2', 'start_tick': 120},
+                {'id': 'e3', 'slot': 0, 'action_id': 'action_afea1e6fb2', 'start_tick': 240},
+                {'id': 'q', 'slot': 0, 'action_id': 'action_307ad00e8e', 'start_tick': 260},
+                {'id': 'dream-z1', 'slot': 0, 'action_id': 'action_iloy_z1', 'start_tick': 270},
+                {'id': 'dream-e', 'slot': 0, 'action_id': 'action_afea1e6fb2', 'start_tick': 280},
+                {'id': 'awake-z1', 'slot': 0, 'action_id': 'action_iloy_z1', 'start_tick': 320},
+            ],
+            'team_panel_bonus': self.ZERO_TEAM_PANEL_BONUS,
+        })['result']
+        details = {detail['step_id']: detail for detail in result['details']}
+
+        self.assertEqual(details['e1']['personal_resources_after']['臆想'], 16)
+        self.assertEqual(details['e2']['personal_resources_after']['臆想'], 32)
+        self.assertEqual(details['e3']['personal_resources_after']['臆想'], 48)
+        dream_buffs = {
+            buff['definition_id']: buff
+            for buff in details['q']['triggered_buffs']
+        }
+        self.assertEqual(dream_buffs['character_iloy_q_dream']['duration_ticks'], 48)
+        self.assertIn('character_iloy_q_ivory_dream', dream_buffs)
+        self.assertNotIn('个人资源 臆想 不足。', details['dream-z1']['warnings'])
+        self.assertEqual(details['dream-z1']['personal_resources_after']['臆想'], 43)
+        self.assertIn('臆想 正在持续消耗，期间无法积攒。', details['dream-e']['warnings'])
+        self.assertEqual(details['dream-e']['personal_resources_after']['臆想'], 33)
+        self.assertIn('个人资源 臆想 不足。', details['awake-z1']['warnings'])
+
+    def test_iloy_q_under_thirty_reverie_does_not_open_ivory_dream(self) -> None:
+        result = simulate_shaft_axis({
+            'team': [{
+                'slot': 0,
+                'character_id': 'char_a01c39f576',
+                'arc_id': '',
+                'cartridge_id': '',
+            }],
+            'steps': [
+                {'id': 'e', 'slot': 0, 'action_id': 'action_afea1e6fb2', 'start_tick': 0},
+                {'id': 'q', 'slot': 0, 'action_id': 'action_307ad00e8e', 'start_tick': 20},
+                {'id': 'dot', 'slot': 0, 'action_id': 'action_c371c893ce', 'start_tick': 25},
+            ],
+            'team_panel_bonus': self.ZERO_TEAM_PANEL_BONUS,
+        })['result']
+        details = {detail['step_id']: detail for detail in result['details']}
+        dream_buffs = {
+            buff['definition_id']: buff
+            for buff in details['q']['triggered_buffs']
+        }
+
+        self.assertEqual(dream_buffs['character_iloy_q_dream']['duration_ticks'], 16)
+        self.assertNotIn('character_iloy_q_ivory_dream', dream_buffs)
+        self.assertIn('动作需要处于 象牙门梦境 状态。', details['dot']['warnings'])
+
+    def test_edgar_and_iloy_e_q_healing_actions_trigger_wrong_door(self) -> None:
+        cases = (
+            ('char_31c5130304', 'action_4a29818248'),
+            ('char_31c5130304', 'action_16e181ce7c'),
+            ('char_a01c39f576', 'action_afea1e6fb2'),
+            ('char_a01c39f576', 'action_307ad00e8e'),
+        )
+
+        for character_id, action_id in cases:
+            with self.subTest(character_id=character_id, action_id=action_id):
+                result = simulate_shaft_axis({
+                    'team': [{
+                        'slot': 0,
+                        'character_id': character_id,
+                        'arc_id': 'arc_bab179ec33',
+                        'arc_refinement': 1,
+                        'cartridge_id': '',
+                    }],
+                    'steps': [{
+                        'id': 'healing_action',
+                        'slot': 0,
+                        'action_id': action_id,
+                        'start_tick': 0,
+                    }],
+                    'initial_energy': 200,
+                    'team_panel_bonus': self.ZERO_TEAM_PANEL_BONUS,
+                })['result']
+                triggered_rule_ids = {
+                    buff['rule_id']
+                    for buff in result['details'][0]['triggered_buffs']
+                }
+                self.assertIn('arc_wrong_door_heal_spirit', triggered_rule_ids)
+                self.assertIn('arc_wrong_door_heal_team_damage', triggered_rule_ids)
+
+    def test_xun_has_no_energy_or_cooldown_restrictions(self) -> None:
+        result = simulate_shaft_axis({
+            'team': [{
+                'slot': 0,
+                'character_id': 'char_15f458f7ef',
+                'arc_id': '',
+                'cartridge_id': '',
+            }],
+            'steps': [
+                {'id': 'first_e', 'slot': 0, 'action_id': 'action_0c4da30973', 'start_tick': 0},
+                {'id': 'second_e', 'slot': 0, 'action_id': 'action_0c4da30973', 'start_tick': 20},
+                {'id': 'q', 'slot': 0, 'action_id': 'action_50de5ed4be', 'start_tick': 40},
+            ],
+            'initial_energy': 0,
+            'team_panel_bonus': self.ZERO_TEAM_PANEL_BONUS,
+        })['result']
+
+        details = {detail['step_id']: detail for detail in result['details']}
+        self.assertNotIn('动作 CD 尚未结束', '；'.join(details['second_e']['warnings']))
+        self.assertNotIn('终结技能量不足。', details['q']['warnings'])
+        self.assertEqual(details['q']['energy_after'], 0)
+        self.assertEqual(result['resources_by_slot'][0]['initial_energy'], 0)
+        self.assertEqual(result['resources_by_slot'][0]['energy'], 0)
+
+    def test_xun_q_terminal_enhancement_is_baked_into_action_multiplier(self) -> None:
+        detail = simulate_shaft_axis({
+            'team': [{
+                'slot': 0,
+                'character_id': 'char_15f458f7ef',
+                'arc_id': '',
+                'cartridge_id': '',
+                'skill_levels': {'ultimate': 10},
+            }],
+            'steps': [
+                {'id': 'q', 'slot': 0, 'action_id': 'action_50de5ed4be', 'start_tick': 0},
+            ],
+            'team_panel_bonus': self.ZERO_TEAM_PANEL_BONUS,
+        })['result']['details'][0]
+
+        all_rule_ids = {
+            buff['rule_id']
+            for buff in [*detail['triggered_buffs'], *detail['applied_buffs']]
+        }
+        self.assertNotIn('character_xun_q_damage', all_rule_ids)
+        self.assertNotIn('character_xun_q_record_damage', all_rule_ids)
+        self.assertNotIn('character_xun_q_time_stop_damage', all_rule_ids)
+        self.assertNotIn('character_xun_q_def_ignore', all_rule_ids)
+        self.assertIn('character_xun_q_consume_records', all_rule_ids)
+        self.assertAlmostEqual(
+            detail['formula_parts']['base'] / detail['panel']['atk'],
+            23 * (1.08 ** 9),
+        )
+        self.assertAlmostEqual(detail['panel']['all_dmg'], 0.0)
+        self.assertAlmostEqual(detail['formula_parts']['defense'], 0.5)
 
     def test_native_background_action_multiplier_overlaps_damage_at_same_tick(self) -> None:
         payload = {
@@ -556,7 +1291,11 @@ class ShaftSimulatorValidationTestCase(unittest.TestCase):
         for action in catalog['actions']:
             marker_text = f'{action.get("name") or ""} {action.get("extra_tag") or ""}'
             is_background = bool(action.get('is_background_damage')) or '后台' in marker_text
-            is_declared_exception = str(action.get('action_type') or '') == '援护' or bool(action.get('pre_input_node'))
+            is_declared_exception = (
+                str(action.get('action_type') or '') == '援护'
+                or bool(action.get('pre_input_node'))
+                or bool(action.get('periodic_damage'))
+            )
             if is_background and not is_declared_exception and int(action.get('duration_ticks') or 0) != 0:
                 offenders.append(f'{action.get("character_name")} {action.get("name")} {action.get("id")}')
 
@@ -1942,7 +2681,13 @@ class ShaftEquipmentBuffTestCase(unittest.TestCase):
     def test_xun_records_each_teammate_once_and_q_consumes_records(self) -> None:
         result = simulate_shaft_axis({
             'team': [
-                {'slot': 0, 'character_id': 'char_15f458f7ef', 'arc_id': '', 'cartridge_id': ''},
+                {
+                    'slot': 0,
+                    'character_id': 'char_15f458f7ef',
+                    'arc_id': '',
+                    'cartridge_id': '',
+                    'awakening_nodes': [1, 2, 6],
+                },
                 {'slot': 1, 'character_id': 'char_dd034941ef', 'arc_id': '', 'cartridge_id': ''},
                 {'slot': 2, 'character_id': 'char_bdc43f82c6', 'arc_id': '', 'cartridge_id': ''},
             ],
@@ -1961,12 +2706,24 @@ class ShaftEquipmentBuffTestCase(unittest.TestCase):
             'character_xun_record_stack',
             {buff['rule_id'] for buff in details['main_e_2']['triggered_buffs']},
         )
-        q_buff = next(
+        record_buff = next(
             buff
             for buff in details['xun_q']['triggered_buffs']
             if buff['rule_id'] == 'character_xun_q_record_damage'
         )
-        self.assertEqual(q_buff['effects'], {'all_dmg': 0.44, 'def_ignore': 0.3})
+        time_stop_buff = next(
+            buff
+            for buff in details['xun_q']['triggered_buffs']
+            if buff['rule_id'] == 'character_xun_q_time_stop_damage'
+        )
+        def_ignore_buff = next(
+            buff
+            for buff in details['xun_q']['triggered_buffs']
+            if buff['rule_id'] == 'character_xun_q_def_ignore'
+        )
+        self.assertEqual(record_buff['effects'], {'all_dmg': 0.24})
+        self.assertEqual(time_stop_buff['effects'], {'all_dmg': 0.2})
+        self.assertEqual(def_ignore_buff['effects'], {'def_ignore': 0.3})
 
     def test_zhenhong_yingxu_passive_stacks_solitary(self) -> None:
         result = simulate_shaft_axis({
@@ -2067,6 +2824,9 @@ class ShaftEquipmentBuffTestCase(unittest.TestCase):
 
         self.assertAlmostEqual(details['xiaozhi_hit']['formula_parts']['resistance'], 0.5)
         self.assertAlmostEqual(details['zhenhong_hit']['formula_parts']['resistance'], 0.6)
+        self.assertAlmostEqual(details['xiaozhi_hit']['formula_parts']['settled_resistance'], 0.5)
+        self.assertAlmostEqual(details['zhenhong_hit']['formula_parts']['settled_resistance'], 0.4)
+        self.assertGreater(details['xiaozhi_hit']['formula_parts']['settled_defense'], 0)
         light_down = next(
             buff for buff in details['zhenhong_hit']['applied_buffs']
             if buff['rule_id'] == 'character_xiaozhi_light_res_down'
@@ -2096,7 +2856,7 @@ class ShaftEquipmentBuffTestCase(unittest.TestCase):
 
     def test_chaos_license_and_state_action_buffs_follow_notes(self) -> None:
         chaos = simulate_shaft_axis({
-            'team': [{'slot': 0, 'character_id': 'char_d38b672525', 'arc_id': '', 'cartridge_id': ''}],
+            'team': [{'slot': 0, 'character_id': 'char_d38b672525', 'arc_id': '', 'cartridge_id': '', 'awakening_nodes': [2, 5]}],
             'steps': [
                 {'id': 'e', 'slot': 0, 'action_id': 'action_2d3f8642dd', 'start_tick': 0},
                 {'id': 'basic', 'slot': 0, 'action_id': 'action_40d0576f80', 'start_tick': 10},
@@ -2105,17 +2865,21 @@ class ShaftEquipmentBuffTestCase(unittest.TestCase):
         })['result']
         basic = next(detail for detail in chaos['details'] if detail['step_id'] == 'basic')
         license_buff = next(buff for buff in basic['applied_buffs'] if buff['rule_id'] == 'character_chaos_pursuit_license')
-        self.assertEqual(license_buff['effects'], {'all_dmg': 0.2, 'def_ignore': 0.2, 'res_down_相': 0.1})
+        self.assertEqual(license_buff['effects'], {})
+        applied = {buff['rule_id']: buff for buff in basic['applied_buffs']}
+        self.assertEqual(applied['character_chaos_a2_license_def_ignore']['effects'], {'def_ignore': 0.2})
+        self.assertEqual(applied['character_chaos_a5_license_damage']['effects'], {'all_dmg': 0.2})
+        self.assertNotIn('character_chaos_full_license_res_down', applied)
 
         fadia = simulate_shaft_axis({
-            'team': [{'slot': 0, 'character_id': 'char_caa6c2e5a8', 'arc_id': '', 'cartridge_id': ''}],
+            'team': [{'slot': 0, 'character_id': 'char_caa6c2e5a8', 'arc_id': '', 'cartridge_id': '', 'awakening_nodes': [5]}],
             'steps': [{'id': 'q5a', 'slot': 0, 'action_id': 'action_441d3aa300', 'start_tick': 0}],
             'initial_energy': 200,
         })['result']['details'][0]
         self.assertIn('character_fadia_enemy_slayer_crit', {buff['rule_id'] for buff in fadia['applied_buffs']})
 
         haiyue = simulate_shaft_axis({
-            'team': [{'slot': 0, 'character_id': 'char_699966e2e7', 'arc_id': '', 'cartridge_id': ''}],
+            'team': [{'slot': 0, 'character_id': 'char_699966e2e7', 'arc_id': '', 'cartridge_id': '', 'awakening_nodes': [1, 3]}],
             'steps': [
                 {'id': 'q', 'slot': 0, 'action_id': 'action_952b4b561f', 'start_tick': 0},
                 {'id': 'e', 'slot': 0, 'action_id': 'action_36a6d1d153', 'start_tick': 20},
@@ -2158,6 +2922,8 @@ class ShaftEquipmentBuffTestCase(unittest.TestCase):
         )
         e_rule = next(rule for rule in rules if rule['id'] == 'arc_last_rose_e_full_stack')
         dot_rule = next(rule for rule in rules if rule['id'] == 'arc_last_rose_crit_stack')
+        self.assertEqual(e_rule['name'], '最后一朵玫瑰：暴伤叠层')
+        self.assertEqual(e_rule['name'], dot_rule['name'])
         active_buffs = []
 
         e_instance = activate_buff(active_buffs, e_rule, 0, 10)
@@ -2170,6 +2936,20 @@ class ShaftEquipmentBuffTestCase(unittest.TestCase):
         self.assertEqual(dot_instance['rule']['id'], 'arc_last_rose_crit_stack')
         self.assertEqual(dot_instance['rule']['effects'], {'crit_dmg': 0.12})
 
+    def test_manual_dot_catalog_excludes_automatically_calculated_requiem_nightmare(self) -> None:
+        catalog = load_shaft_catalog()
+        dot_actions = {
+            (action['character_name'], action['name'])
+            for action in catalog['actions']
+            if 'DOT' in set(action.get('tags') or []) | {str(action.get('extra_tag') or '')}
+        }
+
+        self.assertEqual(dot_actions, {('白藏', 'q的dot'), ('阿德勒', 'dot10跳')})
+        self.assertNotIn(
+            ('安魂曲', 'dot'),
+            {(action['character_name'], action['name']) for action in catalog['actions']},
+        )
+
     def test_last_rose_shared_stack_runs_in_browser_engine(self) -> None:
         result = simulate_shaft_axis({
             'team': [{
@@ -2181,7 +2961,6 @@ class ShaftEquipmentBuffTestCase(unittest.TestCase):
             }],
             'steps': [
                 {'id': 'e', 'slot': 0, 'action_id': 'action_2745f804a5', 'start_tick': 0},
-                {'id': 'dot', 'slot': 0, 'action_id': 'action_0220e65a17', 'start_tick': 10},
                 {'id': 'basic', 'slot': 0, 'action_id': 'action_00edea34a8', 'start_tick': 11},
             ],
             'initial_energy': 200,
@@ -2189,16 +2968,101 @@ class ShaftEquipmentBuffTestCase(unittest.TestCase):
         details = {detail['step_id']: detail for detail in result['details']}
 
         e_buff = next(buff for buff in details['e']['triggered_buffs'] if buff['rule_id'] == 'arc_last_rose_e_full_stack')
-        dot_buff = next(buff for buff in details['dot']['triggered_buffs'] if buff['rule_id'] == 'arc_last_rose_crit_stack')
+        nightmare_tick = next(
+            event
+            for event in result['periodic_damage_events']
+            if event['reaction'] == '噩梦' and event['tick'] == 10 and event.get('triggered_buffs')
+        )
+        dot_buff = next(
+            buff
+            for buff in nightmare_tick['triggered_buffs']
+            if buff['rule_id'] == 'arc_last_rose_crit_stack'
+        )
         rose_buffs = [
             buff
             for buff in details['basic']['applied_buffs']
             if buff['rule_id'] in {'arc_last_rose_e_full_stack', 'arc_last_rose_crit_stack'}
         ]
         self.assertEqual(e_buff['stack_count'], 10)
+        self.assertEqual(e_buff['definition_id'], 'arc_last_rose_dark_thorn')
+        self.assertEqual(e_buff['name'], '最后一朵玫瑰：暴伤叠层')
         self.assertEqual(dot_buff['stack_count'], 10)
+        self.assertEqual(dot_buff['definition_id'], e_buff['definition_id'])
+        self.assertEqual(dot_buff['name'], e_buff['name'])
         self.assertEqual(dot_buff['effects'], {'crit_dmg': 1.2})
         self.assertEqual(len(rose_buffs), 1)
+
+    def test_owner_settled_corrosion_refreshes_last_rose_with_fixed_dot_crit_rate(self) -> None:
+        result = simulate_shaft_axis({
+            'team': [
+                {
+                    'slot': 0,
+                    'character_id': 'char_1895e259be',
+                    'arc_id': '',
+                    'cartridge_id': '',
+                },
+                {
+                    'slot': 1,
+                    'character_id': 'char_c78f7a08d5',
+                    'arc_id': 'arc_dcd5900afc',
+                    'arc_refinement': 5,
+                    'cartridge_id': '',
+                },
+            ],
+            'steps': [
+                *[
+                    {
+                        'id': f'gain_{index}',
+                        'slot': 0,
+                        'action_id': 'action_4c5142a40f',
+                        'start_tick': index * 2,
+                    }
+                    for index in range(4)
+                ],
+                {
+                    'id': 'support',
+                    'slot': 1,
+                    'action_id': 'action_2635f721a8',
+                    'start_tick': 40,
+                },
+                {
+                    'id': 'extend_axis',
+                    'slot': 0,
+                    'action_id': 'action_4c5142a40f',
+                    'start_tick': 100,
+                },
+            ],
+            'team_panel_bonus': ShaftSimulatorValidationTestCase.ZERO_TEAM_PANEL_BONUS,
+            'initial_energy': 200,
+        })['result']
+        corrosion_events = [
+            event
+            for event in result['reaction_damage_events']
+            if event['reaction'] == '浊燃' and event['damage'] > 0
+        ]
+
+        self.assertGreaterEqual(len(corrosion_events), 2)
+        first, second = corrosion_events[:2]
+        self.assertEqual(first['contributor_slot'], 1)
+        self.assertEqual(first['extra_tag'], 'DOT')
+        self.assertEqual(first['tags'], ['DOT'])
+        self.assertEqual(first['formula_parts']['crit_rate'], 0.5)
+        self.assertAlmostEqual(first['formula_parts']['critical'], 1.25)
+        self.assertEqual(second['formula_parts']['crit_rate'], 0.5)
+        self.assertAlmostEqual(second['formula_parts']['critical'], 1.31)
+
+        first_rose = next(
+            buff for buff in first['triggered_buffs']
+            if buff['rule_id'] == 'arc_last_rose_crit_stack'
+        )
+        second_rose = next(
+            buff for buff in second['triggered_buffs']
+            if buff['rule_id'] == 'arc_last_rose_crit_stack'
+        )
+        self.assertEqual(first_rose['stack_count'], 1)
+        self.assertEqual(first_rose['end_tick'], first['tick'] + 30)
+        self.assertEqual(second_rose['stack_count'], 2)
+        self.assertEqual(second_rose['end_tick'], second['tick'] + 30)
 
     def test_stagger_frequency_uses_team_stagger_axis_duration_and_recovery(self) -> None:
         catalog = load_shaft_catalog()
@@ -2444,6 +3308,109 @@ class ShaftEquipmentBuffTestCase(unittest.TestCase):
         after_pursuit = next(item for item in after_start['details'] if item['step_id'] == 'pursuit')
         self.assertTrue(any('一代目的权柄' in warning for warning in after_pursuit['warnings']))
 
+    def test_haniya_e_and_q_grant_independent_team_base_atk_buffs(self) -> None:
+        result = simulate_shaft_axis({
+            'team': [
+                {
+                    'slot': 0,
+                    'character_id': 'char_e0a4292b4e',
+                    'arc_id': '',
+                    'cartridge_id': '',
+                    'awakening_nodes': [2],
+                },
+                {'slot': 1, 'character_id': 'char_caa6c2e5a8', 'arc_id': '', 'cartridge_id': ''},
+            ],
+            'steps': [
+                {'id': 'e', 'slot': 0, 'action_id': 'action_db30565b20', 'start_tick': 0},
+                {'id': 'e_only', 'slot': 1, 'action_id': 'action_72051426d5', 'start_tick': 20},
+                {'id': 'q', 'slot': 0, 'action_id': 'action_3529c3d915', 'start_tick': 30},
+                {'id': 'stacked', 'slot': 1, 'action_id': 'action_72051426d5', 'start_tick': 40},
+                {'id': 'after_q', 'slot': 1, 'action_id': 'action_72051426d5', 'start_tick': 150},
+                {'id': 'expired', 'slot': 1, 'action_id': 'action_72051426d5', 'start_tick': 250},
+            ],
+            'options': {'switch_loss_ticks': 0},
+            'initial_energy': 200,
+        })['result']
+        details = {item['step_id']: item for item in result['details']}
+        expected_flat_atk = 493.0 * 0.2
+
+        e_trigger = next(
+            buff for buff in details['e']['triggered_buffs']
+            if buff['rule_id'] == 'character_haniya_e_team_flat_atk'
+        )
+        q_trigger = next(
+            buff for buff in details['q']['triggered_buffs']
+            if buff['rule_id'] == 'character_haniya_q_team_flat_atk'
+        )
+        self.assertEqual(e_trigger['duration_ticks'], 120)
+        self.assertEqual(q_trigger['duration_ticks'], 100)
+        self.assertAlmostEqual(e_trigger['effects']['flat_atk'], expected_flat_atk)
+        self.assertAlmostEqual(q_trigger['effects']['flat_atk'], expected_flat_atk)
+
+        e_only = {buff['rule_id'] for buff in details['e_only']['applied_buffs']}
+        stacked = {buff['rule_id'] for buff in details['stacked']['applied_buffs']}
+        after_q = {buff['rule_id'] for buff in details['after_q']['applied_buffs']}
+        expired = {buff['rule_id'] for buff in details['expired']['applied_buffs']}
+        self.assertIn('character_haniya_e_team_flat_atk', e_only)
+        self.assertNotIn('character_haniya_q_team_flat_atk', e_only)
+        self.assertTrue({
+            'character_haniya_e_team_flat_atk',
+            'character_haniya_q_team_flat_atk',
+        }.issubset(stacked))
+        self.assertIn('character_haniya_e_team_flat_atk', after_q)
+        self.assertNotIn('character_haniya_q_team_flat_atk', after_q)
+        self.assertFalse({
+            'character_haniya_e_team_flat_atk',
+            'character_haniya_q_team_flat_atk',
+        } & expired)
+
+    def test_haniya_ace_pauses_guguzhi_duration_in_both_cast_orders(self) -> None:
+        def simulate(steps):
+            return simulate_shaft_axis({
+                'team': [
+                    {'slot': 0, 'character_id': 'char_e0a4292b4e', 'arc_id': '', 'cartridge_id': ''},
+                    {'slot': 1, 'character_id': 'char_caa6c2e5a8', 'arc_id': '', 'cartridge_id': ''},
+                ],
+                'steps': steps,
+                'options': {'switch_loss_ticks': 0},
+                'initial_energy': 200,
+            })['result']
+
+        e_before_q = simulate([
+            {'id': 'e', 'slot': 0, 'action_id': 'action_db30565b20', 'start_tick': 0},
+            {'id': 'q', 'slot': 0, 'action_id': 'action_3529c3d915', 'start_tick': 40},
+            {'id': 'during_pause', 'slot': 1, 'action_id': 'action_72051426d5', 'start_tick': 120},
+            {'id': 'after_resume', 'slot': 1, 'action_id': 'action_72051426d5', 'start_tick': 170},
+            {'id': 'expired', 'slot': 1, 'action_id': 'action_72051426d5', 'start_tick': 200},
+        ])
+        before_details = {item['step_id']: item for item in e_before_q['details']}
+        for step_id in ('during_pause', 'after_resume'):
+            self.assertIn('character_haniya_e_team_flat_atk', {
+                buff['rule_id'] for buff in before_details[step_id]['applied_buffs']
+            })
+        self.assertNotIn('character_haniya_e_team_flat_atk', {
+            buff['rule_id'] for buff in before_details['expired']['applied_buffs']
+        })
+
+        e_during_q = simulate([
+            {'id': 'q', 'slot': 0, 'action_id': 'action_3529c3d915', 'start_tick': 0},
+            {'id': 'e', 'slot': 0, 'action_id': 'action_db30565b20', 'start_tick': 20},
+            {'id': 'after_resume', 'slot': 1, 'action_id': 'action_72051426d5', 'start_tick': 170},
+            {'id': 'expired', 'slot': 1, 'action_id': 'action_72051426d5', 'start_tick': 200},
+        ])
+        during_details = {item['step_id']: item for item in e_during_q['details']}
+        e_trigger = next(
+            buff for buff in during_details['e']['triggered_buffs']
+            if buff['rule_id'] == 'character_haniya_e_team_flat_atk'
+        )
+        self.assertEqual(e_trigger['end_tick'], 180)
+        self.assertIn('character_haniya_e_team_flat_atk', {
+            buff['rule_id'] for buff in during_details['after_resume']['applied_buffs']
+        })
+        self.assertNotIn('character_haniya_e_team_flat_atk', {
+            buff['rule_id'] for buff in during_details['expired']['applied_buffs']
+        })
+
     def test_haiyue_haniya_and_hathor_new_character_buffs(self) -> None:
         haiyue = simulate_shaft_axis({
             'team': [{'slot': 0, 'character_id': 'char_699966e2e7', 'arc_id': '', 'cartridge_id': '', 'awakening': 6}],
@@ -2554,7 +3521,59 @@ class ShaftEquipmentBuffTestCase(unittest.TestCase):
         self.assertAlmostEqual(expected['effects']['res_down'], 1 / 30)
         self.assertAlmostEqual(expected['effects']['stagger_multiplier'], 1 / 30)
 
+    def test_requiem_demons_gift_applies_on_cast_and_refreshes_without_stacking(self) -> None:
+        result = simulate_shaft_axis({
+            'team': [{
+                'slot': 0,
+                'character_id': 'char_c78f7a08d5',
+                'arc_id': '',
+                'cartridge_id': '',
+            }],
+            'steps': [
+                {'id': 'black_book', 'slot': 0, 'action_id': 'action_7af75245df', 'start_tick': 0},
+                {'id': 'before_refresh', 'slot': 0, 'action_id': 'action_00edea34a8', 'start_tick': 40},
+                {'id': 'tomato', 'slot': 0, 'action_id': 'action_0b958faf88', 'start_tick': 100},
+                {'id': 'after_refresh', 'slot': 0, 'action_id': 'action_00edea34a8', 'start_tick': 200},
+                {'id': 'expired', 'slot': 0, 'action_id': 'action_00edea34a8', 'start_tick': 260},
+            ],
+            'initial_energy': 200,
+        })['result']
+        details = {item['step_id']: item for item in result['details']}
+        rule_id = 'character_requiem_demons_gift_atk_steal'
+
+        self.assertIn(rule_id, {
+            buff['rule_id'] for buff in details['black_book']['applied_buffs']
+        })
+        self.assertIn(rule_id, {
+            buff['rule_id'] for buff in details['before_refresh']['applied_buffs']
+        })
+        refreshed = [
+            buff for buff in details['after_refresh']['applied_buffs']
+            if buff['rule_id'] == rule_id
+        ]
+        self.assertEqual(len(refreshed), 1)
+        self.assertEqual(refreshed[0]['stack_count'], 1)
+        self.assertEqual(refreshed[0]['effects'], {'flat_atk': 200})
+        self.assertNotIn(rule_id, {
+            buff['rule_id'] for buff in details['expired']['applied_buffs']
+        })
+        self.assertEqual(
+            details['after_refresh']['panel']['atk'] - details['expired']['panel']['atk'],
+            200,
+        )
+
     def test_requiem_nightmare_has_independent_three_second_layers_and_settlement(self) -> None:
+        catalog = load_shaft_catalog()
+        requiem_q = next(
+            action
+            for action in catalog['actions']
+            if action['character_id'] == 'char_c78f7a08d5' and action['name'] == 'q'
+        )
+        self.assertEqual(requiem_q['source_formula'], '{0}%*4+{1}%')
+        self.assertEqual(requiem_q['hit_count'], 5)
+        self.assertEqual(requiem_q['nightmare_stacks'], 5)
+        self.assertEqual(requiem_q['personal_resource_gain'], {'噩梦': 5})
+
         result = simulate_shaft_axis({
             'team': [{
                 'slot': 0,
@@ -2566,7 +3585,7 @@ class ShaftEquipmentBuffTestCase(unittest.TestCase):
             'steps': [
                 {'id': 'first', 'slot': 0, 'action_id': 'action_00edea34a8', 'start_tick': 0},
                 {'id': 'second', 'slot': 0, 'action_id': 'action_00edea34a8', 'start_tick': 15},
-                {'id': 'inspect', 'slot': 0, 'action_id': 'action_0220e65a17', 'start_tick': 16},
+                {'id': 'inspect', 'slot': 0, 'action_id': 'action_b9b3237c74', 'start_tick': 16},
             ],
             'initial_energy': 200,
         })['result']
@@ -2579,7 +3598,246 @@ class ShaftEquipmentBuffTestCase(unittest.TestCase):
         self.assertTrue(all(layer['stack_count'] == 1 for layer in layers))
         self.assertEqual(
             sorted(event['tick'] for event in result['periodic_damage_events']),
-            [10, 10, 20, 20, 25, 25, 30, 30, 35, 35, 45, 45],
+            [10, 20, 30, 40],
+        )
+        self.assertEqual(
+            [event['stack_count'] for event in result['periodic_damage_events']],
+            [2, 4, 4, 2],
+        )
+        self.assertEqual(
+            [event['formula_parts']['periodic_scale'] for event in result['periodic_damage_events']],
+            [2, 4, 4, 2],
+        )
+        first_periodic = result['periodic_damage_events'][0]
+        self.assertAlmostEqual(first_periodic['atk_multiplier'], 0.06 * 1.33)
+        self.assertEqual(first_periodic['formula_parts']['crit_rate'], 0.5)
+        self.assertEqual(first_periodic['formula_parts']['skill_category'], 'basic')
+        self.assertEqual(first_periodic['formula_parts']['skill_level'], 10)
+        self.assertAlmostEqual(
+            first_periodic['formula_parts']['skill_multiplier'],
+            1.08 ** 9,
+        )
+        self.assertNotIn('噩梦', {
+            item['source']
+            for item in result['damage_by_source']
+        })
+        contribution = result['damage_by_action_by_slot'][0]
+        nightmare_contribution = next(
+            action
+            for action in contribution['actions']
+            if action['action_name'] == '噩梦'
+        )
+        self.assertEqual(nightmare_contribution['action_type'], '普攻')
+        self.assertEqual(nightmare_contribution['damage_type'], '普攻')
+        self.assertGreater(nightmare_contribution['damage'], 0)
+        self.assertAlmostEqual(
+            sum(action['damage'] for action in contribution['actions']),
+            contribution['total_damage'],
+        )
+
+        q_result = simulate_shaft_axis({
+            'team': [{
+                'slot': 0,
+                'character_id': 'char_c78f7a08d5',
+                'arc_id': '',
+                'cartridge_id': '',
+            }],
+            'steps': [{
+                'id': 'requiem_q',
+                'slot': 0,
+                'action_id': 'action_1104de864b',
+                'start_tick': 0,
+            }],
+            'initial_energy': 200,
+        })['result']
+        q_detail = q_result['details'][0]
+        self.assertEqual(q_detail['hit_count'], 5)
+        self.assertEqual(q_detail['nightmare_stacks'], 5)
+        q_nightmare = next(
+            buff
+            for buff in q_detail['triggered_buffs']
+            if buff['definition_id'] == 'character_requiem_nightmare'
+        )
+        self.assertEqual(q_nightmare['stacking_mode'], 'independent')
+        self.assertEqual(q_nightmare['stack_count'], 5)
+
+    def test_requiem_awakening_nodes_adjust_nightmare_without_f_damage_bonus(self) -> None:
+        catalog = load_shaft_catalog()
+        self.assertEqual(
+            catalog['awakenings']['安魂曲'][0]['description'],
+            '「噩梦」的伤害倍率提升33%。',
+        )
+
+        def simulate(awakening_nodes: list[int]) -> dict:
+            return simulate_shaft_axis({
+                'team': [{
+                    'slot': 0,
+                    'character_id': 'char_c78f7a08d5',
+                    'arc_id': '',
+                    'cartridge_id': '',
+                    'awakening_nodes': awakening_nodes,
+                }],
+                'steps': [
+                    {'id': 'gain', 'slot': 0, 'action_id': 'action_00edea34a8', 'start_tick': 0},
+                    {'id': 'inspect', 'slot': 0, 'action_id': 'action_b9b3237c74', 'start_tick': 70},
+                ],
+                'team_panel_bonus': ShaftSimulatorValidationTestCase.ZERO_TEAM_PANEL_BONUS,
+                'initial_energy': 200,
+            })['result']
+
+        base = simulate([])
+        awakening_a = simulate([1])
+        awakening_d = simulate([4])
+        awakening_e = simulate([5])
+        awakening_f = simulate([6])
+
+        base_tick = base['periodic_damage_events'][0]
+        self.assertAlmostEqual(
+            awakening_a['periodic_damage_events'][0]['damage'],
+            base_tick['damage'] * 1.33,
+        )
+        self.assertEqual(
+            [event['tick'] for event in awakening_d['periodic_damage_events']],
+            [10, 20, 30, 40, 50, 60],
+        )
+        awakening_d_nightmare = next(
+            buff
+            for buff in awakening_d['details'][0]['triggered_buffs']
+            if buff['definition_id'] == 'character_requiem_nightmare'
+        )
+        self.assertEqual(awakening_d_nightmare['duration_ticks'], 60)
+        self.assertAlmostEqual(
+            awakening_e['periodic_damage_events'][0]['damage'],
+            base_tick['damage'] * 2.05,
+        )
+        self.assertAlmostEqual(
+            awakening_f['periodic_damage_events'][0]['damage'],
+            base_tick['damage'],
+        )
+
+    def test_requiem_special_actions_do_not_add_nightmare_stacks(self) -> None:
+        catalog = load_shaft_catalog()
+        excluded_action_ids = {
+            'action_2635f721a8',
+            'action_b9b3237c74',
+            'action_7af75245df',
+            'action_0b958faf88',
+        }
+        actions = {
+            action['id']: action
+            for action in catalog['actions']
+            if action['id'] in excluded_action_ids
+        }
+        self.assertEqual(set(actions), excluded_action_ids)
+        self.assertEqual(
+            {action['name']: action['hit_count'] for action in actions.values()},
+            {'援护': 1, '失谐强化': 1, '黑之书': 2, '番茄酱恶魔': 32},
+        )
+        self.assertTrue(all(action['nightmare_stacks'] == 0 for action in actions.values()))
+        self.assertTrue(all(action['personal_resource_gain'] == {} for action in actions.values()))
+
+        rules = registered_buff_rules(
+            [{
+                'slot': 0,
+                'character_id': 'char_c78f7a08d5',
+                'arc_id': '',
+                'cartridge_id': '',
+            }],
+            catalog,
+        )
+        nightmare_rule = next(
+            rule for rule in rules
+            if rule['id'] == 'character_requiem_nightmare_stack'
+        )
+        self.assertTrue(
+            excluded_action_ids.isdisjoint(nightmare_rule['trigger']['source']['action_ids'])
+        )
+        for action_id in excluded_action_ids:
+            result = simulate_shaft_axis({
+                'team': [{
+                    'slot': 0,
+                    'character_id': 'char_c78f7a08d5',
+                    'arc_id': '',
+                    'cartridge_id': '',
+                }],
+                'steps': [{
+                    'id': action_id,
+                    'slot': 0,
+                    'action_id': action_id,
+                    'start_tick': 0,
+                }],
+                'initial_energy': 200,
+            })['result']
+            detail = next(
+                item for item in result['details']
+                if item['action_id'] == action_id
+            )
+            self.assertNotIn(
+                'character_requiem_nightmare',
+                {
+                    buff['definition_id']
+                    for buff in detail['triggered_buffs']
+                },
+                actions[action_id]['name'],
+            )
+            self.assertEqual(result['periodic_damage_events'], [], actions[action_id]['name'])
+
+        two_layers = simulate_shaft_axis({
+            'team': [{
+                'slot': 0,
+                'character_id': 'char_c78f7a08d5',
+                'arc_id': '',
+                'cartridge_id': '',
+            }],
+            'steps': [
+                {'id': 'gain_two', 'slot': 0, 'action_id': 'action_00edea34a8', 'start_tick': 0},
+                {'id': 'inspect', 'slot': 0, 'action_id': 'action_b9b3237c74', 'start_tick': 40},
+            ],
+            'initial_energy': 200,
+        })['result']
+        five_layers = simulate_shaft_axis({
+            'team': [{
+                'slot': 0,
+                'character_id': 'char_c78f7a08d5',
+                'arc_id': '',
+                'cartridge_id': '',
+            }],
+            'steps': [
+                {'id': 'gain_five', 'slot': 0, 'action_id': 'action_1104de864b', 'start_tick': 0},
+                {'id': 'inspect', 'slot': 0, 'action_id': 'action_b9b3237c74', 'start_tick': 40},
+            ],
+            'initial_energy': 200,
+        })['result']
+        self.assertEqual(
+            [event['tick'] for event in two_layers['periodic_damage_events']],
+            [10, 20, 30],
+        )
+        self.assertEqual(
+            [event['tick'] for event in five_layers['periodic_damage_events']],
+            [10, 20, 30],
+        )
+        self.assertAlmostEqual(
+            five_layers['periodic_damage_events'][0]['damage'],
+            two_layers['periodic_damage_events'][0]['damage'] * 2.5,
+        )
+
+        restarted = simulate_shaft_axis({
+            'team': [{
+                'slot': 0,
+                'character_id': 'char_c78f7a08d5',
+                'arc_id': '',
+                'cartridge_id': '',
+            }],
+            'steps': [
+                {'id': 'first_window', 'slot': 0, 'action_id': 'action_00edea34a8', 'start_tick': 0},
+                {'id': 'second_window', 'slot': 0, 'action_id': 'action_00edea34a8', 'start_tick': 40},
+                {'id': 'inspect', 'slot': 0, 'action_id': 'action_b9b3237c74', 'start_tick': 80},
+            ],
+            'initial_energy': 200,
+        })['result']
+        self.assertEqual(
+            [event['tick'] for event in restarted['periodic_damage_events']],
+            [10, 20, 30, 50, 60, 70],
         )
 
         settlement = simulate_shaft_axis({
@@ -2593,7 +3851,7 @@ class ShaftEquipmentBuffTestCase(unittest.TestCase):
             'steps': [
                 {'id': 'gain', 'slot': 0, 'action_id': 'action_2745f804a5', 'start_tick': 0},
                 {'id': 'settle', 'slot': 0, 'action_id': 'action_a7443f657f', 'start_tick': 5},
-                {'id': 'inspect', 'slot': 0, 'action_id': 'action_0220e65a17', 'start_tick': 6},
+                {'id': 'inspect', 'slot': 0, 'action_id': 'action_b9b3237c74', 'start_tick': 6},
             ],
             'initial_energy': 200,
         })['result']
@@ -2601,7 +3859,10 @@ class ShaftEquipmentBuffTestCase(unittest.TestCase):
             event for event in settlement['periodic_damage_events']
             if event['kind'] == 'buff_periodic_settlement'
         ]
-        self.assertEqual(len(settlement_events), 9)
+        self.assertEqual(len(settlement_events), 1)
+        self.assertEqual(settlement_events[0]['stack_count'], 9)
+        self.assertAlmostEqual(settlement_events[0]['remaining_seconds'], 24.5)
+        self.assertAlmostEqual(settlement_events[0]['formula_parts']['periodic_scale'], 24.5)
         inspect_after = next(item for item in settlement['details'] if item['step_id'] == 'inspect')
         self.assertNotIn('character_requiem_nightmare', {
             buff['definition_id'] for buff in inspect_after['applied_buffs']
@@ -2812,7 +4073,7 @@ class ShaftEquipmentBuffTestCase(unittest.TestCase):
         result = simulate_shaft_axis(payload)['result']
         detail = next(item for item in result['details'] if item['step_id'] == 'zhenhong_q')
 
-        self.assertAlmostEqual(detail['direct_damage'], 76297.39612343984)
+        self.assertAlmostEqual(detail['direct_damage'], 59679.53450844564)
         self.assertAlmostEqual(detail['formula_parts']['resistance'], 0.7)
         self.assertAlmostEqual(detail['formula_parts']['defense'], 0.6134969325153374)
         self.assertIn(
@@ -3228,6 +4489,68 @@ class ShaftEquipmentBuffTestCase(unittest.TestCase):
             {buff['rule_id'] for buff in details['owner_after_delay']['applied_buffs']},
         )
 
+    def test_diabolos_doubles_dark_resistance_ignore_after_owner_joins_dark_reaction(self) -> None:
+        payload = {
+            'team': [
+                {
+                    'slot': 0,
+                    'character_id': 'char_1895e259be',
+                    'arc_id': '',
+                    'cartridge_id': '',
+                },
+                {
+                    'slot': 1,
+                    'character_id': 'char_c78f7a08d5',
+                    'arc_id': '',
+                    'cartridge_id': 'cartridge_2f40014b04',
+                },
+            ],
+            'steps': [
+                *[
+                    {
+                        'id': f'gain_{index}',
+                        'slot': 0,
+                        'action_id': 'action_4c5142a40f',
+                        'start_tick': index * 2,
+                    }
+                    for index in range(4)
+                ],
+                {'id': 'support', 'slot': 1, 'action_id': 'action_2635f721a8', 'start_tick': 40},
+                {'id': 'owner_after_reaction', 'slot': 1, 'action_id': 'action_00edea34a8', 'start_tick': 50},
+            ],
+            'initial_energy': 200,
+        }
+        result = simulate_shaft_axis(payload)['result']
+        details = {detail['step_id']: detail for detail in result['details']}
+
+        self.assertEqual(details['support']['triggered_reaction']['reaction'], '浊燃')
+        self.assertAlmostEqual(details['support']['formula_parts']['settled_resistance'], 0.18)
+        self.assertIn(
+            'cartridge_diabolos_dark_reaction',
+            {buff['rule_id'] for buff in details['support']['triggered_buffs']},
+        )
+        self.assertIn(
+            'cartridge_diabolos_dark_reaction',
+            {buff['rule_id'] for buff in details['owner_after_reaction']['applied_buffs']},
+        )
+        self.assertAlmostEqual(
+            details['owner_after_reaction']['formula_parts']['settled_resistance'],
+            0.06,
+        )
+
+        loop_payload = deepcopy(payload)
+        loop_payload['options'] = {'loop_enabled': True}
+        loop_result = simulate_shaft_axis(loop_payload)['result']
+        loop_details = {detail['step_id']: detail for detail in loop_result['details']}
+        self.assertIn(
+            'cartridge_diabolos_dark_reaction',
+            {buff['rule_id'] for buff in loop_details['support']['applied_buffs']},
+        )
+        self.assertAlmostEqual(
+            loop_details['support']['formula_parts']['settled_resistance'],
+            0.06,
+        )
+
     def test_self_hp_loss_tag_triggers_hp_loss_buff(self) -> None:
         payload = {
             'team': [
@@ -3352,15 +4675,234 @@ class ShaftEquipmentBuffTestCase(unittest.TestCase):
         dot_buffs = {buff['rule_id']: buff for buff in details['second_dot']['applied_buffs']}
         sagiri_buffs = {buff['rule_id']: buff for buff in details['sagiri_q']['applied_buffs']}
         teammate_buffs = {buff['rule_id']: buff for buff in details['teammate_after_q']['applied_buffs']}
-        self.assertEqual(dot_buffs['character_sagiri_dot_amplification']['effects'], {'all_dmg': 0.25})
+        self.assertEqual(dot_buffs['character_sagiri_dot_amplification']['effects'], {})
         self.assertEqual(sagiri_buffs['character_sagiri_a6_negative_damage']['effects'], {'all_dmg': 0.03})
+        self.assertAlmostEqual(teammate_buffs['character_sagiri_q_base_team_flat_atk']['effects']['flat_atk'], 186)
         self.assertAlmostEqual(teammate_buffs['character_sagiri_q_team_flat_atk']['effects']['flat_atk'], 186)
+        self.assertAlmostEqual(
+            teammate_buffs['character_sagiri_q_base_team_flat_atk']['effects']['flat_atk']
+            + teammate_buffs['character_sagiri_q_team_flat_atk']['effects']['flat_atk'],
+            372,
+        )
 
-    def test_requiem_a6_e_window_reuses_pre_e_front_for_reaction(self) -> None:
+    def test_baizang_and_adler_dot_actions_schedule_their_own_periodic_damage(self) -> None:
+        catalog = load_shaft_catalog()
+        actions = {action['id']: action for action in catalog['actions']}
+        baizang_action = actions['action_10c15dd4d1']
+        adler_action = actions['action_881b816d9f']
+
+        self.assertEqual(baizang_action['duration_ticks'], 160)
+        self.assertEqual(
+            baizang_action['periodic_damage'],
+            {
+                'interval_ticks': 10,
+                'tick_count': 16,
+                'multipliers': {'atk': 0.15, 'hp': 0, 'def': 0, 'flat': 0},
+            },
+        )
+        self.assertEqual(adler_action['duration_ticks'], 150)
+        self.assertEqual(
+            adler_action['periodic_damage'],
+            {
+                'interval_ticks': 15,
+                'tick_count': 10,
+                'multipliers': {'atk': 0, 'hp': 0, 'def': 0.2, 'flat': 0},
+            },
+        )
+
+        result = simulate_shaft_axis({
+            'team': [
+                {'slot': 0, 'character_id': 'char_701295143d', 'awakening': 0, 'arc_id': '', 'cartridge_id': ''},
+                {'slot': 1, 'character_id': 'char_6f46705fd1', 'awakening': 0, 'arc_id': '', 'cartridge_id': ''},
+            ],
+            'steps': [
+                {'id': 'baizang_dot', 'slot': 0, 'action_id': 'action_10c15dd4d1', 'start_tick': 0},
+                {'id': 'adler_dot', 'slot': 1, 'action_id': 'action_881b816d9f', 'start_tick': 0},
+            ],
+            'team_panel_bonus': ShaftSimulatorValidationTestCase.ZERO_TEAM_PANEL_BONUS,
+            'initial_energy': 200,
+        })['result']
+        details = {detail['step_id']: detail for detail in result['details']}
+        baizang_events = [
+            event for event in result['periodic_damage_events']
+            if event.get('action_id') == 'action_10c15dd4d1'
+        ]
+        adler_events = [
+            event for event in result['periodic_damage_events']
+            if event.get('action_id') == 'action_881b816d9f'
+        ]
+
+        self.assertEqual(details['baizang_dot']['direct_damage'], 0)
+        self.assertEqual(details['adler_dot']['direct_damage'], 0)
+        self.assertEqual([event['tick'] for event in baizang_events], list(range(10, 161, 10)))
+        self.assertEqual([event['tick'] for event in adler_events], list(range(15, 151, 15)))
+        self.assertTrue(all(event['damage'] > 0 for event in baizang_events + adler_events))
+        self.assertTrue(all(
+            event['formula_parts']['crit_rate'] == 0.5
+            for event in baizang_events + adler_events
+        ))
+
+        buff_rule_ids = {buff['id'] for buff in catalog['buffs']}
+        self.assertNotIn('character_sagiri_baizang_dot_marker', buff_rule_ids)
+        self.assertNotIn('character_sagiri_adler_dot_marker', buff_rule_ids)
+
+    def test_sagiri_reads_active_periodic_dot_actions_without_own_marker_buffs(self) -> None:
+        def first_baizang_dot_event(include_sagiri):
+            team = [
+                {'slot': 0, 'character_id': 'char_701295143d', 'awakening': 0, 'arc_id': '', 'cartridge_id': ''},
+            ]
+            if include_sagiri:
+                team.append(
+                    {'slot': 1, 'character_id': 'char_1895e259be', 'awakening': 0, 'arc_id': '', 'cartridge_id': ''},
+                )
+            result = simulate_shaft_axis({
+                'team': team,
+                'steps': [
+                    {'id': 'baizang_dot', 'slot': 0, 'action_id': 'action_10c15dd4d1', 'start_tick': 0},
+                ],
+                'team_panel_bonus': ShaftSimulatorValidationTestCase.ZERO_TEAM_PANEL_BONUS,
+                'initial_energy': 200,
+            })['result']
+            return next(
+                event
+                for event in result['periodic_damage_events']
+                if event.get('action_id') == 'action_10c15dd4d1'
+            )
+
+        solo = first_baizang_dot_event(False)
+        with_sagiri = first_baizang_dot_event(True)
+        self.assertEqual(with_sagiri['formula_parts']['final_multiplier'], 1)
+        self.assertAlmostEqual(with_sagiri['damage'], solo['damage'])
+
+    def test_sagiri_passive_amplifies_requiem_nightmare_periodic_damage(self) -> None:
+        def simulate(team):
+            return simulate_shaft_axis({
+                'team': team,
+                'steps': [
+                    {'id': 'requiem_q', 'slot': 0, 'action_id': 'action_1104de864b', 'start_tick': 0},
+                    {'id': 'inspect', 'slot': 0, 'action_id': 'action_b9b3237c74', 'start_tick': 40},
+                ],
+                'team_panel_bonus': ShaftSimulatorValidationTestCase.ZERO_TEAM_PANEL_BONUS,
+                'initial_energy': 200,
+            })['result']
+
+        requiem = {
+            'slot': 0,
+            'character_id': 'char_c78f7a08d5',
+            'awakening': 0,
+            'arc_id': '',
+            'cartridge_id': '',
+        }
+        solo = simulate([requiem])
+        with_sagiri = simulate([
+            requiem,
+            {
+                'slot': 1,
+                'character_id': 'char_1895e259be',
+                'awakening': 0,
+                'arc_id': '',
+                'cartridge_id': '',
+            },
+        ])
+
+        solo_nightmare = solo['periodic_damage_events'][0]
+        sagiri_nightmare = with_sagiri['periodic_damage_events'][0]
+        self.assertEqual(solo_nightmare['reaction'], '噩梦')
+        self.assertEqual(sagiri_nightmare['formula_parts']['final_multiplier'], 1)
+        self.assertAlmostEqual(sagiri_nightmare['damage'], solo_nightmare['damage'])
+
+    def test_sagiri_talent_one_uses_dot_count_as_final_multiplier_only_during_corrosion(self) -> None:
+        result = simulate_shaft_axis({
+            'team': [
+                {
+                    'slot': 0,
+                    'character_id': 'char_1895e259be',
+                    'awakening': 0,
+                    'arc_id': '',
+                    'cartridge_id': '',
+                },
+                {
+                    'slot': 1,
+                    'character_id': 'char_c78f7a08d5',
+                    'awakening': 0,
+                    'arc_id': '',
+                    'cartridge_id': '',
+                },
+            ],
+            'steps': [
+                *[
+                    {
+                        'id': f'gain_{index}',
+                        'slot': 0,
+                        'action_id': 'action_4c5142a40f',
+                        'start_tick': index * 2,
+                    }
+                    for index in range(4)
+                ],
+                {
+                    'id': 'support',
+                    'slot': 1,
+                    'action_id': 'action_2635f721a8',
+                    'start_tick': 40,
+                },
+                {
+                    'id': 'requiem_q',
+                    'slot': 1,
+                    'action_id': 'action_1104de864b',
+                    'start_tick': 65,
+                },
+                {
+                    'id': 'extend_axis',
+                    'slot': 0,
+                    'action_id': 'action_4c5142a40f',
+                    'start_tick': 100,
+                },
+            ],
+            'team_panel_bonus': ShaftSimulatorValidationTestCase.ZERO_TEAM_PANEL_BONUS,
+            'initial_energy': 200,
+        })['result']
+        corrosion_events = [
+            event for event in result['reaction_damage_events']
+            if event['reaction'] == '浊燃' and event['damage'] > 0
+        ]
+        nightmare_events = [
+            event for event in result['periodic_damage_events']
+            if event['reaction'] == '噩梦' and event['damage'] > 0
+        ]
+
+        self.assertGreaterEqual(len(corrosion_events), 2)
+        self.assertGreaterEqual(len(nightmare_events), 1)
+        self.assertEqual(corrosion_events[0]['formula_parts']['final_multiplier'], 1.25)
+        self.assertEqual(corrosion_events[1]['formula_parts']['final_multiplier'], 1.5)
+        self.assertEqual(nightmare_events[0]['formula_parts']['final_multiplier'], 1.5)
+
+    def test_sagiri_q_base_team_flat_atk_does_not_require_awakening_four(self) -> None:
         result = simulate_shaft_axis({
             'team': [
                 {'slot': 0, 'character_id': 'char_1895e259be', 'awakening': 0, 'arc_id': '', 'cartridge_id': ''},
-                {'slot': 1, 'character_id': 'char_c78f7a08d5', 'awakening': 6, 'arc_id': '', 'cartridge_id': ''},
+                {'slot': 1, 'character_id': 'char_701295143d', 'awakening': 0, 'arc_id': '', 'cartridge_id': ''},
+            ],
+            'steps': [
+                {'id': 'sagiri_q', 'slot': 0, 'action_id': 'action_0db78d1f01', 'start_tick': 0},
+                {'id': 'teammate_after_q', 'slot': 1, 'action_id': 'action_c234af7127', 'start_tick': 20},
+            ],
+            'team_panel_bonus': ShaftSimulatorValidationTestCase.ZERO_TEAM_PANEL_BONUS,
+            'initial_energy': 200,
+        })['result']
+        teammate = next(detail for detail in result['details'] if detail['step_id'] == 'teammate_after_q')
+        teammate_buffs = {buff['rule_id']: buff for buff in teammate['applied_buffs']}
+
+        self.assertAlmostEqual(
+            teammate_buffs['character_sagiri_q_base_team_flat_atk']['effects']['flat_atk'],
+            186,
+        )
+        self.assertNotIn('character_sagiri_q_team_flat_atk', teammate_buffs)
+
+    def test_requiem_f_e_window_reuses_pre_e_front_for_reaction(self) -> None:
+        result = simulate_shaft_axis({
+            'team': [
+                {'slot': 0, 'character_id': 'char_1895e259be', 'awakening': 0, 'arc_id': '', 'cartridge_id': ''},
+                {'slot': 1, 'character_id': 'char_c78f7a08d5', 'awakening_nodes': [6], 'arc_id': '', 'cartridge_id': ''},
             ],
             'steps': [
                 {'id': 'previous_front', 'slot': 0, 'action_id': 'action_4c5142a40f', 'start_tick': 0},

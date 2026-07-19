@@ -11,6 +11,7 @@ SUPPORTED_TRIGGER_EVENTS = {
     'action_end',
     'loop_start',
     'reaction_trigger',
+    'periodic_damage',
 }
 
 PERMANENT_BUFF_END_TICK = 1_000_000_000
@@ -31,6 +32,25 @@ def _int(value: Any, default: int = 0) -> int:
 
 def _stack_num(value: Any, default: float = 1.0) -> float:
     return max(0.0, _num(value, default))
+
+
+def _duration_ticks(rule: dict[str, Any]) -> int:
+    duration = rule.get('duration') if isinstance(rule.get('duration'), dict) else {}
+    ticks = max(0, _int(duration.get('ticks')))
+    raw_nodes = rule.get('owner_awakening_nodes')
+    active_nodes = (
+        {_int(value) for value in raw_nodes}
+        if isinstance(raw_nodes, list)
+        else set(range(1, max(0, min(6, _int(rule.get('owner_awakening')))) + 1))
+    )
+    for raw_level, value in (
+        duration.get('ticks_by_awakening_node')
+        if isinstance(duration.get('ticks_by_awakening_node'), dict)
+        else {}
+    ).items():
+        if _int(raw_level) in active_nodes:
+            ticks = max(0, _int(value))
+    return ticks
 
 
 def _as_list(value: Any) -> list[Any]:
@@ -339,7 +359,8 @@ def event_matches_rule(
     context: dict[str, Any] | None = None,
 ) -> bool:
     trigger = rule.get('trigger') if isinstance(rule.get('trigger'), dict) else {}
-    if str(trigger.get('event') or '') != event:
+    matches_periodic_damage = event == 'periodic_damage' and trigger.get('periodic_damage') is True
+    if str(trigger.get('event') or '') != event and not matches_periodic_damage:
         return False
     if event not in SUPPORTED_TRIGGER_EVENTS:
         return False
@@ -468,11 +489,25 @@ def activate_buff(
     context: dict[str, Any] | None = None,
 ) -> dict[str, Any] | None:
     duration = rule.get('duration') if isinstance(rule.get('duration'), dict) else {}
-    duration_ticks = PERMANENT_BUFF_END_TICK if str(duration.get('type') or '') == 'permanent' else max(0, _int(duration.get('ticks')))
+    duration_ticks = PERMANENT_BUFF_END_TICK if str(duration.get('type') or '') == 'permanent' else _duration_ticks(rule)
     if duration_ticks <= 0:
         return None
     start_tick = trigger_tick + max(0, _int(duration.get('delay_ticks')))
     end_tick = start_tick + duration_ticks
+    pause_while_buff_key = str(duration.get('pause_while_buff_key') or '')
+    if pause_while_buff_key:
+        pause_until_tick = max(
+            (
+                _int(instance.get('end_tick'))
+                for instance in active_buffs
+                if _int(instance.get('owner_slot')) == _int(rule.get('owner_slot'))
+                and str(instance.get('definition_id') or '') == pause_while_buff_key
+                and start_tick >= _int(instance.get('start_tick'))
+                and start_tick < _int(instance.get('end_tick'))
+            ),
+            default=start_tick,
+        )
+        end_tick += max(0, pause_until_tick - start_tick)
     stacking = rule.get('stacking') if isinstance(rule.get('stacking'), dict) else {}
     stacking_mode = str(stacking.get('mode') or 'refresh')
     max_stacks = max(1.0, _num(stacking.get('max_stacks'), 1))
@@ -505,6 +540,9 @@ def activate_buff(
             return instance
         if stacking_mode == 'extend':
             instance['end_tick'] = max(_int(instance.get('end_tick')), end_tick)
+            return instance
+        if stacking_mode == 'extend_duration':
+            instance['end_tick'] = max(_int(instance.get('end_tick')), trigger_tick) + duration_ticks
             return instance
         instance['start_tick'] = start_tick
         instance['end_tick'] = end_tick

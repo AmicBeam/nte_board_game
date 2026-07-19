@@ -90,9 +90,12 @@ def _normalize_action(action: dict[str, Any]) -> dict[str, Any]:
     if tags:
         normalized['tags'] = tags
     formula_hits = _formula_hit_count(action.get('source_formula'))
+    explicit_hit_count = _num(action.get('hit_count'), -1)
     nightmare_stacks = _num(action.get('nightmare_stacks'), -1)
     if formula_hits > 0:
         hit_count = formula_hits
+    elif explicit_hit_count >= 0:
+        hit_count = max(0, int(round(explicit_hit_count)))
     elif nightmare_stacks >= 0:
         hit_count = max(0, int(round(nightmare_stacks)))
     elif _action_has_damage(action):
@@ -103,10 +106,42 @@ def _normalize_action(action: dict[str, Any]) -> dict[str, Any]:
     return normalized
 
 
+def _noop_action(character: dict[str, Any]) -> dict[str, Any]:
+    character_id = str(character.get('id') or '')
+    return {
+        'id': f'action_none_{character_id.removeprefix("char_")}',
+        'character_id': character_id,
+        'character_name': str(character.get('name') or ''),
+        'name': '无',
+        'action_type': '无',
+        'damage_type': '无',
+        'extra_tag': '切人',
+        'is_background_damage': False,
+        'duration_seconds': 0,
+        'duration_ticks': 0,
+        'multipliers': {'atk': 0, 'hp': 0, 'def': 0, 'flat': 0},
+        'energy_gain': 0,
+        'harmony': 0,
+        'stagger': 0,
+        'energy_return': 0,
+        'self_modifiers': {},
+        'cooldown_ticks': 0,
+        'energy_cost': 0,
+        'personal_resource_cost': {},
+        'personal_resource_gain': {},
+        'source_row': 0,
+        'can_background_override': False,
+        'hit_count': 0,
+        'is_instant_switch': True,
+        'tags': ['切人'],
+    }
+
+
 @lru_cache(maxsize=1)
 def load_shaft_catalog() -> dict[str, Any]:
     characters = _load_json('characters.json')
     actions = [_normalize_action(action) for action in _load_json('actions.json')]
+    actions.extend(_noop_action(character) for character in characters)
     energy_capacity_by_character: dict[str, float] = {}
     for action in actions:
         if str(action.get('action_type') or '') != 'Q' and str(action.get('damage_type') or '') != 'Q':

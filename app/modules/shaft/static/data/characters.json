@@ -102,6 +102,8 @@
     "adaptation": "固态",
     "rarity": "S",
     "level": 80,
+    "uses_energy": false,
+    "uses_cooldowns": false,
     "avatar": "/static/images/characters/avatar/浔.webp",
     "portrait": "/static/images/characters/portrait/浔.webp",
     "base_stats": {

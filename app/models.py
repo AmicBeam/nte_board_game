@@ -14,6 +14,7 @@ class Player(BaseModel):
     id = AutoField()
     player_uid = CharField(unique=True, max_length=64)
     nickname = CharField(default='')
+    shaft_test_whitelisted = BooleanField(default=False)
     created_at = DateTimeField(default=datetime.utcnow)
     updated_at = DateTimeField(default=datetime.utcnow)
 

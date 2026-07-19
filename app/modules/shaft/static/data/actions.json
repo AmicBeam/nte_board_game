@@ -60,7 +60,10 @@
     "energy_gain": 8.801,
     "harmony": 100,
     "stagger": 1.8,
-    "energy_return": 8,
+    "energy_return": 0,
+    "energy_return_by_awakening_node": {
+      "2": 8
+    },
     "self_modifiers": {
       "crit_rate": 0,
       "crit_dmg": 0,
@@ -86,6 +89,7 @@
     "character_id": "char_dd034941ef",
     "character_name": "主角",
     "name": "e额外",
+    "required_awakening": 1,
     "action_type": "被动",
     "damage_type": "被动",
     "extra_tag": "附着",
@@ -807,6 +811,7 @@
     "character_id": "char_b52cc8f160",
     "character_name": "真红",
     "name": "16层偷袭",
+    "required_awakening": 4,
     "action_type": "普攻",
     "damage_type": "普攻",
     "extra_tag": "",
@@ -2089,7 +2094,8 @@
     "personal_resource_gain": {},
     "source_row": 40,
     "can_background_override": false,
-    "hit_count": 1
+    "hit_count": 1,
+    "tags": ["heal", "治疗"]
   },
   {
     "id": "action_16e181ce7c",
@@ -2130,7 +2136,8 @@
     "personal_resource_gain": {},
     "source_row": 41,
     "can_background_override": false,
-    "hit_count": 1
+    "hit_count": 1,
+    "tags": ["heal", "治疗"]
   },
   {
     "id": "action_482b5d9df7",
@@ -2178,6 +2185,7 @@
     "character_id": "char_bdc43f82c6",
     "character_name": "娜娜莉",
     "name": "C觉追击",
+    "required_awakening": 3,
     "action_type": "普攻",
     "damage_type": "普攻",
     "extra_tag": "追击",
@@ -4027,6 +4035,9 @@
     },
     "energy_gain": 4.9,
     "harmony": 10.2,
+    "harmony_by_awakening_node": {
+      "6": 12.2
+    },
     "stagger": 1,
     "energy_return": 0,
     "self_modifiers": {
@@ -4770,10 +4781,10 @@
     "damage_type": "Q",
     "extra_tag": "DOT",
     "is_background_damage": true,
-    "duration_seconds": 0,
-    "duration_ticks": 0,
+    "duration_seconds": 16,
+    "duration_ticks": 160,
     "multipliers": {
-      "atk": 2.4,
+      "atk": 0,
       "hp": 0,
       "def": 0,
       "flat": 0
@@ -4803,7 +4814,12 @@
     "hit_count": 1,
     "tags": [
       "DOT"
-    ]
+    ],
+    "periodic_damage": {
+      "interval_ticks": 10,
+      "tick_count": 16,
+      "multipliers": {"atk": 0.15, "hp": 0, "def": 0, "flat": 0}
+    }
   },
   {
     "id": "action_dee1ceb970",
@@ -5015,6 +5031,7 @@
     "character_id": "char_1895e259be",
     "character_name": "早雾",
     "name": "B觉额外",
+    "required_awakening": 2,
     "action_type": "Q",
     "damage_type": "Q",
     "extra_tag": "",
@@ -5142,12 +5159,12 @@
     "damage_type": "E",
     "extra_tag": "DOT",
     "is_background_damage": true,
-    "duration_seconds": 0,
-    "duration_ticks": 0,
+    "duration_seconds": 15,
+    "duration_ticks": 150,
     "multipliers": {
       "atk": 0,
       "hp": 0,
-      "def": 2,
+      "def": 0,
       "flat": 0
     },
     "energy_gain": 0,
@@ -5175,7 +5192,12 @@
     "hit_count": 1,
     "tags": [
       "DOT"
-    ]
+    ],
+    "periodic_damage": {
+      "interval_ticks": 15,
+      "tick_count": 10,
+      "multipliers": {"atk": 0, "hp": 0, "def": 0.2, "flat": 0}
+    }
   },
   {
     "id": "action_95733904eb",
@@ -5197,7 +5219,10 @@
     "energy_gain": 0,
     "harmony": 0,
     "stagger": 2.5,
-    "energy_return": 20,
+    "energy_return": 0,
+    "energy_return_by_awakening_node": {
+      "5": 20
+    },
     "self_modifiers": {
       "crit_rate": 0,
       "crit_dmg": 0,
@@ -5254,12 +5279,10 @@
     "cooldown_ticks": 0,
     "energy_cost": 0,
     "personal_resource_cost": {},
-    "personal_resource_gain": {
-      "噩梦": 1
-    },
+    "personal_resource_gain": {},
     "source_row": 94,
     "can_background_override": false,
-    "nightmare_stacks": 1,
+    "nightmare_stacks": 0,
     "hit_count": 1
   },
   {
@@ -5955,52 +5978,6 @@
     "hit_count": 6
   },
   {
-    "id": "action_0220e65a17",
-    "character_id": "char_c78f7a08d5",
-    "character_name": "安魂曲",
-    "name": "dot",
-    "action_type": "普攻",
-    "damage_type": "普攻",
-    "extra_tag": "DOT",
-    "is_background_damage": true,
-    "duration_seconds": 0,
-    "duration_ticks": 0,
-    "multipliers": {
-      "atk": 0.06,
-      "hp": 0,
-      "def": 0,
-      "flat": 0
-    },
-    "energy_gain": 0,
-    "harmony": 0,
-    "stagger": 0,
-    "energy_return": 0,
-    "self_modifiers": {
-      "crit_rate": 0,
-      "crit_dmg": 0,
-      "all_dmg": 0,
-      "flat_atk": 0,
-      "atk_pct": 0,
-      "hp_pct": 0,
-      "def_pct": 0,
-      "harmony_strength": 0,
-      "def_ignore": 0,
-      "res_down": 0
-    },
-    "cooldown_ticks": 0,
-    "energy_cost": 0,
-    "personal_resource_cost": {},
-    "personal_resource_gain": {},
-    "source_row": 103,
-    "source_formula": "{0}%",
-    "can_background_override": false,
-    "nightmare_stacks": 0,
-    "hit_count": 1,
-    "tags": [
-      "DOT"
-    ]
-  },
-  {
     "id": "action_2745f804a5",
     "character_id": "char_c78f7a08d5",
     "character_name": "安魂曲",
@@ -6123,12 +6100,10 @@
     "cooldown_ticks": 120,
     "energy_cost": 0,
     "personal_resource_cost": {},
-    "personal_resource_gain": {
-      "噩梦": 2
-    },
+    "personal_resource_gain": {},
     "source_row": 106,
     "can_background_override": false,
-    "nightmare_stacks": 2,
+    "nightmare_stacks": 0,
     "hit_count": 2
   },
   {
@@ -6167,12 +6142,10 @@
     "cooldown_ticks": 120,
     "energy_cost": 0,
     "personal_resource_cost": {},
-    "personal_resource_gain": {
-      "噩梦": 32
-    },
+    "personal_resource_gain": {},
     "source_row": 107,
     "can_background_override": false,
-    "nightmare_stacks": 32,
+    "nightmare_stacks": 0,
     "hit_count": 32
   },
   {
@@ -6215,6 +6188,8 @@
       "噩梦": 5
     },
     "source_row": 108,
+    "source_formula": "{0}%*4+{1}%",
+    "source_action_name": "工作日最终审判（汽车）",
     "can_background_override": false,
     "nightmare_stacks": 5,
     "hit_count": 5
@@ -6844,6 +6819,9 @@
       "res_down": 0
     },
     "cooldown_ticks": 120,
+    "cooldown_ticks_by_awakening_node": {
+      "6": 80
+    },
     "energy_cost": 0,
     "personal_resource_cost": {},
     "personal_resource_gain": {},
@@ -8532,13 +8510,70 @@
     "personal_resource_gain": {},
     "source_row": 42,
     "can_background_override": false,
-    "hit_count": 1
+    "hit_count": 1,
+    "tags": ["heal", "治疗"]
+  },
+  {
+    "id": "action_iloy_z1",
+    "character_id": "char_a01c39f576",
+    "character_name": "伊洛伊",
+    "name": "z1",
+    "action_type": "普攻",
+    "damage_type": "普攻",
+    "extra_tag": "蓄力重击",
+    "is_background_damage": false,
+    "duration_seconds": 1.5,
+    "duration_ticks": 15,
+    "multipliers": {"atk": 1.104, "hp": 0, "def": 0, "flat": 0},
+    "energy_gain": 1.599,
+    "harmony": 2.7,
+    "stagger": 0.3,
+    "energy_return": 0,
+    "self_modifiers": {},
+    "cooldown_ticks": 0,
+    "energy_cost": 0,
+    "personal_resource_cost": {"臆想": 20},
+    "personal_resource_gain": {},
+    "source_row": 0,
+    "source_formula": "{0}%*3",
+    "source_action_name": "白日梦一段",
+    "can_background_override": false,
+    "hit_count": 3,
+    "tags": ["蓄力", "重击"]
+  },
+  {
+    "id": "action_iloy_lucid_dream",
+    "character_id": "char_a01c39f576",
+    "character_name": "伊洛伊",
+    "name": "清明梦",
+    "action_type": "普攻",
+    "damage_type": "普攻",
+    "extra_tag": "蓄力重击",
+    "is_background_damage": false,
+    "duration_seconds": 7,
+    "duration_ticks": 70,
+    "multipliers": {"atk": 8.295, "hp": 0, "def": 0, "flat": 0},
+    "energy_gain": 26.81,
+    "harmony": 44.625,
+    "stagger": 6.51,
+    "energy_return": 0,
+    "self_modifiers": {},
+    "cooldown_ticks": 0,
+    "energy_cost": 0,
+    "personal_resource_cost": {"臆想": 10},
+    "personal_resource_gain": {},
+    "source_row": 451,
+    "source_formula": "{0}%*35",
+    "source_action_name": "普通攻击：清明梦",
+    "can_background_override": false,
+    "hit_count": 35,
+    "tags": ["蓄力", "重击"]
   },
   {
     "id": "action_afea1e6fb2",
     "character_id": "char_a01c39f576",
     "character_name": "伊洛伊",
-    "name": "e",
+    "name": "长E",
     "action_type": "E",
     "damage_type": "E",
     "extra_tag": "",
@@ -8554,10 +8589,11 @@
     "cooldown_ticks": 120,
     "energy_cost": 0,
     "personal_resource_cost": {},
-    "personal_resource_gain": {},
+    "personal_resource_gain": {"臆想": 16},
     "source_row": 43,
     "can_background_override": false,
-    "hit_count": 1
+    "hit_count": 1,
+    "tags": ["heal", "治疗"]
   },
   {
     "id": "action_307ad00e8e",
@@ -8580,9 +8616,11 @@
     "energy_cost": 100,
     "personal_resource_cost": {},
     "personal_resource_gain": {},
+    "personal_resource_threshold": {"臆想": 30},
     "source_row": 44,
     "can_background_override": false,
-    "hit_count": 1
+    "hit_count": 1,
+    "tags": ["heal", "治疗"]
   },
   {
     "id": "action_c371c893ce",
@@ -8605,6 +8643,8 @@
     "energy_cost": 0,
     "personal_resource_cost": {},
     "personal_resource_gain": {},
+    "required_buff_key": "character_iloy_q_ivory_dream",
+    "required_buff_name": "象牙门梦境",
     "source_row": 45,
     "can_background_override": false,
     "hit_count": 1

@@ -18,6 +18,21 @@ def init_db(models: list[type[Model]]) -> None:
         db.connect(reuse_if_open=True)
     _reset_incompatible_snapshot_tables(models)
     db.create_tables(models)
+    _add_compatible_columns(models)
+
+
+def _add_compatible_columns(models: list[type[Model]]) -> None:
+    for model in models:
+        if model._meta.table_name != 'player':
+            continue
+        if not db.table_exists(model._meta.table_name):
+            continue
+        existing_columns = {column.name for column in db.get_columns(model._meta.table_name)}
+        if 'shaft_test_whitelisted' not in existing_columns:
+            db.execute_sql(
+                'ALTER TABLE "player" '
+                'ADD COLUMN "shaft_test_whitelisted" INTEGER NOT NULL DEFAULT 0'
+            )
 
 
 def _reset_incompatible_snapshot_tables(models: list[type[Model]]) -> None:

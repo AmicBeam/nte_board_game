@@ -56,17 +56,14 @@ process.stdout.write(JSON.stringify(selfCheck.inspectAxis(payload.axis, payload.
 
         self.assertEqual(self.inspect([self.step(a4, 0), self.step(q, 2), self.step(a2, 4)]), [])
 
-    def test_requiem_requires_nightmare_after_basic_e_and_q_are_configured(self) -> None:
+    def test_requiem_does_not_require_manual_nightmare_action(self) -> None:
         actions = [
             self.action('安魂曲', 'a1近'),
             self.action('安魂曲', 'e'),
             self.action('安魂曲', 'q'),
         ]
         steps = [self.step(action, index * 10) for index, action in enumerate(actions)]
-        self.assertEqual(self.inspect(steps), ['安魂曲未配置噩梦'])
-
-        nightmare = self.action('安魂曲', 'dot')
-        self.assertEqual(self.inspect([*steps, self.step(nightmare, 30)]), [])
+        self.assertEqual(self.inspect(steps), [])
 
 
 if __name__ == '__main__':

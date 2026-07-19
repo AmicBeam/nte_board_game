@@ -8,8 +8,23 @@ body:has(.shaft-page) .shell {
 }
 
 .shaft-header {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+    align-items: center;
     min-height: 66px;
     overflow: hidden;
+}
+
+.shaft-header > div:first-child {
+    justify-self: start;
+}
+
+.shaft-header .shaft-page-tabs {
+    justify-self: center;
+}
+
+.shaft-header .header-actions {
+    justify-self: end;
 }
 
 .shaft-header::after {
@@ -78,6 +93,10 @@ body:has(.shaft-page) .shell {
     grid-template-columns: minmax(0, 1fr) auto;
     align-items: end;
     gap: 14px;
+}
+
+.shaft-command-panel[hidden] {
+    display: none;
 }
 
 .shaft-title-fields,
@@ -183,13 +202,9 @@ body:has(.shaft-page) .shell {
 
 .shaft-market-layout {
     display: grid;
-    grid-template-columns: minmax(320px, 390px) minmax(0, 1fr);
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 14px;
     align-items: start;
-}
-
-.shaft-command-panel + .shaft-rotation-layout {
-    margin-top: 14px;
 }
 
 .shaft-rotation-layout {
@@ -313,6 +328,33 @@ body:has(.shaft-page) .shell {
 
 .shaft-character-select {
     position: relative;
+    display: grid;
+    gap: 5px;
+    color: var(--muted);
+    font-size: 11px;
+    font-weight: 900;
+}
+
+.shaft-build-character-picker:has(.shaft-build-character-popover:not([hidden])) {
+    z-index: 50;
+}
+
+.shaft-build-character-trigger {
+    min-height: 40px;
+}
+
+.shaft-build-character-trigger .shaft-character-filter-selected img {
+    margin-right: 0;
+    border: 0;
+    border-radius: 8px;
+}
+
+.shaft-build-character-trigger .shaft-character-filter-selected b {
+    margin-left: 0;
+}
+
+.shaft-build-character-popover {
+    width: min(620px, calc(100vw - 48px));
 }
 
 .shaft-build-layout .shaft-member-identity .shaft-mechanism-tooltip {
@@ -2281,6 +2323,10 @@ body.shaft-dragging .shaft-action-bar {
     grid-template-columns: minmax(0, 1fr) 130px;
 }
 
+.shaft-my-axis-filters {
+    grid-template-columns: 104px minmax(0, 1fr) 112px;
+}
+
 .shaft-character-filter {
     position: relative;
     min-width: 0;
@@ -2400,21 +2446,32 @@ body.shaft-dragging .shaft-action-bar {
     margin-top: 9px;
 }
 
-.shaft-my-axis-toolbar {
-    justify-content: space-between;
-}
-
 .shaft-market-card-title {
     display: flex;
+    align-items: center;
     justify-content: space-between;
     gap: 8px;
 }
 
-.shaft-market-card-title > span {
+.shaft-market-card-badges {
+    display: flex;
+    flex: 0 0 auto;
+    align-items: center;
+    gap: 6px;
+}
+
+.shaft-market-card-badges > span {
     flex: 0 0 auto;
     color: var(--primary);
     font-size: 11px;
     font-weight: 900;
+}
+
+.shaft-market-card-badges .shaft-axis-mode-badge {
+    padding: 2px 7px;
+    border: 1px solid rgba(88, 216, 210, 0.34);
+    border-radius: 999px;
+    background: rgba(88, 216, 210, 0.1);
 }
 
 .shaft-toast {
@@ -2468,6 +2525,10 @@ body.shaft-dragging .shaft-action-bar {
     padding: 7px 10px;
 }
 
+.shaft-market-actions .shaft-publish-axis-btn {
+    margin-left: auto;
+}
+
 .shaft-market-actions button.active {
     color: #071016;
     border-color: rgba(88,216,210,0.74);
@@ -2476,6 +2537,27 @@ body.shaft-dragging .shaft-action-bar {
 
 .shaft-load-more {
     width: 100%;
+}
+
+.shaft-name-conflict-dialog {
+    width: min(520px, calc(100vw - 32px));
+}
+
+.shaft-name-conflict-modal p {
+    margin: 8px 0 0;
+    color: var(--muted);
+    line-height: 1.55;
+}
+
+.shaft-name-conflict-modal label {
+    display: grid;
+    gap: 7px;
+}
+
+.shaft-name-conflict-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
 }
 
 .shaft-empty {
@@ -2953,7 +3035,7 @@ body.shaft-dragging .shaft-action-bar {
     position: sticky;
     left: 0;
     top: 0;
-    z-index: 7;
+    z-index: 24;
     width: var(--label-width);
     height: 100%;
     display: grid;
@@ -3196,6 +3278,53 @@ body.shaft-dragging .shaft-action-bar {
     transform: translateX(-50%);
     filter: drop-shadow(0 0 2px color-mix(in srgb, var(--reaction-color, #fff) 60%, transparent));
     pointer-events: auto;
+}
+
+.shaft-reaction-damage-marker::after {
+    content: attr(data-tooltip);
+    position: absolute;
+    left: 50%;
+    top: 9px;
+    z-index: 18;
+    width: max-content;
+    max-width: 560px;
+    padding: 7px 9px;
+    border: 1px solid rgba(255,255,255,0.16);
+    border-radius: 8px;
+    background: rgba(10, 16, 28, 0.97);
+    box-shadow: 0 12px 26px rgba(0,0,0,0.38);
+    color: rgba(255,255,255,0.94);
+    font-size: 12px;
+    font-weight: 900;
+    line-height: 1.45;
+    white-space: pre-line;
+    text-align: left;
+    opacity: 0;
+    transform: translate(calc(-50% + var(--damage-tooltip-shift-x, 0px)), 4px);
+    transition: opacity 120ms ease, transform 120ms ease;
+    pointer-events: none;
+}
+
+.shaft-reaction-damage-marker:hover::after,
+.shaft-reaction-damage-marker:focus-visible::after {
+    opacity: 1;
+    transform: translate(calc(-50% + var(--damage-tooltip-shift-x, 0px)), 0);
+}
+
+.shaft-reaction-damage-marker:hover,
+.shaft-reaction-damage-marker:focus-visible {
+    z-index: 20;
+}
+
+.shaft-reaction-damage-marker:focus-visible {
+    outline: 2px solid rgba(255,255,255,0.72);
+    outline-offset: 3px;
+}
+
+.shaft-periodic-damage-marker {
+    border-top: 0;
+    border-bottom: 5px solid var(--reaction-color, #fff);
+    filter: none;
 }
 
 .shaft-action-bar {
@@ -3665,6 +3794,25 @@ body.shaft-dragging .shaft-action-bar {
 }
 
 @media (max-width: 980px) {
+    .shaft-header {
+        grid-template-columns: minmax(0, 1fr) auto;
+    }
+
+    .shaft-header > div:first-child {
+        grid-column: 1;
+        grid-row: 1;
+    }
+
+    .shaft-header .shaft-page-tabs {
+        grid-column: 1 / -1;
+        grid-row: 2;
+    }
+
+    .shaft-header .header-actions {
+        grid-column: 2;
+        grid-row: 1;
+    }
+
     .shaft-command-panel,
     .shaft-team-slots,
     .shaft-result-grid,
@@ -3717,6 +3865,29 @@ body.shaft-dragging .shaft-action-bar {
     body:has(.shaft-page) .shell {
         width: min(100vw - 18px, 1840px);
         padding-top: 10px;
+    }
+
+    .shaft-header {
+        grid-template-columns: 1fr;
+    }
+
+    .shaft-header > div:first-child,
+    .shaft-header .shaft-page-tabs,
+    .shaft-header .header-actions {
+        grid-column: 1;
+    }
+
+    .shaft-header > div:first-child {
+        grid-row: 1;
+    }
+
+    .shaft-header .shaft-page-tabs {
+        grid-row: 2;
+    }
+
+    .shaft-header .header-actions {
+        grid-row: 3;
+        justify-self: start;
     }
 
     .shaft-panel {
