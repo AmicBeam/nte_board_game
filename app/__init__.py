@@ -13,6 +13,7 @@ from app.models import (
     RoomMember,
     ShaftAxis,
     ShaftAxisCharacter,
+    ShaftAxisDislike,
     ShaftAxisFavorite,
     ShaftAxisLike,
 )
@@ -40,6 +41,7 @@ def create_app() -> Flask:
         ShaftAxis,
         ShaftAxisCharacter,
         ShaftAxisLike,
+        ShaftAxisDislike,
         ShaftAxisFavorite,
     ])
     from app.modules.shaft.service import migrate_shaft_source_versions

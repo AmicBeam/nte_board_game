@@ -2710,6 +2710,12 @@ body.shaft-dragging .shaft-action-bar {
     background: linear-gradient(135deg, var(--primary), var(--amber));
 }
 
+.shaft-market-actions .shaft-dislike-btn.active {
+    color: #fff7f5;
+    border-color: rgba(255, 112, 104, 0.78);
+    background: linear-gradient(135deg, #b53838, #ee765e);
+}
+
 .shaft-load-more {
     width: 100%;
 }

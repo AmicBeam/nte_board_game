@@ -33,6 +33,7 @@ from app.modules.shaft.service import (
     optional_player_from_token,
     publish_shaft_axis_snapshot,
     save_shaft_axis,
+    set_shaft_axis_dislike,
     set_shaft_axis_favorite,
     set_shaft_axis_like,
 )
@@ -485,6 +486,30 @@ def api_shaft_unlike_axis(axis_id: int):
     except Exception:
         logger.exception('api_shaft_unlike_axis failed axis_id=%s', axis_id)
         return jsonify({'error': '取消点赞时发生异常，请稍后重试。'}), 500
+
+
+@main_bp.post('/api/shaft/axes/<int:axis_id>/dislike')
+@token_required
+def api_shaft_dislike_axis(axis_id: int):
+    try:
+        return jsonify(set_shaft_axis_dislike(g.current_player, axis_id, True))
+    except AppError as exc:
+        return jsonify({'error': str(exc)}), 400
+    except Exception:
+        logger.exception('api_shaft_dislike_axis failed axis_id=%s', axis_id)
+        return jsonify({'error': '踩排轴时发生异常，请稍后重试。'}), 500
+
+
+@main_bp.delete('/api/shaft/axes/<int:axis_id>/dislike')
+@token_required
+def api_shaft_undislike_axis(axis_id: int):
+    try:
+        return jsonify(set_shaft_axis_dislike(g.current_player, axis_id, False))
+    except AppError as exc:
+        return jsonify({'error': str(exc)}), 400
+    except Exception:
+        logger.exception('api_shaft_undislike_axis failed axis_id=%s', axis_id)
+        return jsonify({'error': '取消踩时发生异常，请稍后重试。'}), 500
 
 
 @main_bp.post('/api/shaft/axes/<int:axis_id>/favorite')

@@ -134,6 +134,24 @@ class RoomFlowTestCase(unittest.TestCase):
             return {}
         return {'Authorization': f'Bearer {token}'}
 
+    def _shaft_client_result(self, axis: dict) -> dict:
+        duration_ticks = max(0, int(axis.get('duration_ticks') or 0))
+        return {
+            'enemy': dict(axis.get('enemy') or {}),
+            'summary': {
+                'duration_ticks': duration_ticks,
+                'duration_seconds': duration_ticks / 10,
+                'direct_damage': 0,
+                'harmony_damage': 0,
+                'stagger_damage': 0,
+                'total_damage': 0,
+                'dps': 0,
+            },
+            'damage_by_slot': [],
+            'damage_by_source': [],
+            'details': [],
+        }
+
     def _solo_test_run_context(self) -> ExitStack:
         stack = ExitStack()
         stack.enter_context(patch('app.modules.card_game.engine.setup.snapshot_factory.random.shuffle', side_effect=lambda value: None))
@@ -181,12 +199,14 @@ class SoloRoomFlowTest(RoomFlowTestCase):
         denied = self._post('/api/shaft/axes', {
             'title': '普通账号伊洛伊',
             'axis': restricted_axis,
+            'result': self._shaft_client_result(restricted_axis),
         }, token=regular_token, expected_status=400)
         self.assertIn('仅对测试账号开放', denied['error'])
 
         allowed = self._post('/api/shaft/axes', {
             'title': '测试账号伊洛伊',
             'axis': restricted_axis,
+            'result': self._shaft_client_result(restricted_axis),
         }, token=test_token)
         self.assertEqual(allowed['team'][0]['character_id'], public_yiloyi['id'])
 
@@ -239,11 +259,22 @@ class SoloRoomFlowTest(RoomFlowTestCase):
         simulate_response = self.client.post('/api/shaft/simulate', json=axis)
         self.assertEqual(simulate_response.status_code, 404)
 
-        saved = self._post('/api/shaft/axes', {
-            'title': '空白排轴',
-            'visibility': 'private',
+        missing_result = self._post('/api/shaft/axes', {
+            'title': '缺少本地结果',
             'axis': axis,
-        }, token=token)
+        }, token=token, expected_status=400)
+        self.assertIn('缺少本地计算结果', missing_result['error'])
+
+        with patch(
+            'app.modules.shaft.service._simulate_axis_with_js',
+            side_effect=AssertionError('保存链路不应启动 Node'),
+        ):
+            saved = self._post('/api/shaft/axes', {
+                'title': '空白排轴',
+                'visibility': 'private',
+                'axis': axis,
+                'result': self._shaft_client_result(axis),
+            }, token=token)
         self.assertEqual(saved['axis']['steps'], [])
         axis_id = saved['id']
 
@@ -284,10 +315,36 @@ class SoloRoomFlowTest(RoomFlowTestCase):
             'title': '快照来源',
             'description': '上传时版本',
             'axis': axis,
+            'result': self._shaft_client_result(axis),
         }, token=token)
         snapshot = self._post(f'/api/shaft/axes/{saved["id"]}/publish', token=token)
         self.assertNotEqual(snapshot['id'], saved['id'])
         self.assertEqual(snapshot['visibility'], 'public')
+        self.assertEqual(snapshot['like_count'], 0)
+        self.assertEqual(snapshot['dislike_count'], 0)
+
+        voter_token = self._issue_login_and_get_token('shaft-reaction-voter')
+        liked = self._post(f'/api/shaft/axes/{snapshot["id"]}/like', token=voter_token)
+        self.assertTrue(liked['liked'])
+        self.assertFalse(liked['disliked'])
+        self.assertEqual(liked['like_count'], 1)
+        self.assertEqual(liked['dislike_count'], 0)
+
+        disliked = self._post(f'/api/shaft/axes/{snapshot["id"]}/dislike', token=voter_token)
+        self.assertFalse(disliked['liked'])
+        self.assertTrue(disliked['disliked'])
+        self.assertEqual(disliked['like_count'], 0)
+        self.assertEqual(disliked['dislike_count'], 1)
+
+        undislike_response = self.client.delete(
+            f'/api/shaft/axes/{snapshot["id"]}/dislike',
+            headers=self._auth_headers(voter_token),
+        )
+        self.assertEqual(undislike_response.status_code, 200, undislike_response.get_data(as_text=True))
+        undisliked = undislike_response.get_json()
+        self.assertFalse(undisliked['liked'])
+        self.assertFalse(undisliked['disliked'])
+        self.assertEqual(undisliked['dislike_count'], 0)
 
         update_response = self.client.put(
             f'/api/shaft/axes/{saved["id"]}',
@@ -295,6 +352,7 @@ class SoloRoomFlowTest(RoomFlowTestCase):
                 'title': '本地修改版',
                 'description': '保存后的版本',
                 'axis': axis,
+                'result': self._shaft_client_result(axis),
             },
             headers=self._auth_headers(token),
         )
@@ -319,6 +377,7 @@ class SoloRoomFlowTest(RoomFlowTestCase):
             'title': '本地修改版',
             'description': '将覆盖同名轴',
             'axis': axis,
+            'result': self._shaft_client_result(axis),
         }, token=token, expected_status=409)
         self.assertEqual(conflict['code'], 'axis_name_conflict')
         self.assertEqual(conflict['existing_axis_id'], saved['id'])
@@ -328,6 +387,7 @@ class SoloRoomFlowTest(RoomFlowTestCase):
             'description': '将覆盖同名轴',
             'conflict_action': 'overwrite',
             'axis': axis,
+            'result': self._shaft_client_result(axis),
         }, token=token)
         self.assertEqual(overwritten['id'], saved['id'])
         self.assertEqual(overwritten['description'], '将覆盖同名轴')

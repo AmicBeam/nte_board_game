@@ -111,6 +111,7 @@ class ShaftAxis(BaseModel):
     total_damage = IntegerField(default=0)
     dps_x100 = IntegerField(default=0)
     like_count = IntegerField(default=0)
+    dislike_count = IntegerField(default=0)
     favorite_count = IntegerField(default=0)
     dedupe_hash = CharField(max_length=64, default='')
     created_at = DateTimeField(default=datetime.utcnow)
@@ -141,6 +142,18 @@ class ShaftAxisLike(BaseModel):
     id = AutoField()
     axis = ForeignKeyField(ShaftAxis, backref='likes', on_delete='CASCADE')
     player = ForeignKeyField(Player, backref='shaft_likes', on_delete='CASCADE')
+    created_at = DateTimeField(default=datetime.utcnow)
+
+    class Meta:
+        indexes = (
+            (('axis', 'player'), True),
+        )
+
+
+class ShaftAxisDislike(BaseModel):
+    id = AutoField()
+    axis = ForeignKeyField(ShaftAxis, backref='dislikes', on_delete='CASCADE')
+    player = ForeignKeyField(Player, backref='shaft_dislikes', on_delete='CASCADE')
     created_at = DateTimeField(default=datetime.utcnow)
 
     class Meta:

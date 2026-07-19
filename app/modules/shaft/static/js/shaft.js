@@ -4579,6 +4579,7 @@
         ${compact ? '' : `
           <div class="shaft-market-actions">
             <button class="secondary-btn ${axis.liked ? 'active' : ''}" data-like-axis="${axis.id}" type="button">赞 ${axis.like_count || 0}</button>
+            <button class="secondary-btn shaft-dislike-btn ${axis.disliked ? 'active' : ''}" data-dislike-axis="${axis.id}" type="button">踩 ${axis.dislike_count || 0}</button>
             ${axis.is_owner ? '<span class="shaft-own-axis-note">自己的排轴</span>' : `<button class="secondary-btn ${axis.favorited ? 'active' : ''}" data-favorite-axis="${axis.id}" type="button">藏 ${axis.favorite_count || 0}</button>`}
           </div>
         `}
@@ -6700,10 +6701,19 @@
       redirectToLogin();
       return;
     }
+    if (!freshResult()) {
+      await runSimulation();
+    }
+    const result = freshResult();
+    if (!result) {
+      setStatus('请等待本地计算完成后再保存', 'error');
+      return;
+    }
     const payload = {
       title: $('shaft-title-input').value || '未命名排轴',
       description: $('shaft-description-input').value || '',
       axis: state.axis,
+      result,
     };
     if (conflictAction) {
       payload.conflict_action = conflictAction;
@@ -6866,6 +6876,7 @@
       await loadAxis(Number(backup.id), 'mine');
     } catch (error) {
       setStatus(error.message, 'error');
+    } finally {
       if (button?.isConnected) {
         button.disabled = false;
         button.textContent = originalLabel;
@@ -6896,6 +6907,7 @@
       await loadMarket(true);
     } catch (error) {
       setStatus(error.message, 'error');
+    } finally {
       if (button?.isConnected) {
         button.disabled = false;
         button.textContent = originalLabel;
@@ -6906,6 +6918,15 @@
   async function toggleLike(axisId, active) {
     try {
       await shaftRequest(`/api/shaft/axes/${axisId}/like`, { method: active ? 'DELETE' : 'POST' }, { authRequired: true });
+      await loadMarket(true);
+    } catch (error) {
+      setStatus(error.message, 'error');
+    }
+  }
+
+  async function toggleDislike(axisId, active) {
+    try {
+      await shaftRequest(`/api/shaft/axes/${axisId}/dislike`, { method: active ? 'DELETE' : 'POST' }, { authRequired: true });
       await loadMarket(true);
     } catch (error) {
       setStatus(error.message, 'error');
@@ -6990,6 +7011,17 @@
         return;
       }
       await toggleLike(Number(likeButton.dataset.likeAxis), likeButton.classList.contains('active'));
+      return;
+    }
+    const dislikeButton = event.target.closest('[data-dislike-axis]');
+    if (dislikeButton) {
+      event.stopPropagation();
+      if (!getToken()) {
+        persistAxisDraft();
+        redirectToLogin();
+        return;
+      }
+      await toggleDislike(Number(dislikeButton.dataset.dislikeAxis), dislikeButton.classList.contains('active'));
       return;
     }
     const favoriteButton = event.target.closest('[data-favorite-axis]');

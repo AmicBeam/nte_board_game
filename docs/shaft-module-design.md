@@ -6,7 +6,7 @@
 
 ## 背景与参考
 
-目标是在现有 Flask 站点中新增 `/shaft` 模块，用于计算异环角色组队 DPS。玩家可以按 0.1 秒精度编辑动作轴，查看直伤、倾陷伤害、总伤害、DPS、角色贡献、实时面板与伤害明细，并把自己的轴上传到在线市场，支持点赞、收藏和按角色筛选。
+目标是在现有 Flask 站点中新增 `/shaft` 模块，用于计算异环角色组队 DPS。玩家可以按 0.1 秒精度编辑动作轴，查看直伤、倾陷伤害、总伤害、DPS、角色贡献、实时面板与伤害明细，并把自己的轴上传到在线市场，支持赞、踩、收藏和按角色筛选。
 
 本轮已分析两个参考来源：
 
@@ -20,7 +20,7 @@
 - 可以复用现有玩家登录态、头像、角色图片、`common/base.html`、基础样式和静态资源组织方式。
 - 不复用 `GameRun`、房间、对局快照或异步对局持久化。
 - 轴计算属于工具计算，不影响玩家卡牌构筑和牌桌战斗状态。
-- 市场上传和点赞必须登录；收藏不要求登录。上传、点赞、收藏都必须同步写库成功后再返回，不走异步队列。
+- 市场上传、赞和踩必须登录；收藏不要求登录。上传、赞、踩、收藏都必须同步写库成功后再返回，不走异步队列。
 - 玩家可以把排轴保存为自己的私有草稿，不上传到市场；上传只是把私有轴发布为公开市场轴。
 
 建议新增目录：
@@ -505,6 +505,7 @@ seconds = tick / 10
 | `total_damage` | IntegerField | 总伤害排序用缓存，等于直伤 + 倾陷伤害 |
 | `dps_x100` | IntegerField | DPS * 100，避免 SQLite 浮点排序误差 |
 | `like_count` | IntegerField | 点赞缓存 |
+| `dislike_count` | IntegerField | 点踩缓存 |
 | `favorite_count` | IntegerField | 收藏缓存 |
 | `dedupe_hash` | CharField(64) | 发布去重 hash |
 | `forked_from` | ForeignKey(ShaftAxis) nullable | 二次发布来源 |
@@ -536,6 +537,18 @@ seconds = tick / 10
 ### `ShaftAxisLike`
 
 点赞必须登录。
+
+| 字段 | 类型 | 说明 |
+| --- | --- | --- |
+| `axis` | ForeignKey(ShaftAxis) | 轴 |
+| `player` | ForeignKey(Player) | 玩家 |
+| `created_at` | DateTimeField | 时间 |
+
+唯一索引：`(axis, player)`。
+
+### `ShaftAxisDislike`
+
+点踩必须登录；同一玩家对同一轴的赞、踩互斥。
 
 | 字段 | 类型 | 说明 |
 | --- | --- | --- |
@@ -588,10 +601,11 @@ seconds = tick / 10
 - `PUT /api/shaft/axes/<axis_id>`：更新自己的轴。
 - `DELETE /api/shaft/axes/<axis_id>`：删除或下架自己的轴。
 - `POST /api/shaft/axes/<axis_id>/like`，`DELETE /api/shaft/axes/<axis_id>/like`。
+- `POST /api/shaft/axes/<axis_id>/dislike`，`DELETE /api/shaft/axes/<axis_id>/dislike`。
 - `GET /api/shaft/me/axes`：我的轴。
 - `GET /api/shaft/me/favorites`：我的收藏。
 
-服务端每次保存或发布轴时重新计算结果，不信任前端提交的 `result_json`、`dps_x100` 和 `character_ids`。发布公开轴时还必须计算 `dedupe_hash`，命中重复公开轴则返回明确错误。
+保存时浏览器必须提交由当前 `shaft_engine.js` 刚刚生成的 `result`。服务端校验轴结构、结果结构、必需汇总字段以及有限非负数值，再同步保存结果与 `dps_x100`；`character_ids` 仍从服务端已校验的队伍配置提取。发布公开轴复制已保存的私有轴结果快照，不启动 Node 重算。发布时仍必须计算 `dedupe_hash`，命中重复公开轴则返回明确错误。这个边界优先保证 Windows 服务器无需安装 Node；公开榜单数值属于客户端提交结果，不作为服务端权威防作弊数据。
 
 ## 前端页面草案
 
@@ -601,7 +615,7 @@ seconds = tick / 10
 | --- | --- | --- |
 | 配装 | `/shaft/build` | 选择 4 名角色、弧盘、卡带、觉醒、羁绊、副词条词条数和敌人配置，并查看角色实时面板与总览 |
 | 排轴 | `/shaft/rotation` | 0.1 秒动作轴编辑器，包含动作库、时刻线、插入模式、前台状态、动作详情和触发 buff 预览 |
-| 市场 | `/shaft/market` | 浏览公开轴、按角色筛选、排序、点赞、收藏、读取到编辑器，并管理自己的私有/公开轴 |
+| 市场 | `/shaft/market` | 浏览公开轴、按角色筛选、排序、赞、踩、收藏、读取到编辑器，并管理自己的私有/公开轴 |
 
 配装页：
 
@@ -624,7 +638,7 @@ seconds = tick / 10
 市场页：
 
 - 市场列表支持角色筛选和 `DPS / 最新 / 点赞` 排序。
-- 点赞需要登录；收藏不需要登录，未登录时用浏览器 visitor key 去重。
+- 赞、踩需要登录且互斥；收藏不需要登录，未登录时用浏览器 visitor key 去重。
 - 玩家可以保存自己的私有排轴，也可以发布到市场；发布时做去重 hash 比对。
 
 ## 前后端计算边界
@@ -633,21 +647,21 @@ seconds = tick / 10
 
 - 排轴编辑、拖拽、多选、复制粘贴、撤销重做、插入动作、切换前后台、敌人和配装输入，全部先修改浏览器内的 axis draft，并立即写入 `localStorage`。
 - 前端本地投影只负责时间线显示、0 秒动作最小宽度、动作自动位移后的预览、前台背景、选择状态、动作详情的静态字段和草稿持久化。
-- 公式计算代码只有一份，位于 `app/modules/shaft/static/js/shaft_engine.js`。浏览器直接调用这份引擎，后端保存/上传时通过 Node 包装脚本 `scripts/shaft_compute.js` 调同一份引擎。
+- 公式计算代码只有一份，位于 `app/modules/shaft/static/js/shaft_engine.js`。浏览器直接调用这份引擎；Node 包装脚本 `scripts/shaft_compute.js` 只用于离线回归和诊断。
 - 前端本地计算伤害公式、buff 结算、DPS、资源曲线、环合曲线和动作详情；编辑后可以 debounce 本地重算，但不能请求后端试算。
 - 不再提供公开 `/api/shaft/simulate` 接口。所有排轴试算都在浏览器内完成。
-- 保存私有轴、上传公开轴和市场展示仍以后端计算结果为准；后端不信任客户端提交的 `result`，而是在保存/上传链路内部调用同一份 JS 引擎重算后入库。
+- 保存私有轴时，前端若结果已过期则先完成本地重算，再把最新 `result` 与轴一起提交；后端只做结构和数值边界校验后入库。上传公开轴复制私有轴的结果快照，保存与上传链路均不要求服务器具备 Node。
 
 ## 计算器分层
 
-参考 EndfieldToolbox 的分层，但将公式引擎统一为一份 JS 真源，前端直接调用，后端只在持久化链路中通过 Node 调用同一份引擎：
+参考 EndfieldToolbox 的分层，但将公式引擎统一为一份 JS 真源并由浏览器直接调用：
 
 | 层 | 输入 | 输出 | 职责 |
 | --- | --- | --- | --- |
 | Data Catalog | 静态 JSON | 规范化定义 | 加载角色、动作、装备、buff、常量 |
 | Local Editor Projection | axis draft | 本地时间线和脏状态 | 完成布局预览、选择、拖拽、撤销重做和草稿保存 |
 | JS Calculation Engine | catalog + axis draft | `SimulationResult` | 常驻面板、时间线编译、buff、伤害、资源、DPS 和动作详情的唯一公式实现 |
-| Backend Persistence Adapter | axis draft | DB rows | 保存/上传时调用同一 JS 引擎重算结果、写入市场字段、计算 hash 和角色索引 |
+| Backend Persistence Adapter | axis draft + client result | DB rows | 校验轴与结果结构、写入结果及市场字段、计算 hash 和角色索引 |
 
 ## 校验与测试
 
@@ -664,7 +678,7 @@ seconds = tick / 10
 3. 市场接口验证：
    - 未登录可浏览公开市场。
    - 登录可保存私有轴、上传公开轴、更新、下架自己的轴。
-   - 点赞必须登录且幂等，不能重复计数。
+   - 赞、踩必须登录且幂等，不能重复计数；切换赞踩时自动撤销另一种反应并修正缓存计数。
    - 收藏不要求登录且幂等，未登录时按 `visitor_key` 去重。
    - 二次发布相同 hash 的轴会被拒绝。
    - 按角色筛选走 `ShaftAxisCharacter`，不是 JSON 模糊匹配。

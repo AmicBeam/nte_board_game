@@ -23,15 +23,19 @@ def init_db(models: list[type[Model]]) -> None:
 
 def _add_compatible_columns(models: list[type[Model]]) -> None:
     for model in models:
-        if model._meta.table_name != 'player':
+        table_name = model._meta.table_name
+        if not db.table_exists(table_name):
             continue
-        if not db.table_exists(model._meta.table_name):
-            continue
-        existing_columns = {column.name for column in db.get_columns(model._meta.table_name)}
-        if 'shaft_test_whitelisted' not in existing_columns:
+        existing_columns = {column.name for column in db.get_columns(table_name)}
+        if table_name == 'player' and 'shaft_test_whitelisted' not in existing_columns:
             db.execute_sql(
                 'ALTER TABLE "player" '
                 'ADD COLUMN "shaft_test_whitelisted" INTEGER NOT NULL DEFAULT 0'
+            )
+        if table_name == 'shaftaxis' and 'dislike_count' not in existing_columns:
+            db.execute_sql(
+                'ALTER TABLE "shaftaxis" '
+                'ADD COLUMN "dislike_count" INTEGER NOT NULL DEFAULT 0'
             )
 
 
