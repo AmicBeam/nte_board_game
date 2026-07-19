@@ -1,0 +1,33 @@
+app/modules/kongmu/service.py
+  s_440a5fcb61f53b::t_8b4780e8b1e4c5 70-74,524-527
+app/modules/kongmu/static/js/kongmu.js
+  s_679f46b5a119b5::t_b0d204748dc74b 103
+tests/test_module_routes.py
+  s_440a5fcb61f53b::t_f728af8f98431a 28-34
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "97e6871ccb8f74c01ad3f05fc7ba6f734a3d127f",
+  "prompts": {},
+  "sessions": {
+    "s_440a5fcb61f53b": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f7972-36ca-7720-8cc4-cc973a0910e0",
+        "model": "unknown"
+      },
+      "human_author": "AmicBeam <1425257712@qq.com>"
+    },
+    "s_679f46b5a119b5": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f7973-2907-7b52-a4cd-0890be372ccf",
+        "model": "unknown"
+      },
+      "human_author": "AmicBeam <1425257712@qq.com>"
+    }
+  },
+  "attestation_metadata": {},
+  "remote_transcripts": {}
+}
