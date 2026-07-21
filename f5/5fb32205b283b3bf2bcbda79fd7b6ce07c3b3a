@@ -1,0 +1,45 @@
+app/modules/shaft/README.md
+  s_bed7d5623dc224::t_c5779e0173cf9c 17-19
+app/modules/shaft/service.py
+  s_bed7d5623dc224::t_653f7e6f27b59f 694-714,820-825,1140-1141,1202,1289
+app/modules/shaft/static/data/mechanisms.json
+  s_56199e5479e121::t_e95317b1aa7767 30
+app/modules/shaft/static/js/shaft_engine.js
+  s_56199e5479e121::t_c8bf95ff8e685f 2370,2927-2937,2951-2957
+docs/shaft-buff-configuration-review.md
+  s_56199e5479e121::t_7d46da41183c6f 161,213
+docs/shaft-module-design.md
+  s_56199e5479e121::t_8628facfb5ac92 352,643,686
+scripts/add_shaft_test_whitelist.bat
+  s_bed7d5623dc224::t_5f8583de1d65c5 1-27
+tests/test_shaft_simulator.py
+  s_56199e5479e121::t_ac99c006571a4e 367-406,945,968,971,1017,1020
+tests/test_solo_room_flow.py
+  s_bed7d5623dc224::t_e329249018e4e2 213-270
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "f55fb32205b283b3bf2bcbda79fd7b6ce07c3b3a",
+  "prompts": {},
+  "sessions": {
+    "s_56199e5479e121": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f7982-9f13-75a2-bce0-bea8c1d68f96",
+        "model": "unknown"
+      },
+      "human_author": "AmicBeam <1425257712@qq.com>"
+    },
+    "s_bed7d5623dc224": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f79ab-ed0f-7cc1-96c4-33fccdc4ea2c",
+        "model": "unknown"
+      },
+      "human_author": "AmicBeam <1425257712@qq.com>"
+    }
+  },
+  "attestation_metadata": {},
+  "remote_transcripts": {}
+}
