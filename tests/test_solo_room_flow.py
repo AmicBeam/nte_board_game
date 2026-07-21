@@ -210,6 +210,64 @@ class SoloRoomFlowTest(RoomFlowTestCase):
         }, token=test_token)
         self.assertEqual(allowed['team'][0]['character_id'], public_yiloyi['id'])
 
+        published = self._post(
+            f"/api/shaft/axes/{allowed['id']}/publish",
+            {},
+            token=test_token,
+        )
+        self.assertEqual(published['visibility'], 'public')
+
+        anonymous_market = self._get('/api/shaft/market')
+        regular_market = self._get('/api/shaft/market', token=regular_token)
+        test_market = self._get('/api/shaft/market', token=test_token)
+        self.assertNotIn('测试账号伊洛伊', [axis['title'] for axis in anonymous_market['items']])
+        self.assertNotIn('测试账号伊洛伊', [axis['title'] for axis in regular_market['items']])
+        self.assertIn('测试账号伊洛伊', [axis['title'] for axis in test_market['items']])
+
+        for token in (None, regular_token):
+            hidden_detail = self.client.get(
+                f"/api/shaft/axes/{published['id']}",
+                headers=self._auth_headers(token),
+            )
+            self.assertEqual(hidden_detail.status_code, 400)
+            self.assertIn('排轴不存在', hidden_detail.get_json()['error'])
+        visible_detail = self._get(f"/api/shaft/axes/{published['id']}", token=test_token)
+        self.assertEqual(visible_detail['id'], published['id'])
+
+        denied_favorite = self._post(
+            f"/api/shaft/axes/{published['id']}/favorite",
+            {},
+            token=regular_token,
+            expected_status=400,
+        )
+        self.assertIn('排轴不存在', denied_favorite['error'])
+        models_module.Player.update(shaft_test_whitelisted=True).where(
+            models_module.Player.player_uid == 'regular-shaft-player'
+        ).execute()
+        self._post(
+            f"/api/shaft/axes/{published['id']}/favorite",
+            {},
+            token=regular_token,
+        )
+        visible_favorites = self._get('/api/shaft/me/favorites', token=regular_token)
+        self.assertIn('测试账号伊洛伊', [axis['title'] for axis in visible_favorites['items']])
+
+        models_module.Player.update(shaft_test_whitelisted=False).where(
+            models_module.Player.player_uid == 'regular-shaft-player'
+        ).execute()
+        hidden_favorites = self._get('/api/shaft/me/favorites', token=regular_token)
+        self.assertNotIn('测试账号伊洛伊', [axis['title'] for axis in hidden_favorites['items']])
+        models_module.Player.update(shaft_test_whitelisted=False).where(
+            models_module.Player.player_uid == 'shaft-whitelisted-player'
+        ).execute()
+        denied_publish = self._post(
+            f"/api/shaft/axes/{allowed['id']}/publish",
+            {},
+            token=test_token,
+            expected_status=400,
+        )
+        self.assertIn('仅对测试账号开放', denied_publish['error'])
+
     def test_portal_and_shaft_plaza_routes_render(self) -> None:
         portal = self.client.get('/')
         self.assertEqual(portal.status_code, 200)

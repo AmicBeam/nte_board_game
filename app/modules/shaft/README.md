@@ -14,6 +14,9 @@
 - 伊洛伊仅对 `Player.shaft_test_whitelisted` 标记为真的账号开放。使用
   `python3 scripts/manage_shaft_test_whitelist.py add <玩家账号>` 加入白名单，
   `remove` 移出，`status` 查询单个账号，`list` 查看全部白名单账号。
+  Windows 服务器也可以编辑 `scripts/add_shaft_test_whitelist.bat` 顶部的
+  `PLAYER_UID` 后双击运行，脚本会自动加入白名单并再次查询状态。
+- 含伊洛伊等非公开角色的公开轴只对白名单账号可见。服务端会从非白名单账号和未登录访客的广场、收藏列表中排除这些轴，直接访问对应公开轴 ID 时也按不存在处理；私有轴仍遵循仅所有者可见。
 
 详细公式、数据模型和交互设计见 [排轴模块设计](../../../docs/shaft-module-design.md)。角色动作资料见 [角色动作说明](../../../docs/shaft-character-actions.md)。
 

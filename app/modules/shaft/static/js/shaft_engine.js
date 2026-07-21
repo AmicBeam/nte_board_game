@@ -2367,7 +2367,7 @@
       if (reaction === '创生') {
         const iloy = iloySnapshot();
         if (iloy) {
-          const baseFlowerCount = teamHasNanali() ? 25 : 20;
+          const baseFlowerCount = 20;
           const cloneFrequencyMultiplier = teamHasJiuyuan() ? 2 : 1;
           const flowerCount = baseFlowerCount;
           const cloneDurationTicks = baseFlowerCount * 5;
@@ -2924,6 +2924,17 @@
           if (!rule.duration?.loop_carry) return;
           const event = String(rule.trigger?.event || '');
           const triggerTick = triggerTickForRule(rule, startTick, endTick);
+          const runtimeRule = clone(rule);
+          const ownerBase = rule.activation?.effects_from_owner_base
+            && typeof rule.activation.effects_from_owner_base === 'object'
+            ? rule.activation.effects_from_owner_base
+            : {};
+          if (ownerBase.effect_key && ownerBase.stat) {
+            const ownerSnapshot = snapshots.get(int(rule.owner_slot));
+            runtimeRule.effects = Object.assign({}, runtimeRule.effects, {
+              [String(ownerBase.effect_key)]: num(ownerSnapshot?.base_stats?.[String(ownerBase.stat)]) * num(ownerBase.factor, 1),
+            });
+          }
           const context = {
             enemy,
             snapshot,
@@ -2937,7 +2948,13 @@
           if (!eventMatchesRule(rule, event, step, action, snapshot, scheduled.is_background, context)) return;
           const actionMultiplier = backgroundActionMultiplier(step, action);
           for (let copyIndex = 0; copyIndex < actionMultiplier; copyIndex += 1) {
-            const instance = activateBuff(activeBuffs, rule, triggerTick - loopDurationTicks, stackGainForRule(rule, context), context);
+            const instance = activateBuff(
+              activeBuffs,
+              runtimeRule,
+              triggerTick - loopDurationTicks,
+              stackGainForRule(runtimeRule, context),
+              context,
+            );
             if (instance) {
               instance.start_tick = Math.max(0, int(instance.start_tick));
               instance.looped = true;

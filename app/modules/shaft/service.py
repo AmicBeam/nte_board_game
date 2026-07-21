@@ -691,6 +691,27 @@ def _is_shaft_test_player(player: Player | None) -> bool:
     return bool(player and getattr(player, 'shaft_test_whitelisted', False))
 
 
+def _team_contains_disabled_character(team: Any) -> bool:
+    return isinstance(team, list) and any(
+        isinstance(member, dict)
+        and str(member.get('character_id') or '') in DISABLED_CHARACTER_SELECTION_IDS
+        for member in team
+    )
+
+
+def _axis_contains_disabled_character(axis: ShaftAxis) -> bool:
+    return _team_contains_disabled_character(_safe_json_loads(axis.team_json, []))
+
+
+def _filter_visible_character_axes(query, player: Player | None):
+    if _is_shaft_test_player(player):
+        return query
+    restricted_axis_ids = ShaftAxisCharacter.select(ShaftAxisCharacter.axis).where(
+        ShaftAxisCharacter.character_id.in_(DISABLED_CHARACTER_SELECTION_IDS)
+    )
+    return query.where(ShaftAxis.id.not_in(restricted_axis_ids))
+
+
 def get_shaft_catalog_payload(player: Player | None = None) -> dict[str, Any]:
     catalog = load_shaft_catalog()
     can_select_test_characters = _is_shaft_test_player(player)
@@ -796,6 +817,12 @@ def _visible_axis(axis_id: int, player: Player | None = None) -> ShaftAxis:
         raise RuleValidationError('排轴不存在。')
     if axis.visibility != 'public' and (player is None or axis.owner_id != player.id):
         raise RuleValidationError('没有查看这个排轴的权限。')
+    if (
+        axis.visibility == 'public'
+        and not _is_shaft_test_player(player)
+        and _axis_contains_disabled_character(axis)
+    ):
+        raise RuleValidationError('排轴不存在。')
     return axis
 
 
@@ -1110,6 +1137,8 @@ def publish_shaft_axis_snapshot(player: Player, axis_id: int) -> dict[str, Any]:
         source = _private_axis_query_for_player(axis_id, player)
         if source is None:
             raise RuleValidationError('没有上传这个排轴的权限。')
+        if not _is_shaft_test_player(player) and _axis_contains_disabled_character(source):
+            raise RuleValidationError('伊洛伊当前仅对测试账号开放。')
         duplicate = ShaftAxis.select().where(
             (ShaftAxis.visibility == 'public') &
             (ShaftAxis.dedupe_hash == source.dedupe_hash)
@@ -1170,6 +1199,7 @@ def list_shaft_market(
     page_size = max(1, min(60, page_size))
     sort = sort if sort in MARKET_SORTS else 'dps'
     query = ShaftAxis.select(ShaftAxis, Player).join(Player).where(ShaftAxis.visibility == 'public')
+    query = _filter_visible_character_axes(query, player)
     selected_character_ids = list(dict.fromkeys(
         str(character_id).strip()
         for character_id in (character_ids or [])
@@ -1256,6 +1286,7 @@ def list_filtered_shaft_axes(
             (ShaftAxis.visibility == 'public') &
             (ShaftAxis.id.in_(favorite_axis_ids))
         )
+        query = _filter_visible_character_axes(query, player)
     else:
         query = query.where(
             (ShaftAxis.owner == player) &

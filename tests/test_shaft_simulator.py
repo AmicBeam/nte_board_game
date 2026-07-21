@@ -364,6 +364,46 @@ class ShaftSimulatorValidationTestCase(unittest.TestCase):
             expected_flat_atk,
         )
 
+    def test_iloy_a5_flat_atk_is_resolved_during_loop_warmup(self) -> None:
+        def simulate(awakening_nodes: list[int]) -> dict:
+            return simulate_shaft_axis({
+                'team': [
+                    {
+                        'slot': 0,
+                        'character_id': 'char_a01c39f576',
+                        'arc_id': '',
+                        'cartridge_id': '',
+                        'awakening_nodes': awakening_nodes,
+                    },
+                    {'slot': 1, 'character_id': 'char_701295143d', 'arc_id': '', 'cartridge_id': ''},
+                ],
+                'steps': [
+                    {'id': 'iloy_e', 'slot': 0, 'action_id': 'action_afea1e6fb2', 'start_tick': 0},
+                    {'id': 'teammate_action', 'slot': 1, 'action_id': 'action_c234af7127', 'start_tick': 20},
+                ],
+                'team_panel_bonus': self.ZERO_TEAM_PANEL_BONUS,
+                'initial_energy': 200,
+                'options': {'loop_enabled': True},
+            })['result']
+
+        inactive = simulate([])
+        active = simulate([5])
+        active_details = {detail['step_id']: detail for detail in active['details']}
+        active_buffs = {
+            buff['rule_id']: buff
+            for buff in active_details['teammate_action']['applied_buffs']
+        }
+
+        self.assertAlmostEqual(
+            active_buffs['character_iloy_e_team_flat_atk']['effects']['flat_atk'],
+            596.0 * 0.2,
+        )
+        self.assertAlmostEqual(
+            active_buffs['character_iloy_a5_heal_team_flat_atk']['effects']['flat_atk'],
+            596.0 * 0.125,
+        )
+        self.assertGreater(active['summary']['total_damage'], inactive['summary']['total_damage'])
+
     def test_iloy_long_e_marks_three_regressed_teammates_for_full_awakening_damage(self) -> None:
         result = simulate_shaft_axis({
             'team': [
@@ -902,7 +942,7 @@ class ShaftSimulatorValidationTestCase(unittest.TestCase):
         self.assertEqual(clone_effect['start_tick'], genesis_effect['start_tick'] + 30)
         self.assertEqual(clone_effect['contributor_slot'], genesis_effect['contributor_slot'])
 
-    def test_iloy_genesis_clone_uses_twenty_five_half_second_flowers_with_nanali(self) -> None:
+    def test_nanali_does_not_change_iloy_genesis_clone_flowers(self) -> None:
         result = simulate_shaft_axis({
             'team': [
                 {'slot': 0, 'character_id': 'char_dd034941ef', 'arc_id': '', 'cartridge_id': ''},
@@ -925,10 +965,10 @@ class ShaftSimulatorValidationTestCase(unittest.TestCase):
             if event['reaction'] == '创生复制体'
         ]
         self.assertEqual(len(genesis_events), 10)
-        self.assertEqual(len(clone_events), 25)
+        self.assertEqual(len(clone_events), 20)
         self.assertEqual(
             [event['tick'] for event in clone_events],
-            list(range(clone_events[0]['tick'], clone_events[0]['tick'] + 125, 5)),
+            list(range(clone_events[0]['tick'], clone_events[0]['tick'] + 100, 5)),
         )
         clone_effect = next(
             effect for effect in result['reaction_effects']
@@ -974,10 +1014,10 @@ class ShaftSimulatorValidationTestCase(unittest.TestCase):
         self.assertEqual(genesis_effect['frequency_multiplier'], 2)
         self.assertEqual(clone_effect['frequency_multiplier'], 2)
         self.assertEqual(len(genesis_events), 10)
-        self.assertEqual(len(clone_events), 25)
+        self.assertEqual(len(clone_events), 20)
         self.assertEqual(genesis_events[-1]['tick'], genesis_effect['end_tick'])
         self.assertEqual(clone_events[-1]['tick'], clone_effect['end_tick'])
-        self.assertEqual(clone_effect['duration_ticks'], 125)
+        self.assertEqual(clone_effect['duration_ticks'], 100)
         self.assertTrue(all(event['frequency_multiplier'] == 2 for event in genesis_events))
         self.assertTrue(all(event['frequency_multiplier'] == 2 for event in clone_events))
         self.assertTrue(all(event['formula_parts']['frequency_multiplier'] == 2 for event in genesis_events))
