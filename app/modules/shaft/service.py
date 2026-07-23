@@ -4,6 +4,7 @@ import hashlib
 import json
 import math
 import re
+import secrets
 import shutil
 import subprocess
 from datetime import datetime
@@ -19,6 +20,7 @@ from app.models import (
     ShaftAxisDislike,
     ShaftAxisFavorite,
     ShaftAxisLike,
+    ShaftCharacterPublication,
 )
 from app.modules.shaft.domain.catalog import LEGACY_ARC_SELECTIONS, get_record_map, load_shaft_catalog
 from app.utils.logger import get_logger
@@ -32,7 +34,9 @@ MAX_BUFF_RULES = 48
 MAX_BACKGROUND_ACTION_MULTIPLIER = 999
 VISIBILITIES = frozenset({'private', 'public'})
 MARKET_SORTS = frozenset({'dps', 'likes', 'favorites', 'new'})
-DISABLED_CHARACTER_SELECTION_IDS = frozenset({'char_a01c39f576'})
+DEFAULT_UNPUBLISHED_CHARACTERS = {
+    'char_a01c39f576': '伊洛伊',
+}
 ELEMENTS = ('光', '灵', '咒', '暗', '魂', '相')
 ZERO_ACTION_VISUAL_TICKS = 5
 SUBSTAT_KEYS = (
@@ -101,6 +105,31 @@ class ShaftAxisNameConflictError(RuleValidationError):
         super().__init__(f'已存在名为「{title}」的排轴。')
         self.title = title
         self.axis_id = axis_id
+
+
+def initialize_shaft_character_publications() -> None:
+    now = datetime.utcnow()
+    with atomic_transaction():
+        for character_id, character_name in DEFAULT_UNPUBLISHED_CHARACTERS.items():
+            ShaftCharacterPublication.get_or_create(
+                character_id=character_id,
+                defaults={
+                    'character_name': character_name,
+                    'is_published': False,
+                    'updated_at': now,
+                },
+            )
+
+
+def _unpublished_character_ids() -> frozenset[str]:
+    if not ShaftCharacterPublication.table_exists():
+        return frozenset(DEFAULT_UNPUBLISHED_CHARACTERS)
+    return frozenset(
+        publication.character_id
+        for publication in ShaftCharacterPublication.select(
+            ShaftCharacterPublication.character_id,
+        ).where(ShaftCharacterPublication.is_published == False)
+    )
 
 
 def migrate_shaft_source_versions() -> int:
@@ -484,16 +513,45 @@ def _normalize_options(raw: Any, catalog: dict[str, Any], team: list[dict[str, A
     raw_loop_resources = options.get('loop_initial_resources')
     raw_loop_resources = raw_loop_resources if isinstance(raw_loop_resources, dict) else {}
     characters = get_record_map(catalog['characters'])
-    loop_initial_resources: dict[str, dict[str, float]] = {}
+    formula_constants = catalog.get('formula_constants') if isinstance(catalog.get('formula_constants'), dict) else {}
+    personal_resource_caps = formula_constants.get('personal_resource_caps')
+    personal_resource_caps = personal_resource_caps if isinstance(personal_resource_caps, dict) else {}
+    hidden_personal_resources = {
+        str(name)
+        for name in formula_constants.get('hidden_personal_resources', [])
+        if str(name)
+    }
+    personal_resource_names: dict[str, set[str]] = {}
+    for action in catalog.get('actions', []):
+        if not isinstance(action, dict):
+            continue
+        character_id = str(action.get('character_id') or '')
+        names = personal_resource_names.setdefault(character_id, set())
+        for field in ('personal_resource_cost', 'personal_resource_gain', 'personal_resource_threshold'):
+            values = action.get(field)
+            if isinstance(values, dict):
+                names.update(str(name) for name in values if str(name) not in hidden_personal_resources)
+    loop_initial_resources: dict[str, dict[str, Any]] = {}
     for member in team:
         character_id = str(member.get('character_id') or '')
         configured = raw_loop_resources.get(character_id)
         if not isinstance(configured, dict):
             continue
         energy_capacity = max(0, _num((characters.get(character_id) or {}).get('energy_capacity'), 100))
+        configured_personal = configured.get('personal_resources')
+        configured_personal = configured_personal if isinstance(configured_personal, dict) else {}
+        character_caps = personal_resource_caps.get(character_id)
+        character_caps = character_caps if isinstance(character_caps, dict) else {}
+        normalized_personal = {}
+        for name in sorted(personal_resource_names.get(character_id, set())):
+            if name not in configured_personal:
+                continue
+            maximum = max(0, _num(character_caps.get(name), 1_000_000))
+            normalized_personal[name] = max(0, min(maximum, _num(configured_personal.get(name))))
         loop_initial_resources[character_id] = {
             'energy': max(0, min(energy_capacity, _num(configured.get('energy')))),
             'harmony': max(0, min(100, _num(configured.get('harmony')))),
+            'personal_resources': normalized_personal,
         }
     return {
         'switch_gap_ticks': switch_gap_ticks,
@@ -691,15 +749,41 @@ def _is_shaft_test_player(player: Player | None) -> bool:
     return bool(player and getattr(player, 'shaft_test_whitelisted', False))
 
 
+def _team_contains_disabled_character(team: Any) -> bool:
+    unpublished_character_ids = _unpublished_character_ids()
+    return isinstance(team, list) and any(
+        isinstance(member, dict)
+        and str(member.get('character_id') or '') in unpublished_character_ids
+        for member in team
+    )
+
+
+def _axis_contains_disabled_character(axis: ShaftAxis) -> bool:
+    return _team_contains_disabled_character(_safe_json_loads(axis.team_json, []))
+
+
+def _filter_visible_character_axes(query, player: Player | None):
+    if _is_shaft_test_player(player):
+        return query
+    unpublished_character_ids = _unpublished_character_ids()
+    if not unpublished_character_ids:
+        return query
+    restricted_axis_ids = ShaftAxisCharacter.select(ShaftAxisCharacter.axis).where(
+        ShaftAxisCharacter.character_id.in_(unpublished_character_ids)
+    )
+    return query.where(ShaftAxis.id.not_in(restricted_axis_ids))
+
+
 def get_shaft_catalog_payload(player: Player | None = None) -> dict[str, Any]:
     catalog = load_shaft_catalog()
     can_select_test_characters = _is_shaft_test_player(player)
+    unpublished_character_ids = _unpublished_character_ids()
     return {
         'characters': [
             {
                 **character,
                 'selection_disabled': (
-                    str(character.get('id') or '') in DISABLED_CHARACTER_SELECTION_IDS
+                    str(character.get('id') or '') in unpublished_character_ids
                     and not can_select_test_characters
                 ),
             }
@@ -796,6 +880,12 @@ def _visible_axis(axis_id: int, player: Player | None = None) -> ShaftAxis:
         raise RuleValidationError('排轴不存在。')
     if axis.visibility != 'public' and (player is None or axis.owner_id != player.id):
         raise RuleValidationError('没有查看这个排轴的权限。')
+    if (
+        axis.visibility == 'public'
+        and not _is_shaft_test_player(player)
+        and _axis_contains_disabled_character(axis)
+    ):
+        raise RuleValidationError('排轴不存在。')
     return axis
 
 
@@ -992,11 +1082,8 @@ def save_shaft_axis(player: Player, payload: dict[str, Any], axis_id: int | None
     if conflict_action not in {'', 'overwrite'}:
         raise RuleValidationError('未知的同名排轴处理方式。')
     axis_payload = normalize_axis_payload(payload)
-    if not _is_shaft_test_player(player) and any(
-        str(member.get('character_id') or '') in DISABLED_CHARACTER_SELECTION_IDS
-        for member in axis_payload.get('team') or []
-    ):
-        raise RuleValidationError('伊洛伊当前仅对测试账号开放。')
+    if not _is_shaft_test_player(player) and _team_contains_disabled_character(axis_payload.get('team')):
+        raise RuleValidationError('队伍中存在当前仅对测试账号开放的角色。')
     result = _submitted_axis_result(payload, axis_payload)
     axis_payload['duration_ticks'] = _int(result['summary'].get('duration_ticks'), axis_payload['duration_ticks'])
     dedupe_hash = calculate_axis_hash(axis_payload)
@@ -1056,6 +1143,51 @@ def get_shaft_axis(axis_id: int, player: Player | None = None, visitor_key: str 
     return serialize_shaft_axis(axis, include_axis=True, player=player, visitor_key=visitor_key)
 
 
+def create_shaft_axis_share(player: Player, axis_id: int) -> dict[str, Any]:
+    with atomic_transaction():
+        axis = _private_axis_query_for_player(axis_id, player)
+        if axis is None:
+            raise RuleValidationError('没有分享这个排轴的权限。')
+        if not axis.share_token:
+            while True:
+                share_token = secrets.token_urlsafe(24)
+                if not ShaftAxis.select().where(ShaftAxis.share_token == share_token).exists():
+                    break
+            axis.share_token = share_token
+            axis.save(only=[ShaftAxis.share_token])
+    logger.info('create_shaft_axis_share player_uid=%s axis_id=%s', player.player_uid, axis.id)
+    return {
+        'axis_id': axis.id,
+        'share_token': axis.share_token,
+        'share_path': f'/shaft/rotation?share={axis.share_token}',
+    }
+
+
+def get_shared_shaft_axis(
+    share_token: str,
+    player: Player | None = None,
+    visitor_key: str = '',
+) -> dict[str, Any]:
+    token = str(share_token or '').strip()
+    if not re.fullmatch(r'[A-Za-z0-9_-]{20,64}', token):
+        raise RuleValidationError('分享链接无效或已失效。')
+    axis = ShaftAxis.select(ShaftAxis, Player).join(Player).where(
+        (ShaftAxis.share_token == token) &
+        (ShaftAxis.visibility == 'private')
+    ).first()
+    if axis is None:
+        raise RuleValidationError('分享链接无效或已失效。')
+    payload = serialize_shaft_axis(
+        axis,
+        include_axis=True,
+        player=player,
+        visitor_key=visitor_key,
+    )
+    payload['shared'] = True
+    payload['read_only'] = player is None
+    return payload
+
+
 def backup_shaft_axis(player: Player, axis_id: int) -> dict[str, Any]:
     now = datetime.utcnow()
     with atomic_transaction():
@@ -1110,6 +1242,8 @@ def publish_shaft_axis_snapshot(player: Player, axis_id: int) -> dict[str, Any]:
         source = _private_axis_query_for_player(axis_id, player)
         if source is None:
             raise RuleValidationError('没有上传这个排轴的权限。')
+        if not _is_shaft_test_player(player) and _axis_contains_disabled_character(source):
+            raise RuleValidationError('队伍中存在当前仅对测试账号开放的角色。')
         duplicate = ShaftAxis.select().where(
             (ShaftAxis.visibility == 'public') &
             (ShaftAxis.dedupe_hash == source.dedupe_hash)
@@ -1170,6 +1304,7 @@ def list_shaft_market(
     page_size = max(1, min(60, page_size))
     sort = sort if sort in MARKET_SORTS else 'dps'
     query = ShaftAxis.select(ShaftAxis, Player).join(Player).where(ShaftAxis.visibility == 'public')
+    query = _filter_visible_character_axes(query, player)
     selected_character_ids = list(dict.fromkeys(
         str(character_id).strip()
         for character_id in (character_ids or [])
@@ -1256,6 +1391,7 @@ def list_filtered_shaft_axes(
             (ShaftAxis.visibility == 'public') &
             (ShaftAxis.id.in_(favorite_axis_ids))
         )
+        query = _filter_visible_character_axes(query, player)
     else:
         query = query.where(
             (ShaftAxis.owner == player) &

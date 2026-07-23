@@ -24,7 +24,7 @@
     small_flat_atk: 420,
     small_flat_hp: 5200,
   };
-  const PERSONAL_RESOURCE_CAPS = {
+  const DEFAULT_PERSONAL_RESOURCE_CAPS = {
     char_701295143d: { '言灵字': 4 },
     char_912dbfe17c: { '闪送之力': 6 },
     char_a01c39f576: { '臆想': 100 },
@@ -1807,6 +1807,10 @@
     const enemy = normalizeEnemy(axisPayload?.enemy);
     let enemyDebuffs = Object.assign({}, enemy.debuffs || {});
     const options = axisPayload?.options && typeof axisPayload.options === 'object' ? axisPayload.options : {};
+    const personalResourceCaps = catalog.formula_constants?.personal_resource_caps
+      && typeof catalog.formula_constants.personal_resource_caps === 'object'
+      ? catalog.formula_constants.personal_resource_caps
+      : DEFAULT_PERSONAL_RESOURCE_CAPS;
     const fonsFull = options.fons_full == null ? true : Boolean(options.fons_full);
     const switchLossTicks = Math.max(
       0,
@@ -1871,6 +1875,16 @@
       : {};
     personalResources.forEach((resources, slot) => {
       Object.assign(resources, resourceMap(initialPersonalResources[String(slot)] || initialPersonalResources[slot] || {}));
+      const snapshot = snapshots.get(slot);
+      const characterId = String(snapshot?.character?.id || '');
+      const loopResources = loopInitialResources[characterId];
+      const configuredPersonal = loopResources?.personal_resources && typeof loopResources.personal_resources === 'object'
+        ? resourceMap(loopResources.personal_resources)
+        : {};
+      Object.entries(configuredPersonal).forEach(([name, value]) => {
+        const cap = num(personalResourceCaps[characterId]?.[name], 1000000);
+        resources[name] = Math.max(0, Math.min(cap, value));
+      });
       initialPersonalResourcesBySlot.set(slot, Object.assign({}, resources));
     });
     const buffRules = registeredBuffRules(teamPayload, catalog).concat(legacyBuffRules(axisPayload?.buff_rules));
@@ -2367,7 +2381,7 @@
       if (reaction === '创生') {
         const iloy = iloySnapshot();
         if (iloy) {
-          const baseFlowerCount = teamHasNanali() ? 25 : 20;
+          const baseFlowerCount = 20;
           const cloneFrequencyMultiplier = teamHasJiuyuan() ? 2 : 1;
           const flowerCount = baseFlowerCount;
           const cloneDurationTicks = baseFlowerCount * 5;
@@ -2924,6 +2938,17 @@
           if (!rule.duration?.loop_carry) return;
           const event = String(rule.trigger?.event || '');
           const triggerTick = triggerTickForRule(rule, startTick, endTick);
+          const runtimeRule = clone(rule);
+          const ownerBase = rule.activation?.effects_from_owner_base
+            && typeof rule.activation.effects_from_owner_base === 'object'
+            ? rule.activation.effects_from_owner_base
+            : {};
+          if (ownerBase.effect_key && ownerBase.stat) {
+            const ownerSnapshot = snapshots.get(int(rule.owner_slot));
+            runtimeRule.effects = Object.assign({}, runtimeRule.effects, {
+              [String(ownerBase.effect_key)]: num(ownerSnapshot?.base_stats?.[String(ownerBase.stat)]) * num(ownerBase.factor, 1),
+            });
+          }
           const context = {
             enemy,
             snapshot,
@@ -2937,7 +2962,13 @@
           if (!eventMatchesRule(rule, event, step, action, snapshot, scheduled.is_background, context)) return;
           const actionMultiplier = backgroundActionMultiplier(step, action);
           for (let copyIndex = 0; copyIndex < actionMultiplier; copyIndex += 1) {
-            const instance = activateBuff(activeBuffs, rule, triggerTick - loopDurationTicks, stackGainForRule(rule, context), context);
+            const instance = activateBuff(
+              activeBuffs,
+              runtimeRule,
+              triggerTick - loopDurationTicks,
+              stackGainForRule(runtimeRule, context),
+              context,
+            );
             if (instance) {
               instance.start_tick = Math.max(0, int(instance.start_tick));
               instance.looped = true;
@@ -3168,7 +3199,7 @@
           warnings.push(`${key} 正在持续消耗，期间无法积攒。`);
           return;
         }
-        const cap = num(PERSONAL_RESOURCE_CAPS[String(snapshot.character?.id || '')]?.[key], Number.POSITIVE_INFINITY);
+        const cap = num(personalResourceCaps[String(snapshot.character?.id || '')]?.[key], Number.POSITIVE_INFINITY);
         slotResources[key] = Math.min(cap, (slotResources[key] || 0) + gain * actionMultiplier);
       });
       triggeredBuffs.forEach((summary) => {

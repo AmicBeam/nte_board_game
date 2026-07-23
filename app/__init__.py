@@ -13,6 +13,7 @@ from app.models import (
     RoomMember,
     ShaftAxis,
     ShaftAxisCharacter,
+    ShaftCharacterPublication,
     ShaftAxisDislike,
     ShaftAxisFavorite,
     ShaftAxisLike,
@@ -38,13 +39,15 @@ def create_app() -> Flask:
         Room,
         RoomMember,
         GameRun,
+        ShaftCharacterPublication,
         ShaftAxis,
         ShaftAxisCharacter,
         ShaftAxisLike,
         ShaftAxisDislike,
         ShaftAxisFavorite,
     ])
-    from app.modules.shaft.service import migrate_shaft_source_versions
+    from app.modules.shaft.service import initialize_shaft_character_publications, migrate_shaft_source_versions
+    initialize_shaft_character_publications()
     migrate_shaft_source_versions()
 
     @app.before_request

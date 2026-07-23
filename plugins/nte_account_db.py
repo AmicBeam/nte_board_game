@@ -45,10 +45,34 @@ class NTELoginCode(NTEBaseModel):
         table_name = 'logincode'
 
 
+class NTEShaftCharacterPublication(NTEBaseModel):
+    id = AutoField()
+    character_id = CharField(unique=True, max_length=64)
+    character_name = CharField(unique=True, max_length=64)
+    is_published = BooleanField(default=False)
+    updated_at = DateTimeField(default=datetime.utcnow)
+
+    class Meta:
+        table_name = 'shaftcharacterpublication'
+
+
+DEFAULT_UNPUBLISHED_CHARACTERS = {
+    '伊洛伊': 'char_a01c39f576',
+}
+
+
 def ensure_nte_tables():
     if nte_account_db.is_closed():
         nte_account_db.connect(reuse_if_open=True)
-    nte_account_db.create_tables([NTEPlayer, NTELoginCode])
+    nte_account_db.create_tables([NTEPlayer, NTELoginCode, NTEShaftCharacterPublication])
+    for character_name, character_id in DEFAULT_UNPUBLISHED_CHARACTERS.items():
+        NTEShaftCharacterPublication.get_or_create(
+            character_id=character_id,
+            defaults={
+                'character_name': character_name,
+                'is_published': False,
+            },
+        )
 
 
 def normalize_nickname(nickname: str):
@@ -82,3 +106,22 @@ def issue_account_register_code(player_uid: str, nickname: str = ''):
         expires_at=PERMANENT_PASSWORD_EXPIRES_AT,
     )
     return code, created
+
+
+def publish_shaft_character(character_name: str) -> str:
+    ensure_nte_tables()
+    normalized_name = (character_name or '').strip()
+    publication = NTEShaftCharacterPublication.get_or_none(
+        NTEShaftCharacterPublication.character_name == normalized_name
+    )
+    if publication is None:
+        return 'not_found'
+    if publication.is_published:
+        return 'already_published'
+    publication.is_published = True
+    publication.updated_at = datetime.utcnow()
+    publication.save(only=[
+        NTEShaftCharacterPublication.is_published,
+        NTEShaftCharacterPublication.updated_at,
+    ])
+    return 'published'

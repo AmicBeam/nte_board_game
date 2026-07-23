@@ -22,6 +22,10 @@
     </section>
 
     <section class="glass-card shaft-panel shaft-command-panel" data-shaft-axis-info {% if active_shaft_page == 'plaza' %}hidden{% endif %}>
+        <div class="shaft-shared-readonly-notice" id="shaft-shared-readonly-notice" hidden>
+            <strong>分享排轴 · 只读查看</strong>
+            <span>未登录状态不能修改这份排轴。登录后重新打开分享链接即可编辑副本。</span>
+        </div>
         <div class="shaft-title-fields">
             <label>
                 <span>标题</span>
@@ -35,6 +39,7 @@
         <div class="shaft-command-actions">
             <button class="secondary-btn" id="shaft-new-btn" type="button">新建动作轴</button>
             <button class="secondary-btn" id="shaft-save-btn" type="button">保存</button>
+            <button class="secondary-btn" id="shaft-save-as-btn" type="button" disabled>另存</button>
         </div>
     </section>
 
@@ -265,6 +270,21 @@
                 <button class="secondary-btn" value="cancel" formnovalidate>取消</button>
                 <button class="secondary-btn danger-btn" value="overwrite" formnovalidate>覆盖</button>
                 <button class="primary-btn" value="rename">改名并保存</button>
+            </div>
+        </form>
+    </dialog>
+    <dialog class="shaft-shortcut-dialog shaft-name-conflict-dialog" id="shaft-share-open-dialog" aria-labelledby="shaft-share-open-title">
+        <form class="shaft-shortcut-modal shaft-name-conflict-modal" method="dialog">
+            <div>
+                <span class="shaft-panel-kicker">打开分享排轴</span>
+                <h2 id="shaft-share-open-title">当前工作区有未保存的更改</h2>
+                <p>打开分享链接会替换当前工作区。请先选择如何处理这些更改。</p>
+            </div>
+            <div class="shaft-name-conflict-actions shaft-share-open-actions">
+                <button class="secondary-btn" value="cancel">不打开分享</button>
+                <button class="secondary-btn danger-btn" value="discard">放弃更改</button>
+                <button class="secondary-btn" value="save_as">另存</button>
+                <button class="primary-btn" value="save">保存</button>
             </div>
         </form>
     </dialog>
