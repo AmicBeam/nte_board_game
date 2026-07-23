@@ -42,6 +42,11 @@ DEFAULT_BUILD_OVERRIDES = {
     '哈尼娅': {'arc_name': '引爆全场'},
 }
 
+# User-confirmed corrections for build-sheet values that are known to be stale.
+BOND_BONUS_OVERRIDES = {
+    '伊洛伊': '5攻击',
+}
+
 SUBSTAT_UNITS = {
     'all_dmg': {'label': '通伤', 'unit_value': 0.01, 'kind': 'percent'},
     'crit_rate': {'label': '暴击', 'unit_value': 0.01, 'kind': 'percent'},
@@ -196,7 +201,12 @@ def extract_characters(wb_values: Any) -> list[dict[str, Any]]:
         if normalize_value(build_ws.cell(row, 1).value)
     }
     bond_by_name = {
-        str(normalize_value(build_ws.cell(row, 1).value) or ''): parse_bond_bonus(build_ws.cell(row, 57).value)
+        str(normalize_value(build_ws.cell(row, 1).value) or ''): parse_bond_bonus(
+            BOND_BONUS_OVERRIDES.get(
+                str(normalize_value(build_ws.cell(row, 1).value) or ''),
+                build_ws.cell(row, 57).value,
+            )
+        )
         for row in range(3, build_ws.max_row + 1)
         if normalize_value(build_ws.cell(row, 1).value)
     }

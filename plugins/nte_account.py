@@ -1,14 +1,15 @@
 # SPDX-License-Identifier: GPL-3.0-only
-from nonebot import on_command
+from nonebot import get_driver, on_command
 from nonebot.typing import T_State
 from nonebot.adapters.onebot.v11 import Bot, Message, PrivateMessageEvent
 
-from .nte_account_db import issue_account_register_code
+from .nte_account_db import issue_account_register_code, publish_shaft_character
 from .utils.logger import Logger
 
 
 register_account = on_command('注册账号')
 reset_password = on_command('重置密码')
+publish_character = on_command('公开角色', aliases={'解除角色未公开'})
 
 
 def _build_password_reply(event: PrivateMessageEvent, action_label: str, nickname: str = '') -> str:
@@ -47,3 +48,33 @@ async def h_reset_password(bot: Bot, event: PrivateMessageEvent, state: T_State)
         await reset_password.finish(Message("重置密码过程中发生错误，请稍后重试"))
     else:
         await reset_password.finish(Message(reply))
+
+
+def _is_superuser(event: PrivateMessageEvent) -> bool:
+    user_id = str(event.get_user_id())
+    configured = getattr(get_driver().config, 'superusers', set())
+    return user_id in {str(item) for item in configured}
+
+
+@publish_character.handle()
+async def h_publish_character(bot: Bot, event: PrivateMessageEvent, state: T_State):
+    if not _is_superuser(event):
+        await publish_character.finish(Message("只有机器人管理员可以公开角色。"))
+
+    character_name = str(event.get_message())
+    for command_name in ('解除角色未公开', '公开角色'):
+        character_name = character_name.replace(command_name, '', 1).strip()
+    if not character_name:
+        await publish_character.finish(Message("请使用“公开角色 角色名”，例如：公开角色 伊洛伊。"))
+
+    try:
+        result = publish_shaft_character(character_name)
+    except Exception as e:
+        Logger().error(f"Error in publish_character: {str(e)}")
+        await publish_character.finish(Message("公开角色过程中发生错误，请稍后重试。"))
+
+    if result == 'not_found':
+        await publish_character.finish(Message(f"未找到处于未公开状态的角色：{character_name}。"))
+    if result == 'already_published':
+        await publish_character.finish(Message(f"{character_name} 已经是公开角色。"))
+    await publish_character.finish(Message(f"已将 {character_name} 移出未公开角色列表。"))

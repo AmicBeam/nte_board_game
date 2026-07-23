@@ -19,6 +19,14 @@ class Player(BaseModel):
     updated_at = DateTimeField(default=datetime.utcnow)
 
 
+class ShaftCharacterPublication(BaseModel):
+    id = AutoField()
+    character_id = CharField(unique=True, max_length=64)
+    character_name = CharField(unique=True, max_length=64)
+    is_published = BooleanField(default=False)
+    updated_at = DateTimeField(default=datetime.utcnow)
+
+
 class PlayerTutorial(BaseModel):
     id = AutoField()
     player = ForeignKeyField(Player, backref='tutorials', on_delete='CASCADE')
@@ -114,6 +122,7 @@ class ShaftAxis(BaseModel):
     dislike_count = IntegerField(default=0)
     favorite_count = IntegerField(default=0)
     dedupe_hash = CharField(max_length=64, default='')
+    share_token = CharField(max_length=64, null=True, unique=True)
     created_at = DateTimeField(default=datetime.utcnow)
     updated_at = DateTimeField(default=datetime.utcnow)
     published_at = DateTimeField(null=True)

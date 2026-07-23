@@ -24,7 +24,9 @@ from app.modules.preteam.catalog import TEAMMATES as PRETEAM_TEAMMATES
 from app.modules.shaft.service import (
     ShaftAxisNameConflictError,
     backup_shaft_axis,
+    create_shaft_axis_share,
     delete_shaft_axis,
+    get_shared_shaft_axis,
     get_shaft_axis,
     get_shaft_catalog_payload,
     list_favorite_shaft_axes,
@@ -152,9 +154,18 @@ def shaft_page(page: str = 'rotation'):
         page = 'plaza'
     if page not in {'build', 'rotation', 'plaza'}:
         page = 'rotation'
+    allow_anonymous_shaft_share = False
+    share_token = str(request.args.get('share') or '').strip()
+    if share_token:
+        try:
+            get_shared_shaft_axis(share_token)
+            allow_anonymous_shaft_share = True
+        except AppError:
+            pass
     return render_template(
         'shaft/index.html',
         active_shaft_page=page,
+        allow_anonymous_shaft_share=allow_anonymous_shaft_share,
         shaft_asset_version=_shaft_asset_version,
     )
 
@@ -356,6 +367,21 @@ def api_shaft_axis(axis_id: int):
         return jsonify({'error': '读取排轴详情时发生异常，请稍后重试。'}), 500
 
 
+@main_bp.get('/api/shaft/shared/<string:share_token>')
+def api_shaft_shared_axis(share_token: str):
+    try:
+        return jsonify(get_shared_shaft_axis(
+            share_token,
+            player=_optional_current_player(),
+            visitor_key=_shaft_visitor_key(),
+        ))
+    except AppError as exc:
+        return jsonify({'error': str(exc)}), 400
+    except Exception:
+        logger.exception('api_shaft_shared_axis failed')
+        return jsonify({'error': '读取分享排轴时发生异常，请稍后重试。'}), 500
+
+
 @main_bp.post('/api/shaft/axes')
 @token_required
 def api_shaft_save_axis():
@@ -418,6 +444,18 @@ def api_shaft_backup_axis(axis_id: int):
     except Exception:
         logger.exception('api_shaft_backup_axis failed axis_id=%s', axis_id)
         return jsonify({'error': '备份排轴时发生异常，请稍后重试。'}), 500
+
+
+@main_bp.post('/api/shaft/axes/<int:axis_id>/share')
+@token_required
+def api_shaft_share_axis(axis_id: int):
+    try:
+        return jsonify(create_shaft_axis_share(g.current_player, axis_id))
+    except AppError as exc:
+        return jsonify({'error': str(exc)}), 400
+    except Exception:
+        logger.exception('api_shaft_share_axis failed axis_id=%s', axis_id)
+        return jsonify({'error': '生成分享链接时发生异常，请稍后重试。'}), 500
 
 
 @main_bp.delete('/api/shaft/axes/<int:axis_id>')

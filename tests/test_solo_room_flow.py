@@ -268,6 +268,21 @@ class SoloRoomFlowTest(RoomFlowTestCase):
         )
         self.assertIn('仅对测试账号开放', denied_publish['error'])
 
+    def test_published_shaft_character_is_available_without_whitelist(self) -> None:
+        models_module = importlib.import_module('app.models')
+        publication = models_module.ShaftCharacterPublication.get(
+            models_module.ShaftCharacterPublication.character_name == '伊洛伊'
+        )
+        publication.is_published = True
+        publication.save(only=[models_module.ShaftCharacterPublication.is_published])
+
+        public_catalog = self._get('/api/shaft/catalog')
+        public_yiloyi = next(
+            character for character in public_catalog['characters']
+            if character['name'] == '伊洛伊'
+        )
+        self.assertFalse(public_yiloyi['selection_disabled'])
+
     def test_portal_and_shaft_plaza_routes_render(self) -> None:
         portal = self.client.get('/')
         self.assertEqual(portal.status_code, 200)
@@ -294,6 +309,10 @@ class SoloRoomFlowTest(RoomFlowTestCase):
         self.assertIn('href="/">主界面</a>', profile_html)
         self.assertNotIn('>构筑页</a>', profile_html)
         self.assertIn('id="logout-btn"', profile_html)
+        self.assertIn(
+            'id="password-input" name="password" type="password" autocomplete="new-password"',
+            profile_html,
+        )
 
         card_game = self.client.get('/card-game')
         self.assertEqual(card_game.status_code, 200)
@@ -360,6 +379,89 @@ class SoloRoomFlowTest(RoomFlowTestCase):
 
         mine_after = self._get('/api/shaft/me/axes', token=token)
         self.assertEqual(mine_after['items'], [])
+
+    def test_shaft_private_axis_share_link_is_stable_public_and_revoked_on_delete(self) -> None:
+        owner_token = self._issue_login_and_get_token('shaft-share-owner')
+        other_token = self._issue_login_and_get_token('shaft-share-other')
+        catalog = self._get('/api/shaft/catalog')
+        axis = dict(catalog['starter_axis'])
+        axis['steps'] = []
+        axis['buff_rules'] = []
+
+        saved = self._post('/api/shaft/axes', {
+            'title': '可分享私有轴',
+            'description': '初始版本',
+            'axis': axis,
+            'result': self._shaft_client_result(axis),
+        }, token=owner_token)
+
+        hidden = self.client.get(f'/api/shaft/axes/{saved["id"]}')
+        self.assertEqual(hidden.status_code, 400)
+
+        share = self._post(f'/api/shaft/axes/{saved["id"]}/share', token=owner_token)
+        self.assertRegex(share['share_token'], r'^[A-Za-z0-9_-]{20,64}$')
+        self.assertEqual(
+            share['share_path'],
+            f'/shaft/rotation?share={share["share_token"]}',
+        )
+        repeated = self._post(f'/api/shaft/axes/{saved["id"]}/share', token=owner_token)
+        self.assertEqual(repeated['share_token'], share['share_token'])
+
+        denied = self._post(
+            f'/api/shaft/axes/{saved["id"]}/share',
+            token=other_token,
+            expected_status=400,
+        )
+        self.assertIn('没有分享', denied['error'])
+
+        shared = self._get(f'/api/shaft/shared/{share["share_token"]}')
+        self.assertTrue(shared['shared'])
+        self.assertTrue(shared['read_only'])
+        self.assertEqual(shared['title'], '可分享私有轴')
+        self.assertEqual(shared['description'], '初始版本')
+        self.assertEqual(shared['axis'], saved['axis'])
+        authenticated_shared = self._get(
+            f'/api/shaft/shared/{share["share_token"]}',
+            token=other_token,
+        )
+        self.assertFalse(authenticated_shared['read_only'])
+        if self.app.config['SHAFT_LOGIN_REQUIRED']:
+            shared_page = self.client.get(share['share_path'])
+            self.assertEqual(shared_page.status_code, 200)
+            self.assertNotIn(
+                "if (!window.localStorage.getItem('nte_token'))",
+                shared_page.get_data(as_text=True),
+            )
+            invalid_shared_page = self.client.get('/shaft/rotation?share=invalid-token')
+            self.assertIn(
+                "if (!window.localStorage.getItem('nte_token'))",
+                invalid_shared_page.get_data(as_text=True),
+            )
+
+        update_response = self.client.put(
+            f'/api/shaft/axes/{saved["id"]}',
+            json={
+                'title': '可分享私有轴',
+                'description': '保存后的版本',
+                'axis': axis,
+                'result': self._shaft_client_result(axis),
+            },
+            headers=self._auth_headers(owner_token),
+        )
+        self.assertEqual(update_response.status_code, 200, update_response.get_data(as_text=True))
+        updated_shared = self._get(f'/api/shaft/shared/{share["share_token"]}')
+        self.assertEqual(updated_shared['description'], '保存后的版本')
+
+        deleted = self.client.delete(
+            f'/api/shaft/axes/{saved["id"]}',
+            headers=self._auth_headers(owner_token),
+        )
+        self.assertEqual(deleted.status_code, 200, deleted.get_data(as_text=True))
+        expired = self._get(
+            f'/api/shaft/shared/{share["share_token"]}',
+            expected_status=400,
+        )
+        self.assertIn('无效或已失效', expired['error'])
 
     def test_shaft_publish_is_snapshot_and_same_name_save_can_overwrite(self) -> None:
         token = self._issue_login_and_get_token('shaft-snapshot-axis')

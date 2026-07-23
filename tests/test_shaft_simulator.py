@@ -271,6 +271,27 @@ class ShaftSimulatorValidationTestCase(unittest.TestCase):
         self.assertFalse(passive['display_as_line'])
         self.assertEqual(passive['line_hidden_reason'], 'passive')
 
+    def test_iloy_bond_bonus_adds_five_percent_attack_not_crit(self) -> None:
+        def panel_with_bond(enabled: bool) -> dict:
+            result = simulate_shaft_axis({
+                'team': [{
+                    'slot': 0,
+                    'character_id': 'char_a01c39f576',
+                    'arc_id': '',
+                    'cartridge_id': '',
+                    'bond_full': enabled,
+                }],
+                'steps': [{'id': 'z1', 'slot': 0, 'action_id': 'action_iloy_z1', 'start_tick': 0}],
+                'team_panel_bonus': self.ZERO_TEAM_PANEL_BONUS,
+                'initial_energy': 200,
+            })['result']
+            return result['details'][0]['panel']
+
+        without_bond = panel_with_bond(False)
+        with_bond = panel_with_bond(True)
+        self.assertAlmostEqual(with_bond['atk'] - without_bond['atk'], 596.0 * 0.05)
+        self.assertEqual(with_bond['crit_rate'], without_bond['crit_rate'])
+
     def test_character_timed_buff_triggers_and_applies_to_later_action(self) -> None:
         result = simulate_shaft_axis({
             'team': [{
@@ -1166,8 +1187,8 @@ class ShaftSimulatorValidationTestCase(unittest.TestCase):
             'options': {
                 'loop_enabled': True,
                 'loop_initial_resources': {
-                    'char_b52cc8f160': {'energy': 999, 'harmony': 130},
-                    'char_dd034941ef': {'energy': 25, 'harmony': 40},
+                    'char_b52cc8f160': {'energy': 999, 'harmony': 130, 'personal_resources': {'未知': 20}},
+                    'char_dd034941ef': {'energy': 25, 'harmony': 40, 'personal_resources': {}},
                     'unknown_character': {'energy': 50, 'harmony': 50},
                 },
             },
@@ -1176,8 +1197,8 @@ class ShaftSimulatorValidationTestCase(unittest.TestCase):
         }
         normalized = normalize_axis_payload(payload)
         self.assertEqual(normalized['options']['loop_initial_resources'], {
-            'char_b52cc8f160': {'energy': 60, 'harmony': 100},
-            'char_dd034941ef': {'energy': 25, 'harmony': 40},
+            'char_b52cc8f160': {'energy': 60, 'harmony': 100, 'personal_resources': {}},
+            'char_dd034941ef': {'energy': 25, 'harmony': 40, 'personal_resources': {}},
         })
 
         result = simulate_shaft_axis(payload)['result']
@@ -1192,6 +1213,53 @@ class ShaftSimulatorValidationTestCase(unittest.TestCase):
         non_loop = simulate_shaft_axis(non_loop_payload)['result']
         self.assertEqual(non_loop['resources_by_slot'][0]['initial_energy'], 0)
         self.assertEqual(non_loop['resources_by_slot'][0]['initial_harmony'], 0)
+
+    def test_loop_axis_uses_per_character_initial_personal_resources(self) -> None:
+        payload = {
+            'team': [
+                {'slot': 0, 'character_id': 'char_a01c39f576', 'arc_id': '', 'cartridge_id': ''},
+                {'slot': 1, 'character_id': 'char_d38b672525', 'arc_id': '', 'cartridge_id': ''},
+            ],
+            'steps': [
+                {'id': 'iloy_attack', 'slot': 0, 'action_id': 'action_iloy_z1', 'start_tick': 0},
+            ],
+            'options': {
+                'loop_enabled': True,
+                'loop_initial_resources': {
+                    'char_a01c39f576': {
+                        'energy': 0,
+                        'harmony': 0,
+                        'personal_resources': {'臆想': 999, '未知': 50},
+                    },
+                    'char_d38b672525': {
+                        'energy': 0,
+                        'harmony': 0,
+                        'personal_resources': {'罪状': 135},
+                    },
+                },
+            },
+            'team_panel_bonus': self.ZERO_TEAM_PANEL_BONUS,
+            'initial_energy': 0,
+        }
+        normalized = normalize_axis_payload(payload)
+        self.assertEqual(
+            normalized['options']['loop_initial_resources']['char_a01c39f576']['personal_resources'],
+            {'臆想': 100},
+        )
+        self.assertEqual(
+            normalized['options']['loop_initial_resources']['char_d38b672525']['personal_resources'],
+            {'罪状': 135},
+        )
+
+        result = simulate_shaft_axis(payload)['result']
+        resources = {item['character_id']: item for item in result['resources_by_slot']}
+        self.assertEqual(resources['char_a01c39f576']['initial_personal_resources'], {'臆想': 100})
+        self.assertEqual(resources['char_a01c39f576']['personal_resources']['臆想'], 80)
+        self.assertEqual(resources['char_d38b672525']['initial_personal_resources'], {'罪状': 135})
+
+        payload['options']['loop_enabled'] = False
+        non_loop = simulate_shaft_axis(payload)['result']
+        self.assertEqual(non_loop['resources_by_slot'][0]['initial_personal_resources'], {})
 
     def test_harmony_is_capped_at_one_hundred_for_every_character(self) -> None:
         result = simulate_shaft_axis({
@@ -1402,7 +1470,7 @@ class ShaftSimulatorValidationTestCase(unittest.TestCase):
         self.assertEqual(action['hit_count'], 35)
         self.assertAlmostEqual(action['multipliers']['atk'], 0.237 * 35)
         self.assertAlmostEqual(action['energy_gain'], 0.766 * 35)
-        self.assertAlmostEqual(action['harmony'], 1.275 * 35)
+        self.assertAlmostEqual(action['harmony'], 0.2 * 35)
         self.assertAlmostEqual(action['stagger'], 0.186 * 35)
         self.assertEqual(action['personal_resource_cost'], {'臆想': 10})
         self.assertEqual(action['personal_resource_gain'], {})
@@ -1425,6 +1493,18 @@ class ShaftSimulatorValidationTestCase(unittest.TestCase):
 
         self.assertNotIn('个人资源 臆想 不足。', details['lucid_dream']['warnings'])
         self.assertEqual(details['lucid_dream']['personal_resources_after']['臆想'], 6)
+
+    def test_iloy_support_and_ultimate_resources_match_current_online_sheet(self) -> None:
+        actions = {
+            action['id']: action
+            for action in load_shaft_catalog()['actions']
+            if action['character_id'] == 'char_a01c39f576'
+        }
+
+        self.assertAlmostEqual(actions['action_01209221c1']['energy_gain'], 3.9)
+        self.assertAlmostEqual(actions['action_01209221c1']['stagger'], 2.5)
+        self.assertAlmostEqual(actions['action_307ad00e8e']['stagger'], 1.5)
+        self.assertAlmostEqual(actions['action_c371c893ce']['stagger'], 0.125)
 
     def test_iloy_e_builds_reverie_and_q_dream_waives_heavy_attack_cost(self) -> None:
         catalog = load_shaft_catalog()

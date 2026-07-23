@@ -24,7 +24,7 @@
     small_flat_atk: 420,
     small_flat_hp: 5200,
   };
-  const PERSONAL_RESOURCE_CAPS = {
+  const DEFAULT_PERSONAL_RESOURCE_CAPS = {
     char_701295143d: { '言灵字': 4 },
     char_912dbfe17c: { '闪送之力': 6 },
     char_a01c39f576: { '臆想': 100 },
@@ -1807,6 +1807,10 @@
     const enemy = normalizeEnemy(axisPayload?.enemy);
     let enemyDebuffs = Object.assign({}, enemy.debuffs || {});
     const options = axisPayload?.options && typeof axisPayload.options === 'object' ? axisPayload.options : {};
+    const personalResourceCaps = catalog.formula_constants?.personal_resource_caps
+      && typeof catalog.formula_constants.personal_resource_caps === 'object'
+      ? catalog.formula_constants.personal_resource_caps
+      : DEFAULT_PERSONAL_RESOURCE_CAPS;
     const fonsFull = options.fons_full == null ? true : Boolean(options.fons_full);
     const switchLossTicks = Math.max(
       0,
@@ -1871,6 +1875,16 @@
       : {};
     personalResources.forEach((resources, slot) => {
       Object.assign(resources, resourceMap(initialPersonalResources[String(slot)] || initialPersonalResources[slot] || {}));
+      const snapshot = snapshots.get(slot);
+      const characterId = String(snapshot?.character?.id || '');
+      const loopResources = loopInitialResources[characterId];
+      const configuredPersonal = loopResources?.personal_resources && typeof loopResources.personal_resources === 'object'
+        ? resourceMap(loopResources.personal_resources)
+        : {};
+      Object.entries(configuredPersonal).forEach(([name, value]) => {
+        const cap = num(personalResourceCaps[characterId]?.[name], 1000000);
+        resources[name] = Math.max(0, Math.min(cap, value));
+      });
       initialPersonalResourcesBySlot.set(slot, Object.assign({}, resources));
     });
     const buffRules = registeredBuffRules(teamPayload, catalog).concat(legacyBuffRules(axisPayload?.buff_rules));
@@ -3185,7 +3199,7 @@
           warnings.push(`${key} 正在持续消耗，期间无法积攒。`);
           return;
         }
-        const cap = num(PERSONAL_RESOURCE_CAPS[String(snapshot.character?.id || '')]?.[key], Number.POSITIVE_INFINITY);
+        const cap = num(personalResourceCaps[String(snapshot.character?.id || '')]?.[key], Number.POSITIVE_INFINITY);
         slotResources[key] = Math.min(cap, (slotResources[key] || 0) + gain * actionMultiplier);
       });
       triggeredBuffs.forEach((summary) => {

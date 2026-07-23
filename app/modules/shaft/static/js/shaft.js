@@ -127,6 +127,8 @@
     myAxisSort: 'new',
     toastTimer: 0,
     savedAxisId: null,
+    savedAxisTitle: '',
+    sharedReadOnly: false,
     axisDocumentBaseline: '',
     simulationTimer: 0,
     simulationInFlight: false,
@@ -195,6 +197,26 @@
     return axisDocumentFingerprint() !== state.axisDocumentBaseline;
   }
 
+  function normalizedAxisTitle(value) {
+    return String(value || '').trim();
+  }
+
+  function canSaveAxisAs() {
+    const currentTitle = normalizedAxisTitle($('shaft-title-input')?.value);
+    return Boolean(
+      state.savedAxisId &&
+      currentTitle &&
+      currentTitle !== normalizedAxisTitle(state.savedAxisTitle)
+    );
+  }
+
+  function renderSaveActions() {
+    const saveAsButton = $('shaft-save-as-btn');
+    if (saveAsButton) {
+      saveAsButton.disabled = state.sharedReadOnly || !canSaveAxisAs();
+    }
+  }
+
   function emptyAxisFromCatalog() {
     const starter = clone(state.catalog?.starter_axis || {});
     starter.steps = [];
@@ -261,6 +283,7 @@
     }
     return {
       savedAxisId: state.savedAxisId || null,
+      savedAxisTitle: state.savedAxisTitle || '',
       page: state.page || 'rotation',
       title: $('shaft-title-input')?.value || '未命名排轴',
       description: $('shaft-description-input')?.value || '',
@@ -272,6 +295,9 @@
   }
 
   function persistAxisDraft() {
+    if (state.sharedReadOnly) {
+      return;
+    }
     const payload = axisDraftPayload();
     if (!payload) {
       return;
@@ -322,6 +348,7 @@
     state.axis = clone(draft.axis);
     state.compareSnapshot = draft.compareSnapshot ? clone(draft.compareSnapshot) : null;
     state.savedAxisId = Number(draft.savedAxisId || 0) || null;
+    state.savedAxisTitle = String(draft.savedAxisTitle || (state.savedAxisId ? draft.title : '') || '');
     state.axisDocumentBaseline = String(draft.axisDocumentBaseline || '');
     state.page = ['build', 'rotation', 'plaza'].includes(activePage)
       ? activePage
@@ -1418,6 +1445,7 @@
       unlinedIndicator.setAttribute('data-tooltip', tooltip);
       unlinedIndicator.setAttribute('aria-label', tooltip);
     }
+    applySharedReadOnlyUi();
   }
 
   function loopInitialResourceForMember(member) {
@@ -1426,6 +1454,9 @@
     const usesEnergy = character.uses_energy !== false;
     const energyCapacity = Math.max(0, Number(character.energy_capacity || 0));
     const fallbackEnergy = Math.max(0, Number(state.axis?.initial_energy ?? 1000));
+    const configuredPersonal = configured?.personal_resources && typeof configured.personal_resources === 'object'
+      ? configured.personal_resources
+      : {};
     return {
       energy: !usesEnergy ? 0 : configured && typeof configured === 'object'
         ? Math.max(0, Number(configured.energy || 0))
@@ -1435,7 +1466,33 @@
         : 0,
       energyCapacity,
       usesEnergy,
+      personalResources: configuredPersonal,
     };
+  }
+
+  function loopPersonalResourceDefinitions(member) {
+    const characterId = String(member?.character_id || '');
+    const hidden = new Set([
+      ...TIMELINE_HIDDEN_PERSONAL_RESOURCES,
+      ...(state.catalog?.formula_constants?.hidden_personal_resources || []).map(String),
+    ]);
+    const names = new Set();
+    (state.catalog?.actions || [])
+      .filter((action) => String(action?.character_id || '') === characterId)
+      .forEach((action) => {
+        ['personal_resource_cost', 'personal_resource_gain', 'personal_resource_threshold'].forEach((field) => {
+          Object.keys(action?.[field] || {}).forEach((name) => {
+            if (!hidden.has(String(name))) {
+              names.add(String(name));
+            }
+          });
+        });
+      });
+    const caps = state.catalog?.formula_constants?.personal_resource_caps?.[characterId] || {};
+    return Array.from(names).sort((left, right) => left.localeCompare(right, 'zh-CN')).map((name) => ({
+      name,
+      max: Number.isFinite(Number(caps[name])) ? Math.max(0, Number(caps[name])) : null,
+    }));
   }
 
   function renderLoopResourceRows() {
@@ -1446,20 +1503,31 @@
     list.innerHTML = (state.axis?.team || []).map((member) => {
       const character = getCharacterMap().get(member.character_id) || {};
       const resources = loopInitialResourceForMember(member);
+      const personalResourceFields = loopPersonalResourceDefinitions(member).map((definition) => {
+        const maximum = definition.max == null ? '' : ` max="${definition.max}"`;
+        const value = Math.max(0, Number(resources.personalResources?.[definition.name] || 0));
+        return `<label>
+          <span>起始${escapeHtml(definition.name)}</span>
+          <input data-loop-initial-personal-resource="${escapeHtml(definition.name)}" type="number" min="0"${maximum} step="1" value="${value}">
+        </label>`;
+      }).join('');
       return `
         <div class="shaft-loop-resource-row" data-loop-resource-character="${escapeHtml(member.character_id)}">
           <span class="shaft-loop-resource-character">
             <img src="${escapeHtml(character.avatar || member.character_avatar || '')}" alt="">
             <strong>${escapeHtml(character.name || member.character_name || '未选择')}</strong>
           </span>
-          ${resources.usesEnergy ? `<label>
-            <span>起始能量</span>
-            <input data-loop-initial-energy type="number" min="0" max="${resources.energyCapacity || 1000}" step="1" value="${resources.energy}">
-          </label>` : ''}
-          <label>
-            <span>起始环合</span>
-            <input data-loop-initial-harmony type="number" min="0" max="100" step="1" value="${resources.harmony}">
-          </label>
+          <div class="shaft-loop-resource-fields">
+            ${resources.usesEnergy ? `<label>
+              <span>起始能量</span>
+              <input data-loop-initial-energy type="number" min="0" max="${resources.energyCapacity || 1000}" step="1" value="${resources.energy}">
+            </label>` : ''}
+            <label>
+              <span>起始环合</span>
+              <input data-loop-initial-harmony type="number" min="0" max="100" step="1" value="${resources.harmony}">
+            </label>
+            ${personalResourceFields}
+          </div>
         </div>
       `;
     }).join('') || '<div class="shaft-empty">当前队伍没有可配置角色</div>';
@@ -1506,9 +1574,18 @@
       const energyCapacity = Math.max(0, Number(character.energy_capacity || 0));
       const energy = Math.max(0, Number(row.querySelector('[data-loop-initial-energy]')?.value || 0));
       const harmony = Math.max(0, Math.min(100, Number(row.querySelector('[data-loop-initial-harmony]')?.value || 0)));
+      const personalResources = {};
+      row.querySelectorAll('[data-loop-initial-personal-resource]').forEach((input) => {
+        const name = String(input.dataset.loopInitialPersonalResource || '');
+        const maximum = input.max === '' ? Number.POSITIVE_INFINITY : Math.max(0, Number(input.max));
+        if (name) {
+          personalResources[name] = Math.max(0, Math.min(maximum, Number(input.value || 0)));
+        }
+      });
       resources[characterId] = {
         energy: energyCapacity > 0 ? Math.min(energyCapacity, energy) : energy,
         harmony,
+        personal_resources: personalResources,
       };
     });
     pushUndoSnapshot();
@@ -1927,6 +2004,25 @@
       node.classList.remove('visible');
       window.setTimeout(() => { node.hidden = true; }, 180);
     }, 1800);
+  }
+
+  async function copyTextToClipboard(text) {
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(text);
+      return;
+    }
+    const input = document.createElement('textarea');
+    input.value = text;
+    input.setAttribute('readonly', '');
+    input.style.position = 'fixed';
+    input.style.opacity = '0';
+    document.body.appendChild(input);
+    input.select();
+    const copied = document.execCommand('copy');
+    input.remove();
+    if (!copied) {
+      throw new Error('浏览器未允许自动复制，请手动复制地址栏中的链接。');
+    }
   }
 
   function setSimulationBusy(busy) {
@@ -4586,6 +4682,7 @@
         ${compact && mine ? `
           <div class="shaft-market-actions">
             <button class="secondary-btn" data-backup-axis="${axis.id}" type="button">备份</button>
+            <button class="secondary-btn" data-share-axis="${axis.id}" type="button">分享</button>
             <button class="secondary-btn danger-btn" data-delete-axis="${axis.id}" data-axis-title="${escapeHtml(axis.title)}" type="button">删除</button>
             <button class="primary-btn shaft-publish-axis-btn" data-publish-axis="${axis.id}" type="button">上传</button>
           </div>
@@ -4610,6 +4707,47 @@
     });
   }
 
+  function applySharedReadOnlyUi() {
+    const readOnly = Boolean(state.sharedReadOnly);
+    document.querySelector('.shaft-page')?.classList.toggle('is-shared-readonly', readOnly);
+    const notice = $('shaft-shared-readonly-notice');
+    if (notice) {
+      notice.hidden = !readOnly;
+    }
+    ['shaft-title-input', 'shaft-description-input'].forEach((id) => {
+      const input = $(id);
+      if (input) {
+        input.readOnly = readOnly;
+      }
+    });
+    ['shaft-new-btn', 'shaft-save-btn'].forEach((id) => {
+      const button = $(id);
+      if (button) {
+        button.disabled = readOnly;
+      }
+    });
+    const buildView = document.querySelector('[data-shaft-view="build"]');
+    if (buildView) {
+      buildView.inert = readOnly;
+    }
+    const commandLibrary = document.querySelector('.shaft-command-library');
+    if (commandLibrary) {
+      commandLibrary.inert = readOnly;
+    }
+    const detailPanel = document.querySelector('.shaft-detail-panel');
+    if (detailPanel) {
+      detailPanel.querySelectorAll('input, select, textarea, button').forEach((control) => {
+        control.disabled = readOnly;
+      });
+    }
+    document.querySelectorAll('.shaft-editor-actions button:not(#shaft-preview-btn)').forEach((button) => {
+      if (readOnly) {
+        button.disabled = true;
+      }
+    });
+    renderSaveActions();
+  }
+
   function renderAll() {
     setPage(state.page, false);
     renderLoginState();
@@ -4627,6 +4765,7 @@
     renderStepDetail();
     renderMarketFilters();
     renderEditorActions();
+    applySharedReadOnlyUi();
   }
 
   function updateMemberNames(member) {
@@ -5884,6 +6023,9 @@
 
   function handleTimelineContextMenu(event) {
     event.preventDefault();
+    if (state.sharedReadOnly) {
+      return;
+    }
     const bar = event.target.closest('.shaft-action-bar[data-step-id]');
     if (bar) {
       selectStep(bar.dataset.stepId);
@@ -5907,6 +6049,9 @@
   }
 
   function handleContextMenuClick(event) {
+    if (state.sharedReadOnly) {
+      return;
+    }
     const addButton = event.target.closest('[data-context-add-action]');
     if (addButton) {
       addActionAt(
@@ -6131,6 +6276,9 @@
       closeContextMenu();
       return;
     }
+    if (state.sharedReadOnly) {
+      return;
+    }
     if (isEditableTarget(event.target)) {
       return;
     }
@@ -6200,6 +6348,9 @@
   }
 
   function handleClipboardCopy(event) {
+    if (state.sharedReadOnly) {
+      return;
+    }
     if (isEditableTarget(event.target) || !selectedStepIds().length) {
       return;
     }
@@ -6213,6 +6364,9 @@
   }
 
   function handleClipboardPaste(event) {
+    if (state.sharedReadOnly) {
+      return;
+    }
     if (isEditableTarget(event.target) || !state.clipboardSteps.length) {
       return;
     }
@@ -6375,6 +6529,9 @@
   }
 
   function handleTimelineMouseDown(event) {
+    if (state.sharedReadOnly) {
+      return;
+    }
     const bar = event.target.closest('.shaft-action-bar[data-step-id]');
     if (event.button !== 0) {
       return;
@@ -6544,6 +6701,9 @@
   }
 
   function handleLibraryClick(event) {
+    if (state.sharedReadOnly) {
+      return;
+    }
     const button = event.target.closest('[data-library-action]');
     if (!button) {
       return;
@@ -6661,6 +6821,7 @@
     state.isResultStale = false;
     state.compareSnapshot = null;
     state.savedAxisId = null;
+    state.savedAxisTitle = '';
     state.cursorTick = 0;
     state.selectedStepId = '';
     state.undoStack = [];
@@ -6699,7 +6860,7 @@
     if (!getToken()) {
       persistAxisDraft();
       redirectToLogin();
-      return;
+      return false;
     }
     if (!freshResult()) {
       await runSimulation();
@@ -6707,7 +6868,7 @@
     const result = freshResult();
     if (!result) {
       setStatus('请等待本地计算完成后再保存', 'error');
-      return;
+      return false;
     }
     const payload = {
       title: $('shaft-title-input').value || '未命名排轴',
@@ -6724,6 +6885,7 @@
       const method = state.savedAxisId ? 'PUT' : 'POST';
       const saved = await shaftRequest(url, { method, body: JSON.stringify(payload) }, { authRequired: true });
       state.savedAxisId = saved.id;
+      state.savedAxisTitle = String(saved.title || payload.title || '');
       state.axis = saved.axis;
       ensureAxisShape();
       acceptSimulationResult(saved.result);
@@ -6733,24 +6895,77 @@
       setStatus('已保存');
       showToast('排轴保存成功');
       await loadMyAxes();
+      return true;
     } catch (error) {
       if (error.payload?.code === 'axis_name_conflict') {
         const resolution = await resolveAxisNameConflict(error.payload);
         if (resolution.action === 'overwrite') {
-          await saveAxis('overwrite');
-          return;
+          const savedAfterOverwrite = await saveAxis('overwrite');
+          return savedAfterOverwrite;
         }
         if (resolution.action === 'rename' && resolution.title) {
           $('shaft-title-input').value = resolution.title;
           persistAxisDraft();
-          await saveAxis();
-          return;
+          return saveAxis();
         }
         setStatus('已取消保存');
-        return;
+        return false;
       }
       setStatus(error.message, 'error');
+      return false;
     }
+  }
+
+  function sharedCopyTitle() {
+    const now = new Date();
+    const stamp = [
+      now.getFullYear(),
+      String(now.getMonth() + 1).padStart(2, '0'),
+      String(now.getDate()).padStart(2, '0'),
+      '-',
+      String(now.getHours()).padStart(2, '0'),
+      String(now.getMinutes()).padStart(2, '0'),
+      String(now.getSeconds()).padStart(2, '0'),
+    ].join('');
+    const suffix = `-副本-${stamp}`;
+    const title = String($('shaft-title-input').value || '未命名排轴').trim() || '未命名排轴';
+    return `${title.slice(0, Math.max(0, 80 - suffix.length))}${suffix}`;
+  }
+
+  async function saveAxisAsCopy() {
+    const previousAxisId = state.savedAxisId;
+    const previousSavedAxisTitle = state.savedAxisTitle;
+    const previousTitle = $('shaft-title-input').value;
+    state.savedAxisId = null;
+    state.savedAxisTitle = '';
+    $('shaft-title-input').value = sharedCopyTitle();
+    persistAxisDraft();
+    const saved = await saveAxis();
+    if (!saved) {
+      state.savedAxisId = previousAxisId;
+      state.savedAxisTitle = previousSavedAxisTitle;
+      $('shaft-title-input').value = previousTitle;
+      persistAxisDraft();
+    }
+    return saved;
+  }
+
+  async function saveAxisAsNamedCopy() {
+    if (!canSaveAxisAs()) {
+      return false;
+    }
+    const previousAxisId = state.savedAxisId;
+    const previousSavedAxisTitle = state.savedAxisTitle;
+    state.savedAxisId = null;
+    state.savedAxisTitle = '';
+    const saved = await saveAxis();
+    if (!saved) {
+      state.savedAxisId = previousAxisId;
+      state.savedAxisTitle = previousSavedAxisTitle;
+      renderSaveActions();
+      persistAxisDraft();
+    }
+    return saved;
   }
 
   async function loadMarket(reset) {
@@ -6809,6 +7024,7 @@
       state.axis = payload.axis;
       state.compareSnapshot = null;
       state.savedAxisId = source === 'mine' ? payload.id : null;
+      state.savedAxisTitle = source === 'mine' ? String(payload.title || '') : '';
       state.selectedStepId = '';
       state.undoStack = [];
       state.redoStack = [];
@@ -6823,6 +7039,109 @@
       markAxisDocumentClean();
       persistAxisDraft();
       setStatus('已读取');
+    } catch (error) {
+      setStatus(error.message, 'error');
+    }
+  }
+
+  async function shareAxis(axisId, button) {
+    if (!getToken()) {
+      persistAxisDraft();
+      redirectToLogin();
+      return;
+    }
+    const originalLabel = button?.textContent || '分享';
+    if (button) {
+      button.disabled = true;
+      button.textContent = '生成中';
+    }
+    try {
+      const payload = await shaftRequest(
+        `/api/shaft/axes/${axisId}/share`,
+        { method: 'POST' },
+        { authRequired: true },
+      );
+      const shareUrl = new URL(payload.share_path, window.location.origin).href;
+      await copyTextToClipboard(shareUrl);
+      showToast('分享链接已复制到剪切板');
+      setStatus('分享链接已复制');
+    } catch (error) {
+      setStatus(error.message, 'error');
+    } finally {
+      if (button?.isConnected) {
+        button.disabled = false;
+        button.textContent = originalLabel;
+      }
+    }
+  }
+
+  function sharedAxisTokenFromUrl() {
+    return String(new URLSearchParams(window.location.search).get('share') || '').trim();
+  }
+
+  function clearSharedAxisUrl() {
+    window.history.replaceState({}, '', '/shaft/rotation');
+  }
+
+  async function resolveSharedAxisWorkspace() {
+    const dialog = $('shaft-share-open-dialog');
+    dialog.returnValue = '';
+    dialog.showModal();
+    return new Promise((resolve) => {
+      dialog.addEventListener('close', () => resolve(dialog.returnValue || 'cancel'), { once: true });
+    });
+  }
+
+  async function replaceWorkspaceWithSharedAxis(payload) {
+    state.sharedReadOnly = Boolean(payload.read_only);
+    if (state.sharedReadOnly && getToken()) {
+      clearToken();
+      renderLoginState();
+    }
+    state.axis = payload.axis;
+    state.compareSnapshot = null;
+    state.savedAxisId = null;
+    state.savedAxisTitle = '';
+    state.selectedStepId = '';
+    state.undoStack = [];
+    state.redoStack = [];
+    $('shaft-title-input').value = payload.title || '未命名排轴';
+    $('shaft-description-input').value = payload.description || '';
+    ensureAxisShape();
+    state.result = null;
+    markSimulationStale();
+    renderAll();
+    setPage('rotation');
+    await runSimulation();
+    markAxisDocumentClean();
+    persistAxisDraft();
+    setStatus(state.sharedReadOnly ? '分享排轴 · 只读' : '已打开分享排轴');
+    showToast(`已打开「${payload.title || '未命名排轴'}」${state.sharedReadOnly ? '（只读）' : ''}`);
+  }
+
+  async function openSharedAxisFromUrl() {
+    const shareToken = sharedAxisTokenFromUrl();
+    if (!shareToken) {
+      return;
+    }
+    try {
+      setStatus('读取分享排轴');
+      const payload = await shaftRequest(`/api/shaft/shared/${encodeURIComponent(shareToken)}`);
+      if (hasUnsavedAxisChanges()) {
+        const action = await resolveSharedAxisWorkspace();
+        if (action === 'cancel') {
+          clearSharedAxisUrl();
+          setStatus('未打开分享排轴');
+          return;
+        }
+        if (action === 'save' && !await saveAxis()) {
+          return;
+        }
+        if (action === 'save_as' && !await saveAxisAsCopy()) {
+          return;
+        }
+      }
+      await replaceWorkspaceWithSharedAxis(payload);
     } catch (error) {
       setStatus(error.message, 'error');
     }
@@ -6843,6 +7162,8 @@
       await shaftRequest(`/api/shaft/axes/${axisId}`, { method: 'DELETE' }, { authRequired: true });
       if (Number(state.savedAxisId || 0) === Number(axisId)) {
         state.savedAxisId = null;
+        state.savedAxisTitle = '';
+        renderSaveActions();
         persistAxisDraft();
       }
       await loadMyAxes();
@@ -6984,6 +7305,12 @@
   }
 
   async function handleMarketClick(event) {
+    const shareButton = event.target.closest('[data-share-axis]');
+    if (shareButton) {
+      event.stopPropagation();
+      await shareAxis(Number(shareButton.dataset.shareAxis), shareButton);
+      return;
+    }
     const publishButton = event.target.closest('[data-publish-axis]');
     if (publishButton) {
       event.stopPropagation();
@@ -7057,7 +7384,11 @@
     });
     $('shaft-new-btn').addEventListener('click', newAxis);
     $('shaft-save-btn').addEventListener('click', () => saveAxis());
-    $('shaft-title-input').addEventListener('input', persistAxisDraft);
+    $('shaft-save-as-btn').addEventListener('click', saveAxisAsNamedCopy);
+    $('shaft-title-input').addEventListener('input', () => {
+      persistAxisDraft();
+      renderSaveActions();
+    });
     $('shaft-description-input').addEventListener('input', persistAxisDraft);
     $('shaft-undo-btn').addEventListener('click', undoLastEdit);
     $('shaft-redo-btn').addEventListener('click', redoLastEdit);
@@ -7321,6 +7652,7 @@
       $('shaft-build-info-version').textContent = versionLabel;
       renderAll();
       await runSimulation();
+      await openSharedAxisFromUrl();
       await loadMarket(true);
       await loadMyAxes();
     } catch (error) {

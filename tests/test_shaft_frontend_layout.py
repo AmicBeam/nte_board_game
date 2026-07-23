@@ -85,6 +85,10 @@ class ShaftBuffStatusUiTestCase(unittest.TestCase):
         self.assertIn('id="shaft-loop-resource-list"', template)
         self.assertIn('data-loop-initial-energy', source)
         self.assertIn('data-loop-initial-harmony', source)
+        self.assertIn('data-loop-initial-personal-resource', source)
+        self.assertIn('function loopPersonalResourceDefinitions(member)', source)
+        self.assertIn("'personal_resource_cost', 'personal_resource_gain', 'personal_resource_threshold'", source)
+        self.assertIn('personal_resources: personalResources,', source)
         self.assertIn('function confirmLoopSettings()', source)
         self.assertNotIn("$('shaft-loop-enabled').addEventListener('change', (event) => {", source)
 
@@ -401,6 +405,14 @@ class ShaftFrontendTimelineLayoutTestCase(unittest.TestCase):
         self.assertIn(".filter((character) => !character.selection_disabled)", source)
         self.assertIn('const disabledCharacterIds = new Set(', source)
         self.assertIn('state.axis.steps = state.axis.steps.filter((step) => !restrictedSlots.has(Number(step.slot)));', source)
+
+    def test_yiloyi_bond_bonus_is_five_percent_attack(self) -> None:
+        catalog = get_shaft_catalog_payload(player=SimpleNamespace(shaft_test_whitelisted=True))
+        yiloyi = next(character for character in catalog['characters'] if character['name'] == '伊洛伊')
+
+        self.assertEqual(yiloyi['bond_bonus']['label'], '5攻击')
+        self.assertEqual(yiloyi['bond_bonus']['modifiers']['atk_pct'], 0.05)
+        self.assertEqual(yiloyi['bond_bonus']['modifiers']['crit_rate'], 0.0)
 
     def test_xun_hides_energy_controls_and_labels(self) -> None:
         source = SHAFT_JS.read_text(encoding='utf-8')
@@ -1370,6 +1382,32 @@ class ShaftFrontendTimelineLayoutTestCase(unittest.TestCase):
         self.assertIn('`/api/shaft/axes/${axisId}/backup`', source)
         self.assertIn("await loadAxis(Number(backup.id), 'mine');", source)
 
+    def test_my_axis_share_link_copies_and_opening_protects_dirty_workspace(self) -> None:
+        source = SHAFT_JS.read_text(encoding='utf-8')
+        template = SHAFT_TEMPLATE.read_text(encoding='utf-8')
+
+        self.assertIn('data-share-axis="${axis.id}"', source)
+        self.assertIn('`/api/shaft/axes/${axisId}/share`', source)
+        self.assertIn('navigator.clipboard?.writeText', source)
+        self.assertIn("showToast('分享链接已复制到剪切板');", source)
+        self.assertIn('id="shaft-share-open-dialog"', template)
+        for value in ('cancel', 'discard', 'save_as', 'save'):
+            self.assertIn(f'value="{value}"', template)
+        self.assertIn('async function openSharedAxisFromUrl()', source)
+        self.assertIn('if (hasUnsavedAxisChanges()) {', source)
+        self.assertIn("action === 'save' && !await saveAxis()", source)
+        self.assertIn("action === 'save_as' && !await saveAxisAsCopy()", source)
+        self.assertIn('state.savedAxisId = null;', source)
+        self.assertIn('sharedReadOnly: false,', source)
+        self.assertIn('state.sharedReadOnly = Boolean(payload.read_only);', source)
+        self.assertIn('id="shaft-shared-readonly-notice"', template)
+        self.assertIn('if (state.sharedReadOnly) {', source)
+        self.assertIn('input.readOnly = readOnly;', source)
+        base_template = (ROOT / 'app' / 'templates' / 'common' / 'base.html').read_text(encoding='utf-8')
+        self.assertIn('not (allow_anonymous_shaft_share | default(false))', base_template)
+        self.assertIn("setPage('rotation');", source)
+        self.assertIn('await openSharedAxisFromUrl();', source)
+
     def test_plaza_uses_equal_columns_snapshot_upload_and_my_axis_filters(self) -> None:
         source = SHAFT_JS.read_text(encoding='utf-8')
         template = SHAFT_TEMPLATE.read_text(encoding='utf-8')
@@ -1404,6 +1442,27 @@ class ShaftFrontendTimelineLayoutTestCase(unittest.TestCase):
         self.assertIn('const result = freshResult();', save_body)
         self.assertIn('result,', save_body)
         self.assertLess(save_body.index('await runSimulation();'), save_body.index('const payload = {'))
+
+    def test_axis_save_as_requires_a_changed_title(self) -> None:
+        source = SHAFT_JS.read_text(encoding='utf-8')
+        template = SHAFT_TEMPLATE.read_text(encoding='utf-8')
+
+        self.assertIn('id="shaft-save-as-btn"', template)
+        self.assertIn('function canSaveAxisAs() {', source)
+        self.assertIn('currentTitle !== normalizedAxisTitle(state.savedAxisTitle)', source)
+        self.assertIn('async function saveAxisAsNamedCopy() {', source)
+        self.assertIn("$('shaft-save-as-btn').addEventListener('click', saveAxisAsNamedCopy);", source)
+
+    def test_iloy_lucid_dream_can_move_from_foreground_to_background(self) -> None:
+        catalog = load_shaft_catalog()
+        lucid_dream = next(
+            action for action in catalog['actions']
+            if action['id'] == 'action_iloy_lucid_dream'
+        )
+
+        self.assertEqual(lucid_dream['name'], '清明梦')
+        self.assertEqual(lucid_dream['action_type'], '普攻')
+        self.assertTrue(lucid_dream['can_background_override'])
 
     def test_market_dislike_uses_authenticated_toggle_and_refreshes_market(self) -> None:
         source = SHAFT_JS.read_text(encoding='utf-8')
