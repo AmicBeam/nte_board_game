@@ -21,6 +21,7 @@ env/
 
 # Local environment files
 .env
+scripts/deploy_windows_app.local.env
 
 # Local database and logs
 *.db
