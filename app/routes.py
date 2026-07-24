@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import threading
+import time
 from pathlib import Path
 
 from flask import Blueprint, g, jsonify, redirect, render_template, request, url_for
@@ -56,6 +57,9 @@ logger = get_logger('nte.routes')
 main_bp = Blueprint('main', __name__)
 _kongmu_plan_locks_guard = threading.Lock()
 _kongmu_plan_locks: dict[str, threading.Lock] = {}
+_shaft_market_search_guard = threading.Lock()
+_shaft_market_search_times: dict[str, float] = {}
+SHAFT_MARKET_SEARCH_INTERVAL_SECONDS = 3.0
 
 
 def _request_source_key() -> str:
@@ -77,6 +81,35 @@ def _shaft_visitor_key(payload: dict[str, object] | None = None) -> str:
         or request.args.get('visitor_key')
         or str((payload or {}).get('visitor_key') or '')
     )
+
+
+def _shaft_market_search_source_key(player) -> str:
+    if player is not None:
+        return f'player:{player.id}'
+    visitor_key = _shaft_visitor_key().strip()
+    if visitor_key:
+        return f'visitor:{visitor_key[:128]}'
+    return f'ip:{_request_source_key()}'
+
+
+def _shaft_market_search_retry_after(source_key: str) -> float:
+    now = time.monotonic()
+    with _shaft_market_search_guard:
+        last_search_at = _shaft_market_search_times.get(source_key)
+        if last_search_at is not None:
+            retry_after = SHAFT_MARKET_SEARCH_INTERVAL_SECONDS - (now - last_search_at)
+            if retry_after > 0:
+                return retry_after
+        _shaft_market_search_times[source_key] = now
+        if len(_shaft_market_search_times) > 2048:
+            cutoff = now - SHAFT_MARKET_SEARCH_INTERVAL_SECONDS * 10
+            stale_keys = [
+                key for key, searched_at in _shaft_market_search_times.items()
+                if searched_at < cutoff
+            ]
+            for key in stale_keys:
+                _shaft_market_search_times.pop(key, None)
+    return 0.0
 
 
 def _request_int_arg(name: str, default: int) -> int:
@@ -336,13 +369,26 @@ def api_shaft_catalog():
 
 @main_bp.get('/api/shaft/market')
 def api_shaft_market():
+    player = _optional_current_player()
+    query_text = str(request.args.get('q', '')).strip()
+    if query_text:
+        retry_after = _shaft_market_search_retry_after(
+            _shaft_market_search_source_key(player)
+        )
+        if retry_after > 0:
+            return jsonify({
+                'error': '搜索操作过于频繁，请稍候。',
+                'code': 'shaft_market_search_rate_limited',
+                'retry_after_ms': max(1, int(retry_after * 1000) + 1),
+            }), 429
     try:
         return jsonify(list_shaft_market(
             character_ids=[value.strip() for value in request.args.getlist('character_id') if value.strip()][:4],
             sort=str(request.args.get('sort', 'dps')).strip(),
+            query_text=query_text,
             page=_request_int_arg('page', 1),
             page_size=_request_int_arg('page_size', 20),
-            player=_optional_current_player(),
+            player=player,
             visitor_key=_shaft_visitor_key(),
         ))
     except AppError as exc:
@@ -478,6 +524,7 @@ def api_shaft_my_axes():
             g.current_player,
             character_ids=[value.strip() for value in request.args.getlist('character_id') if value.strip()][:4],
             sort=str(request.args.get('sort', 'new')).strip(),
+            query_text=str(request.args.get('q', '')).strip(),
         ))
     except AppError as exc:
         return jsonify({'error': str(exc)}), 400
@@ -494,6 +541,7 @@ def api_shaft_my_favorites():
             g.current_player,
             character_ids=[value.strip() for value in request.args.getlist('character_id') if value.strip()][:4],
             sort=str(request.args.get('sort', 'new')).strip(),
+            query_text=str(request.args.get('q', '')).strip(),
         ))
     except AppError as exc:
         return jsonify({'error': str(exc)}), 400

@@ -30,10 +30,13 @@ class ShaftBuffStatusUiTestCase(unittest.TestCase):
         self.assertNotIn('id="shaft-run-btn"', template)
         self.assertNotIn("$('shaft-run-btn')", source)
 
-    def test_shaft_source_version_is_1_0_0(self) -> None:
+    def test_shaft_source_version_is_1_0_1(self) -> None:
         catalog = get_shaft_catalog_payload()
+        template = SHAFT_TEMPLATE.read_text(encoding='utf-8')
 
-        self.assertEqual(catalog['source_meta']['version_label'], '异环云配队 1.0.0')
+        self.assertEqual(catalog['source_meta']['version_label'], '异环云配队 1.0.1')
+        self.assertIn('{% block title %}异环云配队——排轴计算{% endblock %}', template)
+        self.assertIn('<h1>异环云配队——排轴计算</h1>', template)
 
     def test_unimplemented_awakenings_are_marked_in_tooltips(self) -> None:
         catalog = get_shaft_catalog_payload()
@@ -272,15 +275,28 @@ class ShaftFrontendTimelineLayoutTestCase(unittest.TestCase):
         self.assertIn('id="shaft-preview-btn"', template)
         self.assertIn('id="shaft-axis-preview-dialog"', template)
         self.assertIn('id="shaft-axis-preview-viewport"', template)
+        self.assertIn('id="shaft-axis-preview-meta"', template)
+        self.assertIn('id="shaft-axis-preview-cancel-btn"', template)
+        self.assertIn('id="shaft-axis-preview-save-btn"', template)
         self.assertIn('function groupedPreviewActions', source)
         self.assertIn('return startsForeground(step, action);', source)
         self.assertIn(".join('+')", source)
         self.assertIn('previous.durationTicks += detail.durationTicks', source)
         self.assertIn('function handleAxisPreviewWheel', source)
         self.assertIn('function previewMinimumTickPx', source)
+        self.assertIn('async function openMarketAxisPreview(axisId, trigger)', source)
+        self.assertIn("if (card.dataset.axisSource === 'market')", source)
+        self.assertIn('await openMarketAxisPreview(Number(card.dataset.axisId), card)', source)
+        self.assertIn('function marketAxisLocalTitle(payload)', source)
+        self.assertIn('const suffix = ` - ${author}`;', source)
+        self.assertIn('async function saveMarketAxisToLocal()', source)
+        self.assertIn('title: marketAxisLocalTitle(payload)', source)
+        self.assertIn('axis: payload.axis', source)
+        self.assertIn('result: payload.result', source)
         self.assertNotIn('shaft-buff-trigger-line', source[source.index('function renderAxisPreview'):source.index('function fitAxisPreview')])
         self.assertNotIn('shaft-reaction-damage-marker', source[source.index('function renderAxisPreview'):source.index('function fitAxisPreview')])
         self.assertIn('.shaft-axis-preview-bubble', css)
+        self.assertIn('.shaft-axis-preview-footer', css)
 
     def test_timeline_length_uses_foreground_and_clips_after_one_second_padding(self) -> None:
         source = SHAFT_JS.read_text(encoding='utf-8')
@@ -1420,6 +1436,12 @@ class ShaftFrontendTimelineLayoutTestCase(unittest.TestCase):
         self.assertIn('id="shaft-my-axis-scope"', template)
         self.assertIn('id="shaft-my-character-filter-trigger"', template)
         self.assertIn('id="shaft-my-axis-sort"', template)
+        self.assertIn('id="shaft-my-axis-query"', template)
+        self.assertIn('id="shaft-market-query"', template)
+        self.assertIn(
+            '我的排轴 <span class="shaft-axis-total" id="shaft-my-axis-total">0</span>',
+            template,
+        )
         self.assertIn('state.myAxisCharacterIds.forEach', source)
         market_card = source[source.index('function marketCardHtml'):source.index('function renderMarketList')]
         self.assertIn("${axis.loop_enabled ? '循环' : '单轮'}", market_card)
@@ -1428,8 +1450,37 @@ class ShaftFrontendTimelineLayoutTestCase(unittest.TestCase):
         self.assertIn('<span>环合 ${formatNumber(axis.harmony_damage || 0)}</span>', market_card)
         self.assertIn('data-like-axis="${axis.id}"', market_card)
         self.assertIn('data-dislike-axis="${axis.id}"', market_card)
+        self.assertIn('data-unpublish-axis="${axis.id}"', market_card)
+        self.assertIn('member.character_avatar', market_card)
+        self.assertIn('shaft-market-character', market_card)
+        self.assertIn('descriptionCharacters.slice(0, 64)', market_card)
+        self.assertIn("descriptionPreview || '暂无备注'", market_card)
+        self.assertIn('min-height: 1.4em;', css)
+        self.assertIn('text-overflow: ellipsis;', css)
+        self.assertIn('white-space: nowrap;', css)
+        self.assertIn('data-publish-mode="update"', market_card)
+        self.assertIn('publishedSnapshotId', market_card)
         self.assertIn('踩 ${axis.dislike_count || 0}', market_card)
         self.assertNotIn('<span>倾陷 ', market_card)
+
+        self.assertIn('async function unpublishAxis(axisId, title, button)', source)
+        self.assertIn("const unpublishButton = event.target.closest('[data-unpublish-axis]');", source)
+        self.assertIn('公开快照将从广场移除', source)
+        self.assertIn('私有原轴仍保留', source)
+        self.assertIn("params.set('q', state.myAxisQuery);", source)
+        self.assertIn("params.set('q', state.marketQuery);", source)
+        self.assertIn('const MARKET_SEARCH_INTERVAL_MS = 3000;', source)
+        self.assertIn('const MARKET_SEARCH_EDIT_DELAY_MS = 600;', source)
+        self.assertIn('function renderMarketSearchLoading()', source)
+        self.assertIn("list.setAttribute('aria-busy', 'true');", source)
+        self.assertIn('shaft_market_search_rate_limited', source)
+        self.assertIn('error.payload.retry_after_ms', source)
+        self.assertIn("$('shaft-my-axis-total').textContent", source)
+        self.assertIn('MARKET_SEARCH_EDIT_DELAY_MS,', source)
+        market_query_listener = source[source.index("$('shaft-market-query').addEventListener('input'"):]
+        market_query_listener = market_query_listener[:market_query_listener.index("\n    });") + 8]
+        self.assertNotIn('renderMarketSearchLoading()', market_query_listener)
+        self.assertIn('.shaft-search-loading', css)
 
     def test_axis_save_submits_fresh_local_result_without_server_simulation(self) -> None:
         source = SHAFT_JS.read_text(encoding='utf-8')

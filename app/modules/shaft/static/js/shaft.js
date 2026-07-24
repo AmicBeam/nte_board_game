@@ -67,6 +67,8 @@
   const TIMELINE_AUTO_SCROLL_EDGE_PX = 52;
   const TIMELINE_AUTO_SCROLL_MAX_PX = 24;
   const SIMULATION_DEBOUNCE_MS = 320;
+  const MARKET_SEARCH_INTERVAL_MS = 3000;
+  const MARKET_SEARCH_EDIT_DELAY_MS = 600;
   const DRAFT_STORAGE_KEY = 'shaft_axis_draft_v1';
   const TIMELINE_FIXED_PERSONAL_RESOURCES = {
     char_a01c39f576: ['臆想'],
@@ -122,9 +124,15 @@
     marketPage: 1,
     marketHasMore: false,
     marketCharacterIds: [],
+    marketQuery: '',
+    marketSearchTimer: 0,
+    marketLastSearchAt: 0,
+    marketRequestId: 0,
     myAxisFilter: 'mine',
     myAxisCharacterIds: [],
     myAxisSort: 'new',
+    myAxisQuery: '',
+    myAxisSearchTimer: 0,
     toastTimer: 0,
     savedAxisId: null,
     savedAxisTitle: '',
@@ -159,6 +167,8 @@
       modifierKey: 'all_dmg',
     },
     previewTickPx: 0,
+    axisPreviewPayload: null,
+    axisPreviewSaving: false,
   };
 
   function $(id) {
@@ -3069,11 +3079,14 @@
   }
 
   function previewDetails() {
-    if (!state.timelineDisplayDetails.length) {
+    const previewPayload = state.axisPreviewPayload;
+    if (!previewPayload && !state.timelineDisplayDetails.length) {
       renderTimeline();
     }
-    const stepById = new Map((state.axis?.steps || []).map((step) => [step.id, step]));
-    return state.timelineDisplayDetails
+    const previewAxis = previewPayload?.axis || state.axis;
+    const sourceDetails = previewPayload?.result?.details || state.timelineDisplayDetails;
+    const stepById = new Map((previewAxis?.steps || []).map((step) => [step.id, step]));
+    return sourceDetails
       .filter((detail) => {
         const step = stepById.get(detail.step_id) || { action_id: detail.action_id };
         const action = actionForStep(step);
@@ -3158,7 +3171,9 @@
         </span>
       `);
     }
-    const tracks = (state.axis?.team || []).slice(0, 4).map((member) => {
+    const previewAxis = state.axisPreviewPayload?.axis || state.axis;
+    const previewTeam = state.axisPreviewPayload?.team || previewAxis?.team || [];
+    const tracks = previewTeam.slice(0, 4).map((member) => {
       const color = SLOT_COLORS[Number(member.slot) % SLOT_COLORS.length];
       const bubbles = groupedPreviewActions(details, member.slot).map((group) => {
         const joinedName = group.names.filter(Boolean).join('+');
@@ -3203,11 +3218,20 @@
     $('shaft-axis-preview-viewport').scrollLeft = 0;
   }
 
-  function openAxisPreview(trigger = null) {
+  function openAxisPreview(trigger = null, payload = null) {
     const dialog = $('shaft-axis-preview-dialog');
     if (!dialog || dialog.open) {
       return;
     }
+    state.axisPreviewPayload = payload;
+    const marketPreview = Boolean(payload);
+    const ownerName = String(payload?.owner?.nickname || payload?.owner?.player_uid || '').trim();
+    $('shaft-axis-preview-title').textContent = marketPreview ? String(payload.title || '未命名排轴') : '动作轴预览';
+    $('shaft-axis-preview-meta').hidden = !marketPreview;
+    $('shaft-axis-preview-meta').textContent = marketPreview
+      ? `${ownerName || '未知作者'} · ${String(payload.description || '').trim() || '暂无备注'}`
+      : '';
+    $('shaft-axis-preview-footer').hidden = !marketPreview;
     dialog._returnFocus = trigger;
     dialog.showModal();
     state.previewTickPx = 0;
@@ -3221,8 +3245,69 @@
     }
     const returnFocus = dialog._returnFocus;
     dialog.close();
+    state.axisPreviewPayload = null;
+    state.axisPreviewSaving = false;
+    $('shaft-axis-preview-save-btn').disabled = false;
+    $('shaft-axis-preview-save-btn').textContent = '保存到本地';
     if (returnFocus?.isConnected) {
       returnFocus.focus();
+    }
+  }
+
+  function marketAxisLocalTitle(payload) {
+    const author = String(payload?.owner?.nickname || payload?.owner?.player_uid || '作者').trim() || '作者';
+    const suffix = ` - ${author}`;
+    const maxBaseLength = Math.max(1, 80 - Array.from(suffix).length);
+    const base = Array.from(String(payload?.title || '未命名排轴').trim() || '未命名排轴')
+      .slice(0, maxBaseLength)
+      .join('');
+    return `${base}${suffix}`;
+  }
+
+  async function openMarketAxisPreview(axisId, trigger) {
+    try {
+      setStatus('读取广场排轴');
+      const payload = await shaftRequest(`/api/shaft/axes/${axisId}`);
+      openAxisPreview(trigger, payload);
+      setStatus('只读预览');
+    } catch (error) {
+      setStatus(error.message, 'error');
+    }
+  }
+
+  async function saveMarketAxisToLocal() {
+    const payload = state.axisPreviewPayload;
+    if (!payload || state.axisPreviewSaving) {
+      return;
+    }
+    if (!getToken()) {
+      persistAxisDraft();
+      redirectToLogin();
+      return;
+    }
+    state.axisPreviewSaving = true;
+    const button = $('shaft-axis-preview-save-btn');
+    button.disabled = true;
+    button.textContent = '保存中';
+    try {
+      const saved = await shaftRequest('/api/shaft/axes', {
+        method: 'POST',
+        body: JSON.stringify({
+          title: marketAxisLocalTitle(payload),
+          description: String(payload.description || ''),
+          axis: payload.axis,
+          result: payload.result,
+        }),
+      }, { authRequired: true });
+      await loadMyAxes();
+      closeAxisPreview();
+      setStatus('已保存到本地');
+      showToast(`已保存为「${saved.title}」`);
+    } catch (error) {
+      state.axisPreviewSaving = false;
+      button.disabled = false;
+      button.textContent = '保存到本地';
+      setStatus(error.message, 'error');
     }
   }
 
@@ -4653,8 +4738,14 @@
   }
 
   function marketCardHtml(axis, compact, source = compact ? 'mine' : 'market') {
-    const team = (axis.team || []).map((member) => member.character_name).join(' / ');
+    const team = axis.team || [];
     const mine = source === 'mine';
+    const publishedSnapshotId = Number(axis.published_snapshot_id || 0);
+    const description = String(axis.description || '').trim();
+    const descriptionCharacters = Array.from(description);
+    const descriptionPreview = descriptionCharacters.length > 64
+      ? `${descriptionCharacters.slice(0, 64).join('')}…`
+      : description;
     return `
       <article class="shaft-market-card" data-axis-id="${axis.id}" data-axis-source="${source}">
         <div class="shaft-market-card-title">
@@ -4664,7 +4755,15 @@
             ${mine ? '<span>我的轴</span>' : ''}
           </div>
         </div>
-        <div class="shaft-market-team">${escapeHtml(team)}</div>
+        <div class="shaft-market-team" aria-label="队伍角色">
+          ${team.map((member) => `
+            <span class="shaft-market-character">
+              <img src="${escapeHtml(member.character_avatar || '')}" alt="${escapeHtml(member.character_name || '')}" loading="lazy" decoding="async">
+              <b>${escapeHtml(member.character_name || '')}</b>
+            </span>
+          `).join('')}
+        </div>
+        <p class="shaft-market-description ${description ? '' : 'is-empty'}" title="${escapeHtml(description)}">${escapeHtml(descriptionPreview || '暂无备注')}</p>
         <div class="shaft-market-stats">
           <span>DPS ${formatNumber(axis.dps || 0)}</span>
           <span>轴长 ${formatNumber(axis.duration_seconds || 0, 1)}s</span>
@@ -4676,7 +4775,9 @@
           <div class="shaft-market-actions">
             <button class="secondary-btn ${axis.liked ? 'active' : ''}" data-like-axis="${axis.id}" type="button">赞 ${axis.like_count || 0}</button>
             <button class="secondary-btn shaft-dislike-btn ${axis.disliked ? 'active' : ''}" data-dislike-axis="${axis.id}" type="button">踩 ${axis.dislike_count || 0}</button>
-            ${axis.is_owner ? '<span class="shaft-own-axis-note">自己的排轴</span>' : `<button class="secondary-btn ${axis.favorited ? 'active' : ''}" data-favorite-axis="${axis.id}" type="button">藏 ${axis.favorite_count || 0}</button>`}
+            ${axis.is_owner
+              ? `<span class="shaft-own-axis-note">自己的排轴</span><button class="secondary-btn danger-btn" data-unpublish-axis="${axis.id}" data-axis-title="${escapeHtml(axis.title)}" type="button">下架</button>`
+              : `<button class="secondary-btn ${axis.favorited ? 'active' : ''}" data-favorite-axis="${axis.id}" type="button">藏 ${axis.favorite_count || 0}</button>`}
           </div>
         `}
         ${compact && mine ? `
@@ -4684,7 +4785,9 @@
             <button class="secondary-btn" data-backup-axis="${axis.id}" type="button">备份</button>
             <button class="secondary-btn" data-share-axis="${axis.id}" type="button">分享</button>
             <button class="secondary-btn danger-btn" data-delete-axis="${axis.id}" data-axis-title="${escapeHtml(axis.title)}" type="button">删除</button>
-            <button class="primary-btn shaft-publish-axis-btn" data-publish-axis="${axis.id}" type="button">上传</button>
+            ${publishedSnapshotId
+              ? `<button class="primary-btn shaft-publish-axis-btn" data-publish-axis="${axis.id}" data-publish-mode="update" type="button">更新</button><button class="secondary-btn danger-btn" data-unpublish-axis="${publishedSnapshotId}" data-axis-title="${escapeHtml(axis.title)}" type="button">下架</button>`
+              : `<button class="primary-btn shaft-publish-axis-btn" data-publish-axis="${axis.id}" data-publish-mode="create" type="button">上传</button>`}
           </div>
         ` : ''}
         ${compact && !mine ? `
@@ -6968,19 +7071,45 @@
     return saved;
   }
 
+  function renderMarketSearchLoading() {
+    const list = $('shaft-market-list');
+    list.setAttribute('aria-busy', 'true');
+    list.innerHTML = '<div class="shaft-empty shaft-search-loading">搜索中</div>';
+    $('shaft-market-more-btn').hidden = true;
+  }
+
   async function loadMarket(reset) {
+    window.clearTimeout(state.marketSearchTimer);
     if (reset) {
       state.marketPage = 1;
       state.marketItems = [];
+    }
+    if (state.marketQuery) {
+      const retryAfter = MARKET_SEARCH_INTERVAL_MS - (Date.now() - state.marketLastSearchAt);
+      if (retryAfter > 0) {
+        renderMarketSearchLoading();
+        state.marketSearchTimer = window.setTimeout(() => loadMarket(true), retryAfter);
+        return;
+      }
+      state.marketLastSearchAt = Date.now();
+      renderMarketSearchLoading();
     }
     const params = new URLSearchParams({
       sort: $('shaft-market-sort').value || 'dps',
       page: String(state.marketPage),
       page_size: '12',
     });
+    if (state.marketQuery) {
+      params.set('q', state.marketQuery);
+    }
     state.marketCharacterIds.forEach((characterId) => params.append('character_id', characterId));
+    const requestId = state.marketRequestId + 1;
+    state.marketRequestId = requestId;
     try {
       const payload = await shaftRequest(`/api/shaft/market?${params.toString()}`);
+      if (requestId !== state.marketRequestId) {
+        return;
+      }
       state.marketItems = reset ? payload.items : state.marketItems.concat(payload.items || []);
       state.marketHasMore = Boolean(payload.has_more);
       if (state.marketHasMore) {
@@ -6988,21 +7117,40 @@
       }
       renderMarketList();
     } catch (error) {
+      if (requestId !== state.marketRequestId) {
+        return;
+      }
+      if (error.status === 429 && error.payload?.code === 'shaft_market_search_rate_limited') {
+        const retryAfter = Math.max(1, Number(error.payload.retry_after_ms || MARKET_SEARCH_INTERVAL_MS));
+        state.marketLastSearchAt = Date.now() - (MARKET_SEARCH_INTERVAL_MS - retryAfter);
+        renderMarketSearchLoading();
+        state.marketSearchTimer = window.setTimeout(() => loadMarket(true), retryAfter);
+        return;
+      }
       $('shaft-market-list').innerHTML = `<div class="shaft-empty">${escapeHtml(error.message)}</div>`;
+    } finally {
+      if (requestId === state.marketRequestId && !$('shaft-market-list').querySelector('.shaft-search-loading')) {
+        $('shaft-market-list').removeAttribute('aria-busy');
+      }
     }
   }
 
   async function loadMyAxes() {
     if (!getToken()) {
+      $('shaft-my-axis-total').textContent = '0';
       $('shaft-my-axis-list').innerHTML = '<div class="shaft-empty">登录后显示</div>';
       return;
     }
     try {
       const favorites = state.myAxisFilter === 'favorites';
       const params = new URLSearchParams({ sort: state.myAxisSort });
+      if (state.myAxisQuery) {
+        params.set('q', state.myAxisQuery);
+      }
       state.myAxisCharacterIds.forEach((characterId) => params.append('character_id', characterId));
       const endpoint = favorites ? '/api/shaft/me/favorites' : '/api/shaft/me/axes';
       const payload = await shaftRequest(`${endpoint}?${params.toString()}`);
+      $('shaft-my-axis-total').textContent = String(Math.max(0, Number(payload.total || 0)));
       $('shaft-my-axis-list').innerHTML = (payload.items || [])
         .map((axis) => marketCardHtml(axis, true, favorites ? 'favorites' : 'mine'))
         .join('') || `<div class="shaft-empty">${favorites ? '暂无收藏排轴' : '暂无保存排轴'}</div>`;
@@ -7010,6 +7158,7 @@
       if (String(error.message || '').includes('未登录') || String(error.message || '').includes('token')) {
         clearToken();
         renderLoginState();
+        $('shaft-my-axis-total').textContent = '0';
         $('shaft-my-axis-list').innerHTML = '<div class="shaft-empty">登录后显示</div>';
         return;
       }
@@ -7211,24 +7360,57 @@
       redirectToLogin();
       return;
     }
-    const originalLabel = button?.textContent || '上传';
+    const updating = button?.dataset.publishMode === 'update';
+    const originalLabel = button?.textContent || (updating ? '更新' : '上传');
     if (button) {
       button.disabled = true;
-      button.textContent = '上传中';
+      button.textContent = updating ? '更新中' : '上传中';
     }
     try {
-      setStatus('上传快照中');
+      setStatus(updating ? '更新公开快照中' : '上传快照中');
       const snapshot = await shaftRequest(
         `/api/shaft/axes/${axisId}/publish`,
         { method: 'POST' },
         { authRequired: true },
       );
-      setStatus('已上传');
-      showToast(`「${snapshot.title}」的快照已上传`);
+      setStatus(updating ? '已更新' : '已上传');
+      showToast(`「${snapshot.title}」的公开快照已${updating ? '更新' : '上传'}`);
       await loadMarket(true);
+      await loadMyAxes();
     } catch (error) {
       setStatus(error.message, 'error');
     } finally {
+      if (button?.isConnected) {
+        button.disabled = false;
+        button.textContent = originalLabel;
+      }
+    }
+  }
+
+  async function unpublishAxis(axisId, title, button) {
+    if (!getToken()) {
+      persistAxisDraft();
+      redirectToLogin();
+      return;
+    }
+    const label = title ? `「${title}」` : `#${axisId}`;
+    if (!window.confirm(`确定下架 ${label} 吗？公开快照将从广场移除，“我的排轴”中的原轴会保留。`)) {
+      return;
+    }
+    const originalLabel = button?.textContent || '下架';
+    if (button) {
+      button.disabled = true;
+      button.textContent = '下架中';
+    }
+    try {
+      setStatus('下架中');
+      await shaftRequest(`/api/shaft/axes/${axisId}`, { method: 'DELETE' }, { authRequired: true });
+      await loadMarket(true);
+      await loadMyAxes();
+      setStatus('已下架');
+      showToast(`${label}已从广场下架，私有原轴仍保留`);
+    } catch (error) {
+      setStatus(error.message, 'error');
       if (button?.isConnected) {
         button.disabled = false;
         button.textContent = originalLabel;
@@ -7317,6 +7499,16 @@
       await publishAxis(Number(publishButton.dataset.publishAxis), publishButton);
       return;
     }
+    const unpublishButton = event.target.closest('[data-unpublish-axis]');
+    if (unpublishButton) {
+      event.stopPropagation();
+      await unpublishAxis(
+        Number(unpublishButton.dataset.unpublishAxis),
+        unpublishButton.dataset.axisTitle || '',
+        unpublishButton,
+      );
+      return;
+    }
     const backupButton = event.target.closest('[data-backup-axis]');
     if (backupButton) {
       event.stopPropagation();
@@ -7359,7 +7551,11 @@
     }
     const card = event.target.closest('[data-axis-id]');
     if (card) {
-      await loadAxis(Number(card.dataset.axisId), card.dataset.axisSource);
+      if (card.dataset.axisSource === 'market') {
+        await openMarketAxisPreview(Number(card.dataset.axisId), card);
+      } else {
+        await loadAxis(Number(card.dataset.axisId), card.dataset.axisSource);
+      }
     }
   }
 
@@ -7397,6 +7593,8 @@
     $('shaft-delete-step-btn').addEventListener('click', removeSelectedSteps);
     $('shaft-preview-btn').addEventListener('click', (event) => openAxisPreview(event.currentTarget));
     $('shaft-axis-preview-fit-btn').addEventListener('click', fitAxisPreview);
+    $('shaft-axis-preview-cancel-btn').addEventListener('click', closeAxisPreview);
+    $('shaft-axis-preview-save-btn').addEventListener('click', saveMarketAxisToLocal);
     $('shaft-axis-preview-dialog').addEventListener('click', (event) => {
       if (event.target === event.currentTarget || event.target.closest('[data-close-axis-preview]')) {
         closeAxisPreview();
@@ -7483,6 +7681,20 @@
     $('shaft-my-axis-sort').addEventListener('change', (event) => {
       state.myAxisSort = event.target.value || 'new';
       loadMyAxes();
+    });
+    $('shaft-my-axis-query').addEventListener('input', (event) => {
+      state.myAxisQuery = String(event.target.value || '').trim();
+      window.clearTimeout(state.myAxisSearchTimer);
+      state.myAxisSearchTimer = window.setTimeout(loadMyAxes, 180);
+    });
+    $('shaft-market-query').addEventListener('input', (event) => {
+      state.marketQuery = String(event.target.value || '').trim();
+      window.clearTimeout(state.marketSearchTimer);
+      state.marketRequestId += 1;
+      state.marketSearchTimer = window.setTimeout(
+        () => loadMarket(true),
+        MARKET_SEARCH_EDIT_DELAY_MS,
+      );
     });
     $('shaft-market-sort').addEventListener('change', () => loadMarket(true));
     const addBuffButton = $('shaft-add-buff-btn');
